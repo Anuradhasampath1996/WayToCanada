@@ -1,8 +1,12 @@
 <?php
 
+use App\Http\Controllers\FileUploadController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Artisan;
+
+// ── Dev upload form (local only) ──────────────────────────────────────────────
+Route::get('/upload', [FileUploadController::class, 'showForm'])->name('upload.form');
 
 Route::get('/', function () {
     $checks = [];

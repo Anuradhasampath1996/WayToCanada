@@ -1,110 +1,16 @@
+version: "3.8"
+
 services:
-  # ── PHP/Laravel ────────────────────────────────────────────
-  app:
-    build:
-      context: ./backend
-      dockerfile: ../docker/php/Dockerfile
-    container_name: wtc_app
-    restart: unless-stopped
-    working_dir: /var/www
-    volumes:
-      - ./backend:/var/www
+  localstack:
+    container_name: localstack_main
+    image: localstack/localstack
+    ports:
+      - "127.0.0.1:4566:4566"            # LocalStack Gateway
+      - "127.0.0.1:4510-4559:4510-4559"  # external services port range
     environment:
-      DB_CWS_HOST: db_cws
-      DB_LMS_HOST: db_lms
-      DB_LEGAL_HOST: db_legal
-    depends_on:
-      - db_cws
-      - db_lms
-      - db_legal
-    networks:
-      - wtc_network
-
-  # ── Nginx ──────────────────────────────────────────────────
-  nginx:
-    image: nginx:1.25-alpine
-    container_name: wtc_nginx
-    restart: unless-stopped
-    ports:
-      - "8000:80"
+      - SERVICES=s3                      # Apita dhenata ona S3 vitharayi
+      - DEBUG=1
+      - DOCKER_HOST=unix:///var/run/docker.sock
     volumes:
-      - ./backend:/var/www
-      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf
-    depends_on:
-      - app
-    networks:
-      - wtc_network
-
-  # ── React Dev Server ───────────────────────────────────────
-  frontend:
-    image: node:20-alpine
-    container_name: wtc_frontend
-    restart: unless-stopped
-    working_dir: /app
-    volumes:
-      - ./frontend:/app
-    ports:
-      - "3000:3000"
-    command: sh -c "npm install && npm run dev -- --host"
-    networks:
-      - wtc_network
-
-  # ── db_cws (Users, Auth, CWS) ──────────────────────────────
-  db_cws:
-    image: mysql:8.0
-    container_name: wtc_db_cws
-    restart: unless-stopped
-    environment:
-      MYSQL_ROOT_PASSWORD: ${DB_CWS_ROOT_PASSWORD:-secret}
-      MYSQL_DATABASE: db_cws
-      MYSQL_USER: ${DB_CWS_USERNAME:-wtc_user}
-      MYSQL_PASSWORD: ${DB_CWS_PASSWORD:-secret}
-    ports:
-      - "3307:3306"
-    volumes:
-      - db_cws_data:/var/lib/mysql
-    networks:
-      - wtc_network
-
-  # ── db_lms (Learning Management System) ───────────────────
-  db_lms:
-    image: mysql:8.0
-    container_name: wtc_db_lms
-    restart: unless-stopped
-    environment:
-      MYSQL_ROOT_PASSWORD: ${DB_LMS_ROOT_PASSWORD:-secret}
-      MYSQL_DATABASE: db_lms
-      MYSQL_USER: ${DB_LMS_USERNAME:-wtc_user}
-      MYSQL_PASSWORD: ${DB_LMS_PASSWORD:-secret}
-    ports:
-      - "3308:3306"
-    volumes:
-      - db_lms_data:/var/lib/mysql
-    networks:
-      - wtc_network
-
-  # ── db_legal (AI Legal Research) ────────────────────────
-  db_legal:
-    image: mysql:8.0
-    container_name: wtc_db_legal
-    restart: unless-stopped
-    environment:
-      MYSQL_ROOT_PASSWORD: ${DB_LEGAL_ROOT_PASSWORD:-secret}
-      MYSQL_DATABASE: db_legal
-      MYSQL_USER: ${DB_LEGAL_USERNAME:-wtc_user}
-      MYSQL_PASSWORD: ${DB_LEGAL_PASSWORD:-secret}
-    ports:
-      - "3309:3306"
-    volumes:
-      - db_legal_data:/var/lib/mysql
-    networks:
-      - wtc_network
-
-volumes:
-  db_cws_data:
-  db_lms_data:
-  db_legal_data:
-
-networks:
-  wtc_network:
-    driver: bridge
+      - "${LOCALSTACK_VOLUME_DIR:-./volume}:/var/lib/localstack"
+      - "/var/run/docker.sock:/var/run/docker.sock"

@@ -1,7 +1,6 @@
 <?php
 
 use Illuminate\Support\Str;
-use Pdo\Mysql;
 
 return [
 
@@ -48,66 +47,51 @@ return [
         // CWS (Consultant Workspace) — default connection, holds users/auth
         // ---------------------------------------------------------------
         'cws' => [
-            'driver'         => 'mysql',
-            'host'           => env('DB_CWS_HOST', '127.0.0.1'),
-            'port'           => env('DB_CWS_PORT', '3306'),
-            'database'       => env('DB_CWS_DATABASE', 'db_cws'),
-            'username'       => env('DB_CWS_USERNAME', 'root'),
-            'password'       => env('DB_CWS_PASSWORD', ''),
-            'unix_socket'    => env('DB_SOCKET', ''),
-            'charset'        => 'utf8mb4',
-            'collation'      => 'utf8mb4_unicode_ci',
-            'prefix'         => '',
+            'driver'   => 'pgsql',
+            'host'     => env('DB_CWS_HOST', '127.0.0.1'),
+            'port'     => env('DB_CWS_PORT', '5432'),
+            'database' => env('DB_CWS_DATABASE', 'db_cws'),
+            'username' => env('DB_CWS_USERNAME', 'postgres'),
+            'password' => env('DB_CWS_PASSWORD', ''),
+            'charset'  => 'utf8',
+            'prefix'   => '',
             'prefix_indexes' => true,
-            'strict'         => true,
-            'engine'         => null,
-            'options'        => extension_loaded('pdo_mysql') ? array_filter([
-                (PHP_VERSION_ID >= 80500 ? Mysql::ATTR_SSL_CA : PDO::MYSQL_ATTR_SSL_CA) => env('MYSQL_ATTR_SSL_CA'),
-            ]) : [],
+            'search_path' => 'public',
+            'sslmode'  => 'prefer',
         ],
 
         // ---------------------------------------------------------------
         // LMS — Learning Management System
         // ---------------------------------------------------------------
         'lms' => [
-            'driver'         => 'mysql',
-            'host'           => env('DB_LMS_HOST', '127.0.0.1'),
-            'port'           => env('DB_LMS_PORT', '3306'),
-            'database'       => env('DB_LMS_DATABASE', 'db_lms'),
-            'username'       => env('DB_LMS_USERNAME', 'root'),
-            'password'       => env('DB_LMS_PASSWORD', ''),
-            'unix_socket'    => env('DB_SOCKET', ''),
-            'charset'        => 'utf8mb4',
-            'collation'      => 'utf8mb4_unicode_ci',
-            'prefix'         => '',
+            'driver'   => 'pgsql',
+            'host'     => env('DB_LMS_HOST', '127.0.0.1'),
+            'port'     => env('DB_LMS_PORT', '5432'),
+            'database' => env('DB_LMS_DATABASE', 'db_lms'),
+            'username' => env('DB_LMS_USERNAME', 'postgres'),
+            'password' => env('DB_LMS_PASSWORD', ''),
+            'charset'  => 'utf8',
+            'prefix'   => '',
             'prefix_indexes' => true,
-            'strict'         => true,
-            'engine'         => null,
-            'options'        => extension_loaded('pdo_mysql') ? array_filter([
-                (PHP_VERSION_ID >= 80500 ? Mysql::ATTR_SSL_CA : PDO::MYSQL_ATTR_SSL_CA) => env('MYSQL_ATTR_SSL_CA'),
-            ]) : [],
+            'search_path' => 'public',
+            'sslmode'  => 'prefer',
         ],
 
         // ---------------------------------------------------------------
         // Legal Hub — AI-powered IRPA/IRPR research
         // ---------------------------------------------------------------
         'legal' => [
-            'driver'         => 'mysql',
-            'host'           => env('DB_LEGAL_HOST', '127.0.0.1'),
-            'port'           => env('DB_LEGAL_PORT', '3306'),
-            'database'       => env('DB_LEGAL_DATABASE', 'db_legal'),
-            'username'       => env('DB_LEGAL_USERNAME', 'root'),
-            'password'       => env('DB_LEGAL_PASSWORD', ''),
-            'unix_socket'    => env('DB_SOCKET', ''),
-            'charset'        => 'utf8mb4',
-            'collation'      => 'utf8mb4_unicode_ci',
-            'prefix'         => '',
+            'driver'   => 'pgsql',
+            'host'     => env('DB_LEGAL_HOST', '127.0.0.1'),
+            'port'     => env('DB_LEGAL_PORT', '5432'),
+            'database' => env('DB_LEGAL_DATABASE', 'db_legal'),
+            'username' => env('DB_LEGAL_USERNAME', 'postgres'),
+            'password' => env('DB_LEGAL_PASSWORD', ''),
+            'charset'  => 'utf8',
+            'prefix'   => '',
             'prefix_indexes' => true,
-            'strict'         => true,
-            'engine'         => null,
-            'options'        => extension_loaded('pdo_mysql') ? array_filter([
-                (PHP_VERSION_ID >= 80500 ? Mysql::ATTR_SSL_CA : PDO::MYSQL_ATTR_SSL_CA) => env('MYSQL_ATTR_SSL_CA'),
-            ]) : [],
+            'search_path' => 'public',
+            'sslmode'  => 'prefer',
         ],
 
         // Legacy mysql key kept for package compatibility (maps to cws)

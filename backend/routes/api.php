@@ -5,6 +5,7 @@ use App\Http\Controllers\Admin\AdminStatsController;
 use App\Http\Controllers\Admin\AdminUsersController;
 use App\Http\Controllers\Admin\AdminRcicController;
 use App\Http\Controllers\Admin\AdminImmigrationConsultantController;
+use App\Http\Controllers\FileUploadController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -21,6 +22,12 @@ Route::prefix('auth')->group(function () {
     Route::get('google/redirect',  [AuthController::class, 'redirectToGoogle'])->name('auth.google.redirect');
     Route::get('google/callback',  [AuthController::class, 'handleGoogleCallback'])->name('auth.google.callback');
     Route::post('login',           [AuthController::class, 'login'])->name('auth.login');
+});
+
+// ── Document / file uploads ───────────────────────────────────────────────────
+// Protected: requires a valid Sanctum token.
+Route::middleware('auth:sanctum')->prefix('documents')->name('documents.')->group(function () {
+    Route::post('upload', [FileUploadController::class, 'store'])->name('upload');
 });
 
 // ── Protected routes ─────────────────────────────────────────────────────────
