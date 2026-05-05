@@ -1,16 +1,16 @@
-"use client";
+﻿"use client";
 
 import * as React from "react";
 import {
-  ArrowUpDown, MoreHorizontal, PlusCircle, Pencil, Trash2,
-  ShieldCheck, ShieldOff, Eye, EyeOff,
+  ArrowUpDown, MoreHorizontal, Pencil, Trash2,
+  ShieldCheck, ShieldOff, Eye,
   ChevronFirst, ChevronLast, ChevronLeft, ChevronRight,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Textarea } from "@/components/ui/textarea";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
@@ -20,227 +20,156 @@ import {
 import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { generateAvatarFallback } from "@/lib/utils";
 
 const API = process.env.NEXT_PUBLIC_API_URL + "/api/v1";
 
-type Consultant = {
+type RcicUser = {
   id: number;
   name: string;
-  email: string | null;
-  phone: string | null;
-  company: string | null;
-  city: string | null;
-  province: string | null;
-  country: string | null;
-  specialization: string | null;
-  notes: string | null;
-  is_active: boolean;
+  email: string;
+  avatar: string | null;
+  locale: string | null;
+  is_verified: boolean;
+  rcic_number: string | null;
+  is_license_verified: boolean;
+  roles: string[];
   created_at: string;
 };
 
-type ConsultantForm = {
-  name: string;
-  email: string;
-  phone: string;
-  company: string;
-  city: string;
-  province: string;
-  country: string;
-  specialization: string;
-  notes: string;
-  is_active: boolean;
-};
-
-const emptyForm: ConsultantForm = {
-  name: "", email: "", phone: "", company: "",
-  city: "", province: "", country: "",
-  specialization: "", notes: "", is_active: true,
-};
-
-function authHeaders(json = true) {
+function authHeaders(contentType = true) {
   const token = typeof window !== "undefined" ? localStorage.getItem("wtc_admin_token") : "";
   return {
     Authorization: `Bearer ${token}`,
-    ...(json ? { "Content-Type": "application/json" } : {}),
+    ...(contentType ? { "Content-Type": "application/json" } : {}),
     Accept: "application/json",
   };
 }
 
 export default function ImmigrationConsultPage() {
-  // List
-  const [data, setData] = React.useState<Consultant[]>([]);
+  const [users, setUsers] = React.useState<RcicUser[]>([]);
   const [total, setTotal] = React.useState(0);
   const [lastPage, setLastPage] = React.useState(1);
   const [page, setPage] = React.useState(1);
   const [loading, setLoading] = React.useState(true);
   const [search, setSearch] = React.useState("");
   const [debouncedSearch, setDebouncedSearch] = React.useState("");
-  const [sortField, setSortField] = React.useState<keyof Consultant>("created_at");
+  const [sortField, setSortField] = React.useState<"name" | "email" | "created_at">("created_at");
   const [sortDir, setSortDir] = React.useState<"asc" | "desc">("desc");
 
-  // View
-  const [viewItem, setViewItem] = React.useState<Consultant | null>(null);
-
-  // Create / Edit
-  const [dialogOpen, setDialogOpen] = React.useState(false);
-  const [editItem, setEditItem] = React.useState<Consultant | null>(null);
-  const [form, setForm] = React.useState<ConsultantForm>(emptyForm);
+  const [viewUser, setViewUser] = React.useState<RcicUser | null>(null);
+  const [editUser, setEditUser] = React.useState<RcicUser | null>(null);
+  const [editForm, setEditForm] = React.useState({ name: "", email: "" });
   const [saving, setSaving] = React.useState(false);
-  const [formError, setFormError] = React.useState<string | null>(null);
-
-  // Delete
-  const [deleteItem, setDeleteItem] = React.useState<Consultant | null>(null);
+  const [editError, setEditError] = React.useState<string | null>(null);
+  const [deleteUser, setDeleteUser] = React.useState<RcicUser | null>(null);
   const [deleting, setDeleting] = React.useState(false);
 
-  // Debounce
   React.useEffect(() => {
     const t = setTimeout(() => { setDebouncedSearch(search); setPage(1); }, 400);
     return () => clearTimeout(t);
   }, [search]);
 
-  const fetchData = React.useCallback(async () => {
+  const fetchUsers = React.useCallback(async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams({ per_page: "20", page: String(page) });
+      const params = new URLSearchParams({ role: "rcic", per_page: "20", page: String(page) });
       if (debouncedSearch) params.set("search", debouncedSearch);
-      const res = await fetch(`${API}/admin/immigration-consultants?${params}`, {
-        headers: authHeaders(false),
-      });
+      const res = await fetch(`${API}/admin/users?${params}`, { headers: authHeaders(false) });
       const json = await res.json();
-      setData(json.data ?? []);
-      setTotal(json.meta?.total ?? json.total ?? 0);
-      setLastPage(json.meta?.last_page ?? json.last_page ?? 1);
+      setUsers(json.data ?? []);
+      setTotal(json.meta?.total ?? 0);
+      setLastPage(json.meta?.last_page ?? 1);
     } catch {
-      setData([]);
+      setUsers([]);
     } finally {
       setLoading(false);
     }
   }, [page, debouncedSearch]);
 
-  React.useEffect(() => { fetchData(); }, [fetchData]);
+  React.useEffect(() => { fetchUsers(); }, [fetchUsers]);
 
-  // Client-side sort
   const sorted = React.useMemo(() => {
-    return [...data].sort((a, b) => {
-      const va = String(a[sortField] ?? "");
-      const vb = String(b[sortField] ?? "");
-      return sortDir === "asc" ? va.localeCompare(vb) : vb.localeCompare(va);
+    return [...users].sort((a, b) => {
+      const va = a[sortField] ?? "";
+      const vb = b[sortField] ?? "";
+      const cmp = String(va).localeCompare(String(vb));
+      return sortDir === "asc" ? cmp : -cmp;
     });
-  }, [data, sortField, sortDir]);
+  }, [users, sortField, sortDir]);
 
-  const toggleSort = (field: keyof Consultant) => {
+  const toggleSort = (field: "name" | "email" | "created_at") => {
     if (sortField === field) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
     else { setSortField(field); setSortDir("asc"); }
   };
 
-  const openCreate = () => {
-    setEditItem(null);
-    setForm(emptyForm);
-    setFormError(null);
-    setDialogOpen(true);
+  const openEdit = (u: RcicUser) => {
+    setEditUser(u);
+    setEditForm({ name: u.name, email: u.email });
+    setEditError(null);
   };
 
-  const openEdit = (c: Consultant) => {
-    setEditItem(c);
-    setForm({
-      name: c.name,
-      email: c.email ?? "",
-      phone: c.phone ?? "",
-      company: c.company ?? "",
-      city: c.city ?? "",
-      province: c.province ?? "",
-      country: c.country ?? "",
-      specialization: c.specialization ?? "",
-      notes: c.notes ?? "",
-      is_active: c.is_active,
-    });
-    setFormError(null);
-    setDialogOpen(true);
-  };
-
-  const handleSave = async () => {
+  const handleSaveEdit = async () => {
+    if (!editUser) return;
     setSaving(true);
-    setFormError(null);
+    setEditError(null);
     try {
-      const url = editItem
-        ? `${API}/admin/immigration-consultants/${editItem.id}`
-        : `${API}/admin/immigration-consultants`;
-      const method = editItem ? "PUT" : "POST";
-      const res = await fetch(url, {
-        method,
+      const res = await fetch(`${API}/admin/users/${editUser.id}`, {
+        method: "PUT",
         headers: authHeaders(),
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...editForm, role: "rcic" }),
       });
       if (!res.ok) {
         const err = await res.json();
-        const msg = err?.errors
-          ? Object.values(err.errors).flat().join(", ")
-          : err?.message ?? "Failed to save.";
-        setFormError(msg);
+        const msg = err?.errors ? Object.values(err.errors).flat().join(", ") : err?.message ?? "Failed to update.";
+        setEditError(msg);
         return;
       }
-      setDialogOpen(false);
-      fetchData();
+      setEditUser(null);
+      fetchUsers();
     } catch {
-      setFormError("Something went wrong.");
+      setEditError("Something went wrong.");
     } finally {
       setSaving(false);
     }
   };
 
-  const handleToggle = async (c: Consultant) => {
-    await fetch(`${API}/admin/immigration-consultants/${c.id}`, {
-      method: "PUT",
-      headers: authHeaders(),
-      body: JSON.stringify({ ...c, email: c.email ?? "", phone: c.phone ?? "", company: c.company ?? "", city: c.city ?? "", province: c.province ?? "", country: c.country ?? "", specialization: c.specialization ?? "", notes: c.notes ?? "", is_active: !c.is_active }),
-    });
-    fetchData();
+  const handleToggle = async (u: RcicUser) => {
+    await fetch(`${API}/admin/users/${u.id}/toggle`, { method: "PATCH", headers: authHeaders(false) });
+    fetchUsers();
   };
 
   const handleDelete = async () => {
-    if (!deleteItem) return;
+    if (!deleteUser) return;
     setDeleting(true);
-    await fetch(`${API}/admin/immigration-consultants/${deleteItem.id}`, {
-      method: "DELETE",
-      headers: authHeaders(false),
-    });
+    await fetch(`${API}/admin/users/${deleteUser.id}`, { method: "DELETE", headers: authHeaders(false) });
     setDeleting(false);
-    setDeleteItem(null);
-    fetchData();
+    setDeleteUser(null);
+    fetchUsers();
   };
-
-  const f = (field: keyof ConsultantForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
-    setForm((prev) => ({ ...prev, [field]: e.target.value }));
 
   return (
     <div className="space-y-4">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Immigration Consultants</h1>
+          <h1 className="text-2xl font-bold tracking-tight">RCIC Consultant Accounts</h1>
           <p className="text-muted-foreground text-sm">
-            Manage immigration consultant records
+            All registered RCIC consultant accounts with email and licence verification status
             {!loading && <span className="ml-2 text-xs">({total} total)</span>}
           </p>
         </div>
-        <Button onClick={openCreate}>
-          <PlusCircle className="mr-2 h-4 w-4" /> Add Consultant
-        </Button>
       </div>
 
-      {/* Search */}
-      <Input
-        placeholder="Search by name, email, company, or city..."
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        className="max-w-sm"
-      />
+      <div className="flex items-center gap-3">
+        <Input
+          placeholder="Search by name or email..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="max-w-xs"
+        />
+      </div>
 
-      {/* Table */}
       <div className="rounded-md border">
         <Table>
           <TableHeader>
@@ -255,66 +184,86 @@ export default function ImmigrationConsultPage() {
                   Email <ArrowUpDown className="ml-1 h-3.5 w-3.5" />
                 </Button>
               </TableHead>
-              <TableHead>Phone</TableHead>
-              <TableHead>Company</TableHead>
-              <TableHead>Specialization</TableHead>
-              <TableHead>City / Province</TableHead>
-              <TableHead>Status</TableHead>
+              <TableHead>RCIC Number</TableHead>
+              <TableHead>Email Verified</TableHead>
+              <TableHead>Licence Verified</TableHead>
+              <TableHead>
+                <Button variant="ghost" size="sm" className="-ml-3" onClick={() => toggleSort("created_at")}>
+                  Registered <ArrowUpDown className="ml-1 h-3.5 w-3.5" />
+                </Button>
+              </TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={8} className="py-10 text-center text-muted-foreground">
-                  Loading...
-                </TableCell>
+                <TableCell colSpan={7} className="py-10 text-center text-muted-foreground">Loading...</TableCell>
               </TableRow>
             ) : sorted.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="py-10 text-center text-muted-foreground">
-                  No consultants found. Click <strong>Add Consultant</strong> to get started.
-                </TableCell>
+                <TableCell colSpan={7} className="py-10 text-center text-muted-foreground">No RCIC consultant accounts found.</TableCell>
               </TableRow>
             ) : (
-              sorted.map((c) => (
-                <TableRow key={c.id}>
-                  <TableCell className="font-medium">{c.name}</TableCell>
-                  <TableCell className="text-muted-foreground">{c.email ?? "—"}</TableCell>
-                  <TableCell className="text-muted-foreground">{c.phone ?? "—"}</TableCell>
-                  <TableCell>{c.company ?? "—"}</TableCell>
-                  <TableCell>{c.specialization ?? "—"}</TableCell>
-                  <TableCell className="text-sm text-muted-foreground">
-                    {[c.city, c.province].filter(Boolean).join(", ") || "—"}
+              sorted.map((u) => (
+                <TableRow key={u.id}>
+                  <TableCell>
+                    <div className="flex items-center gap-3">
+                      <Avatar className="size-8">
+                        {u.avatar && <AvatarImage src={u.avatar} alt={u.name} />}
+                        <AvatarFallback>{generateAvatarFallback(u.name)}</AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <p className="font-medium leading-none">{u.name}</p>
+                        <p className="mt-0.5 text-xs text-muted-foreground">ID #{u.id}</p>
+                      </div>
+                    </div>
                   </TableCell>
                   <TableCell>
-                    <Badge variant={c.is_active ? "success" : "destructive"}>
-                      {c.is_active ? "Active" : "Inactive"}
+                    <span className="text-muted-foreground">{u.email}</span>
+                  </TableCell>
+                  <TableCell>
+                    {u.rcic_number
+                      ? <span className="font-mono text-sm">{u.rcic_number}</span>
+                      : <span className="text-xs text-muted-foreground">Not submitted</span>
+                    }
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant={u.is_verified ? "success" : "destructive"}>
+                      {u.is_verified ? "Verified" : "Unverified"}
                     </Badge>
+                  </TableCell>
+                  <TableCell>
+                    {!u.rcic_number ? (
+                      <Badge variant="secondary">No RCIC</Badge>
+                    ) : u.is_license_verified ? (
+                      <Badge variant="success">Verified</Badge>
+                    ) : (
+                      <Badge variant="outline" className="text-amber-600 border-amber-400">Pending</Badge>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-sm text-muted-foreground">
+                    {new Date(u.created_at).toLocaleDateString("en-CA", { year: "numeric", month: "short", day: "numeric" })}
                   </TableCell>
                   <TableCell className="text-right">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon">
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
+                        <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => setViewItem(c)}>
-                          <Eye className="mr-2 h-4 w-4" /> View
+                        <DropdownMenuItem onClick={() => setViewUser(u)}>
+                          <Eye className="mr-2 h-4 w-4" /> View Details
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => openEdit(c)}>
+                        <DropdownMenuItem onClick={() => openEdit(u)}>
                           <Pencil className="mr-2 h-4 w-4" /> Edit
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleToggle(c)}>
-                          {c.is_active
-                            ? <><ShieldOff className="mr-2 h-4 w-4" /> Deactivate</>
-                            : <><ShieldCheck className="mr-2 h-4 w-4" /> Activate</>}
+                        <DropdownMenuItem onClick={() => handleToggle(u)}>
+                          {u.is_verified
+                            ? <><ShieldOff className="mr-2 h-4 w-4" /> Deactivate Email</>
+                            : <><ShieldCheck className="mr-2 h-4 w-4" /> Activate Email</>
+                          }
                         </DropdownMenuItem>
-                        <DropdownMenuItem
-                          className="text-destructive focus:text-destructive"
-                          onClick={() => setDeleteItem(c)}
-                        >
+                        <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => setDeleteUser(u)}>
                           <Trash2 className="mr-2 h-4 w-4" /> Delete
                         </DropdownMenuItem>
                       </DropdownMenuContent>
@@ -327,152 +276,114 @@ export default function ImmigrationConsultPage() {
         </Table>
       </div>
 
-      {/* Pagination */}
       <div className="flex items-center justify-between text-sm text-muted-foreground">
-        <span>Page {page} of {lastPage} &bull; {total} records</span>
+        <span>Page {page} of {lastPage} &bull; {total} consultants</span>
         <div className="flex items-center gap-1">
-          <Button variant="outline" size="icon" onClick={() => setPage(1)} disabled={page === 1}>
-            <ChevronFirst className="h-4 w-4" />
-          </Button>
-          <Button variant="outline" size="icon" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}>
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <Button variant="outline" size="icon" onClick={() => setPage((p) => Math.min(lastPage, p + 1))} disabled={page === lastPage}>
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-          <Button variant="outline" size="icon" onClick={() => setPage(lastPage)} disabled={page === lastPage}>
-            <ChevronLast className="h-4 w-4" />
-          </Button>
+          <Button variant="outline" size="icon" onClick={() => setPage(1)} disabled={page === 1}><ChevronFirst className="h-4 w-4" /></Button>
+          <Button variant="outline" size="icon" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}><ChevronLeft className="h-4 w-4" /></Button>
+          <Button variant="outline" size="icon" onClick={() => setPage((p) => Math.min(lastPage, p + 1))} disabled={page === lastPage}><ChevronRight className="h-4 w-4" /></Button>
+          <Button variant="outline" size="icon" onClick={() => setPage(lastPage)} disabled={page === lastPage}><ChevronLast className="h-4 w-4" /></Button>
         </div>
       </div>
 
-      {/* ── View Dialog ── */}
-      <Dialog open={!!viewItem} onOpenChange={(o) => { if (!o) setViewItem(null); }}>
+      {/* View Detail Dialog */}
+      <Dialog open={!!viewUser} onOpenChange={(o) => { if (!o) setViewUser(null); }}>
         <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Consultant Details</DialogTitle>
-          </DialogHeader>
-          {viewItem && (
-            <div className="space-y-3 text-sm">
-              <div className="grid grid-cols-2 gap-3">
-                <div><p className="text-xs text-muted-foreground">Name</p><p className="font-medium">{viewItem.name}</p></div>
-                <div><p className="text-xs text-muted-foreground">Status</p>
-                  <Badge variant={viewItem.is_active ? "success" : "destructive"}>{viewItem.is_active ? "Active" : "Inactive"}</Badge>
+          <DialogHeader><DialogTitle>Consultant Details</DialogTitle></DialogHeader>
+          {viewUser && (
+            <div className="space-y-4">
+              <div className="flex items-center gap-4">
+                <Avatar className="size-16">
+                  {viewUser.avatar && <AvatarImage src={viewUser.avatar} alt={viewUser.name} />}
+                  <AvatarFallback className="text-lg">{generateAvatarFallback(viewUser.name)}</AvatarFallback>
+                </Avatar>
+                <div>
+                  <p className="text-lg font-semibold">{viewUser.name}</p>
+                  <p className="text-sm text-muted-foreground">{viewUser.email}</p>
                 </div>
-                <div><p className="text-xs text-muted-foreground">Email</p><p>{viewItem.email ?? "—"}</p></div>
-                <div><p className="text-xs text-muted-foreground">Phone</p><p>{viewItem.phone ?? "—"}</p></div>
-                <div><p className="text-xs text-muted-foreground">Company</p><p>{viewItem.company ?? "—"}</p></div>
-                <div><p className="text-xs text-muted-foreground">Specialization</p><p>{viewItem.specialization ?? "—"}</p></div>
-                <div><p className="text-xs text-muted-foreground">City</p><p>{viewItem.city ?? "—"}</p></div>
-                <div><p className="text-xs text-muted-foreground">Province</p><p>{viewItem.province ?? "—"}</p></div>
-                <div><p className="text-xs text-muted-foreground">Country</p><p>{viewItem.country ?? "—"}</p></div>
-                <div><p className="text-xs text-muted-foreground">Added</p><p>{new Date(viewItem.created_at).toLocaleDateString("en-CA", { year: "numeric", month: "short", day: "numeric" })}</p></div>
               </div>
-              {viewItem.notes && (
-                <div><p className="text-xs text-muted-foreground">Notes</p><p className="whitespace-pre-wrap rounded-md bg-muted px-3 py-2 text-sm">{viewItem.notes}</p></div>
-              )}
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <p className="text-xs text-muted-foreground">User ID</p>
+                  <p className="font-medium">#{viewUser.id}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Locale</p>
+                  <p className="font-medium">{viewUser.locale ?? "—"}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">RCIC Number</p>
+                  <p className="font-mono font-medium">{viewUser.rcic_number ?? "—"}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Email Verified</p>
+                  <Badge variant={viewUser.is_verified ? "success" : "destructive"} className="mt-0.5">
+                    {viewUser.is_verified ? "Verified" : "Unverified"}
+                  </Badge>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Licence Verified</p>
+                  <div className="mt-0.5">
+                    {!viewUser.rcic_number ? (
+                      <Badge variant="secondary">No RCIC</Badge>
+                    ) : viewUser.is_license_verified ? (
+                      <Badge variant="success">Verified</Badge>
+                    ) : (
+                      <Badge variant="outline" className="text-amber-600 border-amber-400">Pending</Badge>
+                    )}
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Registered</p>
+                  <p className="font-medium">
+                    {new Date(viewUser.created_at).toLocaleString("en-CA", {
+                      year: "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit",
+                    })}
+                  </p>
+                </div>
+              </div>
             </div>
           )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setViewItem(null)}>Close</Button>
+            <Button variant="outline" onClick={() => setViewUser(null)}>Close</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* ── Create / Edit Dialog ── */}
-      <Dialog open={dialogOpen} onOpenChange={(o) => { if (!o) setDialogOpen(false); }}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{editItem ? "Edit Consultant" : "Add Immigration Consultant"}</DialogTitle>
-          </DialogHeader>
+      {/* Edit Dialog */}
+      <Dialog open={!!editUser} onOpenChange={(o) => { if (!o) setEditUser(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>Edit Consultant</DialogTitle></DialogHeader>
           <div className="space-y-4 py-2">
-            {formError && (
-              <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{formError}</p>
-            )}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="col-span-2 space-y-1.5">
-                <Label>Name <span className="text-destructive">*</span></Label>
-                <Input value={form.name} onChange={f("name")} placeholder="Full name" />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Email</Label>
-                <Input type="email" value={form.email} onChange={f("email")} placeholder="Email address" />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Phone</Label>
-                <Input value={form.phone} onChange={f("phone")} placeholder="+1 xxx-xxx-xxxx" />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Company / Firm</Label>
-                <Input value={form.company} onChange={f("company")} placeholder="Company name" />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Specialization</Label>
-                <Input value={form.specialization} onChange={f("specialization")} placeholder="e.g. Work Permit, PR, Study Permit" />
-              </div>
-              <div className="space-y-1.5">
-                <Label>City</Label>
-                <Input value={form.city} onChange={f("city")} placeholder="City" />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Province / State</Label>
-                <Input value={form.province} onChange={f("province")} placeholder="Province" />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Country</Label>
-                <Input value={form.country} onChange={f("country")} placeholder="Country" />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Status</Label>
-                <Select
-                  value={form.is_active ? "active" : "inactive"}
-                  onValueChange={(v) => setForm((p) => ({ ...p, is_active: v === "active" }))}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="active">Active</SelectItem>
-                    <SelectItem value="inactive">Inactive</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="col-span-2 space-y-1.5">
-                <Label>Notes</Label>
-                <Textarea
-                  value={form.notes}
-                  onChange={f("notes")}
-                  placeholder="Additional notes..."
-                  rows={3}
-                />
-              </div>
+            {editError && <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{editError}</p>}
+            <div className="space-y-1.5">
+              <Label>Name</Label>
+              <Input value={editForm.name} onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))} placeholder="Full name" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Email</Label>
+              <Input type="email" value={editForm.email} onChange={(e) => setEditForm((f) => ({ ...f, email: e.target.value }))} placeholder="Email address" />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)} disabled={saving}>Cancel</Button>
-            <Button onClick={handleSave} disabled={saving}>
-              {saving ? "Saving..." : editItem ? "Save Changes" : "Create Consultant"}
-            </Button>
+            <Button variant="outline" onClick={() => setEditUser(null)} disabled={saving}>Cancel</Button>
+            <Button onClick={handleSaveEdit} disabled={saving}>{saving ? "Saving..." : "Save Changes"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* ── Delete Confirm ── */}
-      <Dialog open={!!deleteItem} onOpenChange={(o) => { if (!o) setDeleteItem(null); }}>
+      {/* Delete Confirm Dialog */}
+      <Dialog open={!!deleteUser} onOpenChange={(o) => { if (!o) setDeleteUser(null); }}>
         <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Delete Consultant</DialogTitle>
-          </DialogHeader>
+          <DialogHeader><DialogTitle>Delete Consultant</DialogTitle></DialogHeader>
           <p className="text-sm text-muted-foreground">
             Are you sure you want to delete{" "}
-            <span className="font-semibold text-foreground">{deleteItem?.name}</span>?
+            <span className="font-semibold text-foreground">{deleteUser?.name}</span>?
             <br />This action cannot be undone.
           </p>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteItem(null)} disabled={deleting}>Cancel</Button>
-            <Button variant="destructive" onClick={handleDelete} disabled={deleting}>
-              {deleting ? "Deleting..." : "Delete"}
-            </Button>
+            <Button variant="outline" onClick={() => setDeleteUser(null)} disabled={deleting}>Cancel</Button>
+            <Button variant="destructive" onClick={handleDelete} disabled={deleting}>{deleting ? "Deleting..." : "Delete"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

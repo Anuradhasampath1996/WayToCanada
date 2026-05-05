@@ -1,6 +1,8 @@
 <?php
 
 use App\Http\Controllers\Auth\AuthController;
+use App\Http\Controllers\Auth\ConsultantRegisterController;
+use App\Http\Controllers\Auth\ConsultantOnboardingController;
 use App\Http\Controllers\Admin\AdminStatsController;
 use App\Http\Controllers\Admin\AdminUsersController;
 use App\Http\Controllers\Admin\AdminRcicController;
@@ -19,9 +21,32 @@ use Illuminate\Support\Facades\Route;
 
 // ── Authentication (Google OAuth + email/password) ───────────────────────────
 Route::prefix('auth')->group(function () {
-    Route::get('google/redirect',  [AuthController::class, 'redirectToGoogle'])->name('auth.google.redirect');
-    Route::get('google/callback',  [AuthController::class, 'handleGoogleCallback'])->name('auth.google.callback');
-    Route::post('login',           [AuthController::class, 'login'])->name('auth.login');
+    Route::get('google/redirect',              [AuthController::class, 'redirectToGoogle'])->name('auth.google.redirect');
+    Route::get('google/callback',              [AuthController::class, 'handleGoogleCallback'])->name('auth.google.callback');
+    Route::get('google/consultant/redirect',   [ConsultantRegisterController::class, 'googleRedirect'])->name('auth.google.consultant.redirect');
+    Route::get('google/consultant/login',      [AuthController::class, 'redirectToGoogleConsultantLogin'])->name('auth.google.consultant.login');
+    Route::get('github/consultant/login',      [AuthController::class, 'redirectToGithubConsultantLogin'])->name('auth.github.consultant.login');
+    Route::get('github/callback',              [AuthController::class, 'handleGithubCallback'])->name('auth.github.callback');
+    Route::post('login',                       [AuthController::class, 'login'])->name('auth.login');
+
+    // Consultant registration
+    Route::post('register/consultant',         [ConsultantRegisterController::class, 'register'])->name('auth.register.consultant');
+    Route::get('google/consultant/redirect',   [ConsultantRegisterController::class, 'googleRedirect'])->name('auth.google.consultant.redirect');
+
+    // Email verification (signed URL, no auth required — link is clicked from inbox)
+    Route::get('email/verify/{id}/{hash}',     [ConsultantRegisterController::class, 'verifyEmail'])
+        ->middleware('signed')
+        ->name('verification.verify');
+
+    // Resend verification (requires auth token)
+    Route::post('email/resend',                [ConsultantRegisterController::class, 'resendVerification'])
+        ->middleware(['auth:sanctum', 'throttle:6,1'])
+        ->name('verification.send');
+
+    // RCIC licence verification (signed URL, no auth required — clicked from CICC email)
+    Route::get('consultant/license/verify/{id}', [ConsultantOnboardingController::class, 'verify'])
+        ->middleware('signed')
+        ->name('consultant.license.verify');
 });
 
 // ── Document / file uploads ───────────────────────────────────────────────────
@@ -35,6 +60,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('me',      [AuthController::class, 'me'])->name('auth.me');
     Route::post('logout', [AuthController::class, 'logout'])->name('auth.logout');
 
+    // ── Consultant RCIC onboarding ────────────────────────────────────────────
+    Route::post('consultant/onboarding', [ConsultantOnboardingController::class, 'submit'])
+        ->name('consultant.onboarding');
     // ── Super Admin Dashboard ────────────────────────────────────────────────
     // Accessible by super-admin only.
     Route::middleware('role:super-admin')->prefix('admin')->name('admin.')->group(function () {
@@ -59,6 +87,7 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::post('import',        [AdminRcicController::class, 'import'])->name('import');
             Route::delete('clear',       [AdminRcicController::class, 'clearAll'])->name('clear');
             Route::get('/',              [AdminRcicController::class, 'index'])->name('index');
+            Route::post('/',             [AdminRcicController::class, 'store'])->name('store');
             Route::get('{profileId}',    [AdminRcicController::class, 'show'])->name('show');
             Route::put('{profileId}',    [AdminRcicController::class, 'update'])->name('update');
             Route::delete('{profileId}', [AdminRcicController::class, 'destroyOne'])->name('destroyOne');

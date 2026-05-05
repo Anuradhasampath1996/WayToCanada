@@ -52,6 +52,45 @@ class AdminRcicController extends Controller
     }
 
     /**
+     * POST /api/v1/admin/rcic-consultants
+     * Create a new RCIC record manually.
+     */
+    public function store(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'profile_id'           => 'required|integer|unique:cws.rcic_consultants,profile_id',
+            'college_id'           => 'nullable|string|max:20',
+            'full_name'            => 'nullable|string|max:255',
+            'first_name'           => 'nullable|string|max:100',
+            'last_name'            => 'nullable|string|max:100',
+            'type'                 => 'nullable|string|max:50',
+            'status'               => 'nullable|string|max:50',
+            'company'              => 'nullable|string|max:1000',
+            'address_line_1'       => 'nullable|string|max:500',
+            'address_line_2'       => 'nullable|string|max:500',
+            'city'                 => 'nullable|string|max:100',
+            'province'             => 'nullable|string|max:100',
+            'country'              => 'nullable|string|max:100',
+            'postal_code'          => 'nullable|string|max:20',
+            'phone'                => 'nullable|string|max:50',
+            'fax'                  => 'nullable|string|max:50',
+            'email'                => 'nullable|email|max:255',
+            'website'              => 'nullable|url|max:500',
+            'languages'            => 'nullable|string|max:500',
+            'entitled_to_practise' => 'nullable|boolean',
+        ]);
+
+        $data['entitled_to_practise'] = $data['entitled_to_practise'] ?? false;
+
+        $consultant = RcicConsultant::create($data);
+
+        return response()->json([
+            'message'    => 'Record created.',
+            'consultant' => $consultant,
+        ], 201);
+    }
+
+    /**
      * GET /api/v1/admin/rcic-consultants/{profileId}
      * Single RCIC record by CICC profile_id.
      */

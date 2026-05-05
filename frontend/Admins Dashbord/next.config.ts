@@ -14,6 +14,7 @@ const nextConfig: NextConfig = {
       { source: "/admindashboard/users/admins", destination: "/dashboard/admindashboard/users/admins" },
       { source: "/admindashboard/users/rcic", destination: "/dashboard/admindashboard/users/rcic" },
       { source: "/admindashboard/users/public", destination: "/dashboard/admindashboard/users/public" },
+      { source: "/admindashboard/users/immigration-consult", destination: "/dashboard/admindashboard/users/immigration-consult" },
     ];
   },
   async redirects() {

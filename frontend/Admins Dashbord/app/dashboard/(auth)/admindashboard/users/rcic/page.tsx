@@ -3,7 +3,7 @@
 import * as React from "react";
 import {
   Upload, Download, Search, ExternalLink, ChevronLeft, ChevronRight,
-  X, Filter, Trash2, MoreHorizontal, Eye, Pencil,
+  X, Filter, Trash2, MoreHorizontal, Eye, Pencil, PlusCircle,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -68,6 +68,27 @@ type EditForm = {
   entitled_to_practise: boolean;
 };
 
+const EMPTY_ADD_FORM = {
+  profile_id: "",
+  college_id: "",
+  full_name: "",
+  first_name: "",
+  last_name: "",
+  type: "RCIC",
+  status: "Active",
+  company: "",
+  address_line_1: "",
+  city: "",
+  province: "",
+  country: "Canada",
+  postal_code: "",
+  phone: "",
+  email: "",
+  website: "",
+  languages: "",
+  entitled_to_practise: true,
+};
+
 type PaginatedResponse = {
   data: Rcic[];
   current_page: number;
@@ -115,6 +136,11 @@ export default function RcicUsersPage() {
   const [editError, setEditError] = React.useState<string | null>(null);
   const [deleteRcic, setDeleteRcic] = React.useState<Rcic | null>(null);
   const [deletingRcic, setDeletingRcic] = React.useState(false);
+
+  const [addOpen, setAddOpen] = React.useState(false);
+  const [addForm, setAddForm] = React.useState({ ...EMPTY_ADD_FORM });
+  const [addError, setAddError] = React.useState<string | null>(null);
+  const [saving, setSaving] = React.useState(false);
 
   const fileRef = React.useRef<HTMLInputElement>(null);
 
@@ -273,6 +299,36 @@ export default function RcicUsersPage() {
     }
   };
 
+  const handleCreate = async () => {
+    setAddError(null);
+    setSaving(true);
+    try {
+      const token = localStorage.getItem("wtc_admin_token");
+      const res = await fetch(`${API}/admin/rcic-consultants`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, Accept: "application/json", "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...addForm,
+          profile_id: Number(addForm.profile_id),
+          entitled_to_practise: addForm.entitled_to_practise,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        const msg = json?.errors ? Object.values(json.errors).flat().join(", ") : json?.message ?? "Failed to create.";
+        setAddError(String(msg));
+      } else {
+        setAddOpen(false);
+        setAddForm({ ...EMPTY_ADD_FORM });
+        fetchData();
+      }
+    } catch {
+      setAddError("Network error.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
       {/* Header */}
@@ -284,6 +340,10 @@ export default function RcicUsersPage() {
           </p>
         </div>
         <div className="flex gap-2">
+          <Button onClick={() => { setAddForm({ ...EMPTY_ADD_FORM }); setAddError(null); setAddOpen(true); }}>
+            <PlusCircle className="mr-2 h-4 w-4" />
+            Add New RCIC Consultant
+          </Button>
           <input
             ref={fileRef}
             type="file"
@@ -596,6 +656,131 @@ export default function RcicUsersPage() {
             <Button variant="outline" onClick={() => setClearConfirmOpen(false)}>Cancel</Button>
             <Button variant="destructive" onClick={handleClearAll} disabled={clearing}>
               {clearing ? "Clearing…" : "Yes, Delete All"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add New RCIC Consultant Dialog */}
+      <Dialog open={addOpen} onOpenChange={(open) => !open && setAddOpen(false)}>
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Add New RCIC Consultant</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-1">
+            {addError && (
+              <div className="rounded-md border border-destructive/20 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                {addError}
+              </div>
+            )}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label>Profile ID <span className="text-destructive">*</span></Label>
+                <Input
+                  type="number"
+                  placeholder="e.g. 123456"
+                  value={addForm.profile_id}
+                  onChange={(e) => setAddForm({ ...addForm, profile_id: e.target.value })}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label>College ID (RCIC #)</Label>
+                <Input
+                  placeholder="e.g. R711248"
+                  value={addForm.college_id}
+                  onChange={(e) => setAddForm({ ...addForm, college_id: e.target.value.toUpperCase() })}
+                />
+              </div>
+              <div className="col-span-2 space-y-1">
+                <Label>Full Name</Label>
+                <Input
+                  value={addForm.full_name}
+                  onChange={(e) => setAddForm({ ...addForm, full_name: e.target.value })}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label>First Name</Label>
+                <Input value={addForm.first_name} onChange={(e) => setAddForm({ ...addForm, first_name: e.target.value })} />
+              </div>
+              <div className="space-y-1">
+                <Label>Last Name</Label>
+                <Input value={addForm.last_name} onChange={(e) => setAddForm({ ...addForm, last_name: e.target.value })} />
+              </div>
+              <div className="space-y-1">
+                <Label>Type</Label>
+                <Input value={addForm.type} onChange={(e) => setAddForm({ ...addForm, type: e.target.value })} />
+              </div>
+              <div className="space-y-1">
+                <Label>Status</Label>
+                <Select value={addForm.status} onValueChange={(v) => setAddForm({ ...addForm, status: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Active">Active</SelectItem>
+                    <SelectItem value="Leave of Absence">Leave of Absence</SelectItem>
+                    <SelectItem value="Suspended">Suspended</SelectItem>
+                    <SelectItem value="Inactive">Inactive</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label>Entitled to Practise</Label>
+                <Select
+                  value={addForm.entitled_to_practise ? "1" : "0"}
+                  onValueChange={(v) => setAddForm({ ...addForm, entitled_to_practise: v === "1" })}
+                >
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1">Yes</SelectItem>
+                    <SelectItem value="0">No</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="col-span-2 space-y-1">
+                <Label>Company / Firm</Label>
+                <Input value={addForm.company} onChange={(e) => setAddForm({ ...addForm, company: e.target.value })} />
+              </div>
+              <div className="col-span-2 space-y-1">
+                <Label>Address</Label>
+                <Input value={addForm.address_line_1} onChange={(e) => setAddForm({ ...addForm, address_line_1: e.target.value })} />
+              </div>
+              <div className="space-y-1">
+                <Label>City</Label>
+                <Input value={addForm.city} onChange={(e) => setAddForm({ ...addForm, city: e.target.value })} />
+              </div>
+              <div className="space-y-1">
+                <Label>Province</Label>
+                <Input value={addForm.province} onChange={(e) => setAddForm({ ...addForm, province: e.target.value })} />
+              </div>
+              <div className="space-y-1">
+                <Label>Country</Label>
+                <Input value={addForm.country} onChange={(e) => setAddForm({ ...addForm, country: e.target.value })} />
+              </div>
+              <div className="space-y-1">
+                <Label>Postal Code</Label>
+                <Input value={addForm.postal_code} onChange={(e) => setAddForm({ ...addForm, postal_code: e.target.value })} />
+              </div>
+              <div className="space-y-1">
+                <Label>Phone</Label>
+                <Input value={addForm.phone} onChange={(e) => setAddForm({ ...addForm, phone: e.target.value })} />
+              </div>
+              <div className="col-span-2 space-y-1">
+                <Label>Email</Label>
+                <Input type="email" value={addForm.email} onChange={(e) => setAddForm({ ...addForm, email: e.target.value })} />
+              </div>
+              <div className="col-span-2 space-y-1">
+                <Label>Website</Label>
+                <Input type="url" placeholder="https://" value={addForm.website} onChange={(e) => setAddForm({ ...addForm, website: e.target.value })} />
+              </div>
+              <div className="col-span-2 space-y-1">
+                <Label>Languages</Label>
+                <Input placeholder="e.g. English, French" value={addForm.languages} onChange={(e) => setAddForm({ ...addForm, languages: e.target.value })} />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAddOpen(false)}>Cancel</Button>
+            <Button onClick={handleCreate} disabled={saving || !addForm.profile_id}>
+              {saving ? "Creating…" : "Create Consultant"}
             </Button>
           </DialogFooter>
         </DialogContent>

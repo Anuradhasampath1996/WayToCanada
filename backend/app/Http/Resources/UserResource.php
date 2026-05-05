@@ -15,9 +15,12 @@ class UserResource extends JsonResource
             'email'       => $this->email,
             'avatar'      => $this->avatar,
             'locale'      => $this->locale,
-            'is_verified' => $this->is_verified,
-            'roles'       => $this->getRoleNames(),
-            'created_at'  => $this->created_at?->toIso8601String(),
+            'is_verified'         => $this->is_verified,
+            'rcic_number'         => $this->rcic_number,
+            'is_license_verified' => $this->is_license_verified,
+            'locale'              => $this->locale,
+            'roles'               => $this->getRoleNames(),
+            'created_at'          => $this->created_at?->toIso8601String(),
         ];
     }
 }

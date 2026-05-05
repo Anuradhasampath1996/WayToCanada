@@ -59,9 +59,14 @@ class AuthController extends Controller
      * Handle the Google OAuth callback.
      * Creates or fetches the user, assigns default role, issues Sanctum token.
      */
-    public function handleGoogleCallback(Request $request): JsonResponse
+    public function handleGoogleCallback(Request $request)
     {
         $googleUser = Socialite::driver('google')->stateless()->user();
+
+        // Detect state
+        $state = $request->query('state');
+        $isConsultantRegister = $state === 'consultant';
+        $isConsultantLogin    = $state === 'consultant-login';
 
         $user = User::firstOrCreate(
             ['google_id' => $googleUser->getId()],
@@ -70,23 +75,121 @@ class AuthController extends Controller
                 'email'             => $googleUser->getEmail(),
                 'avatar'            => $googleUser->getAvatar(),
                 'email_verified_at' => now(),
-                'locale'            => $request->header('Accept-Language', 'en') === 'fr' ? 'fr' : 'en',
+                'is_verified'       => true,
+                'locale'            => 'en',
             ]
         );
 
-        // Assign default 'client' role to new users only
-        if (! $user->hasAnyRole(['rcic', 'client', 'admin', 'super-admin'])) {
-            $user->assignRole('client');
+        // Ensure existing Google users also have is_verified set
+        if (! $user->is_verified) {
+            $user->update(['is_verified' => true, 'email_verified_at' => $user->email_verified_at ?? now()]);
         }
 
-        // Revoke previous tokens for this device and issue a fresh one
+        // Assign role to new users only
+        if (! $user->hasAnyRole(['rcic', 'client', 'admin', 'super-admin'])) {
+            $user->assignRole(($isConsultantRegister || $isConsultantLogin) ? 'rcic' : 'client');
+        }
+
         $user->tokens()->where('name', 'google-auth')->delete();
         $token = $user->createToken('google-auth')->plainTextToken;
 
-        return response()->json([
-            'token' => $token,
-            'user'  => new UserResource($user),
-        ], 201);
+        // consultant login → go straight to consultant dashboard via auth/callback
+        if ($isConsultantLogin) {
+            $dashboardUrl = rtrim(env('CONSULTANT_DASHBOARD_URL', 'http://localhost:3004'), '/');
+            return redirect()->away("{$dashboardUrl}/auth/callback#token={$token}");
+        }
+
+        // consultant register → go to Consultant Website auth/callback (shows registered banner)
+        if ($isConsultantRegister) {
+            $frontendUrl = rtrim(env('CONSULTANT_FRONTEND_URL', 'http://localhost:3001'), '/');
+            return redirect()->away("{$frontendUrl}/auth/callback#token={$token}");
+        }
+
+        // Default: public/client portal
+        $frontendUrl = rtrim(env('PUBLIC_FRONTEND_URL', 'http://localhost:3002'), '/');
+        return redirect()->away("{$frontendUrl}/auth/callback#token={$token}");
+    }
+
+    /**
+     * Redirect consultant to Google OAuth for LOGIN (state=consultant-login).
+     */
+    public function redirectToGoogleConsultantLogin(): JsonResponse
+    {
+        $url = Socialite::driver('google')
+            ->stateless()
+            ->with(['state' => 'consultant-login'])
+            ->redirect()
+            ->getTargetUrl();
+
+        return response()->json(['redirect_url' => $url]);
+    }
+
+    /**
+     * Redirect consultant to GitHub OAuth for LOGIN (state=consultant-login).
+     */
+    public function redirectToGithubConsultantLogin(): JsonResponse
+    {
+        $url = Socialite::driver('github')
+            ->stateless()
+            ->with(['state' => 'consultant-login'])
+            ->redirect()
+            ->getTargetUrl();
+
+        return response()->json(['redirect_url' => $url]);
+    }
+
+    /**
+     * Handle GitHub OAuth callback.
+     */
+    public function handleGithubCallback(Request $request)
+    {
+        $githubUser = Socialite::driver('github')->stateless()->user();
+
+        $state             = $request->query('state');
+        $isConsultantLogin = $state === 'consultant-login';
+
+        // Match by github_id first, then fall back to email
+        $user = User::where('github_id', $githubUser->getId())->first();
+
+        if (! $user && $githubUser->getEmail()) {
+            $user = User::where('email', $githubUser->getEmail())->first();
+            if ($user) {
+                $user->update(['github_id' => $githubUser->getId()]);
+            }
+        }
+
+        if (! $user) {
+            $user = User::create([
+                'github_id'         => $githubUser->getId(),
+                'name'              => $githubUser->getName() ?? $githubUser->getNickname(),
+                'email'             => $githubUser->getEmail(),
+                'avatar'            => $githubUser->getAvatar(),
+                'email_verified_at' => now(),
+                'is_verified'       => true,
+                'locale'            => 'en',
+            ]);
+        }
+
+        // Ensure existing GitHub users also have is_verified set
+        if (! $user->is_verified) {
+            $user->update(['is_verified' => true, 'email_verified_at' => $user->email_verified_at ?? now()]);
+        }
+
+        // Assign role to new users only
+        if (! $user->hasAnyRole(['rcic', 'client', 'admin', 'super-admin'])) {
+            $user->assignRole($isConsultantLogin ? 'rcic' : 'client');
+        }
+
+        $user->tokens()->where('name', 'github-auth')->delete();
+        $token = $user->createToken('github-auth')->plainTextToken;
+
+        if ($isConsultantLogin) {
+            $dashboardUrl = rtrim(env('CONSULTANT_DASHBOARD_URL', 'http://localhost:3004'), '/');
+            return redirect()->away("{$dashboardUrl}/dashboard/login?sso=" . urlencode($token));
+        }
+
+        $frontendUrl = rtrim(env('PUBLIC_FRONTEND_URL', 'http://localhost:3002'), '/');
+        return redirect()->away("{$frontendUrl}/auth/callback#token={$token}");
     }
 
     /**
