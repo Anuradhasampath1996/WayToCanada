@@ -13,18 +13,19 @@ jobs:
     runs-on: ubuntu-latest
 
     services:
-      mysql:
-        image: mysql:8.0
+      postgres:
+        image: postgres:16
         env:
-          MYSQL_ROOT_PASSWORD: secret
-          MYSQL_DATABASE: db_cws_test
+          POSTGRES_DB: db_cws_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: secret
         ports:
-          - 3306:3306
+          - 5432:5432
         options: >-
-          --health-cmd="mysqladmin ping"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=3
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
 
     steps:
       - uses: actions/checkout@v4
@@ -33,7 +34,7 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: "8.2"
-          extensions: mbstring, pdo_mysql, bcmath, zip, gd
+          extensions: mbstring, pdo_pgsql, bcmath, zip, gd
           coverage: none
 
       - name: Cache Composer dependencies
@@ -41,31 +42,81 @@ jobs:
         with:
           path: backend/vendor
           key: composer-${{ hashFiles('backend/composer.lock') }}
+          restore-keys: composer-
 
       - name: Install Composer dependencies
         working-directory: backend
         run: composer install --no-interaction --prefer-dist --optimize-autoloader
 
-      - name: Copy .env for CI
+      - name: Create .env for CI
         working-directory: backend
-        run: cp .env.ci .env
+        run: |
+          cat > .env << 'ENVEOF'
+          APP_NAME=WayToCanada
+          APP_ENV=testing
+          APP_KEY=
+          APP_DEBUG=true
+          APP_URL=http://localhost:8000
+
+          LOG_CHANNEL=stderr
+          LOG_LEVEL=debug
+
+          DB_CONNECTION=cws
+          DB_CWS_HOST=127.0.0.1
+          DB_CWS_PORT=5432
+          DB_CWS_DATABASE=db_cws_test
+          DB_CWS_USERNAME=postgres
+          DB_CWS_PASSWORD=secret
+
+          SESSION_DRIVER=array
+          QUEUE_CONNECTION=sync
+          CACHE_STORE=array
+          MAIL_MAILER=array
+
+          GOOGLE_CLIENT_ID=dummy-ci
+          GOOGLE_CLIENT_SECRET=dummy-ci
+          GOOGLE_REDIRECT_URI=http://localhost:8000/api/v1/auth/google/callback
+
+          GITHUB_CLIENT_ID=dummy-ci
+          GITHUB_CLIENT_SECRET=dummy-ci
+          GITHUB_REDIRECT_URI=http://localhost:8000/api/v1/auth/github/callback
+
+          PUBLIC_FRONTEND_URL=http://localhost:3002
+          CONSULTANT_FRONTEND_URL=http://localhost:3001
+          CONSULTANT_DASHBOARD_URL=http://localhost:3004
+          ENVEOF
 
       - name: Generate application key
         working-directory: backend
         run: php artisan key:generate
 
-      - name: Run migrations (cws test DB)
+      - name: Run migrations
         working-directory: backend
         run: php artisan migrate --force
 
       - name: Run tests
         working-directory: backend
-        run: php artisan test --parallel
+        run: php artisan test
 
-  # ── Frontend (React/Vite) ────────────────────────────────────────────────
+  # ── Frontend builds ───────────────────────────────────────────────────────
   frontend:
-    name: Frontend Build
+    name: Frontend Build — ${{ matrix.name }}
     runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Admin Dashboard
+            dir: "frontend/Admins Dashbord"
+          - name: Public Users Dashboard
+            dir: "frontend/Public users Dashbord"
+          - name: Consultant Website
+            dir: "frontend/Consultant Website"
+          - name: Public Website
+            dir: "frontend/Publick website"
+          - name: Consultant Dashboard
+            dir: "frontend/Consultant Dashbord"
 
     steps:
       - uses: actions/checkout@v4
@@ -74,15 +125,31 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "20"
-          cache: "npm"
-          cache-dependency-path: frontend/package-lock.json
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Get pnpm store path
+        id: pnpm-cache
+        shell: bash
+        run: echo "store=$(pnpm store path)" >> $GITHUB_OUTPUT
+
+      - name: Cache pnpm store
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.pnpm-cache.outputs.store }}
+          key: pnpm-${{ matrix.name }}-${{ hashFiles(format('{0}/pnpm-lock.yaml', matrix.dir), format('{0}/package.json', matrix.dir)) }}
+          restore-keys: pnpm-${{ matrix.name }}-
 
       - name: Install dependencies
-        working-directory: frontend
-        run: npm ci
+        working-directory: ${{ matrix.dir }}
+        run: pnpm install
 
       - name: Type-check & Build
-        working-directory: frontend
-        run: npm run build
+        working-directory: ${{ matrix.dir }}
+        run: pnpm run build
         env:
-          VITE_API_URL: http://localhost:8000
+          NEXT_PUBLIC_API_URL: http://localhost:8000
+
