@@ -3,10 +3,13 @@
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\Auth\ConsultantRegisterController;
 use App\Http\Controllers\Auth\ConsultantOnboardingController;
+use App\Http\Controllers\Auth\PublicRegisterController;
 use App\Http\Controllers\Admin\AdminStatsController;
 use App\Http\Controllers\Admin\AdminUsersController;
 use App\Http\Controllers\Admin\AdminRcicController;
 use App\Http\Controllers\Admin\AdminImmigrationConsultantController;
+use App\Http\Controllers\Admin\AdminPaymentGatewayController;
+use App\Http\Controllers\Admin\AdminSubscriptionPackageController;
 use App\Http\Controllers\FileUploadController;
 use Illuminate\Support\Facades\Route;
 
@@ -25,9 +28,16 @@ Route::prefix('auth')->group(function () {
     Route::get('google/callback',              [AuthController::class, 'handleGoogleCallback'])->name('auth.google.callback');
     Route::get('google/consultant/redirect',   [ConsultantRegisterController::class, 'googleRedirect'])->name('auth.google.consultant.redirect');
     Route::get('google/consultant/login',      [AuthController::class, 'redirectToGoogleConsultantLogin'])->name('auth.google.consultant.login');
+    Route::get('github/redirect',              [AuthController::class, 'redirectToGithubPublic'])->name('auth.github.redirect');
     Route::get('github/consultant/login',      [AuthController::class, 'redirectToGithubConsultantLogin'])->name('auth.github.consultant.login');
     Route::get('github/callback',              [AuthController::class, 'handleGithubCallback'])->name('auth.github.callback');
     Route::post('login',                       [AuthController::class, 'login'])->name('auth.login');
+
+    // Public (client) registration
+    Route::post('register',                    [PublicRegisterController::class, 'register'])->name('auth.register');
+    Route::get('public/email/verify/{id}/{hash}', [PublicRegisterController::class, 'verifyEmail'])
+        ->middleware('signed')
+        ->name('public.verification.verify');
 
     // Consultant registration
     Route::post('register/consultant',         [ConsultantRegisterController::class, 'register'])->name('auth.register.consultant');
@@ -100,6 +110,23 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('{immigrationConsultant}',    [AdminImmigrationConsultantController::class, 'show'])->name('show');
             Route::put('{immigrationConsultant}',    [AdminImmigrationConsultantController::class, 'update'])->name('update');
             Route::delete('{immigrationConsultant}', [AdminImmigrationConsultantController::class, 'destroy'])->name('destroy');
+        });
+
+        // Payment gateway settings
+        Route::prefix('payment-gateways')->name('payment-gateways.')->group(function () {
+            Route::get('/',                          [AdminPaymentGatewayController::class, 'index'])->name('index');
+            Route::put('{gateway}',                  [AdminPaymentGatewayController::class, 'update'])->name('update');
+            Route::delete('{gateway}/keys',          [AdminPaymentGatewayController::class, 'clearKeys'])->name('clearKeys');
+        });
+
+        // Subscription packages
+        Route::prefix('subscription-packages')->name('subscription-packages.')->group(function () {
+            Route::get('/',                              [AdminSubscriptionPackageController::class, 'index'])->name('index');
+            Route::post('/',                             [AdminSubscriptionPackageController::class, 'store'])->name('store');
+            Route::get('{package}',                      [AdminSubscriptionPackageController::class, 'show'])->name('show');
+            Route::put('{package}',                      [AdminSubscriptionPackageController::class, 'update'])->name('update');
+            Route::patch('{package}/toggle',             [AdminSubscriptionPackageController::class, 'toggle'])->name('toggle');
+            Route::delete('{package}',                   [AdminSubscriptionPackageController::class, 'destroy'])->name('destroy');
         });
     });
 });

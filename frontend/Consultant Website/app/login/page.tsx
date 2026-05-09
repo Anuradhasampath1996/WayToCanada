@@ -26,6 +26,12 @@ export default function LoginPage() {
   useEffect(() => {
     if (searchParams.get("verified") === "1") setVerified(true);
     if (searchParams.get("registered") === "1") setRegistered(true);
+
+    // Redirect already-logged-in consultants to the dashboard
+    const match = document.cookie.match(/(^| )wtc_consultant_token=([^;]+)/);
+    if (match) {
+      window.location.replace("http://localhost:3004/consultantdashboard");
+    }
   }, [searchParams]);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -44,27 +50,24 @@ export default function LoginPage() {
         return;
       }
       const roles: string[] = data?.user?.roles ?? [];
-      localStorage.setItem("wtc_consultant_token", data.token);
-      localStorage.setItem("wtc_consultant_user", JSON.stringify(data.user));
 
+      // Validate role BEFORE storing anything
       if (roles.includes("client")) {
         setError("This account is for applicants. Please use the Public Portal.");
-        localStorage.removeItem("wtc_consultant_token");
-        localStorage.removeItem("wtc_consultant_user");
         return;
       }
+      if (!roles.includes("rcic") && !roles.includes("super-admin") && !roles.includes("admin")) {
+        setError("Your account does not have consultant access. Contact support.");
+        return;
+      }
+
       if (roles.includes("super-admin") || roles.includes("admin")) {
         window.location.href = "http://localhost:3000/dashboard";
         return;
       }
-      if (roles.includes("rcic")) {
-        // Redirect to Consultant Dashboard
-        window.location.href = "http://localhost:3004/auth/callback#token=" + data.token;
-        return;
-      }
-      setError("Your account does not have consultant access. Contact support.");
-      localStorage.removeItem("wtc_consultant_token");
-      localStorage.removeItem("wtc_consultant_user");
+
+      // rcic → redirect to Consultant Dashboard (callback page sets the cookie)
+      window.location.href = "http://localhost:3004/auth/callback#token=" + data.token;
     } catch {
       setError("Network error. Please check your connection and try again.");
     } finally {

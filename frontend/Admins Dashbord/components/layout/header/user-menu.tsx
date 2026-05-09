@@ -109,12 +109,11 @@ export default function UserMenu() {
                   Accept: "application/json"
                 }
               });
-            } catch {
-              // token invalid වුනත් local clear කරනව
-            } finally {
-              localStorage.removeItem("wtc_admin_token");
-              window.location.href = "/dashboard/login";
-            }
+            } catch {}
+            localStorage.removeItem("wtc_admin_token");
+            localStorage.removeItem("wtc_admin_user");
+            document.cookie = "wtc_admin_token=; path=/; max-age=0; SameSite=Lax";
+            window.location.replace("/dashboard/login/v1");
           }}
         >
           <LogOut />

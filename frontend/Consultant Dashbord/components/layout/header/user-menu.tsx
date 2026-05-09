@@ -1,5 +1,7 @@
-import { BadgeCheck, Bell, ChevronRightIcon, CreditCard, LogOut, Sparkles } from "lucide-react";
+"use client";
 
+import { useEffect, useState } from "react";
+import { BadgeCheck, Bell, CreditCard, LogOut } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -8,41 +10,79 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
-  DropdownMenuTrigger
+  DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import Link from "next/link";
-import { Progress } from "@/components/ui/progress";
+
+const API = "http://127.0.0.1:8000/api/v1";
+const CONSULTANT_LOGIN = "http://localhost:3001/login";
+
+function getInitials(name: string) {
+  return name
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0].toUpperCase())
+    .join("");
+}
+
+type WtcUser = {
+  name?: string;
+  email?: string;
+  avatar?: string | null;
+};
 
 export default function UserMenu() {
+  const [user, setUser] = useState<WtcUser>({});
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("wtc_consultant_user");
+      if (raw) setUser(JSON.parse(raw));
+    } catch {}
+  }, []);
+
+  async function handleLogout() {
+    const token = localStorage.getItem("wtc_consultant_token");
+    if (token) {
+      try {
+        await fetch(`${API}/logout`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+        });
+      } catch {}
+    }
+    localStorage.removeItem("wtc_consultant_token");
+    localStorage.removeItem("wtc_consultant_user");
+    document.cookie = "wtc_consultant_token=; path=/; max-age=0; SameSite=Lax";
+    window.location.replace(CONSULTANT_LOGIN);
+  }
+
+  const displayName = user.name || "Consultant";
+  const displayEmail = user.email || "";
+  const initials = getInitials(displayName);
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Avatar>
-          <AvatarImage src={`/images/avatars/01.png`} alt="shadcn ui kit" />
-          <AvatarFallback className="rounded-lg">TB</AvatarFallback>
+        <Avatar className="cursor-pointer">
+          {user.avatar && <AvatarImage src={user.avatar} alt={displayName} />}
+          <AvatarFallback className="rounded-lg">{initials}</AvatarFallback>
         </Avatar>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-(--radix-dropdown-menu-trigger-width) min-w-60" align="end">
         <DropdownMenuLabel className="p-0">
           <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
             <Avatar>
-              <AvatarImage src={`/images/avatars/01.png`} alt="shadcn ui kit" />
-              <AvatarFallback className="rounded-lg">TB</AvatarFallback>
+              {user.avatar && <AvatarImage src={user.avatar} alt={displayName} />}
+              <AvatarFallback className="rounded-lg">{initials}</AvatarFallback>
             </Avatar>
             <div className="grid flex-1 text-left text-sm leading-tight">
-              <span className="truncate font-semibold">Toby Belhome</span>
-              <span className="text-muted-foreground truncate text-xs">hello@tobybelhome.com</span>
+              <span className="truncate font-semibold">{displayName}</span>
+              <span className="text-muted-foreground truncate text-xs">{displayEmail}</span>
             </div>
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuGroup>
-          <DropdownMenuItem asChild>
-            <Link href="https://shadcnuikit.com/pricing" target="_blank">
-              <Sparkles /> Upgrade to Pro
-            </Link>
-          </DropdownMenuItem>
-        </DropdownMenuGroup>
         <DropdownMenuGroup>
           <DropdownMenuItem>
             <BadgeCheck />
@@ -58,25 +98,10 @@ export default function UserMenu() {
           </DropdownMenuItem>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
-        <DropdownMenuItem>
+        <DropdownMenuItem onClick={handleLogout} className="cursor-pointer">
           <LogOut />
           Log out
         </DropdownMenuItem>
-        <div className="bg-muted mt-1.5 rounded-md border">
-          <div className="space-y-3 p-3">
-            <div className="flex items-center justify-between">
-              <h4 className="text-sm font-medium">Credits</h4>
-              <div className="text-muted-foreground flex cursor-pointer items-center text-sm">
-                <span>5 left</span>
-                <ChevronRightIcon className="ml-1 h-4 w-4" />
-              </div>
-            </div>
-            <Progress value={40} indicatorColor="bg-primary" />
-            <div className="text-muted-foreground flex items-center text-sm">
-              Daily credits used first
-            </div>
-          </div>
-        </div>
       </DropdownMenuContent>
     </DropdownMenu>
   );

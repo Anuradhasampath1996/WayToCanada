@@ -98,6 +98,16 @@ export const navItems: NavGroup[] = [
           { title: "Public Users", href: "/admindashboard/users/public" },
           { title: "Immigration Consultants", href: "/admindashboard/users/immigration-consult" }
         ]
+      },
+      {
+        title: "Payment Gateway",
+        href: "/admindashboard/payment-gateway",
+        icon: CreditCardIcon
+      },
+      {
+        title: "Subscription Packages",
+        href: "/admindashboard/subscription-packages",
+        icon: BadgeDollarSignIcon
       }
     ]
   },

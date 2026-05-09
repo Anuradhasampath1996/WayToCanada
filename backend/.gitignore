@@ -5,3 +5,6 @@ storage/framework/sessions/
 storage/framework/views/
 bootstrap/cache/
 *.log
+.env
+.env.*
+!.env.example

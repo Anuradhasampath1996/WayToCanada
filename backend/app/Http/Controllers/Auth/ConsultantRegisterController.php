@@ -82,6 +82,12 @@ class ConsultantRegisterController extends Controller
             $user->update(['is_verified' => true]);
         }
 
+        // Redirect to the correct frontend based on the user's role
+        if ($user->hasRole('client')) {
+            $publicUrl = rtrim(env('PUBLIC_FRONTEND_URL', 'http://localhost:3002'), '/');
+            return redirect("{$publicUrl}/login?verified=1");
+        }
+
         return redirect(env('CONSULTANT_FRONTEND_URL', 'http://localhost:3001') . '/login?verified=1');
     }
 

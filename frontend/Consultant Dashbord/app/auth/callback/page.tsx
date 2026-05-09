@@ -14,8 +14,10 @@ export default function AuthCallbackPage() {
       return;
     }
 
-    // Save token immediately (synchronous) before any navigation
+    // Save token in localStorage AND as a cookie (cookie is read by proxy for route protection)
     localStorage.setItem("wtc_consultant_token", token);
+    const maxAge = 60 * 60 * 24 * 30; // 30 days
+    document.cookie = `wtc_consultant_token=${token}; path=/; max-age=${maxAge}; SameSite=Lax`;
 
     fetch("http://127.0.0.1:8000/api/v1/me", {
       headers: {

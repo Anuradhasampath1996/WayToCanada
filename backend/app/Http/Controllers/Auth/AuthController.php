@@ -68,21 +68,29 @@ class AuthController extends Controller
         $isConsultantRegister = $state === 'consultant';
         $isConsultantLogin    = $state === 'consultant-login';
 
-        $user = User::firstOrCreate(
-            ['google_id' => $googleUser->getId()],
-            [
+        // Try to find by google_id first, then fall back to email (handles
+        // users who registered manually and are now linking their Google account).
+        $user = User::where('google_id', $googleUser->getId())->first()
+            ?? User::where('email', $googleUser->getEmail())->first();
+
+        if ($user) {
+            // Link Google ID and update avatar/verification if not already set
+            $updates = [];
+            if (! $user->google_id)          $updates['google_id']         = $googleUser->getId();
+            if (! $user->avatar)             $updates['avatar']             = $googleUser->getAvatar();
+            if (! $user->email_verified_at)  $updates['email_verified_at'] = now();
+            if (! $user->is_verified)        $updates['is_verified']        = true;
+            if ($updates) $user->update($updates);
+        } else {
+            $user = User::create([
+                'google_id'         => $googleUser->getId(),
                 'name'              => $googleUser->getName(),
                 'email'             => $googleUser->getEmail(),
                 'avatar'            => $googleUser->getAvatar(),
                 'email_verified_at' => now(),
                 'is_verified'       => true,
                 'locale'            => 'en',
-            ]
-        );
-
-        // Ensure existing Google users also have is_verified set
-        if (! $user->is_verified) {
-            $user->update(['is_verified' => true, 'email_verified_at' => $user->email_verified_at ?? now()]);
+            ]);
         }
 
         // Assign role to new users only
@@ -118,6 +126,19 @@ class AuthController extends Controller
         $url = Socialite::driver('google')
             ->stateless()
             ->with(['state' => 'consultant-login'])
+            ->redirect()
+            ->getTargetUrl();
+
+        return response()->json(['redirect_url' => $url]);
+    }
+
+    /**
+     * Redirect public user to GitHub OAuth.
+     */
+    public function redirectToGithubPublic(): JsonResponse
+    {
+        $url = Socialite::driver('github')
+            ->stateless()
             ->redirect()
             ->getTargetUrl();
 

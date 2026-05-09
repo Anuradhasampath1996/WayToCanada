@@ -3,6 +3,9 @@ Thumbs.db
 .idea/
 *.swp
 backend/vendor/
+backend/.env
+backend/.env.*
+!backend/.env.example
 backend/storage/framework/cache/
 backend/storage/framework/sessions/
 backend/storage/framework/testing/
