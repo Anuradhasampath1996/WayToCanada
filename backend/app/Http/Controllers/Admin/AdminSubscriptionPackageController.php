@@ -20,14 +20,19 @@ class AdminSubscriptionPackageController extends Controller
     public function store(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'name'          => 'required|string|max:255',
-            'description'   => 'nullable|string',
-            'monthly_price' => 'nullable|numeric|min:0',
-            'yearly_price'  => 'nullable|numeric|min:0',
-            'features'      => 'nullable|array',
-            'features.*'    => 'string|max:255',
-            'is_active'     => 'boolean',
-            'sort_order'    => 'integer',
+            'name'             => 'required|string|max:255',
+            'name_fr'          => 'nullable|string|max:255',
+            'description'      => 'nullable|string',
+            'description_fr'   => 'nullable|string',
+            'monthly_price'    => 'nullable|numeric|min:0',
+            'yearly_price'     => 'nullable|numeric|min:0',
+            'free_trial_days'  => 'nullable|integer|min:0',
+            'features'         => 'nullable|array',
+            'features.*'       => 'string|max:255',
+            'features_fr'      => 'nullable|array',
+            'features_fr.*'    => 'string|max:255',
+            'is_active'        => 'boolean',
+            'sort_order'       => 'integer',
         ]);
 
         $package = SubscriptionPackage::create($data);
@@ -44,14 +49,19 @@ class AdminSubscriptionPackageController extends Controller
     public function update(Request $request, SubscriptionPackage $package): JsonResponse
     {
         $data = $request->validate([
-            'name'          => 'required|string|max:255',
-            'description'   => 'nullable|string',
-            'monthly_price' => 'nullable|numeric|min:0',
-            'yearly_price'  => 'nullable|numeric|min:0',
-            'features'      => 'nullable|array',
-            'features.*'    => 'string|max:255',
-            'is_active'     => 'boolean',
-            'sort_order'    => 'integer',
+            'name'             => 'required|string|max:255',
+            'name_fr'          => 'nullable|string|max:255',
+            'description'      => 'nullable|string',
+            'description_fr'   => 'nullable|string',
+            'monthly_price'    => 'nullable|numeric|min:0',
+            'yearly_price'     => 'nullable|numeric|min:0',
+            'free_trial_days'  => 'nullable|integer|min:0',
+            'features'         => 'nullable|array',
+            'features.*'       => 'string|max:255',
+            'features_fr'      => 'nullable|array',
+            'features_fr.*'    => 'string|max:255',
+            'is_active'        => 'boolean',
+            'sort_order'       => 'integer',
         ]);
 
         $package->update($data);
@@ -73,5 +83,21 @@ class AdminSubscriptionPackageController extends Controller
     {
         $package->delete();
         return response()->json(['message' => 'Package deleted.']);
+    }
+
+    /**
+     * GET /api/v1/subscription-packages  (public — no admin auth required)
+     *
+     * Returns only active packages, ordered by sort_order.
+     * Used by the consultant subscription gate.
+     */
+    public function publicIndex(): JsonResponse
+    {
+        $packages = SubscriptionPackage::where('is_active', true)
+            ->orderBy('sort_order')
+            ->orderBy('id')
+            ->get();
+
+        return response()->json(['data' => $packages]);
     }
 }

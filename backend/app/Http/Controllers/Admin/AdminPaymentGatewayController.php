@@ -31,6 +31,7 @@ class AdminPaymentGatewayController extends Controller
                 // Masked previews so admin can confirm keys are set
                 'publishable_key_preview' => PaymentGatewaySetting::maskKey($decryptedPublishable),
                 'secret_key_preview'      => PaymentGatewaySetting::maskKey($decryptedSecret),
+                'webhook_id'      => $row->webhook_id,
                 'updated_at'      => $row->updated_at,
             ];
         });
@@ -54,6 +55,7 @@ class AdminPaymentGatewayController extends Controller
             'is_active'       => 'required|boolean',
             'publishable_key' => 'nullable|string|max:512',
             'secret_key'      => 'nullable|string|max:512',
+            'webhook_id'      => 'nullable|string|max:256',
         ]);
 
         $row = PaymentGatewaySetting::where('gateway', $gateway)->firstOrFail();
@@ -67,6 +69,9 @@ class AdminPaymentGatewayController extends Controller
         }
         if (!empty($validated['secret_key'])) {
             $row->secret_key = PaymentGatewaySetting::encryptKey($validated['secret_key']);
+        }
+        if (array_key_exists('webhook_id', $validated)) {
+            $row->webhook_id = $validated['webhook_id'] ?: null;
         }
 
         $row->save();
@@ -87,6 +92,7 @@ class AdminPaymentGatewayController extends Controller
         PaymentGatewaySetting::where('gateway', $gateway)->update([
             'publishable_key' => null,
             'secret_key'      => null,
+            'webhook_id'      => null,
             'is_active'       => false,
         ]);
 

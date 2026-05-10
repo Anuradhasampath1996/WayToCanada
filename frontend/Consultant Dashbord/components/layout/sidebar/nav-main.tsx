@@ -33,6 +33,7 @@ import {
   FolderIcon,
   GaugeIcon,
   GraduationCapIcon,
+  HomeIcon,
   ImagesIcon,
   KeyIcon,
   MailIcon,
@@ -85,6 +86,16 @@ type NavItem = {
 }[];
 
 export const navItems: NavGroup[] = [
+  {
+    title: "Main",
+    items: [
+      {
+        title: "Dashboard",
+        href: "/consultantdashboard",
+        icon: HomeIcon,
+      },
+    ],
+  },
   {
     title: "Dashboards",
     items: [

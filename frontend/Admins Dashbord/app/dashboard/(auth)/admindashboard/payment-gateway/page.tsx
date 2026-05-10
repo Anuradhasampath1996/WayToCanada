@@ -10,9 +10,8 @@ import {
   RefreshCw,
   Trash2,
   Save,
+  Webhook,
 } from "lucide-react";
-
-import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -54,6 +53,7 @@ type GatewayData = {
   has_secret: boolean;
   publishable_key_preview: string | null;
   secret_key_preview: string | null;
+  webhook_id: string | null;
   updated_at: string;
 };
 
@@ -62,6 +62,7 @@ type FormState = {
   is_active: boolean;
   publishable_key: string;
   secret_key: string;
+  webhook_id: string;
 };
 
 function authHeaders() {
@@ -74,29 +75,12 @@ function authHeaders() {
   };
 }
 
-function StripeLogo() {
-  return (
-    <Image
-      src="/images/stripe-logo.svg"
-      alt="Stripe"
-      width={80}
-      height={34}
-      className="h-8 w-auto object-contain"
-      unoptimized
-    />
-  );
-}
-
 function PayPalLogo() {
   return (
-    <Image
-      src="/images/paypal-logo.svg"
-      alt="PayPal"
-      width={100}
-      height={34}
-      className="h-8 w-auto object-contain"
-      unoptimized
-    />
+    <div className="flex items-center gap-1.5">
+      <span className="text-[#003087] font-black text-2xl tracking-tight">Pay</span>
+      <span className="text-[#009CDE] font-black text-2xl tracking-tight">Pal</span>
+    </div>
   );
 }
 
@@ -107,16 +91,12 @@ function GatewayCard({
   data: GatewayData;
   onSaved: () => void;
 }) {
-  const isStripe = data.gateway === "stripe";
-  const label = isStripe ? "Stripe" : "PayPal";
-  const pubLabel = isStripe ? "Publishable Key" : "Client ID";
-  const secLabel = isStripe ? "Secret Key" : "Secret Key";
-
   const [form, setForm] = React.useState<FormState>({
     mode: data.mode,
     is_active: data.is_active,
     publishable_key: "",
     secret_key: "",
+    webhook_id: data.webhook_id ?? "",
   });
   const [showPub, setShowPub] = React.useState(false);
   const [showSec, setShowSec] = React.useState(false);
@@ -144,6 +124,7 @@ function GatewayCard({
           is_active: form.is_active,
           publishable_key: form.publishable_key || null,
           secret_key: form.secret_key || null,
+          webhook_id: form.webhook_id || null,
         }),
       });
       const json = await res.json();
@@ -181,20 +162,14 @@ function GatewayCard({
     <>
       <Card className="relative overflow-hidden">
         {/* Header band */}
-        <div
-          className={`absolute top-0 left-0 right-0 h-1 ${
-            isStripe ? "bg-[#635BFF]" : "bg-[#009CDE]"
-          }`}
-        />
+        <div className="absolute top-0 left-0 right-0 h-1 bg-[#009CDE]" />
 
         <CardHeader className="pt-6">
           <div className="flex items-start justify-between gap-3">
             <div className="flex flex-col gap-2">
-              {isStripe ? <StripeLogo /> : <PayPalLogo />}
+              <PayPalLogo />
               <CardDescription>
-                {isStripe
-                  ? "Accept card payments worldwide via Stripe."
-                  : "Accept PayPal and card payments via PayPal."}
+                Accept PayPal and card payments via PayPal.
               </CardDescription>
             </div>
 
@@ -290,10 +265,10 @@ function GatewayCard({
             )}
           </div>
 
-          {/* Publishable key / Client ID */}
+          {/* Client ID */}
           <div className="space-y-1.5">
-            <Label>{pubLabel}</Label>
-            {data.has_publishable && (
+            <Label>Client ID</Label>
+            {data.has_publishable ? (
               <p className="text-muted-foreground text-xs">
                 Currently set:{" "}
                 <code className="bg-muted px-1 py-0.5 rounded text-xs">
@@ -301,17 +276,15 @@ function GatewayCard({
                 </code>
                 &nbsp;— leave blank to keep existing
               </p>
+            ) : (
+              <p className="text-xs text-amber-600 flex items-center gap-1">
+                <AlertCircle className="size-3" /> No Client ID saved yet
+              </p>
             )}
             <div className="relative">
               <Input
                 type={showPub ? "text" : "password"}
-                placeholder={
-                  data.has_publishable
-                    ? "Enter new key to replace…"
-                    : isStripe
-                    ? "pk_test_…"
-                    : "AXxx… (Client ID)"
-                }
+                placeholder={data.has_publishable ? "Enter new Client ID to replace…" : "AXxx… (Client ID)"}
                 value={form.publishable_key}
                 onChange={(e) =>
                   setForm((f) => ({ ...f, publishable_key: e.target.value }))
@@ -324,19 +297,15 @@ function GatewayCard({
                 onClick={() => setShowPub((s) => !s)}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
               >
-                {showPub ? (
-                  <EyeOff className="size-4" />
-                ) : (
-                  <Eye className="size-4" />
-                )}
+                {showPub ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
               </button>
             </div>
           </div>
 
-          {/* Secret key */}
+          {/* Secret Key */}
           <div className="space-y-1.5">
-            <Label>{secLabel}</Label>
-            {data.has_secret && (
+            <Label>Secret Key</Label>
+            {data.has_secret ? (
               <p className="text-muted-foreground text-xs">
                 Currently set:{" "}
                 <code className="bg-muted px-1 py-0.5 rounded text-xs">
@@ -344,17 +313,15 @@ function GatewayCard({
                 </code>
                 &nbsp;— leave blank to keep existing
               </p>
+            ) : (
+              <p className="text-xs text-amber-600 flex items-center gap-1">
+                <AlertCircle className="size-3" /> No Secret Key saved yet
+              </p>
             )}
             <div className="relative">
               <Input
                 type={showSec ? "text" : "password"}
-                placeholder={
-                  data.has_secret
-                    ? "Enter new key to replace…"
-                    : isStripe
-                    ? "sk_test_…"
-                    : "EXxx… (Secret)"
-                }
+                placeholder={data.has_secret ? "Enter new Secret Key to replace…" : "EXxx… (Secret)"}
                 value={form.secret_key}
                 onChange={(e) =>
                   setForm((f) => ({ ...f, secret_key: e.target.value }))
@@ -367,13 +334,43 @@ function GatewayCard({
                 onClick={() => setShowSec((s) => !s)}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
               >
-                {showSec ? (
-                  <EyeOff className="size-4" />
-                ) : (
-                  <Eye className="size-4" />
-                )}
+                {showSec ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
               </button>
             </div>
+          </div>
+
+          {/* Webhook ID */}
+          <div className="space-y-1.5">
+            <Label className="flex items-center gap-1.5">
+              <Webhook className="size-3.5 text-muted-foreground" />
+              Webhook ID
+            </Label>
+            <p className="text-xs text-muted-foreground">
+              Found in PayPal Developer Dashboard → Apps → Your App → Webhooks.
+              Required for auto-renewal events (subscription activated, payment received, etc.).
+            </p>
+            <Input
+              type="text"
+              placeholder={data.webhook_id ? "Update Webhook ID…" : "WH-XXXX… (Webhook ID)"}
+              value={form.webhook_id}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, webhook_id: e.target.value }))
+              }
+              autoComplete="off"
+            />
+            {data.webhook_id && (
+              <p className="text-xs text-muted-foreground">
+                Currently set:{" "}
+                <code className="bg-muted px-1 py-0.5 rounded text-xs">
+                  {data.webhook_id.slice(0, 6)}…{data.webhook_id.slice(-4)}
+                </code>
+              </p>
+            )}
+            {!data.webhook_id && (
+              <p className="text-xs text-amber-600 flex items-center gap-1">
+                <AlertCircle className="size-3" /> No Webhook ID saved — subscription events will not be verified
+              </p>
+            )}
           </div>
 
           {/* Last updated */}
@@ -416,11 +413,11 @@ function GatewayCard({
       <AlertDialog open={confirmClear} onOpenChange={setConfirmClear}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Clear {label} Keys?</AlertDialogTitle>
+            <AlertDialogTitle>Clear PayPal Keys?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete the stored {label} API keys and
-              deactivate the gateway. You will need to re-enter them to use{" "}
-              {label} again.
+              This will permanently delete the stored PayPal API keys and
+              deactivate the gateway. You will need to re-enter them to use
+              PayPal again.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -469,22 +466,20 @@ export default function PaymentGatewayPage() {
     fetchGateways();
   }, []);
 
-  const stripe = gateways.find((g) => g.gateway === "stripe");
   const paypal = gateways.find((g) => g.gateway === "paypal");
 
   return (
-    <div className="p-6 space-y-6 max-w-5xl mx-auto">
+    <div className="p-6 space-y-6 max-w-2xl mx-auto">
       {/* Page header */}
       <div className="flex items-center gap-3">
         <CreditCardIcon className="size-7 text-primary" />
         <div>
           <h1 className="text-2xl font-bold tracking-tight">
-            Payment Gateway Integration
+            PayPal Payment Gateway
           </h1>
           <p className="text-muted-foreground text-sm">
-            Configure Stripe and PayPal for your platform. Keys are encrypted at
-            rest. Switch between test and production modes without losing your
-            keys.
+            Configure PayPal for your platform. Keys are encrypted at rest.
+            Switch between test and production modes without losing your keys.
           </p>
         </div>
       </div>
@@ -521,14 +516,13 @@ export default function PaymentGatewayPage() {
         </div>
       )}
 
-      {!loading && !error && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {stripe && (
-            <GatewayCard data={stripe} onSaved={fetchGateways} />
-          )}
-          {paypal && (
-            <GatewayCard data={paypal} onSaved={fetchGateways} />
-          )}
+      {!loading && !error && paypal && (
+        <GatewayCard data={paypal} onSaved={fetchGateways} />
+      )}
+
+      {!loading && !error && !paypal && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          PayPal gateway record not found in the database. Please run migrations.
         </div>
       )}
     </div>

@@ -30,7 +30,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
@@ -100,23 +99,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         </ScrollArea>
       </SidebarContent>
       <SidebarFooter>
-        <Card className="gap-4 overflow-hidden py-4 group-data-[collapsible=icon]:hidden">
-          <CardHeader className="px-3">
-            <CardTitle>Unlock Everything</CardTitle>
-            <CardDescription>
-              Get instant access to all premium dashboards, templates, and UI components. Pay once,
-              use forever in unlimited projects.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="px-3">
-            <Button className="w-full" asChild>
-              <Link href="https://shadcnuikit.com/pricing" target="_blank">
-                <span className="size-2 shrink-0 rounded-full bg-green-500"></span>
-                Get Full Access
-              </Link>
-            </Button>
-          </CardContent>
-        </Card>
         <NavUser />
       </SidebarFooter>
     </Sidebar>

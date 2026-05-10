@@ -55,4 +55,8 @@ return [
         'url'    => env('AWS_URL'),
     ],
 
+    'paypal' => [
+        'webhook_id' => env('PAYPAL_WEBHOOK_ID'),
+    ],
+
 ];

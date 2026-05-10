@@ -5,6 +5,7 @@ import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/layout/sidebar/app-sidebar";
 import { SiteHeader } from "@/components/layout/header";
 import { OnboardingGuard } from "@/components/onboarding-guard";
+import { SubscriptionGuard } from "@/components/subscription-guard";
 
 export default async function AuthLayout({
   children
@@ -40,6 +41,9 @@ export default async function AuthLayout({
       </SidebarInset>
       <React.Suspense>
         <OnboardingGuard />
+      </React.Suspense>
+      <React.Suspense>
+        <SubscriptionGuard />
       </React.Suspense>
     </SidebarProvider>
   );

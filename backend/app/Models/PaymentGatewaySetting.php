@@ -15,6 +15,7 @@ class PaymentGatewaySetting extends Model
         'is_active',
         'publishable_key',
         'secret_key',
+        'webhook_id',
     ];
 
     protected $casts = [

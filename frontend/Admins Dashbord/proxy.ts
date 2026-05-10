@@ -25,6 +25,15 @@ export function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // All /admindashboard/* routes require the admin token cookie
+  if (pathname.startsWith("/admindashboard")) {
+    const token = request.cookies.get("wtc_admin_token")?.value;
+    if (!token) {
+      return NextResponse.redirect(new URL(ADMIN_LOGIN_URL, request.url));
+    }
+    return NextResponse.next();
+  }
+
   // All other /dashboard/* routes require the admin token cookie
   if (pathname.startsWith("/dashboard/")) {
     const token = request.cookies.get("wtc_admin_token")?.value;
@@ -37,5 +46,5 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/", "/dashboard", "/dashboard/:path*"],
+  matcher: ["/", "/dashboard", "/dashboard/:path*", "/admindashboard", "/admindashboard/:path*"],
 };

@@ -10,7 +10,12 @@ use App\Http\Controllers\Admin\AdminRcicController;
 use App\Http\Controllers\Admin\AdminImmigrationConsultantController;
 use App\Http\Controllers\Admin\AdminPaymentGatewayController;
 use App\Http\Controllers\Admin\AdminSubscriptionPackageController;
+use App\Http\Controllers\Admin\AdminSubscriptionPaymentsController;
+use App\Http\Controllers\ConsultantSubscriptionController;
 use App\Http\Controllers\FileUploadController;
+use App\Http\Controllers\IrccNewsController;
+use App\Http\Controllers\PaymentController;
+use App\Http\Controllers\PayPalWebhookController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -21,6 +26,17 @@ use Illuminate\Support\Facades\Route;
 | Protected routes require a valid Sanctum token via the 'auth:sanctum' middleware.
 |--------------------------------------------------------------------------
 */
+
+// ── Public: active subscription packages (for consultant subscription gate) ──
+Route::get('subscription-packages', [AdminSubscriptionPackageController::class, 'publicIndex'])
+    ->name('subscription-packages.public');
+
+// ── Public: IRCC news feed (no auth required — consultants & guests) ──────────
+Route::get('ircc-news', [IrccNewsController::class, 'index'])->name('ircc-news.index');
+
+// ── Public: PayPal webhook (no auth — verified via PayPal signature) ──────────
+Route::post('webhooks/paypal', [PayPalWebhookController::class, 'handle'])
+    ->name('webhooks.paypal');
 
 // ── Authentication (Google OAuth + email/password) ───────────────────────────
 Route::prefix('auth')->group(function () {
@@ -73,6 +89,21 @@ Route::middleware('auth:sanctum')->group(function () {
     // ── Consultant RCIC onboarding ────────────────────────────────────────────
     Route::post('consultant/onboarding', [ConsultantOnboardingController::class, 'submit'])
         ->name('consultant.onboarding');
+
+    // ── Consultant subscription ───────────────────────────────────────────────
+    Route::get('consultant/subscription',              [ConsultantSubscriptionController::class, 'status'])->name('consultant.subscription.status');
+    Route::post('consultant/subscription/start-trial', [ConsultantSubscriptionController::class, 'startTrial'])->name('consultant.subscription.start-trial');
+    Route::post('consultant/subscription/subscribe',   [ConsultantSubscriptionController::class, 'subscribe'])->name('consultant.subscription.subscribe');
+
+    // ── Consultant PayPal payment ─────────────────────────────────────────────
+    Route::prefix('consultant/payment/paypal')->name('consultant.payment.paypal.')->group(function () {
+        Route::get('config',                    [PaymentController::class, 'paypalConfig'])->name('config');
+        Route::post('create-order',             [PaymentController::class, 'createOrder'])->name('create-order');
+        Route::post('capture-order',            [PaymentController::class, 'captureOrder'])->name('capture-order');
+        // ── Subscriptions API (auto-renewal) ────────────────────────────────
+        Route::post('subscription/create',      [PaymentController::class, 'createSubscription'])->name('subscription.create');
+        Route::post('subscription/activate',    [PaymentController::class, 'activateSubscription'])->name('subscription.activate');
+    });
     // ── Super Admin Dashboard ────────────────────────────────────────────────
     // Accessible by super-admin only.
     Route::middleware('role:super-admin')->prefix('admin')->name('admin.')->group(function () {
@@ -128,6 +159,12 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::patch('{package}/toggle',             [AdminSubscriptionPackageController::class, 'toggle'])->name('toggle');
             Route::delete('{package}',                   [AdminSubscriptionPackageController::class, 'destroy'])->name('destroy');
         });
+
+        // Subscription payments
+        Route::get('subscription-payments', [AdminSubscriptionPaymentsController::class, 'index'])->name('subscription-payments.index');
+
+        // IRCC news cache — force refresh
+        Route::post('ircc-news/refresh', [IrccNewsController::class, 'refresh'])->name('ircc-news.refresh');
     });
 });
 

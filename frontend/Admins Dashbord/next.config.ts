@@ -17,6 +17,7 @@ const nextConfig: NextConfig = {
       { source: "/admindashboard/users/immigration-consult", destination: "/dashboard/admindashboard/users/immigration-consult" },
       { source: "/admindashboard/payment-gateway", destination: "/dashboard/admindashboard/payment-gateway" },
       { source: "/admindashboard/subscription-packages", destination: "/dashboard/admindashboard/subscription-packages" },
+      { source: "/admindashboard/subscription-payments", destination: "/dashboard/admindashboard/subscription-payments" },
     ];
   },
   async redirects() {

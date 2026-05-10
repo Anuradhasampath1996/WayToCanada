@@ -118,7 +118,7 @@ export function OnboardingGuard() {
   // ── Loading spinner (initial auth check) ─────────────────────────────────
   if (status === "loading") {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-white/80 backdrop-blur-sm">
+      <div className="fixed inset-0 z-[60] flex items-center justify-center bg-white/80 backdrop-blur-sm" suppressHydrationWarning>
         <Loader2 className="h-10 w-10 animate-spin text-blue-600" />
       </div>
     );
@@ -129,7 +129,7 @@ export function OnboardingGuard() {
 
   // ── Popup overlay ─────────────────────────────────────────────────────────
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-8 space-y-6">
 
         {/* ── ONBOARDING FORM ── */}

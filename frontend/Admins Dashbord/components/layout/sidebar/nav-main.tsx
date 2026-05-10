@@ -108,6 +108,11 @@ export const navItems: NavGroup[] = [
         title: "Subscription Packages",
         href: "/admindashboard/subscription-packages",
         icon: BadgeDollarSignIcon
+      },
+      {
+        title: "Subscription Payments",
+        href: "/admindashboard/subscription-payments",
+        icon: WalletMinimalIcon
       }
     ]
   },

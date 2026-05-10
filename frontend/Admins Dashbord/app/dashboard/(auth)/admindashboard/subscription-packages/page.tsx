@@ -13,6 +13,22 @@ import {
   X,
   GripVertical,
 } from "lucide-react";
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+  arrayMove,
+} from "@dnd-kit/sortable";
+import { restrictToVerticalAxis } from "@dnd-kit/modifiers";
+import { CSS } from "@dnd-kit/utilities";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,6 +36,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table,
   TableBody,
@@ -58,10 +75,14 @@ const API = process.env.NEXT_PUBLIC_API_URL + "/api/v1";
 type SubscriptionPackage = {
   id: number;
   name: string;
+  name_fr: string | null;
   description: string | null;
+  description_fr: string | null;
   monthly_price: number | null;
   yearly_price: number | null;
+  free_trial_days: number | null;
   features: string[] | null;
+  features_fr: string[] | null;
   is_active: boolean;
   sort_order: number;
   created_at: string;
@@ -70,20 +91,28 @@ type SubscriptionPackage = {
 
 type PackageForm = {
   name: string;
+  name_fr: string;
   description: string;
+  description_fr: string;
   monthly_price: string;
   yearly_price: string;
-  features: string[]; // array of feature strings
+  free_trial_days: string;
+  features: string[];
+  features_fr: string[];
   is_active: boolean;
   sort_order: string;
 };
 
 const emptyForm = (): PackageForm => ({
   name: "",
+  name_fr: "",
   description: "",
+  description_fr: "",
   monthly_price: "",
   yearly_price: "",
+  free_trial_days: "",
   features: [],
+  features_fr: [],
   is_active: true,
   sort_order: "0",
 });
@@ -111,6 +140,52 @@ function fmt(price: number | null) {
   );
 }
 
+// ── Sortable feature row ───────────────────────────────────────────────────────
+function SortableFeatureItem({
+  id,
+  label,
+  onRemove,
+}: {
+  id: string;
+  label: string;
+  onRemove: () => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <li
+      ref={setNodeRef}
+      style={style}
+      className="flex items-center gap-2 rounded-md border bg-muted/40 px-3 py-2 text-sm select-none"
+    >
+      {/* drag handle */}
+      <button
+        type="button"
+        className="cursor-grab active:cursor-grabbing touch-none text-muted-foreground hover:text-foreground"
+        {...attributes}
+        {...listeners}
+      >
+        <GripVertical className="size-4" />
+      </button>
+      <span className="flex-1 truncate">{label}</span>
+      <button
+        type="button"
+        onClick={onRemove}
+        className="text-muted-foreground hover:text-destructive transition-colors"
+      >
+        <X className="size-4" />
+      </button>
+    </li>
+  );
+}
+
 // ── Feature tag editor ─────────────────────────────────────────────────────────
 function FeatureEditor({
   features,
@@ -120,6 +195,8 @@ function FeatureEditor({
   onChange: (f: string[]) => void;
 }) {
   const [input, setInput] = React.useState("");
+
+  const sensors = useSensors(useSensor(PointerSensor));
 
   function addFeature() {
     const val = input.trim();
@@ -132,8 +209,18 @@ function FeatureEditor({
     onChange(features.filter((_, i) => i !== idx));
   }
 
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (over && active.id !== over.id) {
+      const oldIdx = features.indexOf(active.id as string);
+      const newIdx = features.indexOf(over.id as string);
+      onChange(arrayMove(features, oldIdx, newIdx));
+    }
+  }
+
   return (
     <div className="space-y-2">
+      {/* Input row */}
       <div className="flex gap-2">
         <Input
           placeholder="e.g. Unlimited clients"
@@ -150,25 +237,34 @@ function FeatureEditor({
           Add
         </Button>
       </div>
+
+      {/* Sortable list */}
       {features.length > 0 && (
-        <div className="flex flex-wrap gap-1.5">
-          {features.map((f, i) => (
-            <span
-              key={i}
-              className="flex items-center gap-1 rounded-full bg-primary/10 text-primary text-xs px-2.5 py-1"
-            >
-              <GripVertical className="size-3 text-muted-foreground" />
-              {f}
-              <button
-                type="button"
-                onClick={() => removeFeature(i)}
-                className="ml-0.5 hover:text-destructive"
-              >
-                <X className="size-3" />
-              </button>
-            </span>
-          ))}
-        </div>
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          modifiers={[restrictToVerticalAxis]}
+          onDragEnd={handleDragEnd}
+        >
+          <SortableContext items={features} strategy={verticalListSortingStrategy}>
+            <ul className="space-y-1.5">
+              {features.map((f, i) => (
+                <SortableFeatureItem
+                  key={f}
+                  id={f}
+                  label={f}
+                  onRemove={() => removeFeature(i)}
+                />
+              ))}
+            </ul>
+          </SortableContext>
+        </DndContext>
+      )}
+
+      {features.length > 0 && (
+        <p className="text-xs text-muted-foreground">
+          Drag <GripVertical className="inline size-3" /> to reorder features.
+        </p>
       )}
     </div>
   );
@@ -196,10 +292,14 @@ function PackageFormDialog({
       if (initial) {
         setForm({
           name: initial.name,
+          name_fr: initial.name_fr ?? "",
           description: initial.description ?? "",
+          description_fr: initial.description_fr ?? "",
           monthly_price: initial.monthly_price?.toString() ?? "",
           yearly_price: initial.yearly_price?.toString() ?? "",
+          free_trial_days: initial.free_trial_days?.toString() ?? "",
           features: initial.features ?? [],
+          features_fr: initial.features_fr ?? [],
           is_active: initial.is_active,
           sort_order: initial.sort_order.toString(),
         });
@@ -221,10 +321,14 @@ function PackageFormDialog({
     try {
       const body = {
         name: form.name,
+        name_fr: form.name_fr || null,
         description: form.description || null,
+        description_fr: form.description_fr || null,
         monthly_price: form.monthly_price !== "" ? parseFloat(form.monthly_price) : null,
         yearly_price: form.yearly_price !== "" ? parseFloat(form.yearly_price) : null,
+        free_trial_days: form.free_trial_days !== "" ? parseInt(form.free_trial_days) : null,
         features: form.features.length > 0 ? form.features : null,
+        features_fr: form.features_fr.length > 0 ? form.features_fr : null,
         is_active: form.is_active,
         sort_order: parseInt(form.sort_order) || 0,
       };
@@ -269,27 +373,80 @@ function PackageFormDialog({
             </p>
           )}
 
-          {/* Name */}
-          <div className="space-y-1.5">
-            <Label>Package Name *</Label>
-            <Input
-              required
-              placeholder="e.g. Professional Plan"
-              value={form.name}
-              onChange={(e) => set("name", e.target.value)}
-            />
-          </div>
+          {/* EN / FR bilingual tabs for name, description, features */}
+          <Tabs defaultValue="en">
+            <TabsList className="w-full">
+              <TabsTrigger value="en" className="flex-1 gap-1.5">
+                🇨🇦 English
+              </TabsTrigger>
+              <TabsTrigger value="fr" className="flex-1 gap-1.5">
+                🇫🇷 Français
+              </TabsTrigger>
+            </TabsList>
 
-          {/* Description */}
-          <div className="space-y-1.5">
-            <Label>Description</Label>
-            <Textarea
-              placeholder="Brief description of this package…"
-              value={form.description}
-              onChange={(e) => set("description", e.target.value)}
-              rows={2}
-            />
-          </div>
+            {/* ── English tab ── */}
+            <TabsContent value="en" className="space-y-4 pt-2">
+              <div className="space-y-1.5">
+                <Label>Package Name (EN) *</Label>
+                <Input
+                  required
+                  placeholder="e.g. Professional Plan"
+                  value={form.name}
+                  onChange={(e) => set("name", e.target.value)}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Description (EN)</Label>
+                <Textarea
+                  placeholder="Brief description of this package…"
+                  value={form.description}
+                  onChange={(e) => set("description", e.target.value)}
+                  rows={2}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Features (EN)</Label>
+                <p className="text-muted-foreground text-xs">
+                  Press Enter or click Add after each feature.
+                </p>
+                <FeatureEditor
+                  features={form.features}
+                  onChange={(f) => set("features", f)}
+                />
+              </div>
+            </TabsContent>
+
+            {/* ── French tab ── */}
+            <TabsContent value="fr" className="space-y-4 pt-2">
+              <div className="space-y-1.5">
+                <Label>Nom du forfait (FR)</Label>
+                <Input
+                  placeholder="ex. Plan Professionnel"
+                  value={form.name_fr}
+                  onChange={(e) => set("name_fr", e.target.value)}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Description (FR)</Label>
+                <Textarea
+                  placeholder="Brève description de ce forfait…"
+                  value={form.description_fr}
+                  onChange={(e) => set("description_fr", e.target.value)}
+                  rows={2}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Fonctionnalités (FR)</Label>
+                <p className="text-muted-foreground text-xs">
+                  Appuyez sur Entrée ou cliquez sur Ajouter après chaque fonctionnalité.
+                </p>
+                <FeatureEditor
+                  features={form.features_fr}
+                  onChange={(f) => set("features_fr", f)}
+                />
+              </div>
+            </TabsContent>
+          </Tabs>
 
           {/* Pricing */}
           <div className="grid grid-cols-2 gap-4">
@@ -329,16 +486,26 @@ function PackageFormDialog({
             </div>
           </div>
 
-          {/* Features */}
-          <div className="space-y-1.5">
-            <Label>Features</Label>
-            <p className="text-muted-foreground text-xs">
-              Press Enter or click Add after each feature.
-            </p>
-            <FeatureEditor
-              features={form.features}
-              onChange={(f) => set("features", f)}
-            />
+          {/* Free Trial */}
+          <div className="flex items-center justify-between rounded-lg border px-4 py-3">
+            <div>
+              <p className="text-sm font-medium">Free Trial</p>
+              <p className="text-muted-foreground text-xs">
+                Number of trial days (leave empty for no free trial)
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Input
+                type="number"
+                min="0"
+                step="1"
+                placeholder="e.g. 14"
+                className="w-24 text-right"
+                value={form.free_trial_days}
+                onChange={(e) => set("free_trial_days", e.target.value)}
+              />
+              <span className="text-sm text-muted-foreground whitespace-nowrap">days</span>
+            </div>
           </div>
 
           {/* Sort order */}
@@ -518,6 +685,7 @@ export default function SubscriptionPackagesPage() {
                 <TableHead>Package Name</TableHead>
                 <TableHead>Monthly</TableHead>
                 <TableHead>Yearly</TableHead>
+                <TableHead>Free Trial</TableHead>
                 <TableHead>Features</TableHead>
                 <TableHead className="text-center">Status</TableHead>
                 <TableHead className="w-10" />
@@ -532,6 +700,9 @@ export default function SubscriptionPackagesPage() {
 
                   <TableCell>
                     <div className="font-medium">{pkg.name}</div>
+                    {pkg.name_fr && (
+                      <div className="text-muted-foreground text-xs mt-0.5">🇫🇷 {pkg.name_fr}</div>
+                    )}
                     {pkg.description && (
                       <div className="text-muted-foreground text-xs mt-0.5 max-w-xs truncate">
                         {pkg.description}
@@ -541,6 +712,12 @@ export default function SubscriptionPackagesPage() {
 
                   <TableCell>{fmt(pkg.monthly_price)}</TableCell>
                   <TableCell>{fmt(pkg.yearly_price)}</TableCell>
+
+                  <TableCell>
+                    {pkg.free_trial_days
+                      ? <Badge variant="outline" className="text-xs gap-1 whitespace-nowrap">{pkg.free_trial_days} days</Badge>
+                      : <span className="text-muted-foreground text-sm">—</span>}
+                  </TableCell>
 
                   <TableCell>
                     {pkg.features && pkg.features.length > 0 ? (
