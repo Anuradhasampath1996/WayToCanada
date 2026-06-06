@@ -59,4 +59,16 @@ return [
         'webhook_id' => env('PAYPAL_WEBHOOK_ID'),
     ],
 
+    /*
+     | OCR / AI Service
+     | -----------------
+     | Point OCR_SERVICE_URL to your AI service:
+     |   - Local FastAPI:   http://127.0.0.1:8001/api/v1
+     |   - Google Colab:    https://<ngrok-id>.ngrok-free.app/api/v1
+     |   - Any hosted API:  https://your-model.example.com/api/v1
+     */
+    'ocr' => [
+        'url' => env('OCR_SERVICE_URL', 'http://127.0.0.1:8001/api/v1'),
+    ],
+
 ];

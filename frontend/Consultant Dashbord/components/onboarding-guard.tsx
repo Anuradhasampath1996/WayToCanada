@@ -24,7 +24,7 @@ export function OnboardingGuard() {
   const loadUser = (forceRefresh = false) => {
     const token = localStorage.getItem("wtc_consultant_token");
     if (!token) {
-      window.location.replace("http://localhost:3001/login");
+      window.location.replace("http://localhost:3002/login");
       return;
     }
 
@@ -46,8 +46,11 @@ export function OnboardingGuard() {
     })
       .then((res) => {
         if (!res.ok) {
-          // Token invalid/expired and no cache → redirect to login
-          if (!cachedRaw) window.location.replace("http://localhost:3001/login");
+          // Token invalid/expired → clear storage and redirect to login
+          localStorage.removeItem("wtc_consultant_token");
+          localStorage.removeItem("wtc_consultant_user");
+          document.cookie = "wtc_consultant_token=; path=/; max-age=0";
+          window.location.replace("http://localhost:3002/login");
           return;
         }
         return res.json();

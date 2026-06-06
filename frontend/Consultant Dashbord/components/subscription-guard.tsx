@@ -439,7 +439,7 @@ export function SubscriptionGuard() {
                 localStorage.removeItem("wtc_consultant_token");
                 localStorage.removeItem("wtc_consultant_user");
                 document.cookie = "wtc_consultant_token=; path=/; max-age=0; SameSite=Lax";
-                window.location.replace("http://localhost:3001/login");
+                window.location.replace("http://localhost:3002/login");
               }}
               className="flex items-center gap-2 px-4 py-2 rounded-full text-xs font-semibold text-white/80 bg-white/10 border border-white/20 hover:bg-white/20 hover:text-white transition-all"
             >

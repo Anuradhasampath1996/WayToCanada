@@ -7,6 +7,8 @@ use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Laravel\Sanctum\HasApiTokens;
 use Spatie\Permission\Traits\HasRoles;
 
@@ -31,10 +33,24 @@ class User extends Authenticatable implements MustVerifyEmail
         'avatar',
         'locale',
         'is_verified',
+        'email_verified_at',
         'cicc_email',
         'rcic_number',
         'is_license_verified',
         'license_verified_at',
+        'consultant_id',
+        'company_name',
+        'company_logo',
+        'company_bio',
+        'company_website',
+        'company_phone',
+        'company_address_line1',
+        'company_address_line2',
+        'company_city',
+        'company_province',
+        'company_postal_code',
+        'company_country',
+        'digital_signature',
     ];
 
     protected $hidden = [
@@ -53,5 +69,19 @@ class User extends Authenticatable implements MustVerifyEmail
             'is_license_verified' => 'boolean',
             'license_verified_at' => 'datetime',
         ];
+    }
+
+    // ── Relationships ──────────────────────────────────────────────────────────
+
+    /** Client profile (if this user is a client). */
+    public function clientProfile(): HasOne
+    {
+        return $this->hasOne(ClientProfile::class);
+    }
+
+    /** Clients created by this consultant. */
+    public function clients(): HasMany
+    {
+        return $this->hasMany(ClientProfile::class, 'consultant_id');
     }
 }

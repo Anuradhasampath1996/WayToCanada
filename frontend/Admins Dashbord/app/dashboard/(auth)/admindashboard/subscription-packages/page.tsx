@@ -69,6 +69,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { adminAuthHeaders } from "@/lib/admin-auth";
 
 const API = process.env.NEXT_PUBLIC_API_URL + "/api/v1";
 
@@ -117,15 +118,7 @@ const emptyForm = (): PackageForm => ({
   sort_order: "0",
 });
 
-function authHeaders() {
-  const token =
-    typeof window !== "undefined" ? localStorage.getItem("wtc_admin_token") : "";
-  return {
-    Authorization: `Bearer ${token}`,
-    "Content-Type": "application/json",
-    Accept: "application/json",
-  };
-}
+function authHeaders() { return adminAuthHeaders("application/json"); }
 
 function fmt(price: number | null) {
   if (price == null) return <span className="text-muted-foreground text-sm">—</span>;

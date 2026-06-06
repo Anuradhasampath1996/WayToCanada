@@ -1,0 +1,3569 @@
+﻿"use client";
+
+import { useState, useEffect, useRef, useCallback } from "react";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
+import { useIAQNav } from "@/context/questionnaire-nav-context";
+import {
+  ChevronLeft, ChevronRight, Check, Send,
+  CheckCircle2, User, Users, Baby, UserPlus,
+  Upload, FileText, Car, CreditCard, Loader2, Eye, X, Star,
+} from "lucide-react";
+
+import { Button }           from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Input }            from "@/components/ui/input";
+import { Label }            from "@/components/ui/label";
+import { Badge }            from "@/components/ui/badge";
+import { Separator }        from "@/components/ui/separator";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import {
+  Select, SelectContent, SelectItem,
+  SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import {
+  Tabs, TabsContent, TabsList, TabsTrigger,
+} from "@/components/ui/tabs";
+import { cn } from "@/lib/utils";
+
+// â”€â”€ API â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+const API = (process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000") + "/api/v1";
+
+function getToken(): string | null {
+  if (typeof window === "undefined") return null;
+  const local = localStorage.getItem("wtc_token");
+  if (local) return local;
+  const m = document.cookie.match(/(?:^|;\s*)wtc_token=([^;]+)/);
+  return m ? decodeURIComponent(m[1]) : null;
+}
+
+async function saveToServer(data: FormData): Promise<void> {
+  const token = getToken();
+  const res = await fetch(`${API}/questionnaire`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify({
+      step1_data: {
+        fullName:          data.fullName,
+        email:             data.email,
+        whatsapp:          data.whatsapp,
+        visaType:          data.visaType,
+        married:           data.married,
+        dependentChildren: data.dependentChildren,
+        hasAccompanying:   data.hasAccompanying,
+        accompanyingCount: data.accompanyingCount,
+      },
+      main_data:         data.main,
+      spouse_data:       data.spouse,
+      children_data:     data.children,
+      accompanying_data: data.accompanying,
+      step3_data: {
+        eduLevels: data.eduLevels, eduQualifications: data.eduQualifications,
+        spouseEduLevel: data.spouseEduLevel,
+        currentJobTitle: data.currentJobTitle, currentJobField: data.currentJobField,
+        totalExpYears: data.totalExpYears, continuousFullTime: data.continuousFullTime,
+        workCategory: data.workCategory, spouseExpYears: data.spouseExpYears,
+        intlTestTaken: data.intlTestTaken, intlTestType: data.intlTestType,
+        intlTestScores: data.intlTestScores, expectedClb: data.expectedClb,
+        frenchProficiency: data.frenchProficiency,
+        fundsLkrRange: data.fundsLkrRange, canInvestStudent: data.canInvestStudent,
+        relativeInCountry: data.relativeInCountry, prevEduAbroad: data.prevEduAbroad,
+        prevWorkAbroad: data.prevWorkAbroad, hasJobOffer: data.hasJobOffer,
+        hasMedicalCondition: data.hasMedicalCondition,
+        hasCriminalRecord: data.hasCriminalRecord, hasVisaRefusal: data.hasVisaRefusal,
+      },
+    }),
+  });
+  if (!res.ok) throw new Error("Autosave failed");
+}
+
+async function uploadDocumentFile(file: File): Promise<string> {
+  const token = getToken();
+  const fd = new globalThis.FormData();
+  fd.append("file", file);
+  fd.append("type", "client-document");
+  const res = await fetch(`${API}/documents/upload`, {
+    method: "POST",
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: fd,
+  });
+  if (!res.ok) throw new Error("Upload failed");
+  const json = await res.json();
+  return (json.path as string) ?? file.name;
+}
+
+// â”€â”€ OCR microservice â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+
+interface OcrExtracted {
+  fullName?: string;
+  passportNumber?: string;
+  idNumber?: string;
+  dob?: string;
+  expiryDate?: string;
+  issueDate?: string;
+  nationality?: string;
+  gender?: string;
+  address?: string;
+  birthPlace?: string;
+  // Education document fields
+  institutionName?: string;
+  degreeName?: string;
+  graduationYear?: string;
+  // Language test score fields
+  testListening?: string; testReading?: string; testWriting?: string; testSpeaking?: string;
+  testOverall?: string; testDate?: string;
+}
+
+interface EduQualification {
+  level: string;
+  universityName: string;
+  courseName: string;
+  graduationYear: string;
+  country: string;
+  documentName: string;
+}
+
+interface OcrResult {
+  status: "success" | "partial_success";
+  document_type: "passport" | "national_id" | "driving_license" | "unknown";
+  extracted_data: OcrExtracted;
+  confidence_score: number;
+  message?: string;
+}
+
+async function scanDocumentFile(file: File): Promise<OcrResult | null> {
+  try {
+    const fd = new globalThis.FormData();
+    fd.append("file", file);
+    const token = getToken();
+    const res = await fetch(`${API}/documents/scan`, {
+      method: "POST",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: fd,
+    });
+    if (!res.ok) return null;
+    return (await res.json()) as OcrResult;
+  } catch {
+    return null; // OCR is best-effort — never block upload
+  }
+}
+
+// â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+interface ScoreSet { listening: string; reading: string; writing: string; speaking: string }
+interface MainData {
+  dob: string; educationLevels: string[]; educationQuals: EduQualification[]; studiedInCanada: string;
+  languageTest: string; scores: ScoreSet;
+  workExperience: string; canadianWork: string;
+  jobOffer: string; settlementFunds: string; canadianRelatives: string;
+  passportName: string; governmentIdName: string; governmentIdBackName: string;
+  drivingLicenseName: string; drivingLicenseBackName: string;
+  // Passport details
+  passportFullName: string; passportNumber: string; passportExpiry: string;
+  passportNationality: string; passportGender: string;
+  // NIC / ID details
+  nicFullName: string; nicNumber: string; nicDob: string; nicAddress: string;
+  nicBirthPlace: string; nicIssueDate: string;
+  // Canada study details
+  canadaStudyInstitution: string; canadaStudyProgram: string; canadaStudyCity: string;
+  canadaStudyStart: string; canadaStudyEnd: string; canadaStudyDocName: string;
+  // Language test document
+  languageTestDocName: string;
+  // Canadian work details
+  canadianWorkEmployer: string; canadianWorkTitle: string;
+  canadianWorkStart: string; canadianWorkEnd: string; canadianWorkCity: string;
+  // Job offer details
+  jobOfferEmployer: string; jobOfferTitle: string; jobOfferNoc: string; jobOfferProvince: string;
+  // Relative details
+  relativeFullName: string; relativeRelationship: string; relativeCity: string; relativeStatus: string;
+  languages: string[];
+}
+interface SpouseData {
+  fullName: string; dob: string; educationLevels: string[]; educationQuals: EduQualification[];
+  languageTest: string; scores: ScoreSet; canadianWork: string;
+  passportName: string; governmentIdName: string; governmentIdBackName: string;
+  drivingLicenseName: string; drivingLicenseBackName: string;
+  // Passport details
+  passportFullName: string; passportNumber: string; passportExpiry: string;
+  passportNationality: string; passportGender: string;
+  // NIC / ID details
+  nicFullName: string; nicNumber: string; nicDob: string; nicAddress: string;
+  nicBirthPlace: string; nicIssueDate: string;
+  // Language test document
+  languageTestDocName: string;
+  // Spouse Canadian work details
+  canadianWorkEmployer: string; canadianWorkTitle: string;
+  canadianWorkStart: string; canadianWorkEnd: string; canadianWorkCity: string;
+  languages: string[];
+}
+interface ChildData {
+  name: string; dob: string; educationLevel: string;
+  passportName: string; governmentIdName: string; governmentIdBackName: string;
+  drivingLicenseName: string; drivingLicenseBackName: string;
+  // Passport details
+  passportFullName: string; passportNumber: string; passportExpiry: string;
+  passportNationality: string; passportGender: string;
+  // NIC / ID details
+  nicFullName: string; nicNumber: string; nicDob: string; nicAddress: string;
+  nicBirthPlace: string; nicIssueDate: string;
+  languages: string[];
+}
+interface AccompanyingPerson {
+  fullName: string; dob: string;
+  relationship: string; otherRelationship: string;
+  passportName: string; governmentIdName: string; governmentIdBackName: string;
+  drivingLicenseName: string; drivingLicenseBackName: string;
+  // Passport details
+  passportFullName: string; passportNumber: string; passportExpiry: string;
+  passportNationality: string; passportGender: string;
+  // NIC / ID details
+  nicFullName: string; nicNumber: string; nicDob: string; nicAddress: string;
+  nicBirthPlace: string; nicIssueDate: string;
+  languages: string[];
+}
+
+interface FormData {
+  fullName: string; email: string; whatsapp: string;
+  visaType: string; married: string; dependentChildren: string;
+  hasAccompanying: string; accompanyingCount: string;
+  main: MainData; spouse: SpouseData; children: ChildData[];
+  accompanying: AccompanyingPerson[];
+  // Step 3 — Immigration Assessment
+  eduLevels: string[]; eduQualifications: EduQualification[]; spouseEduLevel: string;
+  currentJobTitle: string; currentJobField: string; totalExpYears: string;
+  continuousFullTime: string; workCategory: string; spouseExpYears: string;
+  intlTestTaken: string; intlTestType: string; intlTestScores: ScoreSet;
+  expectedClb: string; frenchProficiency: string;
+  fundsLkrRange: string; canInvestStudent: string;
+  relativeInCountry: string; prevEduAbroad: string;
+  prevWorkAbroad: string; hasJobOffer: string;
+  hasMedicalCondition: string; hasCriminalRecord: string; hasVisaRefusal: string;
+}
+
+const EMPTY_SCORES: ScoreSet = { listening: "", reading: "", writing: "", speaking: "" };
+
+const INITIAL: FormData = {
+  fullName: "", email: "", whatsapp: "", visaType: "",
+  married: "", dependentChildren: "0",
+  hasAccompanying: "", accompanyingCount: "1",
+  // Step 3
+  eduLevels: [], eduQualifications: [], spouseEduLevel: "",
+  currentJobTitle: "", currentJobField: "", totalExpYears: "",
+  continuousFullTime: "", workCategory: "", spouseExpYears: "",
+  intlTestTaken: "", intlTestType: "", intlTestScores: { listening: "", reading: "", writing: "", speaking: "" },
+  expectedClb: "", frenchProficiency: "",
+  fundsLkrRange: "", canInvestStudent: "",
+  relativeInCountry: "", prevEduAbroad: "",
+  prevWorkAbroad: "", hasJobOffer: "",
+  hasMedicalCondition: "", hasCriminalRecord: "", hasVisaRefusal: "",
+  main: {
+    dob: "", educationLevels: [], educationQuals: [], studiedInCanada: "", languageTest: "",
+    scores: { ...EMPTY_SCORES },
+    workExperience: "", canadianWork: "", jobOffer: "",
+    settlementFunds: "", canadianRelatives: "",
+    passportName: "", governmentIdName: "", governmentIdBackName: "",
+    drivingLicenseName: "", drivingLicenseBackName: "",
+    passportFullName: "", passportNumber: "", passportExpiry: "",
+  passportNationality: "", passportGender: "",
+  nicFullName: "", nicNumber: "", nicDob: "", nicAddress: "",
+  nicBirthPlace: "", nicIssueDate: "",
+  canadaStudyInstitution: "", canadaStudyProgram: "", canadaStudyCity: "",
+  canadaStudyStart: "", canadaStudyEnd: "", canadaStudyDocName: "",
+  languageTestDocName: "",
+  canadianWorkEmployer: "", canadianWorkTitle: "", canadianWorkStart: "", canadianWorkEnd: "", canadianWorkCity: "",
+  jobOfferEmployer: "", jobOfferTitle: "", jobOfferNoc: "", jobOfferProvince: "",
+  relativeFullName: "", relativeRelationship: "", relativeCity: "", relativeStatus: "",
+  languages: [],
+  },
+  spouse: {
+    fullName: "", dob: "", educationLevels: [], educationQuals: [], languageTest: "",
+    scores: { ...EMPTY_SCORES }, canadianWork: "",
+    passportName: "", governmentIdName: "", governmentIdBackName: "",
+    drivingLicenseName: "", drivingLicenseBackName: "",
+    passportFullName: "", passportNumber: "", passportExpiry: "",
+  passportNationality: "", passportGender: "",
+  nicFullName: "", nicNumber: "", nicDob: "", nicAddress: "",
+  nicBirthPlace: "", nicIssueDate: "",
+  languageTestDocName: "",
+  canadianWorkEmployer: "", canadianWorkTitle: "", canadianWorkStart: "", canadianWorkEnd: "", canadianWorkCity: "",
+  languages: [],
+  },
+  children: [],
+  accompanying: [],
+};
+
+const RELATIONSHIP_LABELS: Record<string, string> = {
+  my_parent:     "My Parent",
+  spouse_parent: "Spouse's Parent",
+  sibling:       "My Sibling",
+  in_law:        "In-Law",
+  other:         "Other",
+};
+
+function childCount(val: string) {
+  if (val === "4+") return 4;
+  const n = parseInt(val, 10);
+  return isNaN(n) ? 0 : n;
+}
+
+function accompanyingCount(val: string) {
+  const n = parseInt(val, 10);
+  return isNaN(n) ? 0 : n;
+}
+
+// â”€â”€ Shared field wrapper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+function Field({
+  label, required, error, children,
+}: {
+  label: string; required?: boolean; error?: string; children: React.ReactNode;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <Label className="text-sm font-medium">
+        {label}
+        {required && <span className="text-destructive ml-1">*</span>}
+      </Label>
+      {children}
+      {error && <p className="text-xs text-destructive">{error}</p>}
+    </div>
+  );
+}
+
+// â”€â”€ IELTS score inputs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+function ScoreInputs({
+  scores,
+  onChange,
+}: {
+  scores: ScoreSet;
+  onChange: (f: keyof ScoreSet, v: string) => void;
+}) {
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-2">
+      {(["listening", "reading", "writing", "speaking"] as (keyof ScoreSet)[]).map((f) => (
+        <div key={f} className="space-y-1">
+          <Label className="text-xs capitalize text-muted-foreground">{f}</Label>
+          <Input
+            type="number" min={0} max={9} step={0.5}
+            value={scores[f]}
+            onChange={(e) => onChange(f, e.target.value)}
+            placeholder="0–9"
+            className="text-center"
+          />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// â”€â”€ Step indicator â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+function StepIndicator({ step }: { step: 1 | 2 | 3 }) {
+  return (
+    <div className="flex items-center gap-3 mb-6">
+      {/* Step 1 */}
+      <div className="flex items-center gap-2 shrink-0">
+        <div className={cn(
+          "flex h-7 w-7 items-center justify-center rounded-full border-2 text-xs font-bold transition-colors",
+          step === 1
+            ? "border-primary bg-primary text-primary-foreground"
+            : "border-green-500 bg-green-500 text-white",
+        )}>
+          {step > 1 ? <Check className="h-3.5 w-3.5" /> : "1"}
+        </div>
+        <span className={cn("text-sm font-medium", step === 1 ? "text-foreground" : "text-muted-foreground")}>
+          General Info
+        </span>
+      </div>
+
+      <Separator className="flex-1" />
+
+      {/* Step 2 */}
+      <div className="flex items-center gap-2 shrink-0">
+        <div className={cn(
+          "flex h-7 w-7 items-center justify-center rounded-full border-2 text-xs font-bold transition-colors",
+          step === 2
+            ? "border-primary bg-primary text-primary-foreground"
+            : step > 2
+              ? "border-green-500 bg-green-500 text-white"
+              : "border-muted-foreground/30 bg-background text-muted-foreground/40",
+        )}>
+          {step > 2 ? <Check className="h-3.5 w-3.5" /> : "2"}
+        </div>
+        <span className={cn("text-sm font-medium", step === 2 ? "text-foreground" : "text-muted-foreground/50")}>
+          Detailed Profile
+        </span>
+      </div>
+
+      <Separator className="flex-1" />
+
+      {/* Step 3 */}
+      <div className="flex items-center gap-2 shrink-0">
+        <div className={cn(
+          "flex h-7 w-7 items-center justify-center rounded-full border-2 text-xs font-bold transition-colors",
+          step === 3
+            ? "border-primary bg-primary text-primary-foreground"
+            : "border-muted-foreground/30 bg-background text-muted-foreground/40",
+        )}>
+          3
+        </div>
+        <span className={cn("text-sm font-medium", step === 3 ? "text-foreground" : "text-muted-foreground/50")}>
+          Review &amp; Submit
+        </span>
+      </div>
+    </div>
+  );
+}
+
+// â”€â”€ Step 1 form â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+function Step1Form({
+  data, errors,
+  onChange,
+  onSpouseName,
+  onChildName,
+  onAccompanyingName,
+}: {
+  data: FormData;
+  errors: Record<string, string>;
+  onChange: (f: keyof FormData, v: string) => void;
+  onSpouseName?: (name: string) => void;
+  onChildName?: (i: number, name: string) => void;
+  onAccompanyingName?: (i: number, name: string) => void;
+}) {
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+        <Field label="Full Name" required error={errors.fullName}>
+          <Input
+            value={data.fullName}
+            onChange={(e) => onChange("fullName", e.target.value)}
+            placeholder="As in Passport"
+          />
+        </Field>
+
+        <Field label="Email Address" required error={errors.email}>
+          <Input
+            type="email"
+            value={data.email}
+            onChange={(e) => onChange("email", e.target.value)}
+            placeholder="your@email.com"
+          />
+        </Field>
+
+        <Field label="WhatsApp Number" required error={errors.whatsapp}>
+          <Input
+            value={data.whatsapp}
+            onChange={(e) => onChange("whatsapp", e.target.value)}
+            placeholder="+1 234 567 8900"
+          />
+        </Field>
+
+        <Field label="Intended Visa Type" required error={errors.visaType}>
+          <Select value={data.visaType || undefined} onValueChange={(v) => onChange("visaType", v)}>
+            <SelectTrigger>
+              <SelectValue placeholder="Select visa type…" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="express_entry">Express Entry</SelectItem>
+              <SelectItem value="study_permit">Study Permit</SelectItem>
+              <SelectItem value="work_permit">Work Permit</SelectItem>
+              <SelectItem value="business_immigration">Business Immigration</SelectItem>
+            </SelectContent>
+          </Select>
+        </Field>
+      </div>
+
+      <Separator />
+
+      <div className="space-y-5">
+        <h3 className="text-sm font-semibold flex items-center gap-2">
+          <Users className="h-4 w-4 text-primary" />
+          Family Accompanying Details
+        </h3>
+
+        <Field label="Are you legally married or in a common-law relationship?" required error={errors.married}>
+          <RadioGroup
+            value={data.married}
+            onValueChange={(v) => onChange("married", v)}
+            className="flex gap-6 pt-1"
+          >
+            {["yes", "no"].map((v) => (
+              <div key={v} className="flex items-center space-x-2">
+                <RadioGroupItem value={v} id={`married-${v}`} />
+                <Label htmlFor={`married-${v}`} className="font-normal capitalize cursor-pointer">{v === "yes" ? "Yes" : "No"}</Label>
+              </div>
+            ))}
+          </RadioGroup>
+        </Field>
+
+        <Field label="How many dependent children are accompanying you?">
+          <Select value={data.dependentChildren} onValueChange={(v) => onChange("dependentChildren", v)}>
+            <SelectTrigger className="w-48">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="0">0 — No children</SelectItem>
+              <SelectItem value="1">1</SelectItem>
+              <SelectItem value="2">2</SelectItem>
+              <SelectItem value="3">3</SelectItem>
+              <SelectItem value="4+">4+</SelectItem>
+            </SelectContent>
+          </Select>
+        </Field>
+
+        <Field
+          label="Are any other persons accompanying you? (parents, in-laws, siblings, others)"
+          required
+          error={errors.hasAccompanying}
+        >
+          <RadioGroup
+            value={data.hasAccompanying}
+            onValueChange={(v) => onChange("hasAccompanying", v)}
+            className="flex gap-6 pt-1"
+          >
+            {["yes", "no"].map((v) => (
+              <div key={v} className="flex items-center space-x-2">
+                <RadioGroupItem value={v} id={`accompanying-${v}`} />
+                <Label htmlFor={`accompanying-${v}`} className="font-normal cursor-pointer">
+                  {v === "yes" ? "Yes" : "No"}
+                </Label>
+              </div>
+            ))}
+          </RadioGroup>
+        </Field>
+
+        {data.hasAccompanying === "yes" && (
+          <Field label="How many other persons are accompanying you?">
+            <Select
+              value={data.accompanyingCount}
+              onValueChange={(v) => onChange("accompanyingCount", v)}
+            >
+              <SelectTrigger className="w-48">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {["1", "2", "3", "4", "5"].map((n) => (
+                  <SelectItem key={n} value={n}>{n}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+        )}
+
+        {(data.married === "yes" || childCount(data.dependentChildren) > 0 || data.hasAccompanying === "yes") && (
+          <div className="rounded-lg border bg-muted/20 p-4 space-y-3">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+              <Users className="h-3.5 w-3.5" />
+              Family Members — Full Names
+            </p>
+            {data.married === "yes" && (
+              <Field label="Spouse's Full Name">
+                <Input
+                  value={data.spouse.fullName}
+                  onChange={(e) => onSpouseName?.(e.target.value)}
+                  placeholder="As in passport"
+                />
+              </Field>
+            )}
+            {Array.from({ length: childCount(data.dependentChildren) }).map((_, i) => (
+              <Field key={i} label={`Child ${i + 1} Full Name`}>
+                <Input
+                  value={data.children[i]?.name ?? ""}
+                  onChange={(e) => onChildName?.(i, e.target.value)}
+                  placeholder={`Child ${i + 1}'s full name`}
+                />
+              </Field>
+            ))}
+            {data.hasAccompanying === "yes" && Array.from({ length: accompanyingCount(data.accompanyingCount) }).map((_, i) => (
+              <Field key={`acc-${i}`} label={`Other Person ${i + 1} Full Name`}>
+                <Input
+                  value={data.accompanying[i]?.fullName ?? ""}
+                  onChange={(e) => onAccompanyingName?.(i, e.target.value)}
+                  placeholder="Full name as in passport"
+                />
+              </Field>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// â”€â”€ Tab: Main Applicant â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+function MainApplicantTab({
+  data,
+  onChange,
+  onDocUpload,
+}: {
+  data: MainData;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  onChange: (f: keyof MainData, v: any) => void;
+  onDocUpload?: (file: File) => Promise<string>;
+}) {
+  return (
+    <div className="space-y-6">
+      <p className="text-sm font-semibold flex items-center gap-2">
+        <FileText className="h-4 w-4 text-primary" />
+        Identity Documents
+      </p>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <DocumentUploadCard
+          title="Passport"
+          description="Bio-data page"
+          accept=".pdf,.jpg,.jpeg,.png"
+          icon={FileText}
+          fileName={data.passportName}
+          onFileChange={(n) => onChange("passportName", n)}
+          onUpload={onDocUpload}
+          onNewFile={() => {
+            onChange("passportFullName", "");
+            onChange("passportNumber", "");
+            onChange("dob", "");
+            onChange("passportExpiry", "");
+            onChange("passportNationality", "");
+            onChange("passportGender", "");
+          }}
+          onScanComplete={(result) => {
+            const d = result.extracted_data;
+            if (d.dob)            onChange("dob", d.dob);
+            if (d.fullName)       onChange("passportFullName", d.fullName);
+            if (d.passportNumber) onChange("passportNumber", d.passportNumber);
+            if (d.expiryDate)     onChange("passportExpiry", d.expiryDate);
+            if (d.nationality)    onChange("passportNationality", d.nationality);
+            if (d.gender)         onChange("passportGender", d.gender);
+          }}
+        />
+      </div>
+      <div className="rounded-lg border border-blue-200 bg-blue-50/40 p-4 space-y-3">
+        <p className="text-xs font-semibold text-blue-700 uppercase tracking-wider">Passport Details</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <Field label="Full Name (Given Names + Surname)">
+            <Input value={data.passportFullName} onChange={(e) => onChange("passportFullName", e.target.value)} placeholder="As printed on passport" />
+          </Field>
+          <Field label="Passport Number">
+            <Input value={data.passportNumber} onChange={(e) => onChange("passportNumber", e.target.value)} placeholder="e.g. AB1234567" />
+          </Field>
+          <Field label="Date of Birth" required>
+            <Input type="date" value={data.dob} onChange={(e) => onChange("dob", e.target.value)} />
+          </Field>
+          <Field label="Expiry Date">
+            <Input type="date" value={data.passportExpiry} onChange={(e) => onChange("passportExpiry", e.target.value)} />
+          </Field>
+          <Field label="Nationality / Country of Citizenship">
+            <Input value={data.passportNationality} onChange={(e) => onChange("passportNationality", e.target.value)} placeholder="e.g. Pakistani" />
+          </Field>
+          <Field label="Sex / Gender">
+            <Select value={data.passportGender || undefined} onValueChange={(v) => onChange("passportGender", v)}>
+              <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Male">Male</SelectItem>
+                <SelectItem value="Female">Female</SelectItem>
+                <SelectItem value="Other">Other / Unspecified</SelectItem>
+              </SelectContent>
+            </Select>
+          </Field>
+        </div>
+      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <TwoSidedDocumentCard
+          title="Government ID"
+          description="National ID / CNIC"
+          icon={CreditCard}
+          frontFileName={data.governmentIdName}
+          backFileName={data.governmentIdBackName}
+          onFrontChange={(n) => onChange("governmentIdName", n)}
+          onBackChange={(n) => onChange("governmentIdBackName", n)}
+          onUpload={onDocUpload}
+          onNewFile={() => {
+            onChange("nicFullName", "");
+            onChange("nicNumber", "");
+            onChange("nicDob", "");
+            onChange("nicAddress", "");
+            onChange("nicBirthPlace", "");
+            onChange("nicIssueDate", "");
+          }}
+          onScanComplete={(result) => {
+            const d = result.extracted_data;
+            if (d.fullName) onChange("nicFullName", d.fullName);
+            if (d.idNumber) onChange("nicNumber", d.idNumber);
+            if (d.dob)      onChange("nicDob", d.dob);
+            if (d.address)                        onChange("nicAddress", d.address);
+            if (d.birthPlace)                     onChange("nicBirthPlace", d.birthPlace);
+            if (d.issueDate)                      onChange("nicIssueDate", d.issueDate);
+            if (d.gender && !data.passportGender) onChange("passportGender", d.gender);
+            if (d.nationality && !data.passportNationality) onChange("passportNationality", d.nationality);
+          }}
+        />
+        <TwoSidedDocumentCard
+          title="Driving Licence"
+          description="Current valid licence"
+          icon={Car}
+          frontFileName={data.drivingLicenseName}
+          backFileName={data.drivingLicenseBackName}
+          onFrontChange={(n) => onChange("drivingLicenseName", n)}
+          onBackChange={(n) => onChange("drivingLicenseBackName", n)}
+          onUpload={onDocUpload}
+        />
+      </div>
+      <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">National ID / Driving License Details</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <Field label="Full Name">
+            <Input value={data.nicFullName} onChange={(e) => onChange("nicFullName", e.target.value)} placeholder="As on ID document" />
+          </Field>
+          <Field label="Document ID Number">
+            <Input value={data.nicNumber} onChange={(e) => onChange("nicNumber", e.target.value)} placeholder="ID / CNIC Number" />
+          </Field>
+          <Field label="Date of Birth">
+            <Input type="date" value={data.nicDob} onChange={(e) => onChange("nicDob", e.target.value)} />
+          </Field>
+          <Field label="Address on ID">
+            <Input value={data.nicAddress} onChange={(e) => onChange("nicAddress", e.target.value)} placeholder="Address as on ID document" />
+          </Field>
+          <Field label="Birth Place">
+            <Input value={data.nicBirthPlace} onChange={(e) => onChange("nicBirthPlace", e.target.value)} placeholder="e.g. Colombo" />
+          </Field>
+          <Field label="Date of Issue">
+            <Input type="date" value={data.nicIssueDate} onChange={(e) => onChange("nicIssueDate", e.target.value)} />
+          </Field>
+        </div>
+      </div>
+
+      <Separator />
+
+      <LanguagePickerField
+        selected={data.languages ?? []}
+        onChange={(langs) => onChange("languages", langs)}
+        nameLabel="Your"
+      />
+
+      <div className="space-y-4">
+        <p className="text-sm font-medium">Education Qualifications <span className="text-destructive">*</span></p>
+        <div className="flex flex-wrap gap-2">
+          {EDU_LEVELS.map(({ value, label }) => {
+            const selected = (data.educationLevels ?? []).includes(value);
+            return (
+              <button
+                key={value}
+                type="button"
+                onClick={() => {
+                  const cur = data.educationLevels ?? [];
+                  const curQuals = data.educationQuals ?? [];
+                  const next = selected ? cur.filter((l) => l !== value) : [...cur, value];
+                  const nextQuals = selected
+                    ? curQuals.filter((q) => q.level !== value)
+                    : [...curQuals, { level: value, universityName: "", courseName: "", graduationYear: "", country: "", documentName: "" }];
+                  onChange("educationLevels", next);
+                  onChange("educationQuals", nextQuals);
+                }}
+                className={`px-4 py-1.5 rounded-full text-sm border transition-colors ${
+                  selected
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "bg-background text-foreground border-border hover:border-primary"
+                }`}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
+        {(data.educationQuals ?? []).length > 0 && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {(data.educationQuals ?? []).map((qual, idx) => (
+              <EduQualCard
+                key={qual.level}
+                qual={qual}
+                onChange={(updated) => {
+                  const next = [...(data.educationQuals ?? [])];
+                  next[idx] = updated;
+                  onChange("educationQuals", next);
+                }}
+                onUpload={onDocUpload}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+
+      <Field label="Did you study full-time in Canada for at least 2 years?">
+        <RadioGroup value={data.studiedInCanada} onValueChange={(v) => onChange("studiedInCanada", v)} className="flex gap-6 pt-1">
+          {["yes", "no"].map((v) => (
+            <div key={v} className="flex items-center space-x-2">
+              <RadioGroupItem value={v} id={`canada-study-${v}`} />
+              <Label htmlFor={`canada-study-${v}`} className="font-normal capitalize cursor-pointer">{v === "yes" ? "Yes" : "No"}</Label>
+            </div>
+          ))}
+        </RadioGroup>
+      </Field>
+
+      {data.studiedInCanada === "yes" && (
+        <div className="rounded-lg border bg-muted/30 p-4 space-y-4">
+          <p className="text-sm font-semibold">Canada Study Details</p>
+          <DocumentUploadCard
+            title="Study Permit / Enrollment Letter"
+            description="Study permit, enrollment confirmation or transcript"
+            accept=".pdf,.jpg,.jpeg,.png"
+            icon={FileText}
+            fileName={data.canadaStudyDocName}
+            onFileChange={(n) => onChange("canadaStudyDocName", n)}
+            onUpload={onDocUpload}
+            onNewFile={() => {
+              onChange("canadaStudyInstitution", "");
+              onChange("canadaStudyProgram", "");
+              onChange("canadaStudyCity", "");
+            }}
+            onScanComplete={(result) => {
+              const d = result.extracted_data;
+              if (d.institutionName) onChange("canadaStudyInstitution", d.institutionName);
+              else if (d.fullName)   onChange("canadaStudyInstitution", d.fullName);
+              if (d.degreeName)      onChange("canadaStudyProgram", d.degreeName);
+            }}
+          />
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <Field label="Institution / University Name">
+              <Input value={data.canadaStudyInstitution} onChange={(e) => onChange("canadaStudyInstitution", e.target.value)} placeholder="e.g. University of Toronto" />
+            </Field>
+            <Field label="Program / Course">
+              <Input value={data.canadaStudyProgram} onChange={(e) => onChange("canadaStudyProgram", e.target.value)} placeholder="e.g. MSc Computer Science" />
+            </Field>
+            <Field label="City in Canada">
+              <Input value={data.canadaStudyCity} onChange={(e) => onChange("canadaStudyCity", e.target.value)} placeholder="e.g. Toronto" />
+            </Field>
+            <Field label="Start Date">
+              <Input type="date" value={data.canadaStudyStart} onChange={(e) => onChange("canadaStudyStart", e.target.value)} />
+            </Field>
+            <Field label="End Date">
+              <Input type="date" value={data.canadaStudyEnd} onChange={(e) => onChange("canadaStudyEnd", e.target.value)} />
+            </Field>
+          </div>
+        </div>
+      )}
+
+      <div className="rounded-lg border bg-muted/30 p-4 space-y-4">
+        <p className="text-sm font-semibold">Language Proficiency</p>
+
+        <Field label="Have you taken an IELTS or CELPIP test?">
+          <Select value={data.languageTest || undefined} onValueChange={(v) => onChange("languageTest", v)}>
+            <SelectTrigger className="w-32"><SelectValue placeholder="Select…" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="yes">Yes</SelectItem>
+              <SelectItem value="no">No</SelectItem>
+            </SelectContent>
+          </Select>
+        </Field>
+
+        {data.languageTest === "yes" && (
+          <div className="space-y-3">
+            <DocumentUploadCard
+              title="IELTS / CELPIP Score Report"
+              description="Upload your official test result"
+              accept=".pdf,.jpg,.jpeg,.png"
+              icon={FileText}
+              fileName={data.languageTestDocName}
+              onFileChange={(n) => onChange("languageTestDocName", n)}
+              onUpload={onDocUpload}
+              onNewFile={() => onChange("scores", { listening: "", reading: "", writing: "", speaking: "" })}
+              onScanComplete={(result) => {
+                const d = result.extracted_data;
+                const s = { ...data.scores };
+                if (d.testListening) s.listening = d.testListening;
+                if (d.testReading)   s.reading   = d.testReading;
+                if (d.testWriting)   s.writing   = d.testWriting;
+                if (d.testSpeaking)  s.speaking  = d.testSpeaking;
+                onChange("scores", s);
+              }}
+            />
+            <p className="text-xs text-muted-foreground">Enter your scores (0–9, step 0.5)</p>
+            <ScoreInputs scores={data.scores} onChange={(f, v) => onChange("scores", { ...data.scores, [f]: v })} />
+          </div>
+        )}
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+        <Field label="Total Skilled Foreign Work Experience (past 10 years)" required>
+          <Select value={data.workExperience || undefined} onValueChange={(v) => onChange("workExperience", v)}>
+            <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="less_than_1">Less than 1 year</SelectItem>
+              <SelectItem value="1_to_2">1–2 years</SelectItem>
+              <SelectItem value="3_or_more">3 years or more</SelectItem>
+            </SelectContent>
+          </Select>
+        </Field>
+
+        <Field label="Settlement Funds Available (CAD)">
+          <Input
+            type="number" min={0}
+            value={data.settlementFunds}
+            onChange={(e) => onChange("settlementFunds", e.target.value)}
+            placeholder="e.g. 25000"
+          />
+        </Field>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+        <Field label="Do you have 1 year of authorized Canadian work experience?">
+          <RadioGroup value={data.canadianWork} onValueChange={(v) => onChange("canadianWork", v)} className="flex gap-4 pt-1">
+            {["yes", "no"].map((v) => (
+              <div key={v} className="flex items-center space-x-2">
+                <RadioGroupItem value={v} id={`can-work-${v}`} />
+                <Label htmlFor={`can-work-${v}`} className="font-normal capitalize cursor-pointer">{v === "yes" ? "Yes" : "No"}</Label>
+              </div>
+            ))}
+          </RadioGroup>
+        </Field>
+
+        <Field label="Do you have a valid Job Offer from a Canadian employer?">
+          <RadioGroup value={data.jobOffer} onValueChange={(v) => onChange("jobOffer", v)} className="flex gap-4 pt-1">
+            {["yes", "no"].map((v) => (
+              <div key={v} className="flex items-center space-x-2">
+                <RadioGroupItem value={v} id={`job-offer-${v}`} />
+                <Label htmlFor={`job-offer-${v}`} className="font-normal capitalize cursor-pointer">{v === "yes" ? "Yes" : "No"}</Label>
+              </div>
+            ))}
+          </RadioGroup>
+        </Field>
+
+        <Field label="Do you or your spouse have a sibling in Canada as PR/Citizen?">
+          <RadioGroup value={data.canadianRelatives} onValueChange={(v) => onChange("canadianRelatives", v)} className="flex gap-4 pt-1">
+            {["yes", "no"].map((v) => (
+              <div key={v} className="flex items-center space-x-2">
+                <RadioGroupItem value={v} id={`relatives-${v}`} />
+                <Label htmlFor={`relatives-${v}`} className="font-normal capitalize cursor-pointer">{v === "yes" ? "Yes" : "No"}</Label>
+              </div>
+            ))}
+          </RadioGroup>
+        </Field>
+      </div>
+
+      {data.canadianWork === "yes" && (
+        <div className="rounded-lg border bg-muted/30 p-4 space-y-4">
+          <p className="text-sm font-semibold">Canadian Work Experience Details</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <Field label="Employer Name">
+              <Input value={data.canadianWorkEmployer} onChange={(e) => onChange("canadianWorkEmployer", e.target.value)} placeholder="Company name" />
+            </Field>
+            <Field label="Job Title">
+              <Input value={data.canadianWorkTitle} onChange={(e) => onChange("canadianWorkTitle", e.target.value)} placeholder="e.g. Software Engineer" />
+            </Field>
+            <Field label="City">
+              <Input value={data.canadianWorkCity} onChange={(e) => onChange("canadianWorkCity", e.target.value)} placeholder="e.g. Toronto" />
+            </Field>
+            <Field label="Start Date">
+              <Input type="date" value={data.canadianWorkStart} onChange={(e) => onChange("canadianWorkStart", e.target.value)} />
+            </Field>
+            <Field label="End Date">
+              <Input type="date" value={data.canadianWorkEnd} onChange={(e) => onChange("canadianWorkEnd", e.target.value)} />
+            </Field>
+          </div>
+        </div>
+      )}
+
+      {data.jobOffer === "yes" && (
+        <div className="rounded-lg border bg-muted/30 p-4 space-y-4">
+          <p className="text-sm font-semibold">Job Offer Details</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Field label="Employer / Company Name">
+              <Input value={data.jobOfferEmployer} onChange={(e) => onChange("jobOfferEmployer", e.target.value)} placeholder="Company name" />
+            </Field>
+            <Field label="Job Title / Position">
+              <Input value={data.jobOfferTitle} onChange={(e) => onChange("jobOfferTitle", e.target.value)} placeholder="e.g. Software Engineer" />
+            </Field>
+            <Field label="NOC Code (if known)">
+              <Input value={data.jobOfferNoc} onChange={(e) => onChange("jobOfferNoc", e.target.value)} placeholder="e.g. 21311" />
+            </Field>
+            <Field label="Province / Territory">
+              <Input value={data.jobOfferProvince} onChange={(e) => onChange("jobOfferProvince", e.target.value)} placeholder="e.g. Ontario" />
+            </Field>
+          </div>
+        </div>
+      )}
+
+      {data.canadianRelatives === "yes" && (
+        <div className="rounded-lg border bg-muted/30 p-4 space-y-4">
+          <p className="text-sm font-semibold">Canadian Relative Details</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Field label="Full Name">
+              <Input value={data.relativeFullName} onChange={(e) => onChange("relativeFullName", e.target.value)} placeholder="Relative's full name" />
+            </Field>
+            <Field label="Relationship">
+              <Input value={data.relativeRelationship} onChange={(e) => onChange("relativeRelationship", e.target.value)} placeholder="e.g. Sister, Brother" />
+            </Field>
+            <Field label="City in Canada">
+              <Input value={data.relativeCity} onChange={(e) => onChange("relativeCity", e.target.value)} placeholder="e.g. Vancouver" />
+            </Field>
+            <Field label="Immigration Status">
+              <Select value={data.relativeStatus || undefined} onValueChange={(v) => onChange("relativeStatus", v)}>
+                <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pr">Permanent Resident</SelectItem>
+                  <SelectItem value="citizen">Canadian Citizen</SelectItem>
+                </SelectContent>
+              </Select>
+            </Field>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// â”€â”€ Tab: Spouse â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+function SpouseTab({
+  data,
+  onChange,
+  onDocUpload,
+}: {
+  data: SpouseData;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  onChange: (f: keyof SpouseData, v: any) => void;
+  onDocUpload?: (file: File) => Promise<string>;
+}) {
+  return (
+    <div className="space-y-6">
+      <p className="text-sm font-semibold flex items-center gap-2">
+        <FileText className="h-4 w-4 text-primary" />
+        {data.fullName ? `${data.fullName}'s` : "Spouse"} Identity Documents
+      </p>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <DocumentUploadCard
+          title="Passport"
+          description="Bio-data page"
+          accept=".pdf,.jpg,.jpeg,.png"
+          icon={FileText}
+          fileName={data.passportName}
+          onFileChange={(n) => onChange("passportName", n)}
+          onUpload={onDocUpload}
+          onNewFile={() => {
+            onChange("passportFullName", "");
+            onChange("passportNumber", "");
+            onChange("dob", "");
+            onChange("passportExpiry", "");
+            onChange("passportNationality", "");
+            onChange("passportGender", "");
+          }}
+          onScanComplete={(result) => {
+            const d = result.extracted_data;
+            if (d.dob)            onChange("dob", d.dob);
+            if (d.fullName)       onChange("passportFullName", d.fullName);
+            if (d.passportNumber) onChange("passportNumber", d.passportNumber);
+            if (d.expiryDate)     onChange("passportExpiry", d.expiryDate);
+            if (d.nationality)    onChange("passportNationality", d.nationality);
+            if (d.gender)         onChange("passportGender", d.gender);
+          }}
+        />
+      </div>
+      <div className="rounded-lg border border-blue-200 bg-blue-50/40 p-4 space-y-3">
+        <p className="text-xs font-semibold text-blue-700 uppercase tracking-wider">{data.fullName ? `${data.fullName}'s` : "Spouse"} Passport Details</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <Field label="Full Name (Given Names + Surname)">
+            <Input value={data.passportFullName} onChange={(e) => onChange("passportFullName", e.target.value)} placeholder="As printed on passport" />
+          </Field>
+          <Field label="Passport Number">
+            <Input value={data.passportNumber} onChange={(e) => onChange("passportNumber", e.target.value)} placeholder="e.g. AB1234567" />
+          </Field>
+          <Field label="Date of Birth" required>
+            <Input type="date" value={data.dob} onChange={(e) => onChange("dob", e.target.value)} />
+          </Field>
+          <Field label="Expiry Date">
+            <Input type="date" value={data.passportExpiry} onChange={(e) => onChange("passportExpiry", e.target.value)} />
+          </Field>
+          <Field label="Nationality / Country of Citizenship">
+            <Input value={data.passportNationality} onChange={(e) => onChange("passportNationality", e.target.value)} placeholder="e.g. Pakistani" />
+          </Field>
+          <Field label="Sex / Gender">
+            <Select value={data.passportGender || undefined} onValueChange={(v) => onChange("passportGender", v)}>
+              <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Male">Male</SelectItem>
+                <SelectItem value="Female">Female</SelectItem>
+                <SelectItem value="Other">Other / Unspecified</SelectItem>
+              </SelectContent>
+            </Select>
+          </Field>
+        </div>
+      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <TwoSidedDocumentCard
+          title="Government ID"
+          description="National ID / CNIC"
+          icon={CreditCard}
+          frontFileName={data.governmentIdName}
+          backFileName={data.governmentIdBackName}
+          onFrontChange={(n) => onChange("governmentIdName", n)}
+          onBackChange={(n) => onChange("governmentIdBackName", n)}
+          onUpload={onDocUpload}
+          onNewFile={() => {
+            onChange("nicFullName", "");
+            onChange("nicNumber", "");
+            onChange("nicDob", "");
+            onChange("nicAddress", "");
+            onChange("nicBirthPlace", "");
+            onChange("nicIssueDate", "");
+          }}
+          onScanComplete={(result) => {
+            const d = result.extracted_data;
+            if (d.fullName) onChange("nicFullName", d.fullName);
+            if (d.idNumber) onChange("nicNumber", d.idNumber);
+            if (d.dob)      onChange("nicDob", d.dob);
+            if (d.address)                        onChange("nicAddress", d.address);
+            if (d.birthPlace)                     onChange("nicBirthPlace", d.birthPlace);
+            if (d.issueDate)                      onChange("nicIssueDate", d.issueDate);
+            if (d.gender && !data.passportGender) onChange("passportGender", d.gender);
+            if (d.nationality && !data.passportNationality) onChange("passportNationality", d.nationality);
+          }}
+        />
+        <TwoSidedDocumentCard
+          title="Driving Licence"
+          description="Current valid licence"
+          icon={Car}
+          frontFileName={data.drivingLicenseName}
+          backFileName={data.drivingLicenseBackName}
+          onFrontChange={(n) => onChange("drivingLicenseName", n)}
+          onBackChange={(n) => onChange("drivingLicenseBackName", n)}
+          onUpload={onDocUpload}
+        />
+      </div>
+      <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{data.fullName ? `${data.fullName}'s` : "Spouse"} ID & Driving License Details</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <Field label="Full Name">
+            <Input value={data.nicFullName} onChange={(e) => onChange("nicFullName", e.target.value)} placeholder="As on ID document" />
+          </Field>
+          <Field label="Document ID Number">
+            <Input value={data.nicNumber} onChange={(e) => onChange("nicNumber", e.target.value)} placeholder="ID / CNIC Number" />
+          </Field>
+          <Field label="Date of Birth">
+            <Input type="date" value={data.nicDob} onChange={(e) => onChange("nicDob", e.target.value)} />
+          </Field>
+          <Field label="Address on ID">
+            <Input value={data.nicAddress} onChange={(e) => onChange("nicAddress", e.target.value)} placeholder="Address as on ID document" />
+          </Field>
+          <Field label="Birth Place">
+            <Input value={data.nicBirthPlace} onChange={(e) => onChange("nicBirthPlace", e.target.value)} placeholder="e.g. Colombo" />
+          </Field>
+          <Field label="Date of Issue">
+            <Input type="date" value={data.nicIssueDate} onChange={(e) => onChange("nicIssueDate", e.target.value)} />
+          </Field>
+        </div>
+      </div>
+
+      <Separator />
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+        <Field label="Spouse Full Name" required>
+          <Input value={data.fullName} onChange={(e) => onChange("fullName", e.target.value)} placeholder="As in Passport" />
+        </Field>
+      </div>
+
+      <LanguagePickerField
+        selected={data.languages ?? []}
+        onChange={(langs) => onChange("languages", langs)}
+        nameLabel={data.fullName ? `${data.fullName}'s` : "Spouse"}
+      />
+
+      <div className="space-y-4">
+        <p className="text-sm font-medium">{data.fullName ? `${data.fullName}'s` : "Spouse"} Education Qualifications <span className="text-destructive">*</span></p>
+        <div className="flex flex-wrap gap-2">
+          {EDU_LEVELS.map(({ value, label }) => {
+            const selected = (data.educationLevels ?? []).includes(value);
+            return (
+              <button
+                key={value}
+                type="button"
+                onClick={() => {
+                  const cur = data.educationLevels ?? [];
+                  const curQuals = data.educationQuals ?? [];
+                  const next = selected ? cur.filter((l) => l !== value) : [...cur, value];
+                  const nextQuals = selected
+                    ? curQuals.filter((q) => q.level !== value)
+                    : [...curQuals, { level: value, universityName: "", courseName: "", graduationYear: "", country: "", documentName: "" }];
+                  onChange("educationLevels", next);
+                  onChange("educationQuals", nextQuals);
+                }}
+                className={`px-4 py-1.5 rounded-full text-sm border transition-colors ${
+                  selected
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "bg-background text-foreground border-border hover:border-primary"
+                }`}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
+        {(data.educationQuals ?? []).length > 0 && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {(data.educationQuals ?? []).map((qual, idx) => (
+              <EduQualCard
+                key={qual.level}
+                qual={qual}
+                onChange={(updated) => {
+                  const next = [...(data.educationQuals ?? [])];
+                  next[idx] = updated;
+                  onChange("educationQuals", next);
+                }}
+                onUpload={onDocUpload}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="rounded-lg border bg-muted/30 p-4 space-y-4">
+        <p className="text-sm font-semibold">{data.fullName ? `${data.fullName}'s` : "Spouse"} Language Proficiency</p>
+
+        <Field label="Has your spouse taken an IELTS or CELPIP test?">
+          <Select value={data.languageTest || undefined} onValueChange={(v) => onChange("languageTest", v)}>
+            <SelectTrigger className="w-32"><SelectValue placeholder="Select…" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="yes">Yes</SelectItem>
+              <SelectItem value="no">No</SelectItem>
+            </SelectContent>
+          </Select>
+        </Field>
+
+        {data.languageTest === "yes" && (
+          <div className="space-y-3">
+            <DocumentUploadCard
+              title="IELTS / CELPIP Score Report"
+              description="Upload your spouse's official test result"
+              accept=".pdf,.jpg,.jpeg,.png"
+              icon={FileText}
+              fileName={data.languageTestDocName}
+              onFileChange={(n) => onChange("languageTestDocName", n)}
+              onUpload={onDocUpload}
+              onNewFile={() => onChange("scores", { listening: "", reading: "", writing: "", speaking: "" })}
+              onScanComplete={(result) => {
+                const d = result.extracted_data;
+                const s = { ...data.scores };
+                if (d.testListening) s.listening = d.testListening;
+                if (d.testReading)   s.reading   = d.testReading;
+                if (d.testWriting)   s.writing   = d.testWriting;
+                if (d.testSpeaking)  s.speaking  = d.testSpeaking;
+                onChange("scores", s);
+              }}
+            />
+            <p className="text-xs text-muted-foreground">Enter spouse&apos;s scores (0–9, step 0.5)</p>
+            <ScoreInputs scores={data.scores} onChange={(f, v) => onChange("scores", { ...data.scores, [f]: v })} />
+          </div>
+        )}
+      </div>
+
+      <Field label="Does your spouse have 1 year of authorized Canadian work experience?">
+        <RadioGroup value={data.canadianWork} onValueChange={(v) => onChange("canadianWork", v)} className="flex gap-6 pt-1">
+          {["yes", "no"].map((v) => (
+            <div key={v} className="flex items-center space-x-2">
+              <RadioGroupItem value={v} id={`spouse-work-${v}`} />
+              <Label htmlFor={`spouse-work-${v}`} className="font-normal capitalize cursor-pointer">{v === "yes" ? "Yes" : "No"}</Label>
+            </div>
+          ))}
+        </RadioGroup>
+      </Field>
+
+      {data.canadianWork === "yes" && (
+        <div className="rounded-lg border bg-muted/30 p-4 space-y-4">
+          <p className="text-sm font-semibold">{data.fullName ? `${data.fullName}'s` : "Spouse"} Canadian Work Experience</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <Field label="Employer Name">
+              <Input value={data.canadianWorkEmployer} onChange={(e) => onChange("canadianWorkEmployer", e.target.value)} placeholder="Company name" />
+            </Field>
+            <Field label="Job Title">
+              <Input value={data.canadianWorkTitle} onChange={(e) => onChange("canadianWorkTitle", e.target.value)} placeholder="e.g. Software Engineer" />
+            </Field>
+            <Field label="City">
+              <Input value={data.canadianWorkCity} onChange={(e) => onChange("canadianWorkCity", e.target.value)} placeholder="e.g. Toronto" />
+            </Field>
+            <Field label="Start Date">
+              <Input type="date" value={data.canadianWorkStart} onChange={(e) => onChange("canadianWorkStart", e.target.value)} />
+            </Field>
+            <Field label="End Date">
+              <Input type="date" value={data.canadianWorkEnd} onChange={(e) => onChange("canadianWorkEnd", e.target.value)} />
+            </Field>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// â”€â”€ Tab: Children â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+function ChildrenTab({
+  children,
+  onChange,
+  onDocUpload,
+}: {
+  children: ChildData[];
+  onChange: (i: number, f: keyof ChildData, v: string) => void;
+  onDocUpload?: (file: File) => Promise<string>;
+}) {
+  return (
+    <div className="space-y-4">
+      {children.map((child, i) => (
+        <Card key={i}>
+          <CardHeader className="pb-3 pt-4 px-5">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Badge variant="secondary" className="h-6 w-6 flex items-center justify-center rounded-full p-0 text-xs">
+                {i + 1}
+              </Badge>
+              Child {i + 1}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="px-5 pb-5">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Identity Documents</p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
+              <DocumentUploadCard
+                title="Passport"
+                description="Bio-data page"
+                accept=".pdf,.jpg,.jpeg,.png"
+                icon={FileText}
+                fileName={child.passportName}
+                onFileChange={(n) => onChange(i, "passportName", n)}
+                onUpload={onDocUpload}
+                onNewFile={() => {
+                  onChange(i, "passportFullName", "");
+                  onChange(i, "passportNumber", "");
+                  onChange(i, "dob", "");
+                  onChange(i, "passportExpiry", "");
+                  onChange(i, "passportNationality", "");
+                  onChange(i, "passportGender", "");
+                }}
+                onScanComplete={(result) => {
+                  const d = result.extracted_data;
+                  if (d.dob)            onChange(i, "dob", d.dob);
+                  if (d.fullName)       onChange(i, "passportFullName", d.fullName);
+                  if (d.passportNumber) onChange(i, "passportNumber", d.passportNumber);
+                  if (d.expiryDate)     onChange(i, "passportExpiry", d.expiryDate);
+                  if (d.nationality)    onChange(i, "passportNationality", d.nationality);
+                  if (d.gender)         onChange(i, "passportGender", d.gender);
+                }}
+              />
+            </div>
+            <div className="rounded-lg border border-blue-200 bg-blue-50/40 p-4 space-y-3">
+              <p className="text-xs font-semibold text-blue-700 uppercase tracking-wider">Passport Details</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Field label="Full Name (Given Names + Surname)">
+                  <Input value={child.passportFullName} onChange={(e) => onChange(i, "passportFullName", e.target.value)} placeholder="As printed on passport" />
+                </Field>
+                <Field label="Passport Number">
+                  <Input value={child.passportNumber} onChange={(e) => onChange(i, "passportNumber", e.target.value)} placeholder="e.g. AB1234567" />
+                </Field>
+                <Field label="Date of Birth">
+                  <Input type="date" value={child.dob} onChange={(e) => onChange(i, "dob", e.target.value)} />
+                </Field>
+                <Field label="Expiry Date">
+                  <Input type="date" value={child.passportExpiry} onChange={(e) => onChange(i, "passportExpiry", e.target.value)} />
+                </Field>
+                <Field label="Nationality / Country of Citizenship">
+                  <Input value={child.passportNationality} onChange={(e) => onChange(i, "passportNationality", e.target.value)} placeholder="e.g. Pakistani" />
+                </Field>
+                <Field label="Sex / Gender">
+                  <Select value={child.passportGender || undefined} onValueChange={(v) => onChange(i, "passportGender", v)}>
+                    <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Male">Male</SelectItem>
+                      <SelectItem value="Female">Female</SelectItem>
+                      <SelectItem value="Other">Other / Unspecified</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </Field>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-4">
+              <TwoSidedDocumentCard
+                title="Government ID"
+                description="National ID / CNIC"
+                icon={CreditCard}
+                frontFileName={child.governmentIdName}
+                backFileName={child.governmentIdBackName}
+                onFrontChange={(n) => onChange(i, "governmentIdName", n)}
+                onBackChange={(n) => onChange(i, "governmentIdBackName", n)}
+                onUpload={onDocUpload}
+                onNewFile={() => {
+                  onChange(i, "nicFullName", "");
+                  onChange(i, "nicNumber", "");
+                  onChange(i, "nicDob", "");
+                  onChange(i, "nicAddress", "");
+                  onChange(i, "nicBirthPlace", "");
+                  onChange(i, "nicIssueDate", "");
+                }}
+                onScanComplete={(result) => {
+                  const d = result.extracted_data;
+                  if (d.fullName)    onChange(i, "nicFullName", d.fullName);
+                  if (d.idNumber)    onChange(i, "nicNumber", d.idNumber);
+                  if (d.dob)         onChange(i, "nicDob", d.dob);
+                  if (d.address)     onChange(i, "nicAddress", d.address);
+                  if (d.birthPlace)  onChange(i, "nicBirthPlace", d.birthPlace);
+                  if (d.issueDate)   onChange(i, "nicIssueDate", d.issueDate);
+                  if (d.gender && !child.passportGender) onChange(i, "passportGender", d.gender);
+                  if (d.nationality && !child.passportNationality) onChange(i, "passportNationality", d.nationality);
+                }}
+              />
+              <TwoSidedDocumentCard
+                title="Driving Licence"
+                description="If applicable"
+                icon={Car}
+                frontFileName={child.drivingLicenseName}
+                backFileName={child.drivingLicenseBackName}
+                onFrontChange={(n) => onChange(i, "drivingLicenseName", n)}
+                onBackChange={(n) => onChange(i, "drivingLicenseBackName", n)}
+                onUpload={onDocUpload}
+              />
+            </div>
+            <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">National ID / Driving License Details</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                <Field label="Full Name">
+                  <Input value={child.nicFullName} onChange={(e) => onChange(i, "nicFullName", e.target.value)} placeholder="As on ID document" />
+                </Field>
+                <Field label="Document ID Number">
+                  <Input value={child.nicNumber} onChange={(e) => onChange(i, "nicNumber", e.target.value)} placeholder="ID / CNIC Number" />
+                </Field>
+                <Field label="Date of Birth">
+                  <Input type="date" value={child.nicDob} onChange={(e) => onChange(i, "nicDob", e.target.value)} />
+                </Field>
+                <Field label="Address on ID">
+                  <Input value={child.nicAddress} onChange={(e) => onChange(i, "nicAddress", e.target.value)} placeholder="Address as on ID document" />
+                </Field>
+                <Field label="Birth Place">
+                  <Input value={child.nicBirthPlace} onChange={(e) => onChange(i, "nicBirthPlace", e.target.value)} placeholder="e.g. Colombo" />
+                </Field>
+                <Field label="Date of Issue">
+                  <Input type="date" value={child.nicIssueDate} onChange={(e) => onChange(i, "nicIssueDate", e.target.value)} />
+                </Field>
+              </div>
+            </div>
+            <Separator className="my-4" />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Field label="Full Name">
+                <Input value={child.name} onChange={(e) => onChange(i, "name", e.target.value)} placeholder="Child's name" />
+              </Field>
+              <Field label="Current Education Level">
+                <Select value={child.educationLevel || undefined} onValueChange={(v) => onChange(i, "educationLevel", v)}>
+                  <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="primary">Primary School</SelectItem>
+                    <SelectItem value="secondary">Secondary School</SelectItem>
+                    <SelectItem value="none">None / Pre-school</SelectItem>
+                  </SelectContent>
+                </Select>
+              </Field>
+            </div>
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
+// â”€â”€ Tab: Accompanying Persons
+
+function AccompanyingPersonsTab({
+  persons,
+  onChange,
+  onDocUpload,
+}: {
+  persons: AccompanyingPerson[];
+  onChange: (i: number, f: keyof AccompanyingPerson, v: string) => void;
+  onDocUpload?: (file: File) => Promise<string>;
+}) {
+  if (persons.length === 0) {
+    return (
+      <div className="text-center py-8 text-muted-foreground text-sm">
+        No accompanying persons added.
+      </div>
+    );
+  }
+  return (
+    <div className="space-y-4">
+      {persons.map((person, i) => (
+        <Card key={i}>
+          <CardHeader className="pb-3 pt-4 px-5">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Badge variant="secondary" className="h-6 w-6 flex items-center justify-center rounded-full p-0 text-xs">
+                {i + 1}
+              </Badge>
+              {person.relationship && RELATIONSHIP_LABELS[person.relationship]
+                ? RELATIONSHIP_LABELS[person.relationship]
+                : `Person ${i + 1}`}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="px-5 pb-5 space-y-4">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Identity Documents</p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
+              <DocumentUploadCard
+                title="Passport"
+                description="Bio-data page"
+                accept=".pdf,.jpg,.jpeg,.png"
+                icon={FileText}
+                fileName={person.passportName}
+                onFileChange={(n) => onChange(i, "passportName", n)}
+                onUpload={onDocUpload}
+                onNewFile={() => {
+                  onChange(i, "passportFullName", "");
+                  onChange(i, "passportNumber", "");
+                  onChange(i, "dob", "");
+                  onChange(i, "passportExpiry", "");
+                  onChange(i, "passportNationality", "");
+                  onChange(i, "passportGender", "");
+                }}
+                onScanComplete={(result) => {
+                  const d = result.extracted_data;
+                  if (d.dob)            onChange(i, "dob", d.dob);
+                  if (d.fullName)       onChange(i, "passportFullName", d.fullName);
+                  if (d.passportNumber) onChange(i, "passportNumber", d.passportNumber);
+                  if (d.expiryDate)     onChange(i, "passportExpiry", d.expiryDate);
+                  if (d.nationality)    onChange(i, "passportNationality", d.nationality);
+                  if (d.gender)         onChange(i, "passportGender", d.gender);
+                }}
+              />
+            </div>
+            <div className="rounded-lg border border-blue-200 bg-blue-50/40 p-4 space-y-3">
+              <p className="text-xs font-semibold text-blue-700 uppercase tracking-wider">Passport Details</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Field label="Full Name (Given Names + Surname)">
+                  <Input value={person.passportFullName} onChange={(e) => onChange(i, "passportFullName", e.target.value)} placeholder="As printed on passport" />
+                </Field>
+                <Field label="Passport Number">
+                  <Input value={person.passportNumber} onChange={(e) => onChange(i, "passportNumber", e.target.value)} placeholder="e.g. AB1234567" />
+                </Field>
+                <Field label="Date of Birth" required>
+                  <Input type="date" value={person.dob} onChange={(e) => onChange(i, "dob", e.target.value)} />
+                </Field>
+                <Field label="Expiry Date">
+                  <Input type="date" value={person.passportExpiry} onChange={(e) => onChange(i, "passportExpiry", e.target.value)} />
+                </Field>
+                <Field label="Nationality / Country of Citizenship">
+                  <Input value={person.passportNationality} onChange={(e) => onChange(i, "passportNationality", e.target.value)} placeholder="e.g. Pakistani" />
+                </Field>
+                <Field label="Sex / Gender">
+                  <Select value={person.passportGender || undefined} onValueChange={(v) => onChange(i, "passportGender", v)}>
+                    <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Male">Male</SelectItem>
+                      <SelectItem value="Female">Female</SelectItem>
+                      <SelectItem value="Other">Other / Unspecified</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </Field>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+              <TwoSidedDocumentCard
+                title="Government ID"
+                description="National ID / CNIC"
+                icon={CreditCard}
+                frontFileName={person.governmentIdName}
+                backFileName={person.governmentIdBackName}
+                onFrontChange={(n) => onChange(i, "governmentIdName", n)}
+                onBackChange={(n) => onChange(i, "governmentIdBackName", n)}
+                onUpload={onDocUpload}
+                onNewFile={() => {
+                  onChange(i, "nicFullName", "");
+                  onChange(i, "nicNumber", "");
+                  onChange(i, "nicDob", "");
+                  onChange(i, "nicAddress", "");
+                  onChange(i, "nicBirthPlace", "");
+                  onChange(i, "nicIssueDate", "");
+                }}
+                onScanComplete={(result) => {
+                  const d = result.extracted_data;
+                  if (d.fullName)    onChange(i, "nicFullName", d.fullName);
+                  if (d.idNumber)    onChange(i, "nicNumber", d.idNumber);
+                  if (d.dob)         onChange(i, "nicDob", d.dob);
+                  if (d.address)     onChange(i, "nicAddress", d.address);
+                  if (d.birthPlace)  onChange(i, "nicBirthPlace", d.birthPlace);
+                  if (d.issueDate)   onChange(i, "nicIssueDate", d.issueDate);
+                  if (d.gender && !person.passportGender) onChange(i, "passportGender", d.gender);
+                  if (d.nationality && !person.passportNationality) onChange(i, "passportNationality", d.nationality);
+                }}
+              />
+              <TwoSidedDocumentCard
+                title="Driving Licence"
+                description="If applicable"
+                icon={Car}
+                frontFileName={person.drivingLicenseName}
+                backFileName={person.drivingLicenseBackName}
+                onFrontChange={(n) => onChange(i, "drivingLicenseName", n)}
+                onBackChange={(n) => onChange(i, "drivingLicenseBackName", n)}
+                onUpload={onDocUpload}
+              />
+            </div>
+            <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">National ID / Driving License Details</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                <Field label="Full Name">
+                  <Input value={person.nicFullName} onChange={(e) => onChange(i, "nicFullName", e.target.value)} placeholder="As on ID document" />
+                </Field>
+                <Field label="Document ID Number">
+                  <Input value={person.nicNumber} onChange={(e) => onChange(i, "nicNumber", e.target.value)} placeholder="ID / CNIC Number" />
+                </Field>
+                <Field label="Date of Birth">
+                  <Input type="date" value={person.nicDob} onChange={(e) => onChange(i, "nicDob", e.target.value)} />
+                </Field>
+                <Field label="Address on ID">
+                  <Input value={person.nicAddress} onChange={(e) => onChange(i, "nicAddress", e.target.value)} placeholder="Address as on ID document" />
+                </Field>
+                <Field label="Birth Place">
+                  <Input value={person.nicBirthPlace} onChange={(e) => onChange(i, "nicBirthPlace", e.target.value)} placeholder="e.g. Colombo" />
+                </Field>
+                <Field label="Date of Issue">
+                  <Input type="date" value={person.nicIssueDate} onChange={(e) => onChange(i, "nicIssueDate", e.target.value)} />
+                </Field>
+              </div>
+            </div>
+            <Separator />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Field label="Full Name" required>
+                <Input
+                  value={person.fullName}
+                  onChange={(e) => onChange(i, "fullName", e.target.value)}
+                  placeholder="As in Passport"
+                />
+              </Field>
+            </div>
+            <Field label="Relationship to Main Applicant" required>
+              <Select
+                value={person.relationship || undefined}
+                onValueChange={(v) => onChange(i, "relationship", v)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select relationship…" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="my_parent">My Parent</SelectItem>
+                  <SelectItem value="spouse_parent">Spouse&apos;s Parent</SelectItem>
+                  <SelectItem value="sibling">My Sibling</SelectItem>
+                  <SelectItem value="in_law">In-Law</SelectItem>
+                  <SelectItem value="other">Other</SelectItem>
+                </SelectContent>
+              </Select>
+            </Field>
+            {person.relationship === "other" && (
+              <Field label="Please specify relationship">
+                <Input
+                  value={person.otherRelationship}
+                  onChange={(e) => onChange(i, "otherRelationship", e.target.value)}
+                  placeholder="e.g. Uncle, Grandparent…"
+                />
+              </Field>
+            )}
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
+// â”€â”€ Document upload card
+
+// â”€â”€ Two-sided document upload (front + back) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+// ─── ChildSingleTab ─────────────────────────────────────────────────────────
+
+function ChildSingleTab({
+  data,
+  onChange,
+  onDocUpload,
+}: {
+  data: ChildData;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  onChange: (f: keyof ChildData, v: any) => void;
+  onDocUpload?: (file: File) => Promise<string>;
+}) {
+  return (
+    <div className="space-y-4">
+      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+        {data.name ? `${data.name}'s` : "Child's"} Identity Documents
+      </p>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <DocumentUploadCard
+          title="Passport"
+          description="Bio-data page"
+          accept=".pdf,.jpg,.jpeg,.png"
+          icon={FileText}
+          fileName={data.passportName}
+          onFileChange={(n) => onChange("passportName", n)}
+          onUpload={onDocUpload}
+          onNewFile={() => {
+            onChange("passportFullName", ""); onChange("passportNumber", "");
+            onChange("dob", ""); onChange("passportExpiry", "");
+            onChange("passportNationality", ""); onChange("passportGender", "");
+          }}
+          onScanComplete={(result) => {
+            const d = result.extracted_data;
+            if (d.dob)            onChange("dob", d.dob);
+            if (d.fullName)       onChange("passportFullName", d.fullName);
+            if (d.passportNumber) onChange("passportNumber", d.passportNumber);
+            if (d.expiryDate)     onChange("passportExpiry", d.expiryDate);
+            if (d.nationality)    onChange("passportNationality", d.nationality);
+            if (d.gender)         onChange("passportGender", d.gender);
+          }}
+        />
+      </div>
+      <div className="rounded-lg border border-blue-200 bg-blue-50/40 p-4 space-y-3">
+        <p className="text-xs font-semibold text-blue-700 uppercase tracking-wider">{data.name ? `${data.name}'s` : "Child's"} Passport Details</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <Field label="Full Name (Given Names + Surname)">
+            <Input value={data.passportFullName} onChange={(e) => onChange("passportFullName", e.target.value)} placeholder="As printed on passport" />
+          </Field>
+          <Field label="Passport Number">
+            <Input value={data.passportNumber} onChange={(e) => onChange("passportNumber", e.target.value)} placeholder="e.g. AB1234567" />
+          </Field>
+          <Field label="Date of Birth">
+            <Input type="date" value={data.dob} onChange={(e) => onChange("dob", e.target.value)} />
+          </Field>
+          <Field label="Expiry Date">
+            <Input type="date" value={data.passportExpiry} onChange={(e) => onChange("passportExpiry", e.target.value)} />
+          </Field>
+          <Field label="Nationality / Country of Citizenship">
+            <Input value={data.passportNationality} onChange={(e) => onChange("passportNationality", e.target.value)} placeholder="e.g. Pakistani" />
+          </Field>
+          <Field label="Sex / Gender">
+            <Select value={data.passportGender || undefined} onValueChange={(v) => onChange("passportGender", v)}>
+              <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Male">Male</SelectItem>
+                <SelectItem value="Female">Female</SelectItem>
+                <SelectItem value="Other">Other / Unspecified</SelectItem>
+              </SelectContent>
+            </Select>
+          </Field>
+        </div>
+      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+        <TwoSidedDocumentCard
+          title="Government ID" description="National ID / CNIC" icon={CreditCard}
+          frontFileName={data.governmentIdName} backFileName={data.governmentIdBackName}
+          onFrontChange={(n) => onChange("governmentIdName", n)}
+          onBackChange={(n) => onChange("governmentIdBackName", n)}
+          onUpload={onDocUpload}
+          onNewFile={() => {
+            onChange("nicFullName", ""); onChange("nicNumber", ""); onChange("nicDob", "");
+            onChange("nicAddress", ""); onChange("nicBirthPlace", ""); onChange("nicIssueDate", "");
+          }}
+          onScanComplete={(result) => {
+            const d = result.extracted_data;
+            if (d.fullName)   onChange("nicFullName", d.fullName);
+            if (d.idNumber)   onChange("nicNumber", d.idNumber);
+            if (d.dob)        onChange("nicDob", d.dob);
+            if (d.address)    onChange("nicAddress", d.address);
+            if (d.birthPlace) onChange("nicBirthPlace", d.birthPlace);
+            if (d.issueDate)  onChange("nicIssueDate", d.issueDate);
+            if (d.gender && !data.passportGender) onChange("passportGender", d.gender);
+            if (d.nationality && !data.passportNationality) onChange("passportNationality", d.nationality);
+          }}
+        />
+        <TwoSidedDocumentCard
+          title="Driving Licence" description="If applicable" icon={Car}
+          frontFileName={data.drivingLicenseName} backFileName={data.drivingLicenseBackName}
+          onFrontChange={(n) => onChange("drivingLicenseName", n)}
+          onBackChange={(n) => onChange("drivingLicenseBackName", n)}
+          onUpload={onDocUpload}
+        />
+      </div>
+      <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{data.name ? `${data.name}'s` : "Child's"} ID & Driving License Details</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <Field label="Full Name"><Input value={data.nicFullName} onChange={(e) => onChange("nicFullName", e.target.value)} placeholder="As on ID document" /></Field>
+          <Field label="Document ID Number"><Input value={data.nicNumber} onChange={(e) => onChange("nicNumber", e.target.value)} placeholder="ID / CNIC Number" /></Field>
+          <Field label="Date of Birth"><Input type="date" value={data.nicDob} onChange={(e) => onChange("nicDob", e.target.value)} /></Field>
+          <Field label="Address on ID"><Input value={data.nicAddress} onChange={(e) => onChange("nicAddress", e.target.value)} placeholder="Address as on ID document" /></Field>
+          <Field label="Birth Place"><Input value={data.nicBirthPlace} onChange={(e) => onChange("nicBirthPlace", e.target.value)} placeholder="e.g. Colombo" /></Field>
+          <Field label="Date of Issue"><Input type="date" value={data.nicIssueDate} onChange={(e) => onChange("nicIssueDate", e.target.value)} /></Field>
+        </div>
+      </div>
+      <Separator />
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <Field label="Full Name">
+          <Input value={data.name} onChange={(e) => onChange("name", e.target.value)} placeholder="Child's full name" />
+        </Field>
+        <Field label="Current Education Level">
+          <Select value={data.educationLevel || undefined} onValueChange={(v) => onChange("educationLevel", v)}>
+            <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="primary">Primary School</SelectItem>
+              <SelectItem value="secondary">Secondary School</SelectItem>
+              <SelectItem value="none">None / Pre-school</SelectItem>
+            </SelectContent>
+          </Select>
+        </Field>
+      </div>
+
+      <LanguagePickerField
+        selected={data.languages ?? []}
+        onChange={(langs) => onChange("languages", langs)}
+        nameLabel={data.name ? `${data.name}'s` : "Child's"}
+      />
+    </div>
+  );
+}
+
+// ─── AccompanyingPersonSingleTab ─────────────────────────────────────────────
+
+function AccompanyingPersonSingleTab({
+  data,
+  onChange,
+  onDocUpload,
+}: {
+  data: AccompanyingPerson;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  onChange: (f: keyof AccompanyingPerson, v: any) => void;
+  onDocUpload?: (file: File) => Promise<string>;
+}) {
+  return (
+    <div className="space-y-4">
+      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+        {data.fullName ? `${data.fullName}'s` : "This Person's"} Identity Documents
+      </p>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <DocumentUploadCard
+          title="Passport"
+          description="Bio-data page"
+          accept=".pdf,.jpg,.jpeg,.png"
+          icon={FileText}
+          fileName={data.passportName}
+          onFileChange={(n) => onChange("passportName", n)}
+          onUpload={onDocUpload}
+          onNewFile={() => {
+            onChange("passportFullName", ""); onChange("passportNumber", "");
+            onChange("dob", ""); onChange("passportExpiry", "");
+            onChange("passportNationality", ""); onChange("passportGender", "");
+          }}
+          onScanComplete={(result) => {
+            const d = result.extracted_data;
+            if (d.dob)            onChange("dob", d.dob);
+            if (d.fullName)       onChange("passportFullName", d.fullName);
+            if (d.passportNumber) onChange("passportNumber", d.passportNumber);
+            if (d.expiryDate)     onChange("passportExpiry", d.expiryDate);
+            if (d.nationality)    onChange("passportNationality", d.nationality);
+            if (d.gender)         onChange("passportGender", d.gender);
+          }}
+        />
+      </div>
+      <div className="rounded-lg border border-blue-200 bg-blue-50/40 p-4 space-y-3">
+        <p className="text-xs font-semibold text-blue-700 uppercase tracking-wider">{data.fullName ? `${data.fullName}'s` : "This Person's"} Passport Details</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <Field label="Full Name (Given Names + Surname)">
+            <Input value={data.passportFullName} onChange={(e) => onChange("passportFullName", e.target.value)} placeholder="As printed on passport" />
+          </Field>
+          <Field label="Passport Number">
+            <Input value={data.passportNumber} onChange={(e) => onChange("passportNumber", e.target.value)} placeholder="e.g. AB1234567" />
+          </Field>
+          <Field label="Date of Birth">
+            <Input type="date" value={data.dob} onChange={(e) => onChange("dob", e.target.value)} />
+          </Field>
+          <Field label="Expiry Date">
+            <Input type="date" value={data.passportExpiry} onChange={(e) => onChange("passportExpiry", e.target.value)} />
+          </Field>
+          <Field label="Nationality / Country of Citizenship">
+            <Input value={data.passportNationality} onChange={(e) => onChange("passportNationality", e.target.value)} placeholder="e.g. Pakistani" />
+          </Field>
+          <Field label="Sex / Gender">
+            <Select value={data.passportGender || undefined} onValueChange={(v) => onChange("passportGender", v)}>
+              <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Male">Male</SelectItem>
+                <SelectItem value="Female">Female</SelectItem>
+                <SelectItem value="Other">Other / Unspecified</SelectItem>
+              </SelectContent>
+            </Select>
+          </Field>
+        </div>
+      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+        <TwoSidedDocumentCard
+          title="Government ID" description="National ID / CNIC" icon={CreditCard}
+          frontFileName={data.governmentIdName} backFileName={data.governmentIdBackName}
+          onFrontChange={(n) => onChange("governmentIdName", n)}
+          onBackChange={(n) => onChange("governmentIdBackName", n)}
+          onUpload={onDocUpload}
+          onNewFile={() => {
+            onChange("nicFullName", ""); onChange("nicNumber", ""); onChange("nicDob", "");
+            onChange("nicAddress", ""); onChange("nicBirthPlace", ""); onChange("nicIssueDate", "");
+          }}
+          onScanComplete={(result) => {
+            const d = result.extracted_data;
+            if (d.fullName)   onChange("nicFullName", d.fullName);
+            if (d.idNumber)   onChange("nicNumber", d.idNumber);
+            if (d.dob)        onChange("nicDob", d.dob);
+            if (d.address)    onChange("nicAddress", d.address);
+            if (d.birthPlace) onChange("nicBirthPlace", d.birthPlace);
+            if (d.issueDate)  onChange("nicIssueDate", d.issueDate);
+            if (d.gender && !data.passportGender) onChange("passportGender", d.gender);
+            if (d.nationality && !data.passportNationality) onChange("passportNationality", d.nationality);
+          }}
+        />
+        <TwoSidedDocumentCard
+          title="Driving Licence" description="If applicable" icon={Car}
+          frontFileName={data.drivingLicenseName} backFileName={data.drivingLicenseBackName}
+          onFrontChange={(n) => onChange("drivingLicenseName", n)}
+          onBackChange={(n) => onChange("drivingLicenseBackName", n)}
+          onUpload={onDocUpload}
+        />
+      </div>
+      <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{data.fullName ? `${data.fullName}'s` : "This Person's"} ID & Driving License Details</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <Field label="Full Name"><Input value={data.nicFullName} onChange={(e) => onChange("nicFullName", e.target.value)} placeholder="As on ID document" /></Field>
+          <Field label="Document ID Number"><Input value={data.nicNumber} onChange={(e) => onChange("nicNumber", e.target.value)} placeholder="ID / CNIC Number" /></Field>
+          <Field label="Date of Birth"><Input type="date" value={data.nicDob} onChange={(e) => onChange("nicDob", e.target.value)} /></Field>
+          <Field label="Address on ID"><Input value={data.nicAddress} onChange={(e) => onChange("nicAddress", e.target.value)} placeholder="Address as on ID document" /></Field>
+          <Field label="Birth Place"><Input value={data.nicBirthPlace} onChange={(e) => onChange("nicBirthPlace", e.target.value)} placeholder="e.g. Colombo" /></Field>
+          <Field label="Date of Issue"><Input type="date" value={data.nicIssueDate} onChange={(e) => onChange("nicIssueDate", e.target.value)} /></Field>
+        </div>
+      </div>
+      <Separator />
+      <div className="space-y-3">
+        <Field label="Full Name" required>
+          <Input value={data.fullName} onChange={(e) => onChange("fullName", e.target.value)} placeholder="As in Passport" />
+        </Field>
+        <Field label="Relationship to Main Applicant" required>
+          <Select value={data.relationship || undefined} onValueChange={(v) => onChange("relationship", v)}>
+            <SelectTrigger><SelectValue placeholder="Select relationship…" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="my_parent">My Parent</SelectItem>
+              <SelectItem value="spouse_parent">Spouse&apos;s Parent</SelectItem>
+              <SelectItem value="sibling">My Sibling</SelectItem>
+              <SelectItem value="in_law">In-Law</SelectItem>
+              <SelectItem value="other">Other</SelectItem>
+            </SelectContent>
+          </Select>
+        </Field>
+        {data.relationship === "other" && (
+          <Field label="Please specify relationship">
+            <Input value={data.otherRelationship} onChange={(e) => onChange("otherRelationship", e.target.value)} placeholder="e.g. Uncle, Grandparent…" />
+          </Field>
+        )}
+      </div>
+
+      <LanguagePickerField
+        selected={data.languages ?? []}
+        onChange={(langs) => onChange("languages", langs)}
+        nameLabel={data.fullName ? `${data.fullName}'s` : "This Person's"}
+      />
+    </div>
+  );
+}
+
+function TwoSidedDocumentCard({
+  title, description, icon: Icon,
+  frontFileName, backFileName,
+  onFrontChange, onBackChange,
+  onUpload,
+  onScanComplete,
+  onNewFile,
+}: {
+  title: string;
+  description: string;
+  icon: React.ComponentType<{ className?: string }>;
+  frontFileName: string;
+  backFileName: string;
+  onFrontChange: (n: string) => void;
+  onBackChange: (n: string) => void;
+  onUpload?: (file: File) => Promise<string>;
+  onScanComplete?: (result: OcrResult) => void;
+  onNewFile?: () => void;
+}) {
+  return (
+    <div className="rounded-xl border bg-card p-4 space-y-3">
+      <div className="flex items-center gap-2.5">
+        <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+          <Icon className="h-4 w-4 text-primary" />
+        </div>
+        <div>
+          <p className="text-sm font-semibold">{title}</p>
+          <p className="text-xs text-muted-foreground">{description} Â· Upload both sides</p>
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <DocumentUploadCard
+          title="Front Side"
+          description=""
+          accept=".pdf,.jpg,.jpeg,.png"
+          icon={Icon}
+          fileName={frontFileName}
+          onFileChange={onFrontChange}
+          onUpload={onUpload}
+          onScanComplete={onScanComplete}
+          onNewFile={onNewFile}
+        />
+        <DocumentUploadCard
+          title="Back Side"
+          description=""
+          accept=".pdf,.jpg,.jpeg,.png"
+          icon={Icon}
+          fileName={backFileName}
+          onFileChange={onBackChange}
+          onUpload={onUpload}
+          onScanComplete={onScanComplete}
+          onNewFile={onNewFile}
+        />
+      </div>
+    </div>
+  );
+}
+
+function DocumentUploadCard({
+  title, description, accept,
+  icon: Icon,
+  fileName,
+  onFileChange,
+  onUpload,
+  onScanComplete,
+  onNewFile,
+}: {
+  title: string;
+  description: string;
+  accept: string;
+  icon: React.ComponentType<{ className?: string }>;
+  fileName: string;
+  onFileChange: (name: string) => void;
+  onUpload?: (file: File) => Promise<string>;
+  onScanComplete?: (result: OcrResult) => void;
+  onNewFile?: () => void;
+}) {
+  const inputRef                      = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading]     = useState(false);
+  const [previewUrl, setPreviewUrl]   = useState<string | null>(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const previewTypeRef                = useRef<"image" | "pdf" | "other">("other");
+  const [scanResult, setScanResult]   = useState<OcrResult | null>(null);
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [scanning, setScanning]         = useState(false);
+
+  // S3 paths look like "client-document/2026/05/name.pdf" — show only basename
+  const displayName = fileName
+    ? (fileName.includes("/") ? fileName.split("/").pop()! : fileName)
+    : "";
+
+  async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Clear previously scanned/filled fields before processing the new image
+    onNewFile?.();
+
+    // Build local preview URL
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    const url = URL.createObjectURL(file);
+    setPreviewUrl(url);
+    previewTypeRef.current = file.type.startsWith("image/")
+      ? "image"
+      : file.type === "application/pdf"
+      ? "pdf"
+      : "other";
+
+    setUploadedFile(file);
+    onFileChange(file.name); // instant UI feedback
+    if (onUpload) {
+      setUploading(true);
+      try {
+        const path = await onUpload(file);
+        onFileChange(path); // replace with S3 path once uploaded
+      } catch {
+        // keep local filename in state; autosave will store it
+      } finally {
+        setUploading(false);
+      }
+    }
+    // Auto-analyse immediately after upload
+    setScanning(true);
+    setScanResult(null);
+    try {
+      const result = await scanDocumentFile(file);
+      if (result) {
+        setScanResult(result);
+        if (onScanComplete) onScanComplete(result);
+      }
+    } finally {
+      setScanning(false);
+    }
+  }
+
+  function handleRemove() {
+    if (inputRef.current) inputRef.current.value = "";
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    setPreviewUrl(null);
+    setPreviewOpen(false);
+    setScanResult(null);
+    setUploadedFile(null);
+    onFileChange("");
+  }
+
+  async function handleScan() {
+    if (!uploadedFile) return;
+    setScanning(true);
+    setScanResult(null);
+    try {
+      const result = await scanDocumentFile(uploadedFile);
+      if (result) {
+        setScanResult(result);
+        if (onScanComplete) onScanComplete(result);
+      }
+    } finally {
+      setScanning(false);
+    }
+  }
+
+  return (
+    <>
+      <div className="rounded-xl border bg-card p-5 space-y-4">
+        <div className="flex items-center gap-3">
+          <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+            <Icon className="h-5 w-5 text-primary" />
+          </div>
+          <div>
+            <p className="text-sm font-semibold">{title}</p>
+            <p className="text-xs text-muted-foreground">{description}</p>
+          </div>
+        </div>
+
+        {/* Drop zone */}
+        <div
+          className={cn(
+            "rounded-lg border-2 border-dashed transition-colors relative",
+            uploading
+              ? "border-primary/40 bg-primary/5"
+              : displayName
+              ? "border-green-400 bg-green-50"
+              : "border-border hover:border-primary/50 hover:bg-muted/30 cursor-pointer",
+          )}
+          onClick={() => !uploading && !displayName && inputRef.current?.click()}
+        >
+          {uploading ? (
+            <div className="flex items-center justify-center gap-2 text-sm text-primary p-5">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              <span>Uploading…</span>
+            </div>
+          ) : displayName ? (
+            /* â”€â”€ Uploaded: large thumbnail with eye-icon overlay â”€â”€ */
+            <div className="relative">
+              {/* Thumbnail / preview area */}
+              <div
+                className="w-full h-44 overflow-hidden rounded-lg bg-gray-100 flex items-center justify-center cursor-pointer"
+                onClick={(e) => { e.stopPropagation(); setPreviewOpen(true); }}
+              >
+                {previewUrl && previewTypeRef.current === "image" ? (
+                  <img
+                    src={previewUrl}
+                    alt="preview"
+                    className="h-full w-full object-cover"
+                  />
+                ) : previewUrl && previewTypeRef.current === "pdf" ? (
+                  <div className="flex flex-col items-center gap-2 select-none">
+                    <FileText className="h-16 w-16 text-red-400" />
+                    <span className="text-xs font-medium text-red-400">PDF Document</span>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center gap-2 select-none">
+                    <FileText className="h-16 w-16 text-muted-foreground/40" />
+                    <span className="text-xs text-muted-foreground">Document</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Eye icon — top-right corner overlay */}
+              <button
+                type="button"
+                className="absolute top-2 right-2 z-10 flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-white/90 backdrop-blur-sm border border-green-300 shadow-md hover:bg-white hover:shadow-lg transition-all text-green-700 text-xs font-medium"
+                onClick={(e) => { e.stopPropagation(); setPreviewOpen(true); }}
+                title="View full document"
+              >
+                <Eye className="h-3.5 w-3.5" />
+                View
+              </button>
+
+              {/* Uploaded badge — bottom-left corner */}
+              <div className="absolute bottom-2 left-2 flex items-center gap-1 bg-green-600/90 backdrop-blur-sm text-white text-[10px] font-semibold px-2 py-1 rounded-full shadow">
+                <CheckCircle2 className="h-3 w-3" />
+                Uploaded
+              </div>
+
+              {/* OCR scan badge — bottom-right corner */}
+              {scanResult && (
+                <div className={cn(
+                  "absolute bottom-2 right-2 flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-full shadow backdrop-blur-sm",
+                  scanResult.status === "success"
+                    ? "bg-blue-600/90 text-white"
+                    : "bg-yellow-500/90 text-white",
+                )}>
+                  {scanResult.status === "success" ? "ðŸ” Scanned" : "âš  Low quality"}
+                </div>
+              )}
+              {/* Scanning animation overlay */}
+              {scanning && (
+                <>
+                  <style>{`@keyframes wtc-scan-beam{0%{top:0}50%{top:calc(100% - 3px)}100%{top:0}}`}</style>
+                  <div className="absolute inset-0 rounded-lg overflow-hidden z-30 bg-primary/10">
+                    <div
+                      className="absolute left-0 right-0 h-[3px] bg-gradient-to-r from-transparent via-primary to-transparent shadow-[0_0_10px_3px_rgba(59,130,246,0.65)]"
+                      style={{ animation: "wtc-scan-beam 1.6s ease-in-out infinite" }}
+                    />
+                    <div className="absolute top-2 left-2 w-5 h-5 border-t-2 border-l-2 border-primary" />
+                    <div className="absolute top-2 right-2 w-5 h-5 border-t-2 border-r-2 border-primary" />
+                    <div className="absolute bottom-8 left-2 w-5 h-5 border-b-2 border-l-2 border-primary" />
+                    <div className="absolute bottom-8 right-2 w-5 h-5 border-b-2 border-r-2 border-primary" />
+                    <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex items-center gap-1.5 bg-primary text-primary-foreground text-[10px] font-bold px-2.5 py-1 rounded-full whitespace-nowrap shadow-lg">
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      Scanning document…
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          ) : (
+            <div className="p-5 text-center space-y-1.5">
+              <Upload className="h-7 w-7 text-muted-foreground/40 mx-auto" />
+              <p className="text-xs font-medium text-muted-foreground">Click to upload</p>
+              <p className="text-[11px] text-muted-foreground/60">PDF, JPG, PNG — up to 10 MB</p>
+            </div>
+          )}
+
+          <input
+            ref={inputRef}
+            type="file"
+            accept={accept}
+            className="hidden"
+            onChange={handleFileSelect}
+          />
+        </div>
+
+        {/* OCR extracted data summary — shown for both success and partial_success */}
+        {scanResult && (() => {
+          const d = scanResult.extracted_data;
+          const fields: Array<[string, string | undefined]> = [
+            ["Name",       d.fullName || undefined],
+            ["DOB",        d.dob || undefined],
+            ["ID / No.",   d.passportNumber || d.idNumber || undefined],
+            ["Expiry",     d.expiryDate || undefined],
+            ["Nationality",d.nationality || undefined],
+          ].filter(([, v]) => !!v) as Array<[string, string]>;
+
+          const isPartial = scanResult.status === "partial_success";
+          if (fields.length === 0) {
+            // Nothing extracted — show a helpful message
+            return (
+              <div className="rounded-lg bg-yellow-50 border border-yellow-200 px-3 py-2">
+                <p className="text-[10px] font-semibold text-yellow-700">
+                  Could not extract data. Please use a clearer, well-lit photo.
+                </p>
+              </div>
+            );
+          }
+          return (
+            <div className={`rounded-lg px-3 py-2 space-y-1 border ${isPartial ? "bg-yellow-50 border-yellow-200" : "bg-blue-50 border-blue-200"}`}>
+              <p className={`text-[10px] font-semibold uppercase tracking-wide ${isPartial ? "text-yellow-700" : "text-blue-600"}`}>
+                {isPartial ? "Partial extraction — please verify" : "Auto-extracted data"}
+              </p>
+              <div className="grid grid-cols-2 gap-x-3 gap-y-0.5">
+                {fields.map(([label, value]) => (
+                  <div key={label} className="flex items-baseline gap-1 min-w-0">
+                    <span className="text-[10px] text-muted-foreground shrink-0">{label}:</span>
+                    <span className="text-[10px] font-medium text-foreground truncate">{value}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* Remove button */}
+        {displayName && !uploading && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-xs text-muted-foreground h-7 px-2"
+            onClick={handleRemove}
+          >
+            Remove file
+          </Button>
+        )}
+      </div>
+
+      {/* Full-document preview modal */}
+      {previewOpen && previewUrl && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+          onClick={() => setPreviewOpen(false)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden flex flex-col"
+            style={{ maxHeight: "90vh" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 py-3 border-b shrink-0">
+              <p className="text-sm font-semibold truncate max-w-[55%]">{displayName}</p>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  className="h-7 text-xs"
+                  onClick={handleRemove}
+                >
+                  Remove &amp; Re-upload
+                </Button>
+                <button
+                  type="button"
+                  className="p-1.5 rounded hover:bg-muted transition-colors"
+                  onClick={() => setPreviewOpen(false)}
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Body */}
+            <div className="flex-1 overflow-auto bg-gray-50 flex items-center justify-center p-4">
+              {previewTypeRef.current === "image" ? (
+                <img
+                  src={previewUrl}
+                  alt={displayName}
+                  className="max-w-full max-h-[70vh] object-contain rounded-lg shadow"
+                />
+              ) : previewTypeRef.current === "pdf" ? (
+                <iframe
+                  src={previewUrl}
+                  title={displayName}
+                  className="w-full rounded border bg-white"
+                  style={{ height: "70vh" }}
+                />
+              ) : (
+                <div className="text-center py-12">
+                  <FileText className="h-16 w-16 text-muted-foreground/30 mx-auto mb-3" />
+                  <p className="text-sm text-muted-foreground">Preview not available for this file type</p>
+                  <p className="text-[11px] text-muted-foreground/60 mt-1">{displayName}</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+// ── Step 3 form ────────────────────────────────────────────────────────────────
+
+const EDU_LEVELS: { value: string; label: string }[] = [
+  { value: "phd",       label: "PhD / Doctorate" },
+  { value: "masters",   label: "Master’s Degree" },
+  { value: "bachelors", label: "Bachelor’s Degree" },
+  { value: "diploma",   label: "Diploma (2 yrs)" },
+  { value: "al",        label: "A/L" },
+  { value: "other",     label: "Other" },
+];
+
+const EDU_LEVEL_LABELS: Record<string, string> = Object.fromEntries(
+  EDU_LEVELS.map(({ value, label }) => [value, label])
+);
+
+const LANGUAGES: { value: string; label: string }[] = [
+  { value: "english", label: "English" },
+  { value: "french",  label: "French 🇫🇷" },
+  { value: "sinhala", label: "Sinhala" },
+  { value: "tamil",   label: "Tamil" },
+  { value: "hindi",   label: "Hindi" },
+  { value: "other",   label: "Other" },
+];
+
+const PREDEFINED_LANG_VALUES = LANGUAGES.map((l) => l.value);
+
+function LanguagePickerField({
+  selected,
+  onChange,
+  nameLabel,
+}: {
+  selected: string[];
+  onChange: (langs: string[]) => void;
+  nameLabel: string;
+}) {
+  const [customInput, setCustomInput] = useState("");
+  const custom = selected.filter((l) => !PREDEFINED_LANG_VALUES.includes(l));
+
+  const toggle = (value: string) => {
+    if (selected.includes(value)) onChange(selected.filter((l) => l !== value));
+    else onChange([...selected, value]);
+  };
+
+  const addCustom = () => {
+    const trimmed = customInput.trim();
+    if (!trimmed || selected.map((l) => l.toLowerCase()).includes(trimmed.toLowerCase())) return;
+    onChange([...selected, trimmed]);
+    setCustomInput("");
+  };
+
+  return (
+    <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
+      <p className="text-sm font-semibold">{nameLabel} Languages</p>
+      <p className="text-xs text-muted-foreground">
+        Select all languages they can communicate in. Can&apos;t find yours? Type it below.
+      </p>
+      <div className="flex flex-wrap gap-2">
+        {LANGUAGES.map(({ value, label }) => {
+          const sel = selected.includes(value);
+          return (
+            <button
+              key={value}
+              type="button"
+              onClick={() => toggle(value)}
+              className={`px-4 py-1.5 rounded-full text-sm border transition-colors ${
+                sel
+                  ? "bg-primary text-primary-foreground border-primary"
+                  : "bg-background text-foreground border-border hover:border-primary"
+              }`}
+            >
+              {label}
+            </button>
+          );
+        })}
+      </div>
+      {custom.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {custom.map((l) => (
+            <span key={l} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm bg-primary text-primary-foreground">
+              {l}
+              <button
+                type="button"
+                onClick={() => onChange(selected.filter((x) => x !== l))}
+                className="hover:opacity-70"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+      <div className="flex gap-2">
+        <Input
+          value={customInput}
+          onChange={(e) => setCustomInput(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCustom(); } }}
+          placeholder="Add another language…"
+          className="h-9 text-sm"
+        />
+        <button
+          type="button"
+          onClick={addCustom}
+          disabled={!customInput.trim()}
+          className="px-4 py-1.5 rounded-md text-sm bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          Add
+        </button>
+      </div>
+      {selected.includes("french") && (
+        <div className="flex items-start gap-2 rounded-lg bg-amber-50 border border-amber-200 p-3">
+          <Star className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" />
+          <p className="text-xs text-amber-800">
+            <span className="font-semibold">French is a major advantage!</span> French speakers earn bonus CRS points in Express Entry and qualify for dedicated Francophone immigration streams — significantly boosting chances for Canadian permanent residency.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function EduQualCard({
+  qual,
+  onChange,
+  onUpload,
+}: {
+  qual: EduQualification;
+  onChange: (updated: EduQualification) => void;
+  onUpload?: (file: File) => Promise<string>;
+}) {
+  const label = EDU_LEVEL_LABELS[qual.level] ?? qual.level;
+  return (
+    <div className="rounded-xl border bg-card p-5 space-y-4">
+      <p className="text-sm font-semibold flex items-center gap-2">
+        <FileText className="h-4 w-4 text-primary" />
+        {label}
+      </p>
+      <DocumentUploadCard
+        title="Upload Certificate"
+        description="Degree, diploma or transcript"
+        accept=".pdf,.jpg,.jpeg,.png"
+        icon={Upload}
+        fileName={qual.documentName}
+        onFileChange={(n) => onChange({ ...qual, documentName: n })}
+        onUpload={onUpload}
+        onNewFile={() => onChange({ ...qual, universityName: "", courseName: "", graduationYear: "", country: "" })}
+        onScanComplete={(result) => {
+          const d = result.extracted_data;
+          const updated: EduQualification = { ...qual };
+          if (d.institutionName)     updated.universityName = d.institutionName;
+          else if (d.fullName)       updated.universityName = d.fullName;
+          if (d.degreeName)          updated.courseName     = d.degreeName;
+          if (d.graduationYear)      updated.graduationYear = d.graduationYear;
+          else if (d.issueDate)      updated.graduationYear = d.issueDate.slice(0, 4);
+          onChange(updated);
+        }}
+      />
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <Field label="University / Institution Name">
+          <Input
+            value={qual.universityName}
+            onChange={(e) => onChange({ ...qual, universityName: e.target.value })}
+            placeholder="e.g. University of Colombo"
+          />
+        </Field>
+        <Field label="Degree / Course Name">
+          <Input
+            value={qual.courseName}
+            onChange={(e) => onChange({ ...qual, courseName: e.target.value })}
+            placeholder="e.g. BSc Computer Science"
+          />
+        </Field>
+        <Field label="Year of Graduation">
+          <Input
+            type="number" min={1970} max={2030}
+            value={qual.graduationYear}
+            onChange={(e) => onChange({ ...qual, graduationYear: e.target.value })}
+            placeholder="e.g. 2020"
+          />
+        </Field>
+        <Field label="Country">
+          <Input
+            value={qual.country}
+            onChange={(e) => onChange({ ...qual, country: e.target.value })}
+            placeholder="e.g. Sri Lanka"
+          />
+        </Field>
+      </div>
+    </div>
+  );
+}
+
+// ─── Review Step helpers ──────────────────────────────────────────────────────
+function ReviewCard({
+  title, subtitle, icon: Icon, onEdit, children,
+}: {
+  title: string; subtitle?: string;
+  icon: React.ComponentType<{ className?: string }>;
+  onEdit: () => void; children: React.ReactNode;
+}) {
+  return (
+    <Card>
+      <CardHeader className="p-4 pb-3">
+        <div className="flex items-center gap-3">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10">
+            <Icon className="h-4 w-4 text-primary" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <CardTitle className="text-sm font-semibold leading-tight">{title}</CardTitle>
+            {subtitle && <CardDescription className="text-xs mt-0.5">{subtitle}</CardDescription>}
+          </div>
+          <Button variant="outline" size="sm" onClick={onEdit} className="shrink-0 h-7 text-xs px-3">
+            Edit
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent className="p-4 pt-0">
+        <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2.5">
+          {children}
+        </dl>
+      </CardContent>
+    </Card>
+  );
+}
+
+function RR({ label, v }: { label: string; v?: string | null }) {
+  if (!v?.trim()) return null;
+  return (
+    <div>
+      <dt className="text-xs text-muted-foreground">{label}</dt>
+      <dd className="text-sm font-medium">{v}</dd>
+    </div>
+  );
+}
+
+function ReviewStep({
+  data, onEdit1, onEdit2,
+}: {
+  data: FormData;
+  onEdit1: () => void;
+  onEdit2: (tabIndex: number) => void;
+}) {
+  const LANG_LABEL: Record<string, string> = Object.fromEntries(
+    LANGUAGES.map(({ value, label }) => [value, label])
+  );
+  const fmtLangs = (langs?: string[]) =>
+    langs?.length ? langs.map((l) => LANG_LABEL[l] ?? l).join(", ") : null;
+  const fmtEdus = (levels?: string[]) =>
+    levels?.length ? levels.map((l) => EDU_LEVEL_LABELS[l] ?? l).join(", ") : null;
+  const fmtScore = (s?: ScoreSet) => {
+    if (!s) return null;
+    const p = [
+      s.listening && `L:${s.listening}`, s.reading  && `R:${s.reading}`,
+      s.writing   && `W:${s.writing}`,   s.speaking && `S:${s.speaking}`,
+    ].filter(Boolean);
+    return p.length ? p.join("  ") : null;
+  };
+  const yesno = (v?: string) => v === "yes" ? "Yes" : v === "no" ? "No" : null;
+  const docs = (...names: (string | undefined)[]) => {
+    const f = names.filter((n): n is string => !!n?.trim());
+    return f.length ? f.join(", ") : null;
+  };
+
+  // Mirror the tabs array logic to get correct tab indices
+  let t = 0;
+  const mainIdx   = t++;
+  const spouseIdx = data.married === "yes" ? t++ : -1;
+  const childStart = t; t += data.children.length;
+  const accStart  = t;
+
+  return (
+    <div className="space-y-5">
+      {/* Banner */}
+      <div className="rounded-xl bg-green-50 border border-green-200 p-5 text-center space-y-1.5">
+        <CheckCircle2 className="h-10 w-10 text-green-500 mx-auto" />
+        <p className="text-base font-semibold text-green-800">Almost there! Review your information</p>
+        <p className="text-sm text-green-600">
+          Check all details below. Click <strong>Edit</strong> on any section to go back and fix mistakes, then submit.
+        </p>
+      </div>
+
+      {/* ── General Info ── */}
+      <ReviewCard title="General Info" icon={User} onEdit={onEdit1}>
+        <RR label="Full Name"           v={data.fullName} />
+        <RR label="Email"               v={data.email} />
+        <RR label="WhatsApp"            v={data.whatsapp} />
+        <RR label="Visa Type"           v={data.visaType} />
+        <RR label="Marital Status"      v={data.married === "yes" ? "Married" : data.married === "no" ? "Not Married" : null} />
+        <RR label="Dependent Children"  v={data.dependentChildren !== "0" ? data.dependentChildren : null} />
+        {data.married === "yes" && <RR label="Spouse Name"          v={data.spouse.fullName} />}
+        {data.hasAccompanying === "yes" && <RR label="Accompanying Persons" v={data.accompanyingCount} />}
+      </ReviewCard>
+
+      {/* ── Main Applicant ── */}
+      <ReviewCard
+        title={data.fullName || "Main Applicant"} subtitle="Main Applicant"
+        icon={User} onEdit={() => onEdit2(mainIdx)}
+      >
+        <RR label="Date of Birth"     v={data.main.dob} />
+        <RR label="Languages"         v={fmtLangs(data.main.languages)} />
+        <RR label="Education"         v={fmtEdus(data.main.educationLevels)} />
+        <RR label="Language Test"     v={data.main.languageTest} />
+        <RR label="Test Scores"       v={fmtScore(data.main.scores)} />
+        <RR label="Work Experience"   v={data.main.workExperience} />
+        <RR label="Canadian Work"     v={yesno(data.main.canadianWork)} />
+        {data.main.canadianWork === "yes" && <>
+          <RR label="Employer"        v={data.main.canadianWorkEmployer} />
+          <RR label="Job Title"       v={data.main.canadianWorkTitle} />
+        </>}
+        <RR label="Job Offer"         v={yesno(data.main.jobOffer)} />
+        {data.main.jobOffer === "yes" && <RR label="Offer Employer" v={data.main.jobOfferEmployer} />}
+        <RR label="Settlement Funds"  v={data.main.settlementFunds} />
+        <RR label="Studied in Canada" v={yesno(data.main.studiedInCanada)} />
+        {data.main.studiedInCanada === "yes" && <RR label="Institution" v={data.main.canadaStudyInstitution} />}
+        <RR label="Passport Name"     v={data.main.passportFullName} />
+        <RR label="Passport No."      v={data.main.passportNumber} />
+        <RR label="Passport Expiry"   v={data.main.passportExpiry} />
+        <RR label="Nationality"       v={data.main.passportNationality} />
+        <RR label="NIC Number"        v={data.main.nicNumber} />
+        <RR label="Uploaded Docs"     v={docs(data.main.passportName, data.main.governmentIdName, data.main.drivingLicenseName, data.main.languageTestDocName)} />
+      </ReviewCard>
+
+      {/* ── Spouse ── */}
+      {data.married === "yes" && spouseIdx !== -1 && (
+        <ReviewCard
+          title={data.spouse.fullName || "Spouse"} subtitle="Spouse"
+          icon={Users} onEdit={() => onEdit2(spouseIdx)}
+        >
+          <RR label="Date of Birth"  v={data.spouse.dob} />
+          <RR label="Languages"      v={fmtLangs(data.spouse.languages)} />
+          <RR label="Education"      v={fmtEdus(data.spouse.educationLevels)} />
+          <RR label="Language Test"  v={data.spouse.languageTest} />
+          <RR label="Test Scores"    v={fmtScore(data.spouse.scores)} />
+          <RR label="Canadian Work"  v={yesno(data.spouse.canadianWork)} />
+          {data.spouse.canadianWork === "yes" && <>
+            <RR label="Employer"     v={data.spouse.canadianWorkEmployer} />
+            <RR label="Job Title"    v={data.spouse.canadianWorkTitle} />
+          </>}
+          <RR label="Passport Name"  v={data.spouse.passportFullName} />
+          <RR label="Passport No."   v={data.spouse.passportNumber} />
+          <RR label="NIC Number"     v={data.spouse.nicNumber} />
+          <RR label="Uploaded Docs"  v={docs(data.spouse.passportName, data.spouse.governmentIdName, data.spouse.drivingLicenseName)} />
+        </ReviewCard>
+      )}
+
+      {/* ── Children ── */}
+      {data.children.map((child, i) => (
+        <ReviewCard
+          key={i} title={child.name || `Child ${i + 1}`} subtitle={`Child ${i + 1}`}
+          icon={Baby} onEdit={() => onEdit2(childStart + i)}
+        >
+          <RR label="Date of Birth"   v={child.dob} />
+          <RR label="Languages"       v={fmtLangs(child.languages)} />
+          <RR label="Education Level" v={EDU_LEVEL_LABELS[child.educationLevel] ?? child.educationLevel ?? null} />
+          <RR label="Passport Name"   v={child.passportFullName} />
+          <RR label="Passport No."    v={child.passportNumber} />
+          <RR label="NIC Number"      v={child.nicNumber} />
+          <RR label="Uploaded Docs"   v={docs(child.passportName, child.governmentIdName, child.drivingLicenseName)} />
+        </ReviewCard>
+      ))}
+
+      {/* ── Accompanying ── */}
+      {data.accompanying.map((person, i) => (
+        <ReviewCard
+          key={i} title={person.fullName || `Person ${i + 1}`}
+          subtitle={person.relationship === "other" ? person.otherRelationship : person.relationship}
+          icon={UserPlus} onEdit={() => onEdit2(accStart + i)}
+        >
+          <RR label="Date of Birth"  v={person.dob} />
+          <RR label="Languages"      v={fmtLangs(person.languages)} />
+          <RR label="Relationship"   v={person.relationship === "other" ? person.otherRelationship : person.relationship} />
+          <RR label="Passport Name"  v={person.passportFullName} />
+          <RR label="Passport No."   v={person.passportNumber} />
+          <RR label="NIC Number"     v={person.nicNumber} />
+          <RR label="Uploaded Docs"  v={docs(person.passportName, person.governmentIdName, person.drivingLicenseName)} />
+        </ReviewCard>
+      ))}
+    </div>
+  );
+}
+
+function YesNo({ value, onChange, id }: { value: string; onChange: (v: string) => void; id: string }) {
+  return (
+    <RadioGroup value={value} onValueChange={onChange} className="flex gap-6 pt-1">
+      {["yes", "no"].map((v) => (
+        <div key={v} className="flex items-center space-x-2">
+          <RadioGroupItem value={v} id={`${id}-${v}`} />
+          <Label htmlFor={`${id}-${v}`} className="font-normal cursor-pointer">{v === "yes" ? "Yes" : "No"}</Label>
+        </div>
+      ))}
+    </RadioGroup>
+  );
+}
+
+function Step3Form({
+  data,
+  onChange,
+  onUpload,
+}: {
+  data: FormData;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  onChange: (f: keyof FormData, v: any) => void;
+  onUpload?: (file: File) => Promise<string>;
+}) {
+  return (
+    <div className="space-y-8">
+
+      {/* 1. Educational Background */}
+      <section className="space-y-4">
+        <h3 className="text-sm font-semibold flex items-center gap-2 text-primary uppercase tracking-wide">
+          1. Educational Background
+        </h3>
+
+        {/* Multi-select education level toggles */}
+        <Field label="Select all education levels you hold" required>
+          <div className="flex flex-wrap gap-2 pt-1">
+            {EDU_LEVELS.map(({ value, label }) => {
+              const checked = (data.eduLevels ?? []).includes(value);
+              return (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => {
+                    const current: string[] = data.eduLevels ?? [];
+                    const next = checked
+                      ? current.filter((l) => l !== value)
+                      : [...current, value];
+                    const currentQuals: EduQualification[] = data.eduQualifications ?? [];
+                    const nextQuals = next.map((l) => {
+                      const existing = currentQuals.find((q) => q.level === l);
+                      return existing ?? {
+                        level: l,
+                        universityName: "",
+                        courseName: "",
+                        graduationYear: "",
+                        country: "",
+                        documentName: "",
+                      };
+                    });
+                    onChange("eduLevels", next);
+                    onChange("eduQualifications", nextQuals);
+                  }}
+                  className={cn(
+                    "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-medium transition-colors",
+                    checked
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-background text-muted-foreground border-border hover:border-primary/50"
+                  )}
+                >
+                  {checked && <Check className="h-3 w-3" />}
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+        </Field>
+
+        {/* Per-level upload cards */}
+        {(data.eduQualifications ?? []).length > 0 && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2">
+            {(data.eduQualifications ?? []).map((qual, idx) => (
+              <EduQualCard
+                key={qual.level}
+                qual={qual}
+                onChange={(updated) => {
+                  const next = (data.eduQualifications ?? []).map((q, i) =>
+                    i === idx ? updated : q
+                  );
+                  onChange("eduQualifications", next);
+                }}
+                onUpload={onUpload}
+              />
+            ))}
+          </div>
+        )}
+
+        {/* Spouse education — single select */}
+        {data.married === "yes" && (
+          <div className="pt-2">
+            <Field label="Spouse's Highest Education">
+              <Select
+                value={data.spouseEduLevel || undefined}
+                onValueChange={(v) => onChange("spouseEduLevel", v)}
+              >
+                <SelectTrigger className="w-64">
+                  <SelectValue placeholder="Select level…" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="phd">PhD / Doctorate</SelectItem>
+                  <SelectItem value="masters">Master&apos;s Degree</SelectItem>
+                  <SelectItem value="bachelors">Bachelor&apos;s Degree (3+ years)</SelectItem>
+                  <SelectItem value="diploma">Diploma (2 years)</SelectItem>
+                  <SelectItem value="al">A/L (Advanced Level)</SelectItem>
+                  <SelectItem value="other">Other</SelectItem>
+                </SelectContent>
+              </Select>
+            </Field>
+          </div>
+        )}
+      </section>
+
+      <Separator />
+
+      {/* 2. Work Experience */}
+      <section className="space-y-4">
+        <h3 className="text-sm font-semibold flex items-center gap-2 text-primary uppercase tracking-wide">
+          2. Work Experience
+        </h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+          <Field label="Current Job Title">
+            <Input
+              value={data.currentJobTitle}
+              onChange={(e) => onChange("currentJobTitle", e.target.value)}
+              placeholder="e.g. Software Engineer"
+            />
+          </Field>
+
+          <Field label="Industry / Field">
+            <Input
+              value={data.currentJobField}
+              onChange={(e) => onChange("currentJobField", e.target.value)}
+              placeholder="e.g. Information Technology"
+            />
+          </Field>
+
+          <Field label="Total Years of Experience in Field">
+            <Select value={data.totalExpYears || undefined} onValueChange={(v) => onChange("totalExpYears", v)}>
+              <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="less_1">Less than 1 year</SelectItem>
+                <SelectItem value="1_2">1–2 years</SelectItem>
+                <SelectItem value="3_5">3–5 years</SelectItem>
+                <SelectItem value="6_9">6–9 years</SelectItem>
+                <SelectItem value="10_plus">10+ years</SelectItem>
+              </SelectContent>
+            </Select>
+          </Field>
+
+          <Field label="Work Category (closest match)">
+            <Select value={data.workCategory || undefined} onValueChange={(v) => onChange("workCategory", v)}>
+              <SelectTrigger><SelectValue placeholder="Select category…" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="it">IT / Software</SelectItem>
+                <SelectItem value="engineering">Engineering</SelectItem>
+                <SelectItem value="healthcare">Healthcare / Medical</SelectItem>
+                <SelectItem value="finance">Finance / Accounting</SelectItem>
+                <SelectItem value="skilled_trade">Skilled Trade</SelectItem>
+                <SelectItem value="management">Management / Business</SelectItem>
+                <SelectItem value="education">Education</SelectItem>
+                <SelectItem value="other">Other</SelectItem>
+              </SelectContent>
+            </Select>
+          </Field>
+
+          <Field label="1+ year continuous full-time work in last 10 years?">
+            <YesNo value={data.continuousFullTime} onChange={(v) => onChange("continuousFullTime", v)} id="continuous" />
+          </Field>
+
+          {data.married === "yes" && (
+            <Field label="Spouse's Work Experience">
+              <Select value={data.spouseExpYears || undefined} onValueChange={(v) => onChange("spouseExpYears", v)}>
+                <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">None</SelectItem>
+                  <SelectItem value="less_1">Less than 1 year</SelectItem>
+                  <SelectItem value="1_2">1–2 years</SelectItem>
+                  <SelectItem value="3_5">3–5 years</SelectItem>
+                  <SelectItem value="6_plus">6+ years</SelectItem>
+                </SelectContent>
+              </Select>
+            </Field>
+          )}
+        </div>
+      </section>
+
+      <Separator />
+
+      {/* 3. Language Proficiency */}
+      <section className="space-y-4">
+        <h3 className="text-sm font-semibold flex items-center gap-2 text-primary uppercase tracking-wide">
+          3. Language Proficiency
+        </h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+          <Field label="Have you taken IELTS / CELPIP / PTE?">
+            <Select value={data.intlTestTaken || undefined} onValueChange={(v) => onChange("intlTestTaken", v)}>
+              <SelectTrigger className="w-32"><SelectValue placeholder="Select…" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="yes">Yes</SelectItem>
+                <SelectItem value="no">No</SelectItem>
+              </SelectContent>
+            </Select>
+          </Field>
+
+          {data.intlTestTaken === "yes" && (
+            <Field label="Test Type">
+              <Select value={data.intlTestType || undefined} onValueChange={(v) => onChange("intlTestType", v)}>
+                <SelectTrigger className="w-40"><SelectValue placeholder="Select…" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ielts">IELTS</SelectItem>
+                  <SelectItem value="celpip">CELPIP</SelectItem>
+                  <SelectItem value="pte">PTE</SelectItem>
+                </SelectContent>
+              </Select>
+            </Field>
+          )}
+        </div>
+
+        {data.intlTestTaken === "yes" && (
+          <div className="rounded-lg border bg-muted/30 p-4 space-y-2">
+            <p className="text-xs text-muted-foreground">Band scores (0–9, step 0.5)</p>
+            <ScoreInputs
+              scores={data.intlTestScores}
+              onChange={(f, v) => onChange("intlTestScores", { ...data.intlTestScores, [f]: v })}
+            />
+          </div>
+        )}
+
+        {data.intlTestTaken === "no" && (
+          <Field label="Expected English proficiency level">
+            <Input
+              value={data.expectedClb}
+              onChange={(e) => onChange("expectedClb", e.target.value)}
+              placeholder="e.g. CLB 7, CLB 9"
+            />
+          </Field>
+        )}
+
+        <Field label="Do you have French language proficiency? (TEF / TCF)">
+          <Select value={data.frenchProficiency || undefined} onValueChange={(v) => onChange("frenchProficiency", v)}>
+            <SelectTrigger className="w-48"><SelectValue placeholder="Select…" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">No French knowledge</SelectItem>
+              <SelectItem value="basic">Basic (A1–A2)</SelectItem>
+              <SelectItem value="intermediate">Intermediate (B1–B2)</SelectItem>
+              <SelectItem value="advanced">Advanced (C1–C2)</SelectItem>
+            </SelectContent>
+          </Select>
+        </Field>
+      </section>
+
+      <Separator />
+
+      {/* 4. Financial Capacity */}
+      <section className="space-y-4">
+        <h3 className="text-sm font-semibold flex items-center gap-2 text-primary uppercase tracking-wide">
+          4. Financial Capacity (Proof of Funds)
+        </h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+          <Field label="Available Settlement Funds (approx.)">
+            <Select value={data.fundsLkrRange || undefined} onValueChange={(v) => onChange("fundsLkrRange", v)}>
+              <SelectTrigger><SelectValue placeholder="Select range…" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="under_5m">Under LKR 5 million</SelectItem>
+                <SelectItem value="5_10m">LKR 5–10 million</SelectItem>
+                <SelectItem value="10_15m">LKR 10–15 million</SelectItem>
+                <SelectItem value="15m_plus">LKR 15 million+</SelectItem>
+              </SelectContent>
+            </Select>
+          </Field>
+
+          <Field label="Can you invest funds for a Student Visa pathway?">
+            <YesNo value={data.canInvestStudent} onChange={(v) => onChange("canInvestStudent", v)} id="invest-student" />
+          </Field>
+        </div>
+      </section>
+
+      <Separator />
+
+      {/* 5. Adaptability & Foreign Ties */}
+      <section className="space-y-4">
+        <h3 className="text-sm font-semibold flex items-center gap-2 text-primary uppercase tracking-wide">
+          5. Adaptability &amp; Foreign Ties
+        </h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+          <Field label="Close relative (sibling/parent) in destination country as PR/Citizen?">
+            <YesNo value={data.relativeInCountry} onChange={(v) => onChange("relativeInCountry", v)} id="relative" />
+          </Field>
+
+          <Field label="Previously studied in the destination country?">
+            <YesNo value={data.prevEduAbroad} onChange={(v) => onChange("prevEduAbroad", v)} id="prev-edu" />
+          </Field>
+
+          <Field label="Previously worked in the destination country?">
+            <YesNo value={data.prevWorkAbroad} onChange={(v) => onChange("prevWorkAbroad", v)} id="prev-work" />
+          </Field>
+
+          <Field label="Do you have a valid Job Offer / LMIA from a Canadian employer?">
+            <Select value={data.hasJobOffer || undefined} onValueChange={(v) => onChange("hasJobOffer", v)}>
+              <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="yes_lmia">Yes, with LMIA</SelectItem>
+                <SelectItem value="yes_no_lmia">Yes, without LMIA</SelectItem>
+                <SelectItem value="no">No</SelectItem>
+              </SelectContent>
+            </Select>
+          </Field>
+        </div>
+      </section>
+
+      <Separator />
+
+      {/* 6. Inadmissibility */}
+      <section className="space-y-4">
+        <h3 className="text-sm font-semibold flex items-center gap-2 text-primary uppercase tracking-wide">
+          6. Background Checks
+        </h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+          <Field label="Any serious medical condition for you or family?">
+            <YesNo value={data.hasMedicalCondition} onChange={(v) => onChange("hasMedicalCondition", v)} id="medical" />
+          </Field>
+
+          <Field label="Any criminal record in any country?">
+            <YesNo value={data.hasCriminalRecord} onChange={(v) => onChange("hasCriminalRecord", v)} id="criminal" />
+          </Field>
+
+          <Field label="Any previous visa refusal?">
+            <YesNo value={data.hasVisaRefusal} onChange={(v) => onChange("hasVisaRefusal", v)} id="visa-refusal" />
+          </Field>
+        </div>
+      </section>
+
+    </div>
+  );
+}
+
+export function QuestionnaireForm() {
+  const [step, setStep]           = useState<1 | 2 | 3>(1);
+  const [activeTab, setActiveTab] = useState(0);
+  const [submitted, setSubmitted] = useState(false);
+  const [formData, setFormData]   = useState<FormData>(() => ({
+    ...INITIAL,
+    main:   { ...INITIAL.main,   scores: { ...EMPTY_SCORES } },
+    spouse: { ...INITIAL.spouse, scores: { ...EMPTY_SCORES } },
+  }));
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [submitting, setSubmitting] = useState(false);
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isLoadingRef = useRef(true);
+
+  const searchParams = useSearchParams();
+  const { setPersons } = useIAQNav();
+
+  // â”€â”€ Load saved draft on mount â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  useEffect(() => {
+    async function load() {
+      const token = getToken();
+      if (!token) { isLoadingRef.current = false; return; }
+      try {
+        const res = await fetch(`${API}/questionnaire`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const json = await res.json();
+          if (json.data) {
+            const s = json.data;
+            setFormData((prev) => ({
+              ...prev,
+              ...(s.step1_data ?? {}),
+              ...(s.step3_data ?? {}),
+              main:         s.main_data         ? { ...prev.main,   ...s.main_data }   : prev.main,
+              spouse:       s.spouse_data       ? { ...prev.spouse, ...s.spouse_data } : prev.spouse,
+              children:     s.children_data     ?? prev.children,
+              accompanying: s.accompanying_data ?? prev.accompanying,
+            }));
+          }
+        }
+      } finally {
+        isLoadingRef.current = false;
+      }
+    }
+    load();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+
+  // Sync persons to sidebar nav context (live)
+  useEffect(() => {
+    let t = 0;
+    const nextPersons = [
+      {
+        id: "main",
+        label: formData.fullName || "Main Applicant",
+        tabIndex: t++,
+      },
+      ...(formData.married === "yes"
+        ? [{
+            id: "spouse",
+            label: formData.spouse.fullName ? `(Spouse) ${formData.spouse.fullName}` : "(Spouse)",
+            tabIndex: t++,
+          }]
+        : []),
+      ...formData.children.map((child, i) => ({
+        id: `child-${i}`,
+        label: child.name ? `(Child) ${child.name}` : `(Child) ${i + 1}`,
+        tabIndex: t++,
+      })),
+      ...formData.accompanying.map((acc, i) => {
+        const idx = t++;
+        return {
+          id: `acc-${i}`,
+          label: acc.fullName ? `(Other) ${acc.fullName}` : `(Other) ${i + 1}`,
+          tabIndex: idx,
+        };
+      }),
+    ];
+    setPersons(nextPersons);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData.fullName, formData.married, formData.spouse.fullName, formData.children, formData.accompanying]);
+
+  // Jump to tab from ?tab= URL param (deep-link from sidebar nav)
+  useEffect(() => {
+    const tabParam = searchParams.get("tab");
+    if (tabParam === null) return;
+    const tabIdx = parseInt(tabParam, 10);
+    if (!isNaN(tabIdx)) {
+      setStep(2);
+      setActiveTab(tabIdx);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  // â”€â”€ Autosave — debounced 1.5 s after any formData change â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  useEffect(() => {
+    if (isLoadingRef.current) return;
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    setSaveStatus("saving");
+    saveTimerRef.current = setTimeout(async () => {
+      try {
+        await saveToServer(formData);
+        setSaveStatus("saved");
+      } catch {
+        setSaveStatus("error");
+      }
+    }, 1500);
+    return () => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData]);
+
+  // Sync children array length
+  useEffect(() => {
+    const count = childCount(formData.dependentChildren);
+    setFormData((prev) => {
+      if (prev.children.length === count) return prev;
+      if (count > prev.children.length) {
+        const added = Array.from({ length: count - prev.children.length }, () => ({
+          name: "", dob: "", educationLevel: "",
+          passportName: "", governmentIdName: "", governmentIdBackName: "",
+          drivingLicenseName: "", drivingLicenseBackName: "",
+          passportFullName: "", passportNumber: "", passportExpiry: "",
+          passportNationality: "", passportGender: "",
+          nicFullName: "", nicNumber: "", nicDob: "", nicAddress: "",
+          nicBirthPlace: "", nicIssueDate: "",
+          languages: [],
+        }));
+        return { ...prev, children: [...prev.children, ...added] };
+      }
+      return { ...prev, children: prev.children.slice(0, count) };
+    });
+  }, [formData.dependentChildren]);
+
+  // Sync accompanying persons array length
+  useEffect(() => {
+    if (formData.hasAccompanying !== "yes") {
+      setFormData((prev) => prev.accompanying.length === 0 ? prev : { ...prev, accompanying: [] });
+      return;
+    }
+    const count = accompanyingCount(formData.accompanyingCount);
+    setFormData((prev) => {
+      if (prev.accompanying.length === count) return prev;
+      if (count > prev.accompanying.length) {
+        const added = Array.from({ length: count - prev.accompanying.length }, () => ({
+          fullName: "", dob: "", relationship: "", otherRelationship: "",
+          passportName: "", governmentIdName: "", governmentIdBackName: "",
+          drivingLicenseName: "", drivingLicenseBackName: "",
+          passportFullName: "", passportNumber: "", passportExpiry: "",
+          passportNationality: "", passportGender: "",
+          nicFullName: "", nicNumber: "", nicDob: "", nicAddress: "",
+          nicBirthPlace: "", nicIssueDate: "",
+          languages: [],
+        }));
+        return { ...prev, accompanying: [...prev.accompanying, ...added] };
+      }
+      return { ...prev, accompanying: prev.accompanying.slice(0, count) };
+    });
+  }, [formData.hasAccompanying, formData.accompanyingCount]);
+
+  // Build dynamic tabs
+  const tabs = [
+    { id: "main", label: formData.fullName || "Main Applicant", icon: User },
+    ...(formData.married === "yes"
+      ? [{ id: "spouse", label: formData.spouse.fullName ? `(Spouse) ${formData.spouse.fullName}` : "(Spouse)", icon: Users }]
+      : []),
+    ...formData.children.map((child, i) => ({
+      id: `child_${i}`,
+      label: child.name ? `(Child) ${child.name}` : `(Child) ${i + 1}`,
+      icon: Baby,
+    })),
+    ...formData.accompanying.map((person, i) => ({
+      id: `accompanying_${i}`,
+      label: person.fullName ? `(Other) ${person.fullName}` : `(Other) ${i + 1}`,
+      icon: UserPlus,
+    })),
+  ];
+
+  // Validation
+  function validate1(): boolean {
+    const e: Record<string, string> = {};
+    if (!formData.fullName.trim())  e.fullName = "Full name is required.";
+    if (!formData.email.trim())     e.email    = "Email is required.";
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email))
+                                    e.email    = "Enter a valid email address.";
+    if (!formData.whatsapp.trim())  e.whatsapp = "WhatsApp number is required.";
+    if (!formData.visaType)         e.visaType = "Please select a visa type.";
+    if (!formData.married)          e.married  = "Please select your marital status.";
+    setErrors(e);
+    return Object.keys(e).length === 0;
+  }
+
+  function handleNext1() {
+    if (validate1()) { setStep(2); setActiveTab(0); }
+  }
+
+  function handleTabNext() {
+    if (activeTab < tabs.length - 1) {
+      setActiveTab((t) => t + 1);
+    } else {
+      // Last tab of Step 2 → go to Step 3
+      setStep(3);
+    }
+  }
+
+  async function handleFinalSubmit() {
+    setSubmitting(true);
+    try {
+      await saveToServer(formData);
+      const token = getToken();
+      const res = await fetch(`${API}/questionnaire/submit`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+      if (!res.ok) throw new Error("Submit failed");
+      setSubmitted(true);
+    } catch {
+      setSaveStatus("error");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  function handleTabBack() {
+    if (activeTab > 0) setActiveTab((t) => t - 1);
+    else setStep(1);
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  function setField3(f: keyof FormData, v: any) {
+    setFormData((p) => ({ ...p, [f]: v }));
+  }
+
+  // Updaters
+  function setField(f: keyof FormData, v: string) {
+    setFormData((p) => ({ ...p, [f]: v }));
+    if (errors[f]) setErrors((p) => { const n = { ...p }; delete n[f as string]; return n; });
+  }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  function setMain(f: keyof MainData, v: any) {
+    setFormData((p) => ({ ...p, main: { ...p.main, [f]: v } }));
+  }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  function setSpouse(f: keyof SpouseData, v: any) {
+    setFormData((p) => ({ ...p, spouse: { ...p.spouse, [f]: v } }));
+  }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  function setChild(i: number, f: keyof ChildData, v: any) {
+    setFormData((p) => {
+      const children = [...p.children];
+      children[i] = { ...children[i], [f]: v };
+      return { ...p, children };
+    });
+  }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  function setAccompanying(i: number, f: keyof AccompanyingPerson, v: any) {
+    setFormData((p) => {
+      const accompanying = [...p.accompanying];
+      accompanying[i] = { ...accompanying[i], [f]: v };
+      return { ...p, accompanying };
+    });
+  }
+  const handleDocUpload = useCallback(async (file: File): Promise<string> => {
+    return uploadDocumentFile(file);
+  }, []);
+
+  // â”€â”€ Success screen â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+  if (submitted) {
+    return (
+      <div className="max-w-lg mx-auto py-20 text-center space-y-6">
+        <div className="flex justify-center">
+          <div className="h-20 w-20 rounded-full bg-green-100 flex items-center justify-center">
+            <CheckCircle2 className="h-10 w-10 text-green-600" />
+          </div>
+        </div>
+        <div>
+          <h2 className="text-2xl font-bold">Questionnaire Submitted!</h2>
+          <p className="text-muted-foreground mt-2 text-sm leading-relaxed">
+            Thank you, <span className="font-medium text-foreground">{formData.fullName}</span>!
+            Your profile has been submitted. Your consultant will review your information
+            and reach out to you shortly.
+          </p>
+        </div>
+        <Button asChild>
+          <Link href="/user-dashboard">Return to Dashboard</Link>
+        </Button>
+      </div>
+    );
+  }
+
+  // â”€â”€ Main render â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+  return (
+    <div className="w-full space-y-6 pb-10">
+
+      {/* Page header */}
+      <div className="flex items-center gap-3">
+        <Button variant="ghost" size="icon" asChild>
+          <Link href="/user-dashboard">
+            <ChevronLeft className="h-4 w-4" />
+          </Link>
+        </Button>
+        <div className="flex-1">
+          <h1 className="text-xl font-bold">Immigration Assessment Questionnaire</h1>
+          <p className="text-sm text-muted-foreground">
+            Complete your profile so your consultant can assess your eligibility
+          </p>
+        </div>
+        {saveStatus === "saving" && (
+          <span className="text-xs text-muted-foreground flex items-center gap-1 shrink-0">
+            <Loader2 className="h-3 w-3 animate-spin" />Saving…
+          </span>
+        )}
+        {saveStatus === "saved" && (
+          <span className="text-xs text-green-600 shrink-0">âœ“ Saved</span>
+        )}
+        {saveStatus === "error" && (
+          <span className="text-xs text-destructive shrink-0">Save failed</span>
+        )}
+      </div>
+
+      {/* Step indicator */}
+      <StepIndicator step={step} />
+
+      {/* â”€â”€ STEP 1 â”€â”€ */}
+      {step === 1 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">General Information</CardTitle>
+            <CardDescription>Your basic details and family situation</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Step1Form
+              data={formData}
+              errors={errors}
+              onChange={setField}
+              onSpouseName={(name) => setSpouse("fullName", name)}
+              onChildName={(i, name) => setChild(i, "name", name)}
+              onAccompanyingName={(i, name) => setAccompanying(i, "fullName", name)}
+            />
+          </CardContent>
+        </Card>
+      )}
+
+      {/* â”€â”€ STEP 2 â”€â”€ */}
+      {step === 2 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Detailed Profile</CardTitle>
+            <CardDescription>
+              {tabs.length === 1
+                ? "Complete your main applicant profile below"
+                : `Complete each tab below — ${tabs.map((t) => t.label).join(", ")}`}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Tabs
+              value={tabs[activeTab]?.id ?? "main"}
+              onValueChange={(id) => {
+                const i = tabs.findIndex((t) => t.id === id);
+                if (i !== -1) setActiveTab(i);
+              }}
+            >
+              <TabsList className="mb-6 !inline-flex w-full !h-auto flex-wrap gap-1.5 p-1.5">
+                {tabs.map((tab) => {
+                  const Icon = tab.icon;
+                  return (
+                    <TabsTrigger
+                      key={tab.id}
+                      value={tab.id}
+                      className="!flex-none !h-auto py-1.5 px-3 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:border-primary data-[state=active]:shadow dark:data-[state=active]:bg-primary dark:data-[state=active]:text-primary-foreground dark:data-[state=active]:border-primary"
+                    >
+                      <Icon className="h-3.5 w-3.5" />
+                      {tab.label}
+                    </TabsTrigger>
+                  );
+                })}
+              </TabsList>
+
+              <TabsContent value="main">
+                <MainApplicantTab data={formData.main} onChange={setMain} onDocUpload={handleDocUpload} />
+              </TabsContent>
+              <TabsContent value="spouse">
+                <SpouseTab data={formData.spouse} onChange={setSpouse} onDocUpload={handleDocUpload} />
+              </TabsContent>
+              {formData.children.map((child, i) => (
+                <TabsContent key={`child_${i}`} value={`child_${i}`}>
+                  <ChildSingleTab data={child} onChange={(f, v) => setChild(i, f, v)} onDocUpload={handleDocUpload} />
+                </TabsContent>
+              ))}
+              {formData.accompanying.map((person, i) => (
+                <TabsContent key={`accompanying_${i}`} value={`accompanying_${i}`}>
+                  <AccompanyingPersonSingleTab data={person} onChange={(f, v) => setAccompanying(i, f, v)} onDocUpload={handleDocUpload} />
+                </TabsContent>
+              ))}
+            </Tabs>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* â”€â”€ Navigation footer â”€â”€ */}
+
+      {/* ── STEP 3 ── */}
+      {step === 3 && (
+        <ReviewStep
+          data={formData}
+          onEdit1={() => setStep(1)}
+          onEdit2={(tabIdx) => { setStep(2); setActiveTab(tabIdx); }}
+        />
+      )}
+      <div className="flex items-center justify-between gap-4 pt-2">
+        {step === 1 ? (
+          <>
+            <Button variant="outline" asChild>
+              <Link href="/user-dashboard">
+                <ChevronLeft className="mr-1.5 h-4 w-4" />
+                Back to Dashboard
+              </Link>
+            </Button>
+            <Button onClick={handleNext1}>
+              Next — Detailed Profile
+              <ChevronRight className="ml-1.5 h-4 w-4" />
+            </Button>
+          </>
+        ) : step === 2 ? (
+          <>
+            <Button variant="outline" onClick={handleTabBack}>
+              <ChevronLeft className="mr-1.5 h-4 w-4" />
+              {activeTab === 0 ? "Back to General Info" : "Previous Tab"}
+            </Button>
+
+            {/* Tab progress dots */}
+            {tabs.length > 1 && (
+              <div className="flex items-center gap-1.5">
+                {tabs.map((_, i) => (
+                  <div
+                    key={i}
+                    className={cn(
+                      "h-2 rounded-full transition-all",
+                      i === activeTab ? "w-5 bg-primary" : "w-2 bg-muted-foreground/30",
+                    )}
+                  />
+                ))}
+              </div>
+            )}
+
+            {activeTab < tabs.length - 1 ? (
+              <Button onClick={handleTabNext}>
+                Next Tab
+                <ChevronRight className="ml-1.5 h-4 w-4" />
+              </Button>
+            ) : (
+              <Button onClick={handleTabNext}>
+                Next — Review
+                <ChevronRight className="ml-1.5 h-4 w-4" />
+              </Button>
+            )}
+          </>
+        ) : (
+          <>
+            <Button variant="outline" onClick={() => { setStep(2); setActiveTab(tabs.length - 1); }}>
+              <ChevronLeft className="mr-1.5 h-4 w-4" />
+              Back to Detailed Profile
+            </Button>
+            <Button
+              onClick={handleFinalSubmit}
+              disabled={submitting}
+              className="bg-green-600 hover:bg-green-700 text-white"
+            >
+                {submitting ? (
+                  <><Loader2 className="mr-1.5 h-4 w-4 animate-spin" />Submitting…</>
+                ) : (
+                  <><Send className="mr-1.5 h-4 w-4" />Submit Questionnaire</>
+                )}
+              </Button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}

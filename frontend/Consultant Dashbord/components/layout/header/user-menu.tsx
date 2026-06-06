@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { BadgeCheck, Bell, CreditCard, LogOut } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -14,7 +15,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 const API = "http://127.0.0.1:8000/api/v1";
-const CONSULTANT_LOGIN = "http://localhost:3001/login";
+const CONSULTANT_LOGIN = "http://localhost:3002/login";
 
 function getInitials(name: string) {
   return name
@@ -32,6 +33,7 @@ type WtcUser = {
 };
 
 export default function UserMenu() {
+  const router = useRouter();
   const [user, setUser] = useState<WtcUser>({});
 
   useEffect(() => {
@@ -84,7 +86,7 @@ export default function UserMenu() {
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
-          <DropdownMenuItem>
+          <DropdownMenuItem onClick={() => router.push("/dashboard/account")} className="cursor-pointer">
             <BadgeCheck />
             Account
           </DropdownMenuItem>

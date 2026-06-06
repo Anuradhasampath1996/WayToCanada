@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-const CONSULTANT_LOGIN_URL = "http://localhost:3001/login";
+const CONSULTANT_LOGIN_URL = "http://localhost:3002/login";
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;

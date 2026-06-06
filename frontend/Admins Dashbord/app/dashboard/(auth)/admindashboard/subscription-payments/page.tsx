@@ -42,6 +42,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Separator } from "@/components/ui/separator";
+import { getAdminToken } from "@/lib/admin-auth";
 
 // ─────────────────────────────────────────────────────────────────────────────
 const API = (process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000") + "/api/v1";
@@ -145,7 +146,7 @@ export default function SubscriptionPaymentsPage() {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem("wtc_admin_token");
+      const token = getAdminToken();
       const params = new URLSearchParams({ page: String(page), per_page: "15" });
       if (search)                       params.set("search", search);
       if (statusFilter !== "all")       params.set("status", statusFilter);

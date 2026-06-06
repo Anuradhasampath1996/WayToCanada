@@ -32,6 +32,7 @@ import {
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { generateAvatarFallback } from "@/lib/utils";
+import { adminAuthHeaders } from "@/lib/admin-auth";
 
 const API = process.env.NEXT_PUBLIC_API_URL + "/api/v1";
 
@@ -52,14 +53,7 @@ type FormData = {
   role: string;
 };
 
-function authHeaders() {
-  const token = typeof window !== "undefined" ? localStorage.getItem("wtc_admin_token") : "";
-  return {
-    Authorization: `Bearer ${token}`,
-    "Content-Type": "application/json",
-    Accept: "application/json",
-  };
-}
+function authHeaders() { return adminAuthHeaders("application/json"); }
 
 export default function AdminUsersPage() {
   const [users, setUsers] = React.useState<AdminUser[]>([]);

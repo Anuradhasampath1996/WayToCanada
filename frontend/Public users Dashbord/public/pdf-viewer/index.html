@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PDF Viewer</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/web/pdf_viewer.css" />
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      background: #525659;
+    }
+    #outerContainer {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+    }
+    #viewerContainer {
+      position: absolute;
+      inset: 0;
+      overflow: auto;
+    }
+    #errorBox {
+      display: none;
+      position: absolute;
+      inset: 0;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      color: #fff;
+      text-align: center;
+      font-family: system-ui, sans-serif;
+    }
+    #errorBox.visible { display: flex; }
+  </style>
+</head>
+<body>
+  <div id="outerContainer">
+    <div id="viewerContainer"></div>
+    <div id="errorBox"></div>
+  </div>
+  <script type="module">
+    import * as pdfjsLib from "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.mjs";
+    import { EventBus, PDFViewer } from "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/web/pdf_viewer.mjs";
+
+    const PDFJS = "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38";
+    pdfjsLib.GlobalWorkerOptions.workerSrc = `${PDFJS}/build/pdf.worker.mjs`;
+
+    const eventBus = new EventBus();
+    const container = document.getElementById("viewerContainer");
+    const errorBox = document.getElementById("errorBox");
+
+    const pdfViewer = new PDFViewer({
+      container,
+      eventBus,
+      enableXfa: true,
+      textLayerMode: 2,
+      annotationMode: 2,
+    });
+
+    function notifyParent(payload) {
+      if (window.parent && window.parent !== window) {
+        window.parent.postMessage({ source: "wtc-pdf-viewer", ...payload }, "*");
+      }
+    }
+
+    function showError(message) {
+      container.style.display = "none";
+      errorBox.textContent = message;
+      errorBox.classList.add("visible");
+      notifyParent({ type: "error", message });
+    }
+
+    async function loadPdf(data) {
+      try {
+        errorBox.classList.remove("visible");
+        container.style.display = "block";
+
+        const loadingTask = pdfjsLib.getDocument({
+          data,
+          enableXfa: true,
+          cMapUrl: `${PDFJS}/cmaps/`,
+          cMapPacked: true,
+          standardFontDataUrl: `${PDFJS}/standard_fonts/`,
+        });
+
+        const pdfDocument = await loadingTask.promise;
+        pdfViewer.setDocument(pdfDocument);
+
+        notifyParent({
+          type: "loaded",
+          numPages: pdfDocument.numPages,
+          isPureXfa: pdfDocument.isPureXfa,
+        });
+      } catch (err) {
+        showError(err?.message || "Could not open this PDF.");
+      }
+    }
+
+    window.addEventListener("message", (event) => {
+      const msg = event.data;
+      if (!msg || msg.target !== "wtc-pdf-viewer") return;
+
+      if (msg.type === "load-bytes" && msg.data) {
+        const bytes = msg.data instanceof ArrayBuffer
+          ? new Uint8Array(msg.data)
+          : new Uint8Array(msg.data);
+        loadPdf(bytes);
+      }
+
+      if (msg.type === "set-scale" && typeof msg.scale === "number") {
+        pdfViewer.currentScale = msg.scale;
+      }
+
+      if (msg.type === "set-page" && typeof msg.page === "number") {
+        pdfViewer.currentPageNumber = msg.page;
+      }
+    });
+
+    notifyParent({ type: "ready" });
+  </script>
+</body>
+</html>

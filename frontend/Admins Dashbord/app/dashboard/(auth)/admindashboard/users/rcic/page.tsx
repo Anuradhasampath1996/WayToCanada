@@ -22,6 +22,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Label } from "@/components/ui/label";
+import { getAdminToken, adminAuthHeaders } from "@/lib/admin-auth";
 
 const API = process.env.NEXT_PUBLIC_API_URL + "/api/v1";
 
@@ -97,10 +98,7 @@ type PaginatedResponse = {
   per_page: number;
 };
 
-function authBearer() {
-  const token = typeof window !== "undefined" ? localStorage.getItem("wtc_admin_token") : "";
-  return { Authorization: `Bearer ${token}`, Accept: "application/json" };
-}
+function authBearer() { return adminAuthHeaders(); }
 
 function statusBadge(status: string | null) {
   if (!status) return <Badge variant="outline">—</Badge>;
@@ -185,7 +183,7 @@ export default function RcicUsersPage() {
     try {
       const form = new FormData();
       form.append("file", file);
-      const token = localStorage.getItem("wtc_admin_token");
+      const token = getAdminToken();
       const res = await fetch(`${API}/admin/rcic-consultants/import`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
@@ -204,7 +202,7 @@ export default function RcicUsersPage() {
   const handleClearAll = async () => {
     setClearing(true);
     try {
-      const token = localStorage.getItem("wtc_admin_token");
+      const token = getAdminToken();
       const res = await fetch(`${API}/admin/rcic-consultants/clear`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
@@ -223,7 +221,7 @@ export default function RcicUsersPage() {
   const handleExport = async () => {
     setExporting(true);
     try {
-      const token = localStorage.getItem("wtc_admin_token");
+      const token = getAdminToken();
       const res = await fetch(`${API}/admin/rcic-consultants/export`, {
         headers: { Authorization: `Bearer ${token}`, Accept: "text/csv" },
       });
@@ -262,7 +260,7 @@ export default function RcicUsersPage() {
     setSavingEdit(true);
     setEditError(null);
     try {
-      const token = localStorage.getItem("wtc_admin_token");
+      const token = getAdminToken();
       const res = await fetch(`${API}/admin/rcic-consultants/${editRcic.profile_id}`, {
         method: "PUT",
         headers: { Authorization: `Bearer ${token}`, Accept: "application/json", "Content-Type": "application/json" },
@@ -287,7 +285,7 @@ export default function RcicUsersPage() {
     if (!deleteRcic) return;
     setDeletingRcic(true);
     try {
-      const token = localStorage.getItem("wtc_admin_token");
+      const token = getAdminToken();
       await fetch(`${API}/admin/rcic-consultants/${deleteRcic.profile_id}`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
@@ -303,7 +301,7 @@ export default function RcicUsersPage() {
     setAddError(null);
     setSaving(true);
     try {
-      const token = localStorage.getItem("wtc_admin_token");
+      const token = getAdminToken();
       const res = await fetch(`${API}/admin/rcic-consultants`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, Accept: "application/json", "Content-Type": "application/json" },

@@ -18,6 +18,8 @@ class DatabaseSeeder extends Seeder
         $this->call([
             RolesAndPermissionsSeeder::class,
             RcicConsultantsSeeder::class,
+            IrccCategorySeeder::class,
+            IrccInteractiveFormSeeder::class,
         ]);
     }
 }

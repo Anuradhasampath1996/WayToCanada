@@ -3,7 +3,7 @@ version: "3.8"
 services:
   localstack:
     container_name: localstack_main
-    image: localstack/localstack
+    image: localstack/localstack:3.8.1
     ports:
       - "127.0.0.1:4566:4566"            # LocalStack Gateway
       - "127.0.0.1:4510-4559:4510-4559"  # external services port range
@@ -14,3 +14,17 @@ services:
     volumes:
       - "${LOCALSTACK_VOLUME_DIR:-./volume}:/var/lib/localstack"
       - "/var/run/docker.sock:/var/run/docker.sock"
+
+  ocr-service:
+    build:
+      context: ./ai-service
+      dockerfile: Dockerfile
+    container_name: wtc_ocr_service
+    ports:
+      - "8001:8001"
+    environment:
+      - EASYOCR_GPU=false
+      - CONFIDENCE_THRESHOLD=0.30
+      - MAX_FILE_SIZE_MB=10
+      - DEBUG=false
+    restart: unless-stopped

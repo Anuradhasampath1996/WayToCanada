@@ -45,6 +45,13 @@ class RcicConsultantsSeeder extends Seeder
             return;
         }
 
+        // Skip UTF-8 BOM if present (EF BB BF) — must be done before fgetcsv
+        $bom = fread($handle, 3);
+        if ($bom !== "\xEF\xBB\xBF") {
+            // Not a BOM — rewind and read from start
+            rewind($handle);
+        }
+
         // Read header row and normalize keys
         $headers = fgetcsv($handle);
         if ($headers === false) {

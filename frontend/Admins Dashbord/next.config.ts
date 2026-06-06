@@ -18,6 +18,7 @@ const nextConfig: NextConfig = {
       { source: "/admindashboard/payment-gateway", destination: "/dashboard/admindashboard/payment-gateway" },
       { source: "/admindashboard/subscription-packages", destination: "/dashboard/admindashboard/subscription-packages" },
       { source: "/admindashboard/subscription-payments", destination: "/dashboard/admindashboard/subscription-payments" },
+      { source: "/admindashboard/application-packages", destination: "/dashboard/admindashboard/application-packages" },
     ];
   },
   async redirects() {

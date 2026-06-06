@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { generateAvatarFallback } from "@/lib/utils";
+import { adminAuthHeaders } from "@/lib/admin-auth";
 
 const API = process.env.NEXT_PUBLIC_API_URL + "/api/v1";
 
@@ -36,14 +37,7 @@ type PublicUser = {
   created_at: string;
 };
 
-function authHeaders(contentType = true) {
-  const token = typeof window !== "undefined" ? localStorage.getItem("wtc_admin_token") : "";
-  return {
-    Authorization: `Bearer ${token}`,
-    ...(contentType ? { "Content-Type": "application/json" } : {}),
-    Accept: "application/json",
-  };
-}
+function authHeaders(contentType = true) { return adminAuthHeaders(contentType ? "application/json" : undefined); }
 
 export default function PublicUsersPage() {
   // List state

@@ -12,3 +12,6 @@ Artisan::command('inspire', function () {
 // On Linux/Mac production server, add to crontab:
 //   * * * * * cd /path/to/project && php artisan schedule:run >> /dev/null 2>&1
 Schedule::command('ircc:fetch-news')->daily()->timezone('America/Toronto');
+
+// Sync IRCC forms & guides from canada.ca daily (catalog + package PDFs)
+Schedule::command('ircc:sync-forms')->dailyAt('03:00')->timezone('America/Toronto');

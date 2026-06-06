@@ -97,6 +97,27 @@ export const navItems: NavGroup[] = [
     ],
   },
   {
+    title: "My Clients",
+    items: [
+      {
+        title: "All Clients",
+        href: "/dashboard/clients",
+        icon: UsersIcon,
+      },
+      {
+        title: "Add New Client",
+        href: "/dashboard/clients/new",
+        icon: UserIcon,
+        isNew: true,
+      },
+      {
+        title: "Case Pipeline",
+        href: "/dashboard/case-pipeline",
+        icon: SquareKanbanIcon,
+      },
+    ],
+  },
+  {
     title: "Dashboards",
     items: [
       {

@@ -14,7 +14,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 const API = "http://127.0.0.1:8000/api/v1";
-const PUBLIC_LOGIN = "http://localhost:3002/login";
+const PUBLIC_LOGIN =
+  process.env.NEXT_PUBLIC_PUBLIC_WEBSITE_URL ?? "http://localhost:3003";
 
 function getInitials(name: string) {
   return name
@@ -56,7 +57,7 @@ export default function UserMenu() {
     localStorage.removeItem("wtc_user");
     // Clear the auth cookie
     document.cookie = "wtc_token=; path=/; max-age=0; SameSite=Lax";
-    window.location.replace(PUBLIC_LOGIN);
+    window.location.replace(`${PUBLIC_LOGIN}/login`);
   }
 
   const displayName = user.name || "User";

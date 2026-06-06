@@ -1,5 +1,7 @@
 "use client";
 
+import { getAdminToken } from "@/lib/admin-auth";
+
 import { useEffect, useState } from "react";
 import { BadgeCheck, Bell, CreditCard, LogOut } from "lucide-react";
 
@@ -37,7 +39,7 @@ export default function UserMenu() {
   });
 
   useEffect(() => {
-    const token = localStorage.getItem("wtc_admin_token");
+    const token = getAdminToken();
     if (!token) return;
 
     fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/me`, {
@@ -100,7 +102,7 @@ export default function UserMenu() {
         <DropdownMenuSeparator />
         <DropdownMenuItem
           onClick={async () => {
-            const token = localStorage.getItem("wtc_admin_token");
+            const token = getAdminToken();
             try {
               await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/logout`, {
                 method: "POST",

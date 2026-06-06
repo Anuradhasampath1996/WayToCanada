@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -19,14 +21,49 @@ import {
 import { BellIcon, CreditCardIcon, LogOutIcon, UserCircle2Icon } from "lucide-react";
 import { DotsVerticalIcon } from "@radix-ui/react-icons";
 
-const userData = {
-  name: "Toby Belhome",
-  email: "hello@tobybelhome.com",
-  avatar: "/images/avatars/01.png"
-};
+const API = (process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000") + "/api/v1";
+const CONSULTANT_LOGIN = "http://localhost:3002/login";
+
+function initials(name: string) {
+  return name
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map(w => w[0].toUpperCase())
+    .join("");
+}
 
 export function NavUser() {
   const { isMobile } = useSidebar();
+  const router = useRouter();
+  const [user, setUser] = useState<{ name: string; email: string; avatar?: string } | null>(null);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("wtc_consultant_user");
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        setUser({ name: parsed.name ?? "Consultant", email: parsed.email ?? "", avatar: parsed.avatar ?? undefined });
+      }
+    } catch {}
+  }, []);
+
+  const handleLogout = async () => {
+    const token = localStorage.getItem("wtc_consultant_token");
+    if (token) {
+      await fetch(`${API}/logout`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      }).catch(() => {});
+    }
+    localStorage.removeItem("wtc_consultant_token");
+    localStorage.removeItem("wtc_consultant_user");
+    document.cookie = "wtc_consultant_token=; path=/; max-age=0; SameSite=Lax";
+    window.location.replace(CONSULTANT_LOGIN);
+  };
+
+  const displayName  = user?.name  ?? "Consultant";
+  const displayEmail = user?.email ?? "";
 
   return (
     <SidebarMenu>
@@ -37,12 +74,12 @@ export function NavUser() {
               size="lg"
               className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground">
               <Avatar className="rounded-full">
-                <AvatarImage src={userData.avatar} alt={userData.name} />
-                <AvatarFallback className="rounded-lg">JS</AvatarFallback>
+                <AvatarImage src={user?.avatar ?? ""} alt={displayName} />
+                <AvatarFallback className="rounded-full">{initials(displayName)}</AvatarFallback>
               </Avatar>
-              <div className="grid flex-1 text-left text-sm leading-tight">
-                <span className="truncate font-medium">{userData.name}</span>
-                <span className="text-muted-foreground truncate text-xs">{userData.email}</span>
+              <div className="grid flex-1 text-left text-sm leading-tight" suppressHydrationWarning>
+                <span className="truncate font-medium">{displayName}</span>
+                <span className="text-muted-foreground truncate text-xs">{displayEmail}</span>
               </div>
               <DotsVerticalIcon className="ml-auto size-4" />
             </SidebarMenuButton>
@@ -54,19 +91,19 @@ export function NavUser() {
             sideOffset={4}>
             <DropdownMenuLabel className="p-0 font-normal">
               <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
-                <Avatar className="h-8 w-8 rounded-lg">
-                  <AvatarImage src={userData.avatar} alt={userData.name} />
-                  <AvatarFallback className="rounded-lg">TB</AvatarFallback>
+                <Avatar className="h-8 w-8 rounded-full">
+                  <AvatarImage src={user?.avatar ?? ""} alt={displayName} />
+                  <AvatarFallback className="rounded-full">{initials(displayName)}</AvatarFallback>
                 </Avatar>
-                <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-medium">{userData.name}</span>
-                  <span className="text-muted-foreground truncate text-xs">{userData.email}</span>
+                <div className="grid flex-1 text-left text-sm leading-tight" suppressHydrationWarning>
+                  <span className="truncate font-medium">{displayName}</span>
+                  <span className="text-muted-foreground truncate text-xs">{displayEmail}</span>
                 </div>
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
-              <DropdownMenuItem>
+              <DropdownMenuItem onClick={() => router.push("/dashboard/account")} className="cursor-pointer">
                 <UserCircle2Icon />
                 Account
               </DropdownMenuItem>
@@ -80,7 +117,7 @@ export function NavUser() {
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>
+            <DropdownMenuItem onClick={handleLogout}>
               <LogOutIcon />
               Log out
             </DropdownMenuItem>

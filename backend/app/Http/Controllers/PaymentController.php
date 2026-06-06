@@ -146,7 +146,7 @@ class PaymentController extends Controller
         $cycle   = $data['billing_cycle'];
 
         // The return / cancel URLs land back in the consultant dashboard
-        $baseUrl   = env('CONSULTANT_DASHBOARD_URL', 'http://localhost:3004');
+        $baseUrl   = env('CONSULTANT_DASHBOARD_URL', 'http://localhost:3001');
         $returnUrl = "{$baseUrl}/dashboard/subscribe/return";
         $cancelUrl = "{$baseUrl}/dashboard/subscribe/cancelled";
 

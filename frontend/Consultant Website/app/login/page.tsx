@@ -11,6 +11,8 @@ import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 
 const API = "http://127.0.0.1:8000/api/v1";
+const CONSULTANT_DASHBOARD_URL =
+  process.env.NEXT_PUBLIC_CONSULTANT_DASHBOARD_URL ?? "http://localhost:3005";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -30,7 +32,7 @@ export default function LoginPage() {
     // Redirect already-logged-in consultants to the dashboard
     const match = document.cookie.match(/(^| )wtc_consultant_token=([^;]+)/);
     if (match) {
-      window.location.replace("http://localhost:3004/consultantdashboard");
+      window.location.replace(`${CONSULTANT_DASHBOARD_URL}/consultantdashboard`);
     }
   }, [searchParams]);
 
@@ -67,7 +69,7 @@ export default function LoginPage() {
       }
 
       // rcic → redirect to Consultant Dashboard (callback page sets the cookie)
-      window.location.href = "http://localhost:3004/auth/callback#token=" + data.token;
+      window.location.href = `${CONSULTANT_DASHBOARD_URL}/auth/callback#token=${data.token}`;
     } catch {
       setError("Network error. Please check your connection and try again.");
     } finally {

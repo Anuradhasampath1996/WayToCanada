@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-const PUBLIC_LOGIN_URL = "http://localhost:3002/login";
+const PUBLIC_LOGIN_URL =
+  process.env.NEXT_PUBLIC_PUBLIC_WEBSITE_URL ?? "http://localhost:3003";
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -19,7 +20,7 @@ export function proxy(request: NextRequest) {
   if (pathname.startsWith("/dashboard/")) {
     const token = request.cookies.get("wtc_token")?.value;
     if (!token) {
-      return NextResponse.redirect(PUBLIC_LOGIN_URL);
+      return NextResponse.redirect(`${PUBLIC_LOGIN_URL}/login`);
     }
   }
 

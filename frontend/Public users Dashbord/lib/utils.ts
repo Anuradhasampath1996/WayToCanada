@@ -25,7 +25,7 @@ export function generateMeta({
   canonical: string;
 }): Metadata {
   return {
-    title: `${title} for Shadcn UI${additionalTitle ? " – Admin Dashboard Template" : ""}`,
+    title: `${title}`,
     description: description,
     metadataBase: new URL(`https://shadcnuikit.com`),
     alternates: {

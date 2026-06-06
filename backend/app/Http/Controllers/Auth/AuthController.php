@@ -32,6 +32,12 @@ class AuthController extends Controller
             ]);
         }
 
+        if (! $user->is_verified) {
+            return response()->json([
+                'message' => 'Your account has been deactivated. Please contact your consultant.',
+            ], 403);
+        }
+
         // Revoke old password-login tokens and issue a fresh one
         $user->tokens()->where('name', 'password-auth')->delete();
         $token = $user->createToken('password-auth')->plainTextToken;
@@ -103,18 +109,18 @@ class AuthController extends Controller
 
         // consultant login → go straight to consultant dashboard via auth/callback
         if ($isConsultantLogin) {
-            $dashboardUrl = rtrim(env('CONSULTANT_DASHBOARD_URL', 'http://localhost:3004'), '/');
+            $dashboardUrl = rtrim(env('CONSULTANT_DASHBOARD_URL', 'http://localhost:3005'), '/');
             return redirect()->away("{$dashboardUrl}/auth/callback#token={$token}");
         }
 
         // consultant register → go to Consultant Website auth/callback (shows registered banner)
         if ($isConsultantRegister) {
-            $frontendUrl = rtrim(env('CONSULTANT_FRONTEND_URL', 'http://localhost:3001'), '/');
+            $frontendUrl = rtrim(env('CONSULTANT_FRONTEND_URL', 'http://localhost:3002'), '/');
             return redirect()->away("{$frontendUrl}/auth/callback#token={$token}");
         }
 
         // Default: public/client portal
-        $frontendUrl = rtrim(env('PUBLIC_FRONTEND_URL', 'http://localhost:3002'), '/');
+        $frontendUrl = rtrim(env('PUBLIC_FRONTEND_URL', 'http://localhost:3003'), '/');
         return redirect()->away("{$frontendUrl}/auth/callback#token={$token}");
     }
 
@@ -205,11 +211,11 @@ class AuthController extends Controller
         $token = $user->createToken('github-auth')->plainTextToken;
 
         if ($isConsultantLogin) {
-            $dashboardUrl = rtrim(env('CONSULTANT_DASHBOARD_URL', 'http://localhost:3004'), '/');
+            $dashboardUrl = rtrim(env('CONSULTANT_DASHBOARD_URL', 'http://localhost:3005'), '/');
             return redirect()->away("{$dashboardUrl}/dashboard/login?sso=" . urlencode($token));
         }
 
-        $frontendUrl = rtrim(env('PUBLIC_FRONTEND_URL', 'http://localhost:3002'), '/');
+        $frontendUrl = rtrim(env('PUBLIC_FRONTEND_URL', 'http://localhost:3003'), '/');
         return redirect()->away("{$frontendUrl}/auth/callback#token={$token}");
     }
 

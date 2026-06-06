@@ -9,6 +9,10 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 
 const API = "http://127.0.0.1:8000/api/v1";
+const USER_DASHBOARD_URL =
+  process.env.NEXT_PUBLIC_USER_DASHBOARD_URL ?? "http://localhost:3001";
+const CONSULTANT_WEBSITE_URL =
+  process.env.NEXT_PUBLIC_CONSULTANT_WEBSITE_URL ?? "http://localhost:3002";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -28,7 +32,7 @@ export default function LoginPage() {
     // Redirect already-logged-in public users to the dashboard
     const match = document.cookie.match(/(^| )wtc_token=([^;]+)/);
     if (match) {
-      window.location.replace("http://localhost:3005/dashboard/default");
+      window.location.replace(`${USER_DASHBOARD_URL}/user-dashboard`);
     }
   }, []);
 
@@ -56,7 +60,7 @@ export default function LoginPage() {
       }
 
       // client role → redirect to user dashboard (callback page sets the cookie)
-      window.location.replace("http://localhost:3005/auth/callback#token=" + data.token);
+      window.location.replace(`${USER_DASHBOARD_URL}/auth/callback#token=${data.token}`);
     } catch {
       setError("Network error. Please check your connection and try again.");
     } finally {
@@ -201,7 +205,7 @@ export default function LoginPage() {
           </p>
           <p className="text-center text-xs text-muted-foreground">
             Are you a consultant?{" "}
-            <a href="http://localhost:3001/login" className="text-primary hover:underline">
+            <a href={`${CONSULTANT_WEBSITE_URL}/login`} className="text-primary hover:underline">
               Consultant Portal →
             </a>
           </p>

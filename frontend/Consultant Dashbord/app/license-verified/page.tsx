@@ -22,7 +22,7 @@ export default function LicenseVerifiedPage() {
         <Button
           className="w-full"
           onClick={() => {
-            window.location.href = "http://localhost:3001/login";
+            window.location.href = "http://localhost:3002/login";
           }}
         >
           Go to Login

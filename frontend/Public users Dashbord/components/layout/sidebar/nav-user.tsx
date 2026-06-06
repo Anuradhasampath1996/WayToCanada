@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -19,14 +20,53 @@ import {
 import { BellIcon, CreditCardIcon, LogOutIcon, UserCircle2Icon } from "lucide-react";
 import { DotsVerticalIcon } from "@radix-ui/react-icons";
 
-const userData = {
-  name: "Toby Belhome",
-  email: "hello@tobybelhome.com",
-  avatar: "/images/avatars/01.png"
-};
+const API = "http://127.0.0.1:8000/api/v1";
+const PUBLIC_LOGIN =
+  process.env.NEXT_PUBLIC_PUBLIC_WEBSITE_URL ?? "http://localhost:3003";
+
+function getInitials(name: string) {
+  return name
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0].toUpperCase())
+    .join("");
+}
+
+type WtcUser = { name?: string; email?: string; avatar?: string | null };
 
 export function NavUser() {
   const { isMobile } = useSidebar();
+  const [user, setUser] = useState<WtcUser>({});
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("wtc_user");
+      if (raw) setUser(JSON.parse(raw));
+    } catch {}
+  }, []);
+
+  async function handleLogout() {
+    const match = document.cookie.match(/(?:^|;\s*)wtc_token=([^;]+)/);
+    const token = match ? decodeURIComponent(match[1]) : null;
+    if (token) {
+      try {
+        await fetch(`${API}/logout`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+        });
+      } catch {}
+    }
+    localStorage.removeItem("wtc_token");
+    localStorage.removeItem("wtc_user");
+    document.cookie = "wtc_token=; path=/; max-age=0; SameSite=Lax";
+    window.location.replace(`${PUBLIC_LOGIN}/login`);
+  }
+
+  const name = user.name ?? "User";
+  const email = user.email ?? "";
+  const avatar = user.avatar ?? undefined;
+  const initials = getInitials(name);
 
   return (
     <SidebarMenu>
@@ -37,12 +77,12 @@ export function NavUser() {
               size="lg"
               className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground">
               <Avatar className="rounded-full">
-                <AvatarImage src={userData.avatar} alt={userData.name} />
-                <AvatarFallback className="rounded-lg">JS</AvatarFallback>
+                <AvatarImage src={avatar} alt={name} />
+                <AvatarFallback className="rounded-lg">{initials}</AvatarFallback>
               </Avatar>
               <div className="grid flex-1 text-left text-sm leading-tight">
-                <span className="truncate font-medium">{userData.name}</span>
-                <span className="text-muted-foreground truncate text-xs">{userData.email}</span>
+                <span className="truncate font-medium">{name}</span>
+                <span className="text-muted-foreground truncate text-xs">{email}</span>
               </div>
               <DotsVerticalIcon className="ml-auto size-4" />
             </SidebarMenuButton>
@@ -55,12 +95,12 @@ export function NavUser() {
             <DropdownMenuLabel className="p-0 font-normal">
               <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
                 <Avatar className="h-8 w-8 rounded-lg">
-                  <AvatarImage src={userData.avatar} alt={userData.name} />
-                  <AvatarFallback className="rounded-lg">TB</AvatarFallback>
+                  <AvatarImage src={avatar} alt={name} />
+                  <AvatarFallback className="rounded-lg">{initials}</AvatarFallback>
                 </Avatar>
                 <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-medium">{userData.name}</span>
-                  <span className="text-muted-foreground truncate text-xs">{userData.email}</span>
+                  <span className="truncate font-medium">{name}</span>
+                  <span className="text-muted-foreground truncate text-xs">{email}</span>
                 </div>
               </div>
             </DropdownMenuLabel>
@@ -80,7 +120,7 @@ export function NavUser() {
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>
+            <DropdownMenuItem onClick={handleLogout}>
               <LogOutIcon />
               Log out
             </DropdownMenuItem>

@@ -10,7 +10,7 @@ export default function AuthCallbackPage() {
     const token = params.get("token");
 
     if (!token) {
-      window.location.replace("http://localhost:3001/login");
+      window.location.replace("http://localhost:3002/login");
       return;
     }
 

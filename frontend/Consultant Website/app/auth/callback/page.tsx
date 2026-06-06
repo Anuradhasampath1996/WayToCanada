@@ -4,23 +4,26 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 
+const CONSULTANT_DASHBOARD_URL =
+  process.env.NEXT_PUBLIC_CONSULTANT_DASHBOARD_URL ?? "http://localhost:3005";
+
 export default function AuthCallbackPage() {
   const router = useRouter();
 
   useEffect(() => {
-    // Token is in the URL fragment (#token=...) — not sent to the server
-    const hash = window.location.hash; // e.g. "#token=3|abc..."
-    const params = new URLSearchParams(hash.slice(1)); // remove leading #
+    const hash = window.location.hash;
+    const params = new URLSearchParams(hash.slice(1));
     const token = params.get("token");
 
     if (!token) {
-      // No token — something went wrong, send back to register
       router.replace("/register?error=google_failed");
       return;
     }
 
-    // Persist token then fetch the current user
-    localStorage.setItem("wtc_token", token);
+    // Store as consultant token (cookie + localStorage) — same as dashboard callback
+    localStorage.setItem("wtc_consultant_token", token);
+    const maxAge = 60 * 60 * 24 * 30;
+    document.cookie = `wtc_consultant_token=${token}; path=/; max-age=${maxAge}; SameSite=Lax`;
 
     fetch("http://127.0.0.1:8000/api/v1/me", {
       headers: {
@@ -30,12 +33,12 @@ export default function AuthCallbackPage() {
     })
       .then((res) => res.json())
       .then((user) => {
-        localStorage.setItem("wtc_user", JSON.stringify(user));
-        // Redirect to login page with success notice instead of directly to dashboard
-        router.replace("/login?registered=1");
+        localStorage.setItem("wtc_consultant_user", JSON.stringify(user));
       })
-      .catch(() => {
-        router.replace("/login?registered=1");
+      .catch(() => {})
+      .finally(() => {
+        // Go to the Consultant Dashboard
+        window.location.replace(`${CONSULTANT_DASHBOARD_URL}/consultantdashboard`);
       });
   }, [router]);
 

@@ -3,6 +3,8 @@
 import { useEffect } from "react";
 
 const API = "http://127.0.0.1:8000/api/v1";
+const PUBLIC_WEBSITE_URL =
+  process.env.NEXT_PUBLIC_PUBLIC_WEBSITE_URL ?? "http://localhost:3003";
 
 export default function AuthCallbackPage() {
   useEffect(() => {
@@ -11,13 +13,15 @@ export default function AuthCallbackPage() {
     const token = params.get("token");
 
     if (!token) {
-      window.location.replace("http://localhost:3002/login?error=oauth_failed");
+      window.location.replace(`${PUBLIC_WEBSITE_URL}/login?error=oauth_failed`);
       return;
     }
 
     // Store token as a cookie so middleware can read it
     const maxAge = 60 * 60 * 24 * 30; // 30 days
     document.cookie = `wtc_token=${token}; path=/; max-age=${maxAge}; SameSite=Lax`;
+    // Also store in localStorage so client components can read it directly
+    localStorage.setItem("wtc_token", token);
 
     // Fetch and store user info in localStorage for UI use
     fetch(`${API}/me`, {
@@ -29,7 +33,7 @@ export default function AuthCallbackPage() {
       })
       .catch(() => {})
       .finally(() => {
-        window.location.replace("/dashboard/default");
+        window.location.replace("/user-dashboard");
       });
   }, []);
 

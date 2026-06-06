@@ -4,7 +4,7 @@ import { Loader2 } from "lucide-react";
 
 export default function Page() {
   useEffect(() => {
-    window.location.replace("http://localhost:3001/login");
+    window.location.replace("http://localhost:3002/login");
   }, []);
 
   return (
