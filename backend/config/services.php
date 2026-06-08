@@ -71,4 +71,14 @@ return [
         'url' => env('OCR_SERVICE_URL', 'http://127.0.0.1:8001/api/v1'),
     ],
 
+    'openai' => [
+        'key' => env('OPENAI_API_KEY'),
+    ],
+
+    'twilio' => [
+        'sid'            => env('TWILIO_ACCOUNT_SID'),
+        'token'          => env('TWILIO_AUTH_TOKEN'),
+        'whatsapp_from'  => env('TWILIO_WHATSAPP_FROM'),
+    ],
+
 ];

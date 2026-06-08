@@ -6,6 +6,8 @@ use App\Models\CaseFile;
 use App\Models\ClientProfile;
 use App\Models\DocumentSubmission;
 use App\Models\CaseMessage;
+use App\Services\CaseManagementHubService;
+use App\Services\IrccInteractiveFormVerificationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
@@ -14,6 +16,10 @@ use Illuminate\Support\Facades\Storage;
 
 class DocumentSubmissionController extends Controller
 {
+    public function __construct(
+        private IrccInteractiveFormVerificationService $verificationService,
+        private CaseManagementHubService $hubService,
+    ) {}
     // ─────────────────────────────────────────────────────────────────────────
     // CLIENT ENDPOINTS
     // ─────────────────────────────────────────────────────────────────────────
@@ -67,6 +73,12 @@ class DocumentSubmissionController extends Controller
             'READY_FOR_SUBMISSION', 'APPLICATION_SUBMITTED',
         ])) {
             return response()->json(['message' => 'Agreement must be signed before uploading documents.'], 403);
+        }
+
+        if (! $this->verificationService->isCaseManagementUnlocked($caseFile)) {
+            return response()->json([
+                'message' => 'Document uploads unlock after your consultant reviews all application forms.',
+            ], 403);
         }
 
         $file         = $request->file('file');
@@ -163,14 +175,20 @@ class DocumentSubmissionController extends Controller
                 'case_file_id'           => $submission->case_file_id,
                 'sender_id'              => $request->user()->id,
                 'sender_type'            => 'consultant',
-                'message'                => "Document **{$submission->document_label}** was rejected: " . $request->input('rejection_comment'),
+                'message'                => "Document \"{$submission->document_label}\" was rejected: " . $request->input('rejection_comment'),
                 'document_submission_id' => $submission->id,
             ]);
+        }
+
+        $caseFile = $profile->caseFile;
+        if ($caseFile) {
+            $this->hubService->syncPipelineStatus($caseFile->fresh());
         }
 
         return response()->json([
             'message'  => $action === 'approve' ? 'Document approved.' : 'Document rejected.',
             'document' => $this->formatDoc($submission->fresh()),
+            'case_file' => $caseFile ? ['status' => $caseFile->fresh()->status] : null,
         ]);
     }
 

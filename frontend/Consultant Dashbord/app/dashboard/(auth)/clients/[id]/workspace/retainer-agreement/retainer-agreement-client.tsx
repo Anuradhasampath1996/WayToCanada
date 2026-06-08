@@ -5,12 +5,26 @@ import Link from "next/link";
 import {
   ArrowLeft, FileText, CheckCircle2, ChevronRight,
   Loader2, Send, AlertCircle, Edit3, Eye, DollarSign,
-  Users, Briefcase, Award, Clock, Download, Building2, Globe, Phone, MapPin,
+  Users, Briefcase, Award, Clock, Download, MessageCircle,
+  BookmarkPlus, Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { WorkspaceBreadcrumb } from "../workspace-flow-ui";
 import { RichTextEditorDemo } from "@/components/ui/custom/tiptap/rich-text-editor";
+import {
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from "@/components/ui/dialog";
+import { RetainerAgreementDocument } from "@/components/retainer-agreement-document";
+import {
+  type AgreementConfig,
+  DEFAULT_AGREEMENT_CONFIG,
+  formatAgreementCurrency,
+  milestoneAmounts,
+  PATHWAY_TEMPLATES,
+  resolveAgreementConfig,
+} from "@/lib/retainer-agreement";
 
 const API = (process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000") + "/api/v1";
 
@@ -37,69 +51,13 @@ interface ConsultantProfile {
   digital_signature: string | null;
 }
 
-interface AgreementConfig {
-  totalFee: number;
-  currency: "CAD" | "USD";
-  milestone1Pct: number;
-  milestone1Label: string;
-  milestone2Pct: number;
-  milestone2Label: string;
-  milestone3Pct: number;
-  milestone3Label: string;
-  docDeadlineDays: number;
-  refundPolicy: string;
-  customClauses: string;
-  consultantLicenseNo: string;
+interface AgreementTemplate {
+  id: number;
+  name: string;
+  pathway: string | null;
+  config: Partial<AgreementConfig>;
+  is_default: boolean;
 }
-
-const DEFAULT_CONFIG: AgreementConfig = {
-  totalFee: 3000,
-  currency: "CAD",
-  milestone1Pct: 30,
-  milestone1Label: "Upon signing this agreement (Retainer Fee)",
-  milestone2Pct: 40,
-  milestone2Label: "Upon receiving an ITA, provincial nomination, or equivalent approval",
-  milestone3Pct: 30,
-  milestone3Label: "Before final application submission to IRCC",
-  docDeadlineDays: 14,
-  refundPolicy:
-    "The retainer fee (Milestone 1) is non-refundable once work has commenced. " +
-    "Milestones 2 and 3 are not payable if the corresponding government action does not occur. " +
-    "No refund will be issued if the application is refused due to fraudulent documents provided by the client.",
-  customClauses: "",
-  consultantLicenseNo: "",
-};
-
-const PATHWAY_TEMPLATES: Record<string, { fee: number; description: string }> = {
-  "Express Entry \u2013 Federal Skilled Worker": {
-    fee: 3500,
-    description: "Express Entry profile creation, FSW eligibility assessment, CRS optimization, monitoring draws, and full PR application submission.",
-  },
-  "Express Entry \u2013 Canadian Experience Class": {
-    fee: 3000,
-    description: "CEC eligibility assessment, Express Entry profile, CRS optimization, and full PR application submission.",
-  },
-  "Express Entry \u2013 Federal Skilled Trades": {
-    fee: 3200,
-    description: "FST eligibility assessment, trade certification verification, Express Entry profile, and PR application.",
-  },
-  "Provincial Nominee Program": {
-    fee: 4000,
-    description: "Provincial stream identification, PNP application preparation, nomination support, and subsequent PR application.",
-  },
-  "Study Permit": {
-    fee: 1500,
-    description: "DLI selection guidance, study permit application preparation, submission, and response handling.",
-  },
-  "Work Permit": {
-    fee: 2000,
-    description: "LMIA or LMIA-exempt work permit assessment, application preparation, submission, and response handling.",
-  },
-  "Family Sponsorship": {
-    fee: 3500,
-    description: "Sponsorship eligibility assessment, undertaking and sponsorship application preparation, and submission.",
-  },
-};
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -112,10 +70,6 @@ function authHeaders(): Record<string, string> {
   const h: Record<string, string> = { "Content-Type": "application/json", Accept: "application/json" };
   if (token) h["Authorization"] = `Bearer ${token}`;
   return h;
-}
-
-function formatCurrency(amount: number, curr: string) {
-  return new Intl.NumberFormat("en-CA", { style: "currency", currency: curr }).format(amount);
 }
 
 // ─── Step Indicator ───────────────────────────────────────────────────────────
@@ -219,224 +173,6 @@ function isHtmlEmpty(html: string): boolean {
   return !html || html.replace(/<[^>]*>/g, "").trim() === "";
 }
 
-// ─── Agreement Preview ────────────────────────────────────────────────────────
-
-function AgreementPreview({
-  clientName, clientEmail, consultantName, pathway, config, consultantProfile,
-}: {
-  clientName: string; clientEmail: string; consultantName: string;
-  pathway: string; config: AgreementConfig; consultantProfile: ConsultantProfile | null;
-}) {
-  const today = new Date().toLocaleDateString("en-CA", { year: "numeric", month: "long", day: "numeric" });
-  const m1 = Math.round(config.totalFee * config.milestone1Pct / 100);
-  const m2 = Math.round(config.totalFee * config.milestone2Pct / 100);
-  const m3 = config.totalFee - m1 - m2;
-
-  const cp = consultantProfile;
-  const digitalSig     = cp?.digital_signature ?? null;
-  const companyName    = cp?.company_name || consultantName || null;
-  const companyAddress = [cp?.company_address_line1, cp?.company_address_line2, cp?.company_city, cp?.company_province, cp?.company_postal_code, cp?.company_country].filter(Boolean).join(", ");
-  const companyPhone   = cp?.company_phone || cp?.phone || null;
-  const companyWeb     = cp?.company_website || null;
-  const rcicNo         = cp?.rcic_number || config.consultantLicenseNo || null;
-
-  return (
-    <div id="retainer-agreement-doc" className="rounded-xl border bg-white p-8 text-sm leading-relaxed max-w-3xl mx-auto shadow-sm space-y-6 text-foreground">
-      {/* Header */}
-      <div className="pb-5 border-b">
-        {/* Logo + firm name */}
-        <div className="flex items-start gap-5 mb-4">
-          {cp?.company_logo && (
-            <img
-              src={cp.company_logo}
-              alt={companyName ?? "Company logo"}
-              className="h-16 w-auto max-w-[140px] object-contain shrink-0"
-            />
-          )}
-          <div className="flex-1 min-w-0">
-            {companyName && (
-              <p className="text-base font-bold leading-tight">{companyName}</p>
-            )}
-            {companyAddress && (
-              <p className="text-xs text-muted-foreground mt-0.5 flex items-start gap-1">
-                <MapPin className="h-3 w-3 shrink-0 mt-0.5" />{companyAddress}
-              </p>
-            )}
-            {companyPhone && (
-              <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
-                <Phone className="h-3 w-3 shrink-0" />{companyPhone}
-              </p>
-            )}
-            {cp?.email && (
-              <p className="text-xs text-muted-foreground flex items-center gap-1">
-                <span className="font-mono text-[10px]">✉</span>{cp.email}
-              </p>
-            )}
-            {companyWeb && (
-              <p className="text-xs text-muted-foreground flex items-center gap-1">
-                <Globe className="h-3 w-3 shrink-0" />{companyWeb}
-              </p>
-            )}
-            {rcicNo && (
-              <p className="text-xs text-muted-foreground flex items-center gap-1">
-                <Building2 className="h-3 w-3 shrink-0" />RCIC License No.&nbsp;<span className="font-mono">{rcicNo}</span>
-              </p>
-            )}
-          </div>
-        </div>
-        <div className="text-center">
-          <p className="text-lg font-bold tracking-wide uppercase">Retainer Agreement</p>
-          <p className="text-xs text-muted-foreground">Date: {today}</p>
-        </div>
-      </div>
-
-      {/* Parties */}
-      <section>
-        <p className="font-bold mb-2 text-xs uppercase tracking-wide text-primary">1. Parties to this Agreement</p>
-        <p>This Retainer Agreement (&quot;Agreement&quot;) is entered into between:</p>
-        <ul className="list-disc ml-6 mt-2 space-y-1">
-          <li>
-            <strong>Immigration Consultant:</strong> {consultantName || "[Consultant Name]"}
-            {rcicNo && `, RCIC License No. ${rcicNo}`},
-            registered with the College of Immigration and Citizenship Consultants (CICC).
-            {companyName && companyName !== consultantName && (
-              <>, practising as <strong>{companyName}</strong></>
-            )}
-          </li>
-          <li>
-            <strong>Client:</strong> {clientName || "[Client Full Name]"}{clientEmail ? ` (${clientEmail})` : ""}.
-          </li>
-        </ul>
-      </section>
-
-      {/* Scope */}
-      <section>
-        <p className="font-bold mb-2 text-xs uppercase tracking-wide text-primary">2. Scope of Services</p>
-        <p>
-          The Consultant agrees to provide professional immigration consulting services for the client&apos;s
-          immigration pathway: <strong>{pathway || "[Pathway]"}</strong>.
-        </p>
-        <p className="mt-2">
-          {PATHWAY_TEMPLATES[pathway]?.description ??
-            "Services include assessment, application preparation, and submission to relevant Canadian immigration authorities."}
-        </p>
-        <p className="mt-2 text-xs text-muted-foreground italic">
-          Any services outside the scope defined above will require a separate written agreement.
-        </p>
-      </section>
-
-      {/* Fees */}
-      <section>
-        <p className="font-bold mb-2 text-xs uppercase tracking-wide text-primary">3. Professional Fees &amp; Payment Milestones</p>
-        <p>
-          The total professional fee is{" "}
-          <strong>{formatCurrency(config.totalFee, config.currency)}</strong> ({config.currency}),
-          payable in three milestones:
-        </p>
-        <div className="mt-3 rounded-lg border overflow-hidden">
-          <table className="w-full text-xs">
-            <thead className="bg-muted/60">
-              <tr>
-                <th className="text-left px-3 py-2 font-semibold">Milestone</th>
-                <th className="text-left px-3 py-2 font-semibold">Trigger</th>
-                <th className="text-right px-3 py-2 font-semibold">Amount</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              <tr>
-                <td className="px-3 py-2">1 ({config.milestone1Pct}%)</td>
-                <td className="px-3 py-2">{config.milestone1Label}</td>
-                <td className="px-3 py-2 text-right font-medium">{formatCurrency(m1, config.currency)}</td>
-              </tr>
-              <tr>
-                <td className="px-3 py-2">2 ({config.milestone2Pct}%)</td>
-                <td className="px-3 py-2">{config.milestone2Label}</td>
-                <td className="px-3 py-2 text-right font-medium">{formatCurrency(m2, config.currency)}</td>
-              </tr>
-              <tr>
-                <td className="px-3 py-2">3 ({config.milestone3Pct}%)</td>
-                <td className="px-3 py-2">{config.milestone3Label}</td>
-                <td className="px-3 py-2 text-right font-medium">{formatCurrency(m3, config.currency)}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      {/* Client Obligations */}
-      <section>
-        <p className="font-bold mb-2 text-xs uppercase tracking-wide text-primary">4. Client Obligations</p>
-        <ul className="list-disc ml-6 space-y-1">
-          <li>Provide all required genuine documents within <strong>{config.docDeadlineDays} calendar days</strong> of request.</li>
-          <li>Inform the Consultant immediately of any changes to personal circumstances (address, marital status, employment).</li>
-          <li>Providing fraudulent, altered, or misrepresented documents immediately voids this Agreement without refund.</li>
-          <li>The Client assumes full responsibility for the accuracy and authenticity of all submitted documents.</li>
-        </ul>
-      </section>
-
-      {/* Refund Policy */}
-      <section>
-        <p className="font-bold mb-2 text-xs uppercase tracking-wide text-primary">5. Refund Policy</p>
-        <div className="prose prose-sm max-w-none text-foreground" dangerouslySetInnerHTML={{ __html: config.refundPolicy }} />
-      </section>
-
-      {/* CICC */}
-      <section>
-        <p className="font-bold mb-2 text-xs uppercase tracking-wide text-primary">6. Regulatory Compliance</p>
-        <p>
-          The Consultant is a regulated professional bound by the CICC Code of Professional Ethics and By-Laws.
-          Any disputes may be escalated to the College of Immigration and Citizenship Consultants (CICC) at{" "}
-          <span className="font-mono text-xs">cicc.ca</span>.
-        </p>
-      </section>
-
-      {/* Custom Clauses */}
-      {!isHtmlEmpty(config.customClauses) && (
-        <section>
-          <p className="font-bold mb-2 text-xs uppercase tracking-wide text-primary">7. Additional Terms</p>
-          <div className="prose prose-sm max-w-none text-foreground" dangerouslySetInnerHTML={{ __html: config.customClauses }} />
-        </section>
-      )}
-
-      {/* Signatures */}
-      <section className="pt-4 border-t">
-        <p className="font-bold mb-4 text-xs uppercase tracking-wide text-primary">Signatures</p>
-        <div className="grid grid-cols-2 gap-8 text-xs">
-          <div>
-            <p className="font-semibold mb-2">Immigration Consultant</p>
-            {digitalSig ? (
-              <div className="mb-1">
-                <img
-                  src={digitalSig}
-                  alt="Consultant signature"
-                  className="max-h-16 max-w-[220px] object-contain"
-                  style={{ display: "block" }}
-                />
-              </div>
-            ) : (
-              <div className="border-b border-dashed mb-1 h-10" />
-            )}
-            <p className="font-medium">{consultantName || "[Consultant Name]"}</p>
-            {rcicNo && <p className="text-muted-foreground">RCIC No. {rcicNo}</p>}
-            {companyName && companyName !== consultantName && <p className="text-muted-foreground">{companyName}</p>}
-            <p className="text-muted-foreground mt-1">Date: {new Date().toLocaleDateString("en-CA", { year: "numeric", month: "long", day: "numeric" })}</p>
-          </div>
-          <div>
-            <p className="font-semibold mb-6">Client</p>
-            <div className="border-b border-dashed mb-1 h-6" />
-            <p>{clientName || "[Client Name]"}</p>
-            <p className="text-muted-foreground">Date: ___________</p>
-          </div>
-        </div>
-        <p className="text-[10px] text-muted-foreground mt-4 italic">
-          The client will receive a secure digital signing link via email. This preview is for consultant review only.
-        </p>
-      </section>
-    </div>
-  );
-}
-
-// ─── Main Component ───────────────────────────────────────────────────────────
 
 export function RetainerAgreementClient({ paramsPromise }: { paramsPromise: Promise<{ id: string }> }) {
   const { id } = use(paramsPromise);
@@ -457,12 +193,41 @@ export function RetainerAgreementClient({ paramsPromise }: { paramsPromise: Prom
   const [alreadySentAt, setAlreadySentAt]     = useState<string | null>(null);
   const [alreadySigned, setAlreadySigned]     = useState(false);
 
-  const [config, setConfig] = useState<AgreementConfig>(DEFAULT_CONFIG);
+  const [config, setConfig] = useState<AgreementConfig>(DEFAULT_AGREEMENT_CONFIG);
+  const [confirmOpen, setConfirmOpen]       = useState(false);
+  const [milestonePayments, setMilestonePayments] = useState<Record<string, boolean>>({ "1": false, "2": false, "3": false });
+  const [savingMilestones, setSavingMilestones] = useState(false);
+  const [signedDocPath, setSignedDocPath]   = useState<string | null>(null);
+  const [agreementSignedAt, setAgreementSignedAt] = useState<string | null>(null);
+  const [agreementVersion, setAgreementVersion] = useState(1);
+  const [templates, setTemplates] = useState<AgreementTemplate[]>([]);
+  const [templatesLoading, setTemplatesLoading] = useState(false);
+  const [saveTemplateOpen, setSaveTemplateOpen] = useState(false);
+  const [templateName, setTemplateName] = useState("");
+  const [savingTemplate, setSavingTemplate] = useState(false);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
+  const [sendingReminder, setSendingReminder] = useState(false);
+  const [reminderCount, setReminderCount] = useState(0);
+  const [lastReminderAt, setLastReminderAt] = useState<string | null>(null);
   const set = <K extends keyof AgreementConfig>(k: K, v: AgreementConfig[K]) =>
     setConfig(prev => ({ ...prev, [k]: v }));
 
+  async function loadTemplates() {
+    setTemplatesLoading(true);
+    try {
+      const res = await fetch(`${API}/consultant/agreement-templates`, { headers: authHeaders() });
+      if (res.ok) {
+        const json = await res.json();
+        setTemplates(json.templates ?? []);
+      }
+    } finally {
+      setTemplatesLoading(false);
+    }
+  }
+
   // Load case file + client data + consultant profile
   useEffect(() => {
+    void loadTemplates();
     Promise.all([
       fetch(`${API}/consultant/clients/${id}/case-file`, { headers: authHeaders() }).then(r => r.json()),
       fetch(`${API}/consultant/clients/${id}/questionnaire`, { headers: authHeaders() }).then(r => r.json()).catch(() => null),
@@ -492,12 +257,27 @@ export function RetainerAgreementClient({ paramsPromise }: { paramsPromise: Prom
         const tmpl = PATHWAY_TEMPLATES[pw];
         if (tmpl) set("totalFee", tmpl.fee);
 
-        if (caseFile?.agreement_fee)   set("totalFee",      Number(caseFile.agreement_fee));
-        if (caseFile?.agreement_notes) set("customClauses", caseFile.agreement_notes);
+        if (caseFile?.agreement_config) {
+          setConfig(prev => resolveAgreementConfig(caseFile.agreement_config, prev));
+        } else {
+          if (caseFile?.agreement_fee)   set("totalFee",      Number(caseFile.agreement_fee));
+          if (caseFile?.agreement_notes) set("customClauses", caseFile.agreement_notes);
+        }
 
         setAlreadySent(!!caseFile?.agreement_sent_at);
         setAlreadySentAt(caseFile?.agreement_sent_at ?? null);
-        setAlreadySigned(caseFile?.status === "AGREEMENT_SIGNED");
+        setAlreadySigned(!!caseFile?.agreement_signed_at || caseFile?.status === "AGREEMENT_SIGNED");
+        setSignedDocPath(caseFile?.signed_document_path ?? null);
+        setAgreementSignedAt(caseFile?.agreement_signed_at ?? null);
+        setAgreementVersion(caseFile?.agreement_version ?? 1);
+        setReminderCount(caseFile?.agreement_reminder_count ?? 0);
+        setLastReminderAt(caseFile?.agreement_last_reminder_at ?? null);
+        if (caseFile?.agreement_milestone_payments) {
+          setMilestonePayments(caseFile.agreement_milestone_payments as Record<string, boolean>);
+        }
+        if (caseFile?.agreement_sent_at && !caseFile?.agreement_signed_at) {
+          setStep(4);
+        }
 
         if (q?.submission?.main_data) {
           const md   = q.submission.main_data;
@@ -510,9 +290,9 @@ export function RetainerAgreementClient({ paramsPromise }: { paramsPromise: Prom
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
-  function handleDownloadPdf() {
+  function printDraftPdf() {
     const style = document.createElement("style");
-    style.id    = "__pdf_print_style";
+    style.id = "__pdf_print_style";
     style.textContent = `
       @media print {
         body * { visibility: hidden !important; }
@@ -538,16 +318,133 @@ export function RetainerAgreementClient({ paramsPromise }: { paramsPromise: Prom
     document.getElementById("__pdf_print_style")?.remove();
   }
 
+  async function handleDownloadPdf() {
+    if (!alreadySent) {
+      printDraftPdf();
+      return;
+    }
+    setDownloadingPdf(true);
+    setError(null);
+    try {
+      const headers = authHeaders();
+      delete headers["Content-Type"];
+      headers.Accept = "application/pdf";
+      const res = await fetch(`${API}/consultant/clients/${id}/case-file/agreement-pdf`, { headers });
+      if (!res.ok) throw new Error("Failed to generate PDF.");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `retainer-agreement-${clientName || "client"}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "PDF download failed.");
+    } finally {
+      setDownloadingPdf(false);
+    }
+  }
+
+  function applyTemplate(tmpl: AgreementTemplate) {
+    setConfig(prev => resolveAgreementConfig(tmpl.config, {
+      ...prev,
+      clientName,
+      clientEmail,
+      consultantName,
+      pathway: tmpl.pathway || pathway,
+    }));
+    if (tmpl.pathway) setPathway(tmpl.pathway);
+  }
+
+  async function saveCurrentTemplate() {
+    if (!templateName.trim()) return;
+    setSavingTemplate(true);
+    setError(null);
+    try {
+      const payload = buildPayloadConfig();
+      const { clientName: _cn, clientEmail: _ce, consultantName: _con, ...configOnly } = payload;
+      const res = await fetch(`${API}/consultant/agreement-templates`, {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify({
+          name: templateName.trim(),
+          pathway: pathway || null,
+          config: configOnly,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.message ?? "Failed to save template.");
+      setSaveTemplateOpen(false);
+      setTemplateName("");
+      await loadTemplates();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to save template.");
+    } finally {
+      setSavingTemplate(false);
+    }
+  }
+
+  async function deleteTemplate(tmplId: number) {
+    try {
+      const res = await fetch(`${API}/consultant/agreement-templates/${tmplId}`, {
+        method: "DELETE",
+        headers: authHeaders(),
+      });
+      if (!res.ok) {
+        const json = await res.json();
+        throw new Error(json.message ?? "Failed to delete.");
+      }
+      await loadTemplates();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to delete template.");
+    }
+  }
+
+  async function handleWhatsAppReminder() {
+    setSendingReminder(true);
+    setError(null);
+    try {
+      const res = await fetch(`${API}/consultant/clients/${id}/case-file/send-agreement-reminder`, {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify({ send_email: true }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.message ?? "Reminder failed.");
+      if (json.whatsapp_url) window.open(json.whatsapp_url, "_blank", "noopener,noreferrer");
+      setReminderCount(json.reminder_count ?? reminderCount + 1);
+      setLastReminderAt(json.last_reminder_at ?? new Date().toISOString());
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Reminder failed.");
+    } finally {
+      setSendingReminder(false);
+    }
+  }
+
+  function buildPayloadConfig(): AgreementConfig {
+    return {
+      ...config,
+      clientName,
+      clientEmail,
+      consultantName,
+      pathway,
+      scopeDescription: PATHWAY_TEMPLATES[pathway]?.description ?? config.scopeDescription ?? "",
+    };
+  }
+
   async function handleSend() {
     setSending(true);
     setError(null);
+    setConfirmOpen(false);
     try {
+      const payloadConfig = buildPayloadConfig();
       const res = await fetch(`${API}/consultant/clients/${id}/case-file/send-agreement`, {
         method: "POST",
         headers: authHeaders(),
         body: JSON.stringify({
-          agreement_fee:   config.totalFee,
-          agreement_notes: config.customClauses || null,
+          agreement_fee:   payloadConfig.totalFee,
+          agreement_notes: payloadConfig.customClauses || null,
+          agreement_config: payloadConfig,
         }),
       });
       const json = await res.json();
@@ -560,17 +457,111 @@ export function RetainerAgreementClient({ paramsPromise }: { paramsPromise: Prom
     }
   }
 
-  // ── Milestone amounts ──
-  const m1      = Math.round(config.totalFee * config.milestone1Pct / 100);
-  const m2      = Math.round(config.totalFee * config.milestone2Pct / 100);
-  const m3      = config.totalFee - m1 - m2;
+  async function saveMilestonePayments(next: Record<string, boolean>) {
+    setSavingMilestones(true);
+    try {
+      const res = await fetch(`${API}/consultant/clients/${id}/case-file/agreement-milestones`, {
+        method: "PATCH",
+        headers: authHeaders(),
+        body: JSON.stringify({ milestone_payments: next }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.message ?? "Failed to update.");
+      setMilestonePayments(next);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to save milestone status.");
+    } finally {
+      setSavingMilestones(false);
+    }
+  }
+
+  const { m1, m2, m3 } = milestoneAmounts(config);
   const pctSum  = config.milestone1Pct + config.milestone2Pct + config.milestone3Pct;
+  const complianceWarnings: string[] = [];
+  if (!config.consultantLicenseNo && !consultantProfile?.rcic_number) {
+    complianceWarnings.push("RCIC license number is missing — add it in Step 2 or your profile.");
+  }
+  if (!consultantProfile?.digital_signature) {
+    complianceWarnings.push("Digital signature not set in your consultant profile.");
+  }
+  if (isHtmlEmpty(config.refundPolicy)) {
+    complianceWarnings.push("Refund policy is empty.");
+  }
 
   // ── Loading state ──
   if (loading) {
     return (
       <div className="flex items-center justify-center py-40">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  // ── Signed read-only view ──
+  if (alreadySigned) {
+    const signedConfig = buildPayloadConfig();
+    return (
+      <div className="w-full px-4 py-6">
+        <WorkspaceBreadcrumb profileId={id} workspaceStep={2} pageLabel="Retainer agreement" />
+        <div className="mb-6 flex flex-wrap items-center gap-3">
+          <h1 className="text-lg font-bold">Signed Retainer Agreement</h1>
+          <Badge className="bg-green-600 text-white gap-1">
+            <CheckCircle2 className="h-3 w-3" /> Signed
+          </Badge>
+          {agreementVersion > 1 && (
+            <Badge variant="outline">Version {agreementVersion}</Badge>
+          )}
+        </div>
+        <RetainerAgreementDocument
+          config={signedConfig}
+          clientName={clientName}
+          clientEmail={clientEmail}
+          consultantName={consultantName}
+          consultantProfile={consultantProfile}
+          agreementDate={alreadySentAt}
+          clientSignedDate={agreementSignedAt}
+        />
+        <div className="mt-4">
+          <Button variant="outline" size="sm" onClick={handleDownloadPdf} disabled={downloadingPdf} className="gap-1.5">
+            {downloadingPdf ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+            Download PDF
+          </Button>
+        </div>
+        {signedDocPath && (
+          <div className="mt-4">
+            <Button variant="outline" size="sm" asChild>
+              <a href={signedDocPath} target="_blank" rel="noopener noreferrer">View uploaded signed PDF</a>
+            </Button>
+          </div>
+        )}
+        <div className="mt-6 rounded-xl border bg-card p-5 space-y-3">
+          <p className="text-sm font-semibold">Milestone payments</p>
+          {(["1", "2", "3"] as const).map((n) => {
+            const amt = n === "1" ? m1 : n === "2" ? m2 : m3;
+            const label = n === "1" ? config.milestone1Label : n === "2" ? config.milestone2Label : config.milestone3Label;
+            return (
+              <label key={n} className="flex items-center gap-3 text-sm">
+                <input
+                  type="checkbox"
+                  checked={!!milestonePayments[n]}
+                  disabled={savingMilestones}
+                  onChange={(e) => {
+                    const next = { ...milestonePayments, [n]: e.target.checked };
+                    void saveMilestonePayments(next);
+                  }}
+                />
+                <span>
+                  Milestone {n} — {formatAgreementCurrency(amt, config.currency)} — {label}
+                </span>
+              </label>
+            );
+          })}
+        </div>
+        <div className="mt-6">
+          <Link href={`/dashboard/clients/${id}/workspace`}>
+            <Button variant="outline"><ArrowLeft className="mr-2 h-4 w-4" />Back to workspace</Button>
+          </Link>
+        </div>
       </div>
     );
   }
@@ -597,15 +588,12 @@ export function RetainerAgreementClient({ paramsPromise }: { paramsPromise: Prom
   }
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-6">
+    <div className="w-full px-4 py-6">
+
+      <WorkspaceBreadcrumb profileId={id} workspaceStep={2} pageLabel="Retainer agreement" />
 
       {/* Page Header */}
-      <div className="flex items-center gap-3 mb-6">
-        <Link href={`/dashboard/clients/${id}/workspace`}>
-          <Button variant="ghost" size="sm" className="gap-1.5 -ml-2">
-            <ArrowLeft className="h-4 w-4" />Back to Workspace
-          </Button>
-        </Link>
+      <div className="mb-6 flex items-center gap-3">
         <div className="flex items-center gap-2">
           <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
             <FileText className="h-4 w-4 text-primary" />
@@ -695,7 +683,7 @@ export function RetainerAgreementClient({ paramsPromise }: { paramsPromise: Prom
                           </div>
                           {!selected && (
                             <Badge variant="outline" className="shrink-0 text-xs whitespace-nowrap">
-                              Default {formatCurrency(tmpl.fee, config.currency)}
+                              Default {formatAgreementCurrency(tmpl.fee, config.currency)}
                             </Badge>
                           )}
                         </div>
@@ -731,7 +719,7 @@ export function RetainerAgreementClient({ paramsPromise }: { paramsPromise: Prom
                               </div>
                             </div>
                             <div className="text-xs text-muted-foreground space-y-0.5 pb-1">
-                              <p>Default: <span className="font-medium">{formatCurrency(tmpl.fee, config.currency)}</span></p>
+                              <p>Default: <span className="font-medium">{formatAgreementCurrency(tmpl.fee, config.currency)}</span></p>
                               <button
                                 type="button"
                                 className="text-primary underline underline-offset-2 hover:opacity-70"
@@ -806,6 +794,53 @@ export function RetainerAgreementClient({ paramsPromise }: { paramsPromise: Prom
           {/* ──────────────── STEP 3: Customize ──────────────── */}
           {step === 3 && (
             <div className="space-y-4">
+              <div className="rounded-xl border bg-card p-6 space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <BookmarkPlus className="h-4 w-4 text-primary" />
+                    <h2 className="font-semibold">My Template Library</h2>
+                  </div>
+                  <Button variant="outline" size="sm" onClick={() => setSaveTemplateOpen(true)} className="gap-1.5">
+                    <BookmarkPlus className="h-3.5 w-3.5" /> Save current as template
+                  </Button>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Load a saved fee structure and terms template. Client details are not overwritten.
+                </p>
+                {templatesLoading ? (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" /> Loading templates…
+                  </div>
+                ) : templates.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">No saved templates yet.</p>
+                ) : (
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {templates.map((tmpl) => (
+                      <div key={tmpl.id} className="flex items-center gap-2 rounded-lg border p-3">
+                        <button
+                          type="button"
+                          onClick={() => applyTemplate(tmpl)}
+                          className="min-w-0 flex-1 text-left hover:opacity-80"
+                        >
+                          <p className="text-sm font-medium truncate">{tmpl.name}</p>
+                          {tmpl.pathway && (
+                            <p className="text-[11px] text-muted-foreground truncate">{tmpl.pathway}</p>
+                          )}
+                        </button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="shrink-0 text-muted-foreground hover:text-destructive"
+                          onClick={() => void deleteTemplate(tmpl.id)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
               <div className="rounded-xl border bg-card p-6 space-y-6">
                 <div className="flex items-center gap-2">
                   <DollarSign className="h-4 w-4 text-primary" />
@@ -852,7 +887,7 @@ export function RetainerAgreementClient({ paramsPromise }: { paramsPromise: Prom
                               Milestone {n}
                             </p>
                             <Badge variant="outline" className="text-xs">
-                              {formatCurrency(amt, config.currency)}
+                              {formatAgreementCurrency(amt, config.currency)}
                             </Badge>
                           </div>
                           <div className="grid grid-cols-3 gap-3">
@@ -933,7 +968,7 @@ export function RetainerAgreementClient({ paramsPromise }: { paramsPromise: Prom
                 <div className="h-4 w-px bg-border hidden sm:block" />
                 <div className="flex items-center gap-2">
                   <DollarSign className="h-4 w-4 text-muted-foreground" />
-                  <span className="font-semibold text-primary">{formatCurrency(config.totalFee, config.currency)}</span>
+                  <span className="font-semibold text-primary">{formatAgreementCurrency(config.totalFee, config.currency)}</span>
                 </div>
                 <Button variant="outline" size="sm" onClick={() => setStep(3)} className="ml-auto gap-1">
                   <Edit3 className="h-3.5 w-3.5" /> Edit
@@ -942,33 +977,50 @@ export function RetainerAgreementClient({ paramsPromise }: { paramsPromise: Prom
 
               {/* Resend warning */}
               {alreadySent && !alreadySigned && (
-                <div className="rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 flex items-center gap-3 text-sm text-amber-800">
+                <div className="rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 flex flex-wrap items-center gap-3 text-sm text-amber-800">
                   <Clock className="h-4 w-4 shrink-0" />
-                  <div>
+                  <div className="flex-1 min-w-0">
                     <p className="font-medium">Agreement already sent</p>
                     <p className="text-xs mt-0.5">
                       Sent on {alreadySentAt ? new Date(alreadySentAt).toLocaleString("en-CA") : "\u2014"}.
-                      Clicking &quot;Send to Client&quot; will resend with updated details.
+                      {reminderCount > 0 && (
+                        <> Reminders sent: {reminderCount}
+                          {lastReminderAt && ` (last ${new Date(lastReminderAt).toLocaleString("en-CA")})`}.
+                        </>
+                      )}
                     </p>
                   </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleWhatsAppReminder}
+                    disabled={sendingReminder}
+                    className="gap-1.5 border-green-300 text-green-800 hover:bg-green-50"
+                  >
+                    {sendingReminder
+                      ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      : <MessageCircle className="h-3.5 w-3.5" />}
+                    WhatsApp reminder
+                  </Button>
                 </div>
               )}
 
-              {alreadySigned && (
-                <div className="rounded-lg bg-green-50 border border-green-200 px-4 py-3 flex items-center gap-3 text-sm text-green-800">
-                  <CheckCircle2 className="h-4 w-4 shrink-0" />
-                  <p>The client has already signed. You can resend for records but the case status will not change.</p>
+              {complianceWarnings.length > 0 && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 space-y-1">
+                  <p className="font-medium flex items-center gap-2"><AlertCircle className="h-4 w-4" />Before sending</p>
+                  <ul className="list-disc ml-5 text-xs space-y-0.5">
+                    {complianceWarnings.map((w) => <li key={w}>{w}</li>)}
+                  </ul>
                 </div>
               )}
 
-              {/* Agreement Preview */}
-              <AgreementPreview
+              <RetainerAgreementDocument
+                config={buildPayloadConfig()}
                 clientName={clientName}
                 clientEmail={clientEmail}
                 consultantName={consultantName}
-                pathway={pathway}
-                config={config}
                 consultantProfile={consultantProfile}
+                previewNote="The client will receive a secure signing link via email. This preview is for consultant review only."
               />
 
               <div className="flex flex-wrap justify-between items-center gap-3">
@@ -976,18 +1028,18 @@ export function RetainerAgreementClient({ paramsPromise }: { paramsPromise: Prom
                   <ArrowLeft className="mr-1.5 h-4 w-4" /> Back
                 </Button>
                 <div className="flex items-center gap-3">
-                  <Button variant="outline" onClick={handleDownloadPdf} className="gap-2">
-                    <Download className="h-4 w-4" /> Download PDF
+                  <Button variant="outline" onClick={handleDownloadPdf} disabled={downloadingPdf} className="gap-2">
+                    {downloadingPdf
+                      ? <Loader2 className="h-4 w-4 animate-spin" />
+                      : <Download className="h-4 w-4" />}
+                    {alreadySent ? "Download PDF" : "Print preview"}
                   </Button>
                   <Button
-                    onClick={handleSend}
+                    onClick={() => setConfirmOpen(true)}
                     disabled={sending}
                     className="gap-2 bg-green-600 hover:bg-green-700 text-white"
                   >
-                    {sending
-                      ? <><Loader2 className="h-4 w-4 animate-spin" /> Sending&hellip;</>
-                      : <><Send className="h-4 w-4" /> {alreadySent ? "Resend to Client" : "Send to Client"}</>
-                    }
+                    <Send className="h-4 w-4" /> {alreadySent ? "Resend to Client" : "Send to Client"}
                   </Button>
                 </div>
               </div>
@@ -995,6 +1047,51 @@ export function RetainerAgreementClient({ paramsPromise }: { paramsPromise: Prom
           )}
         </>
       )}
+
+      <Dialog open={saveTemplateOpen} onOpenChange={setSaveTemplateOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Save agreement template</DialogTitle>
+            <DialogDescription>
+              Saves fee milestones, refund policy, and custom clauses for reuse on future clients.
+            </DialogDescription>
+          </DialogHeader>
+          <Field label="Template name">
+            <TextInput
+              value={templateName}
+              onChange={setTemplateName}
+              placeholder="e.g. Express Entry – standard 3500"
+            />
+          </Field>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSaveTemplateOpen(false)}>Cancel</Button>
+            <Button onClick={saveCurrentTemplate} disabled={savingTemplate || !templateName.trim()}>
+              {savingTemplate ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save template"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Send agreement to client?</DialogTitle>
+            <DialogDescription>
+              The client will receive an email with a secure link. They will see exactly the document previewed above
+              (fee {formatAgreementCurrency(config.totalFee, config.currency)}, version {alreadySent ? agreementVersion + 1 : 1}).
+            </DialogDescription>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Recipient: <strong>{clientEmail || clientName}</strong>
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmOpen(false)}>Cancel</Button>
+            <Button onClick={handleSend} disabled={sending} className="bg-green-600 hover:bg-green-700 text-white">
+              {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Confirm & send"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

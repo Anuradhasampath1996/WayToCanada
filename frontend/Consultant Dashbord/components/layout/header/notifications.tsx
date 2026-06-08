@@ -1,5 +1,4 @@
 import { BellIcon, ClockIcon } from "lucide-react";
-import Link from "next/link";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 import {
@@ -31,9 +30,6 @@ const Notifications = () => {
         <DropdownMenuLabel className="bg-background dark:bg-muted sticky top-0 z-10 p-0">
           <div className="flex justify-between border-b px-6 py-4">
             <div className="font-medium">Notifications</div>
-            <Button variant="link" className="h-auto p-0 text-xs" size="icon-sm" asChild>
-              <Link href="/dashboard/pages/notifications">View all</Link>
-            </Button>
           </div>
         </DropdownMenuLabel>
 

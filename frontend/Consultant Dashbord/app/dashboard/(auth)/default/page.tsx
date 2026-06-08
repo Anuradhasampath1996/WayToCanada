@@ -1,23 +1,14 @@
 import { generateMeta } from "@/lib/utils";
-import { DashboardBanner } from "./components/dashboard-banner";
-import { IrccNewsFeed } from "./components/ircc-news-feed";
+import { ConsultantDashboard } from "./components/consultant-dashboard";
 
 export async function generateMetadata() {
   return generateMeta({
     title: "Consultant Dashboard — WayToCanada",
-    description: "Manage your immigration consulting practice with real-time IRCC updates.",
+    description: "Manage your immigration consulting practice with clients, cases, calendar, and IRCC updates.",
     canonical: "/consultantdashboard",
   });
 }
 
 export default function Page() {
-  return (
-    <div className="space-y-6 pb-8">
-      {/* Banner slider */}
-      <DashboardBanner />
-
-      {/* IRCC News Feed */}
-      <IrccNewsFeed />
-    </div>
-  );
+  return <ConsultantDashboard />;
 }

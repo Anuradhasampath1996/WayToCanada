@@ -5,8 +5,10 @@ namespace App\Http\Controllers;
 use App\Models\IrccCategory;
 use App\Models\IrccInteractiveForm;
 use App\Models\IrccInteractiveFormResponse;
+use App\Models\IrccPackageDocumentSubmission;
 use App\Support\IrccInteractiveFormSchema;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Schema;
 
 class ApplicationPackageController extends Controller
 {
@@ -24,10 +26,16 @@ class ApplicationPackageController extends Controller
         ]);
 
         $responses = collect();
+        $packageSubmissions = collect();
         if ($caseFileId) {
             $responses = IrccInteractiveFormResponse::where('case_file_id', $caseFileId)
                 ->get()
                 ->keyBy('ircc_interactive_form_id');
+            if (Schema::connection('cws')->hasTable('ircc_package_document_submissions')) {
+                $packageSubmissions = IrccPackageDocumentSubmission::where('case_file_id', $caseFileId)
+                    ->get()
+                    ->keyBy('ircc_category_document_id');
+            }
         }
 
         return [
@@ -35,15 +43,22 @@ class ApplicationPackageController extends Controller
             'label'      => $category->label,
             'breadcrumb' => $category->breadcrumb(),
             'result'     => $category->result,
-            'documents'  => $category->documents->map(fn ($doc) => [
-                'id'                => $doc->id,
-                'label'             => $doc->label,
-                'doc_type'          => $doc->doc_type,
-                'original_filename' => $doc->original_filename,
-                'file_url'          => asset('storage/' . $doc->file_path),
-                'mime_type'         => $doc->mime_type,
-                'file_size'         => $doc->file_size,
-            ])->values(),
+            'documents'  => $category->documents->map(function ($doc) use ($packageSubmissions) {
+                $submission = $packageSubmissions->get($doc->id);
+
+                return [
+                    'id'                => $doc->id,
+                    'label'             => $doc->label,
+                    'doc_type'          => $doc->doc_type,
+                    'original_filename' => $doc->original_filename,
+                    'file_url'          => asset('storage/' . $doc->file_path),
+                    'mime_type'         => $doc->mime_type,
+                    'file_size'         => $doc->file_size,
+                    'submission'        => $submission
+                        ? PackageDocumentSubmissionController::formatSubmission($submission)
+                        : null,
+                ];
+            })->values(),
             'interactive_forms' => $category->interactiveForms->map(
                 fn (IrccInteractiveForm $form) => IrccInteractiveFormSchema::formatFormSummary(
                     $form,

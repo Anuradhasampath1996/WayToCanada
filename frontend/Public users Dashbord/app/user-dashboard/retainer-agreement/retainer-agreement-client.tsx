@@ -1,14 +1,16 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import {
   Loader2, FileText, CheckCircle2, AlertCircle,
-  Download, PenLine, Upload, Globe, Phone, MapPin, Building2, CloudCheck, ChevronLeft,
+  Download, PenLine, Upload, CloudCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { ClientJourneyPageChrome } from "@/components/client-workspace-ui";
+import { RetainerAgreementDocument } from "@/components/retainer-agreement-document";
+import { configFromCaseFile } from "@/lib/retainer-agreement";
 
 const API = (process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000") + "/api/v1";
 
@@ -41,6 +43,7 @@ interface AgreementData {
     agreement_signed_at: string | null;
     agreement_fee: number | null;
     agreement_notes: string | null;
+    agreement_config?: import("@/lib/retainer-agreement").AgreementConfig | null;
     client_signature: string | null;
     signed_document_path: string | null;
   };
@@ -69,227 +72,9 @@ function authHeaders(): Record<string, string> {
   };
 }
 
-function formatCurrency(amount: number) {
-  return new Intl.NumberFormat("en-CA", { style: "currency", currency: "CAD" }).format(amount);
-}
-
 function fmtDate(iso: string | null) {
   if (!iso) return "___________";
   return new Date(iso).toLocaleDateString("en-CA", { year: "numeric", month: "long", day: "numeric" });
-}
-
-// ─── Agreement Preview ─────────────────────────────────────────────────────────
-
-function AgreementPreview({
-  data,
-  clientSignature,
-}: {
-  data: AgreementData;
-  clientSignature: string | null;
-}) {
-  const cf = data.case_file;
-  const cp = data.consultant_profile;
-  const pathway      = cf.immigration_pathway ?? "";
-  const totalFee     = cf.agreement_fee ? Number(cf.agreement_fee) : 3000;
-  const m1Amt        = Math.round(totalFee * 0.30);
-  const m2Amt        = Math.round(totalFee * 0.40);
-  const m3Amt        = totalFee - m1Amt - m2Amt;
-  const companyName  = cp?.company_name || data.consultant_name || null;
-  const companyAddr  = [cp?.company_address_line1, cp?.company_address_line2, cp?.company_city, cp?.company_province, cp?.company_postal_code, cp?.company_country]
-    .filter(Boolean).join(", ");
-  const rcicNo       = cp?.rcic_number || null;
-  const today        = new Date().toLocaleDateString("en-CA", { year: "numeric", month: "long", day: "numeric" });
-  const signedOn     = cf.agreement_signed_at ? fmtDate(cf.agreement_signed_at) : null;
-  const sentOn       = cf.agreement_sent_at   ? fmtDate(cf.agreement_sent_at)   : today;
-
-  return (
-    <div
-      id="retainer-agreement-doc"
-      className="rounded-xl border bg-white p-8 text-sm leading-relaxed w-full shadow-sm space-y-6 text-foreground"
-    >
-      {/* Header */}
-      <div className="pb-5 border-b">
-        <div className="flex items-start gap-5 mb-4">
-          {cp?.company_logo && (
-            <img src={cp.company_logo} alt={companyName ?? ""} className="h-16 w-auto max-w-[140px] object-contain shrink-0" />
-          )}
-          <div className="flex-1 min-w-0">
-            {companyName && <p className="text-base font-bold leading-tight">{companyName}</p>}
-            {companyAddr && (
-              <p className="text-xs text-muted-foreground mt-0.5 flex items-start gap-1">
-                <MapPin className="h-3 w-3 shrink-0 mt-0.5" />{companyAddr}
-              </p>
-            )}
-            {(cp?.company_phone || cp?.phone) && (
-              <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
-                <Phone className="h-3 w-3 shrink-0" />{cp?.company_phone ?? cp?.phone}
-              </p>
-            )}
-            {cp?.email && (
-              <p className="text-xs text-muted-foreground flex items-center gap-1">
-                <span className="font-mono text-[10px]">✉</span>{cp.email}
-              </p>
-            )}
-            {cp?.company_website && (
-              <p className="text-xs text-muted-foreground flex items-center gap-1">
-                <Globe className="h-3 w-3 shrink-0" />{cp.company_website}
-              </p>
-            )}
-            {rcicNo && (
-              <p className="text-xs text-muted-foreground flex items-center gap-1">
-                <Building2 className="h-3 w-3 shrink-0" />RCIC License No.&nbsp;<span className="font-mono">{rcicNo}</span>
-              </p>
-            )}
-          </div>
-        </div>
-        <div className="text-center">
-          <p className="text-lg font-bold tracking-wide uppercase">Retainer Agreement</p>
-          <p className="text-xs text-muted-foreground">Date: {sentOn}</p>
-        </div>
-      </div>
-
-      {/* 1. Parties */}
-      <section>
-        <p className="font-bold mb-2 text-xs uppercase tracking-wide text-primary">1. Parties to this Agreement</p>
-        <p>This Retainer Agreement (&quot;Agreement&quot;) is entered into between:</p>
-        <ul className="list-disc ml-6 mt-2 space-y-1">
-          <li>
-            <strong>Immigration Consultant:</strong> {data.consultant_name || "[Consultant Name]"}
-            {rcicNo && `, RCIC License No. ${rcicNo}`}, registered with the College of Immigration and Citizenship Consultants (CICC).
-            {companyName && companyName !== data.consultant_name && <>, practising as <strong>{companyName}</strong></>}
-          </li>
-          <li>
-            <strong>Client:</strong> {data.client_name || "[Client Full Name]"}{data.client_email ? ` (${data.client_email})` : ""}.
-          </li>
-        </ul>
-      </section>
-
-      {/* 2. Scope */}
-      <section>
-        <p className="font-bold mb-2 text-xs uppercase tracking-wide text-primary">2. Scope of Services</p>
-        <p>
-          The Consultant agrees to provide professional immigration consulting services for the client&apos;s
-          immigration pathway: <strong>{pathway || "[Pathway]"}</strong>.
-        </p>
-        <p className="mt-2 text-xs text-muted-foreground italic">
-          Any services outside the scope defined above will require a separate written agreement.
-        </p>
-      </section>
-
-      {/* 3. Fees */}
-      <section>
-        <p className="font-bold mb-2 text-xs uppercase tracking-wide text-primary">3. Professional Fees &amp; Payment Milestones</p>
-        <p>
-          The total professional fee is <strong>{formatCurrency(totalFee)}</strong> (CAD), payable in three milestones:
-        </p>
-        <div className="mt-3 rounded-lg border overflow-hidden">
-          <table className="w-full text-xs">
-            <thead className="bg-muted/60">
-              <tr>
-                <th className="text-left px-3 py-2 font-semibold">Milestone</th>
-                <th className="text-left px-3 py-2 font-semibold">Trigger</th>
-                <th className="text-right px-3 py-2 font-semibold">Amount</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              <tr>
-                <td className="px-3 py-2">1 (30%)</td>
-                <td className="px-3 py-2">Upon signing this agreement (Retainer Fee)</td>
-                <td className="px-3 py-2 text-right font-medium">{formatCurrency(m1Amt)}</td>
-              </tr>
-              <tr>
-                <td className="px-3 py-2">2 (40%)</td>
-                <td className="px-3 py-2">Upon receiving an ITA, provincial nomination, or equivalent approval</td>
-                <td className="px-3 py-2 text-right font-medium">{formatCurrency(m2Amt)}</td>
-              </tr>
-              <tr>
-                <td className="px-3 py-2">3 (30%)</td>
-                <td className="px-3 py-2">Before final application submission to IRCC</td>
-                <td className="px-3 py-2 text-right font-medium">{formatCurrency(m3Amt)}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      {/* 4. Client Obligations */}
-      <section>
-        <p className="font-bold mb-2 text-xs uppercase tracking-wide text-primary">4. Client Obligations</p>
-        <ul className="list-disc ml-6 space-y-1">
-          <li>Provide all required genuine documents within <strong>14 calendar days</strong> of request.</li>
-          <li>Inform the Consultant immediately of any changes to personal circumstances.</li>
-          <li>Providing fraudulent documents immediately voids this Agreement without refund.</li>
-          <li>The Client assumes full responsibility for accuracy of all submitted documents.</li>
-        </ul>
-      </section>
-
-      {/* 5. Refund Policy */}
-      <section>
-        <p className="font-bold mb-2 text-xs uppercase tracking-wide text-primary">5. Refund Policy</p>
-        <p>
-          The retainer fee (Milestone 1) is non-refundable once work has commenced.
-          Milestones 2 and 3 are not payable if the corresponding government action does not occur.
-          No refund will be issued if the application is refused due to fraudulent documents provided by the client.
-        </p>
-      </section>
-
-      {/* 6. Regulatory */}
-      <section>
-        <p className="font-bold mb-2 text-xs uppercase tracking-wide text-primary">6. Regulatory Compliance</p>
-        <p>
-          The Consultant is a regulated professional bound by the CICC Code of Professional Ethics and By-Laws.
-          Disputes may be escalated to the College of Immigration and Citizenship Consultants at{" "}
-          <span className="font-mono text-xs">cicc.ca</span>.
-        </p>
-      </section>
-
-      {/* 7. Additional Terms */}
-      {cf.agreement_notes && cf.agreement_notes.replace(/<[^>]*>/g, "").trim() !== "" && (
-        <section>
-          <p className="font-bold mb-2 text-xs uppercase tracking-wide text-primary">7. Additional Terms</p>
-          <div className="prose prose-sm max-w-none text-foreground" dangerouslySetInnerHTML={{ __html: cf.agreement_notes }} />
-        </section>
-      )}
-
-      {/* Signatures */}
-      <section className="pt-4 border-t">
-        <p className="font-bold mb-4 text-xs uppercase tracking-wide text-primary">Signatures</p>
-        <div className="grid grid-cols-2 gap-8 text-xs">
-          {/* Consultant */}
-          <div>
-            <p className="font-semibold mb-2">Immigration Consultant</p>
-            {cp?.digital_signature ? (
-              <img src={cp.digital_signature} alt="Consultant signature" className="max-h-16 max-w-[220px] object-contain mb-1" />
-            ) : (
-              <div className="border-b border-dashed mb-1 h-10" />
-            )}
-            <p className="font-medium">{data.consultant_name || "[Consultant Name]"}</p>
-            {rcicNo && <p className="text-muted-foreground">RCIC No. {rcicNo}</p>}
-            {companyName && companyName !== data.consultant_name && <p className="text-muted-foreground">{companyName}</p>}
-            <p className="text-muted-foreground mt-1">Date: {sentOn}</p>
-          </div>
-          {/* Client */}
-          <div>
-            <p className="font-semibold mb-2">Client</p>
-            {clientSignature ? (
-              <img src={clientSignature} alt="Client signature" className="max-h-16 max-w-[220px] object-contain mb-1" />
-            ) : (
-              <div className="border-b border-dashed mb-1 h-10" />
-            )}
-            <p>{data.client_name || "[Client Name]"}</p>
-            <p className="text-muted-foreground mt-1">Date: {signedOn ?? "___________"}</p>
-          </div>
-        </div>
-        {cf.signed_document_path && (
-          <p className="text-[10px] text-muted-foreground mt-3 flex items-center gap-1">
-            <CheckCircle2 className="h-3 w-3 text-green-500" />
-            Signed document uploaded.&nbsp;
-            <a href={cf.signed_document_path} target="_blank" rel="noopener noreferrer" className="underline text-primary">View PDF</a>
-          </p>
-        )}
-      </section>
-    </div>
-  );
 }
 
 // ─── Signature Pad ──────────────────────────────────────────────────────────────
@@ -411,6 +196,7 @@ export function RetainerAgreementClient() {
   const [uploading,      setUploading]      = useState(false);
   const [uploadError,    setUploadError]    = useState<string | null>(null);
   const [uploadDone,     setUploadDone]     = useState(false);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Step 1: get token from dashboard
@@ -436,32 +222,26 @@ export function RetainerAgreementClient() {
       .finally(() => setLoading(false));
   }, []);
 
-  function handleDownloadPdf() {
-    const style = document.createElement("style");
-    style.id    = "__pdf_print_style";
-    style.textContent = `
-      @media print {
-        body * { visibility: hidden !important; }
-        #retainer-agreement-doc,
-        #retainer-agreement-doc * { visibility: visible !important; }
-        #retainer-agreement-doc {
-          position: absolute !important;
-          top: 0 !important; left: 0 !important;
-          width: 100% !important;
-          padding: 32px !important;
-          margin: 0 !important;
-          background: white !important;
-          box-shadow: none !important;
-          border-radius: 0 !important;
-        }
-      }
-    `;
-    document.head.appendChild(style);
-    const prev = document.title;
-    document.title = `Retainer Agreement`;
-    window.print();
-    document.title = prev;
-    document.getElementById("__pdf_print_style")?.remove();
+  async function handleDownloadPdf() {
+    if (!token) return;
+    setDownloadingPdf(true);
+    try {
+      const res = await fetch(`${API}/case-file/agreement/${token}/pdf`, {
+        headers: { Accept: "application/pdf" },
+      });
+      if (!res.ok) throw new Error("PDF download failed.");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "retainer-agreement.pdf";
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      setError("Could not download PDF. Please try again.");
+    } finally {
+      setDownloadingPdf(false);
+    }
   }
 
   async function handleSign(dataUrl: string) {
@@ -554,27 +334,10 @@ export function RetainerAgreementClient() {
   const isSigned = signed || !!data.case_file.agreement_signed_at;
 
   return (
-    <div className="w-full py-6 space-y-5">
-      <Button variant="ghost" size="sm" className="h-8 -ml-2 text-muted-foreground" asChild>
-        <Link href="/user-dashboard">
-          <ChevronLeft className="h-4 w-4 mr-0.5" /> Back to home
-        </Link>
-      </Button>
-
-      {/* Page header */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-            <FileText className="h-5 w-5 text-primary" />
-          </div>
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Step 2 of 4</p>
-            <h1 className="text-lg font-bold leading-none">Retainer agreement</h1>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              {data.consultant_profile?.company_name ?? data.consultant_name ?? "Your consultant"}
-            </p>
-          </div>
-        </div>
+    <ClientJourneyPageChrome
+      stepId="retainer"
+      description={`Review and sign your agreement with ${data.consultant_profile?.company_name ?? data.consultant_name ?? "your consultant"}.`}
+      extra={
         <div className="flex items-center gap-2">
           {isSigned ? (
             <Badge className="bg-green-600 text-white gap-1.5">
@@ -585,12 +348,14 @@ export function RetainerAgreementClient() {
               Awaiting Your Signature
             </Badge>
           )}
-          <Button variant="outline" size="sm" onClick={handleDownloadPdf} className="gap-1.5">
-            <Download className="h-4 w-4" /> Download PDF
+          <Button variant="outline" size="sm" onClick={handleDownloadPdf} disabled={downloadingPdf} className="gap-1.5">
+            {downloadingPdf ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+            Download PDF
           </Button>
         </div>
-      </div>
-
+      }
+    >
+      <div className="space-y-5">
       {/* Tabs — only show sign/upload if not yet signed */}
       {!isSigned && (
         <div className="flex gap-1 rounded-xl border bg-muted/40 p-1 w-fit">
@@ -618,7 +383,16 @@ export function RetainerAgreementClient() {
 
       {/* ── VIEW tab / signed preview ── */}
       {(activeTab === "view" || isSigned) && (
-        <AgreementPreview data={data} clientSignature={clientSig} />
+        <RetainerAgreementDocument
+          config={configFromCaseFile(data.case_file)}
+          clientName={data.client_name ?? ""}
+          clientEmail={data.client_email ?? ""}
+          consultantName={data.consultant_name ?? ""}
+          consultantProfile={data.consultant_profile}
+          clientSignature={clientSig}
+          agreementDate={data.case_file.agreement_sent_at}
+          clientSignedDate={data.case_file.agreement_signed_at}
+        />
       )}
 
       {/* ── SIGN tab ── */}
@@ -676,8 +450,9 @@ export function RetainerAgreementClient() {
           </div>
 
           <div className="space-y-3">
-            <Button variant="outline" size="sm" onClick={handleDownloadPdf} className="gap-1.5">
-              <Download className="h-4 w-4" /> Download Agreement to Print
+            <Button variant="outline" size="sm" onClick={handleDownloadPdf} disabled={downloadingPdf} className="gap-1.5">
+              {downloadingPdf ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+              Download Agreement to Print
             </Button>
 
             <div>
@@ -737,6 +512,7 @@ export function RetainerAgreementClient() {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </ClientJourneyPageChrome>
   );
 }

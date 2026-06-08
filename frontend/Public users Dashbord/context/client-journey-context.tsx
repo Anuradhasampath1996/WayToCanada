@@ -3,12 +3,21 @@
 import * as React from "react";
 import {
   buildClientJourney,
+  buildClientActivity,
   canAccessNavStep,
+  resolveClientNextAction,
   type ClientCaseFile,
   type ClientFormsVerification,
+  type ClientJourneyMeta,
+  type ClientNextAction,
+  type ClientActivityEvent,
   type JourneyStep,
   type JourneyStepId,
 } from "@/lib/client-journey";
+import {
+  buildClientQuestionnaireStats,
+  type ClientQuestionnaireStats,
+} from "@/lib/client-questionnaire-stats";
 
 const API = (process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000") + "/api/v1";
 
@@ -57,9 +66,13 @@ type ClientJourneyContextValue = {
   consultant: Consultant | null;
   client: ClientInfo | null;
   applicationPackage: ApplicationPackage | null;
+  qStats: ClientQuestionnaireStats;
   steps: JourneyStep[];
   currentStepId: JourneyStepId;
   progressPercent: number;
+  meta: ClientJourneyMeta;
+  nextAction: ClientNextAction;
+  activityEvents: ClientActivityEvent[];
   refresh: () => Promise<void>;
   canAccess: (stepId: JourneyStepId) => boolean;
 };
@@ -74,6 +87,7 @@ export function ClientJourneyProvider({ children }: { children: React.ReactNode 
   const [consultant, setConsultant] = React.useState<Consultant | null>(null);
   const [client, setClient] = React.useState<ClientInfo | null>(null);
   const [applicationPackage, setApplicationPackage] = React.useState<ApplicationPackage | null>(null);
+  const [qStats, setQStats] = React.useState<ClientQuestionnaireStats>(buildClientQuestionnaireStats(null));
 
   const refresh = React.useCallback(async () => {
     setLoading(true);
@@ -83,14 +97,25 @@ export function ClientJourneyProvider({ children }: { children: React.ReactNode 
         const cookieMatch = document.cookie.match(/(?:^|;\s*)wtc_token=([^;]+)/);
         if (cookieMatch) localStorage.setItem("wtc_token", decodeURIComponent(cookieMatch[1]));
       }
-      const res = await fetch(`${API}/client/dashboard`, { headers: authHeaders() });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json?.message ?? "Failed to load dashboard.");
+
+      const [dashRes, qRes] = await Promise.all([
+        fetch(`${API}/client/dashboard`, { headers: authHeaders() }),
+        fetch(`${API}/questionnaire`, { headers: authHeaders() }),
+      ]);
+
+      const json = await dashRes.json();
+      if (!dashRes.ok) throw new Error(json?.message ?? "Failed to load dashboard.");
+
       setCaseFile(json.case_file ?? null);
       setVerification(json.application_forms_verification ?? null);
       setConsultant(json.consultant ?? null);
       setClient(json.client ?? null);
       setApplicationPackage(json.application_package ?? null);
+
+      if (qRes.ok) {
+        const qJson = await qRes.json();
+        setQStats(buildClientQuestionnaireStats(qJson.data));
+      }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Failed to load.");
     } finally {
@@ -103,7 +128,14 @@ export function ClientJourneyProvider({ children }: { children: React.ReactNode 
   }, [refresh]);
 
   const hasForms = (applicationPackage?.interactive_forms?.length ?? 0) > 0;
-  const { steps, currentStepId, progressPercent } = buildClientJourney(caseFile, verification, hasForms);
+  const { steps, currentStepId, progressPercent, meta } = buildClientJourney(
+    caseFile,
+    verification,
+    hasForms,
+    qStats,
+  );
+  const nextAction = resolveClientNextAction(caseFile, verification, qStats, hasForms, meta);
+  const activityEvents = buildClientActivity(caseFile, verification, qStats);
 
   const canAccess = React.useCallback(
     (stepId: JourneyStepId) => canAccessNavStep(stepId, caseFile, verification),
@@ -118,9 +150,13 @@ export function ClientJourneyProvider({ children }: { children: React.ReactNode 
     consultant,
     client,
     applicationPackage,
+    qStats,
     steps,
     currentStepId,
     progressPercent,
+    meta,
+    nextAction,
+    activityEvents,
     refresh,
     canAccess,
   };

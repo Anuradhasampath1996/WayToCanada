@@ -72,7 +72,7 @@ export function NavUser() {
           <DropdownMenuTrigger asChild>
             <SidebarMenuButton
               size="lg"
-              className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground">
+              className="rounded-xl border border-transparent bg-background/60 shadow-sm transition-colors hover:border-sidebar-border hover:bg-background data-[state=open]:border-sidebar-border data-[state=open]:bg-background">
               <Avatar className="rounded-full">
                 <AvatarImage src={user?.avatar ?? ""} alt={displayName} />
                 <AvatarFallback className="rounded-full">{initials(displayName)}</AvatarFallback>

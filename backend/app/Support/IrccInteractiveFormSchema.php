@@ -135,11 +135,12 @@ class IrccInteractiveFormSchema
             'sort_order'   => $form->sort_order,
             'field_count'  => count(self::inputFields($form->form_schema)),
             'response'     => $response ? [
-                'id'           => $response->id,
-                'status'       => $response->status,
-                'submitted_at' => $response->submitted_at,
-                'reviewed_at'  => $response->reviewed_at,
-                'updated_at'   => $response->updated_at,
+                'id'               => $response->id,
+                'status'           => $response->status,
+                'submitted_at'     => $response->submitted_at,
+                'reviewed_at'      => $response->reviewed_at,
+                'consultant_notes' => $response->consultant_notes,
+                'updated_at'       => $response->updated_at,
             ] : null,
         ];
     }

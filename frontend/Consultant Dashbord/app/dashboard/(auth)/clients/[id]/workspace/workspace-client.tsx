@@ -9,15 +9,30 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import { PathwayRecommendationPanel } from "./pathway-recommendation-panel";
 import { ConsultantInteractiveFormsPanel } from "./case-management/consultant-interactive-forms-panel";
 import {
   SignedRetainerAgreementPreview,
   type AgreementData,
 } from "@/components/signed-retainer-agreement-preview";
+import {
+  buildClientActivity,
+  ClientActivityTimeline,
+  AssessmentSubProgress,
+  NextActionCard,
+  QuestionnaireGateBanner,
+  resolveNextAction,
+} from "./workspace-flow-ui";
+import {
+  buildQuestionnaireStats,
+  type QuestionnaireSubmissionSnapshot,
+  type QuestionnaireWorkspaceStats,
+} from "@/lib/questionnaire-workspace-stats";
 
 const API = (process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000") + "/api/v1";
 
@@ -47,7 +62,11 @@ interface CaseFile {
   application_forms_verified_at: string | null;
   signed_document_path: string | null;
   client_signature: string | null;
-  checklist_data: Record<string, boolean> | null;
+  pathway_assessment_notes?: string | null;
+  pathway_assessment_crs_score?: number | null;
+  pathway_assessment_ircc_crs_score?: number | null;
+  pathway_assessment_at?: string | null;
+  pathway_assessment_rules_version?: string | null;
 }
 
 interface FormsVerification {
@@ -65,83 +84,6 @@ interface ClientData {
   id: number;
   user: { id: number; name: string; email: string };
 }
-
-// ── Document Checklist Definitions ────────────────────────────────────────────
-
-const BASE_CHECKLIST = [
-  { id: "passport",      label: "Valid Passport (all pages)" },
-  { id: "photos",        label: "Passport-style photos (2x)" },
-  { id: "proof_address", label: "Proof of address" },
-  { id: "police_cert",   label: "Police clearance certificate" },
-  { id: "medical_exam",  label: "Medical examination (IMM 1017E)" },
-];
-
-const PATHWAY_CHECKLIST: Record<string, { id: string; label: string }[]> = {
-  "Express Entry": [
-    { id: "ielts_results",   label: "Language test results (IELTS / CELPIP)" },
-    { id: "eca",             label: "Educational Credential Assessment (ECA)" },
-    { id: "employment_refs", label: "Employment reference letters" },
-    { id: "pay_stubs",       label: "Pay stubs (last 3 months)" },
-    { id: "tax_returns",     label: "NOA / Tax returns" },
-    { id: "express_entry_profile", label: "Express Entry profile confirmation" },
-  ],
-  "PNP": [
-    { id: "ielts_results",   label: "Language test results" },
-    { id: "eca",             label: "Educational Credential Assessment" },
-    { id: "employment_refs", label: "Employment reference letters" },
-    { id: "pnp_nomination",  label: "Provincial Nomination Certificate" },
-    { id: "job_offer",       label: "Job offer letter (if applicable)" },
-  ],
-  "Family Sponsorship": [
-    { id: "sponsor_status",  label: "Sponsor's PR card / citizenship certificate" },
-    { id: "marriage_cert",   label: "Marriage / relationship certificate" },
-    { id: "sponsor_income",  label: "Sponsor's proof of income (NOA)" },
-    { id: "relationship_proof", label: "Proof of genuine relationship (photos, communication)" },
-    { id: "birth_certs",     label: "Birth certificates (dependents)" },
-  ],
-  "Study Permit": [
-    { id: "acceptance_letter", label: "Letter of acceptance from DLI" },
-    { id: "ielts_results",     label: "Language test results" },
-    { id: "transcripts",       label: "Academic transcripts" },
-    { id: "study_plan",        label: "Statement of purpose / study plan" },
-    { id: "proof_funds",       label: "Proof of financial support" },
-  ],
-  "Work Permit": [
-    { id: "lmia_job_offer",  label: "LMIA-approved job offer or LMIA-exempt offer" },
-    { id: "employment_contract", label: "Signed employment contract" },
-    { id: "ielts_results",   label: "Language test results (if required)" },
-    { id: "qualifications",  label: "Educational / professional qualifications" },
-    { id: "resume",          label: "Current resume" },
-  ],
-};
-
-const IRCC_FORMS: Record<string, { code: string; name: string }[]> = {
-  "Express Entry": [
-    { code: "IMM 0008", name: "Generic Application Form for Canada" },
-    { code: "IMM 5669", name: "Schedule A — Background/Declaration" },
-    { code: "IMM 5406", name: "Additional Family Information" },
-    { code: "IMM 5562", name: "Supplementary Information — Your Travels" },
-  ],
-  "PNP": [
-    { code: "IMM 0008", name: "Generic Application Form for Canada" },
-    { code: "IMM 5669", name: "Schedule A — Background/Declaration" },
-    { code: "IMM 5406", name: "Additional Family Information" },
-  ],
-  "Family Sponsorship": [
-    { code: "IMM 1344", name: "Application to Sponsor & Undertaking" },
-    { code: "IMM 0008", name: "Generic Application Form for Canada" },
-    { code: "IMM 5540", name: "Sponsorship Agreement" },
-    { code: "IMM 5490", name: "Sponsor's Financial Evaluation" },
-  ],
-  "Study Permit": [
-    { code: "IMM 1294", name: "Application for Study Permit" },
-    { code: "IMM 5707", name: "Family Information" },
-  ],
-  "Work Permit": [
-    { code: "IMM 1295", name: "Application for Work Permit" },
-    { code: "IMM 5707", name: "Family Information" },
-  ],
-};
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -162,11 +104,6 @@ function fmt(iso: string | null) {
 function fmtDateTime(iso: string | null) {
   if (!iso) return "—";
   return new Date(iso).toLocaleString("en-CA", { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
-}
-
-function getChecklistItems(pathway: string | null) {
-  const extra = pathway && PATHWAY_CHECKLIST[pathway] ? PATHWAY_CHECKLIST[pathway] : [];
-  return [...BASE_CHECKLIST, ...extra];
 }
 
 function effectiveStatusStep(caseFile: CaseFile): number {
@@ -286,52 +223,157 @@ function ViewSignedAgreementButton({
 // ── Step indicator ─────────────────────────────────────────────────────────────
 
 const STEPS = [
-  { label: "Pathway Recommendation", icon: Briefcase },
-  { label: "Retainer Agreement", icon: FileText },
-  { label: "Case Management", icon: UserCheck },
+  { label: "Pathway", fullLabel: "Pathway assessment", icon: Briefcase },
+  { label: "Agreement", fullLabel: "Retainer agreement", icon: FileText },
+  { label: "Forms", fullLabel: "Verify application forms", icon: FormInput },
+  { label: "Case hub", fullLabel: "Full case management", icon: UserCheck },
 ];
 
-function StepIndicator({ currentStatus, formsVerified }: { currentStatus: string; formsVerified: boolean }) {
-  const order = STATUS_ORDER[currentStatus] ?? 0;
-  const currentStep = formsVerified && order >= 3 ? 2 : order >= 1 ? 1 : 0;
+type WorkflowStepState = "done" | "current" | "locked";
+
+function getActiveStepIndex(caseFile: CaseFile, caseManagementUnlocked: boolean): number {
+  if (caseManagementUnlocked) return 3;
+  if (caseFile.agreement_signed_at) return 2;
+  if (caseFile.immigration_pathway) return 1;
+  return 0;
+}
+
+function stepUiState(stepIndex: number, activeStep: number): WorkflowStepState {
+  if (stepIndex < activeStep) return "done";
+  if (stepIndex === activeStep) return "current";
+  return "locked";
+}
+
+function StepIndicator({ caseFile, caseManagementUnlocked }: { caseFile: CaseFile; caseManagementUnlocked: boolean }) {
+  const activeStep = getActiveStepIndex(caseFile, caseManagementUnlocked);
 
   return (
-    <div className="flex items-center gap-0 mb-8 overflow-x-auto pb-1">
+    <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
       {STEPS.map((s, i) => {
-        const done    = i < currentStep || (i === 1 && order >= 3);
-        const current = i === currentStep;
-        const locked  = i > currentStep && !(i === 1 && order >= 3 && !formsVerified);
+        const done = i < activeStep;
+        const current = i === activeStep;
+        const locked = i > activeStep;
         const Icon = s.icon;
         return (
-          <div key={i} className="flex items-center gap-0 flex-1 min-w-0">
-            <div className={cn(
-              "flex flex-col items-center gap-1 px-2 py-2 rounded-xl flex-1 transition-colors",
-              done    && "text-green-700",
-              current && "text-primary",
-              locked  && "text-muted-foreground/50"
-            )}>
-              <div className={cn(
-                "flex h-9 w-9 items-center justify-center rounded-full border-2 shrink-0",
-                done    && "bg-green-50 border-green-500",
-                current && "bg-primary/10 border-primary",
-                locked  && "bg-muted border-muted-foreground/20"
-              )}>
-                {done
-                  ? <CheckCircle2 className="h-5 w-5 text-green-600" />
-                  : locked
-                    ? <Lock className="h-4 w-4" />
-                    : <Icon className="h-4 w-4" />}
-              </div>
-              <span className="text-[11px] font-medium text-center leading-tight hidden sm:block">
-                {s.label}
-              </span>
-            </div>
-            {i < STEPS.length - 1 && (
-              <div className={cn("h-0.5 w-6 shrink-0 mx-1 rounded", done ? "bg-green-400" : "bg-muted")} />
+          <div
+            key={s.label}
+            className={cn(
+              "flex items-center gap-3 rounded-xl border px-3 py-3 transition-colors",
+              done && "border-emerald-200/60 bg-emerald-500/[0.06]",
+              current && "border-primary/30 bg-primary/[0.05]",
+              locked && "border-border/60 bg-muted/15 opacity-80",
             )}
+          >
+            <div
+              className={cn(
+                "flex size-9 shrink-0 items-center justify-center rounded-lg",
+                done && "bg-emerald-500/15 text-emerald-700",
+                current && "bg-primary/15 text-primary",
+                locked && "bg-muted text-muted-foreground",
+              )}
+            >
+              {done ? (
+                <CheckCircle2 className="size-4" />
+              ) : locked ? (
+                <Lock className="size-3.5" />
+              ) : (
+                <Icon className="size-4" />
+              )}
+            </div>
+            <div className="min-w-0">
+              <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Step {i + 1}</p>
+              <p className="truncate text-sm font-semibold leading-tight">{s.fullLabel}</p>
+            </div>
           </div>
         );
       })}
+    </div>
+  );
+}
+
+function WorkflowSection({
+  step,
+  title,
+  subtitle,
+  state,
+  headerActions,
+  children,
+  className,
+}: {
+  step: number;
+  title: string;
+  subtitle: string;
+  state: WorkflowStepState;
+  headerActions?: React.ReactNode;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  const locked = state === "locked";
+  const done = state === "done";
+
+  return (
+    <Card
+      className={cn(
+        "border-border/70 shadow-sm transition-opacity",
+        locked && "pointer-events-none opacity-50",
+        className,
+      )}
+    >
+      <CardHeader className="border-b border-border/50 pb-4">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <div className="flex min-w-0 items-start gap-3">
+            <div
+              className={cn(
+                "flex size-10 shrink-0 items-center justify-center rounded-xl text-sm font-bold",
+                done && "bg-emerald-500/15 text-emerald-700",
+                state === "current" && "bg-primary/15 text-primary",
+                locked && "bg-muted text-muted-foreground",
+              )}
+            >
+              {done ? <CheckCircle2 className="size-5" /> : locked ? <Lock className="size-4" /> : step}
+            </div>
+            <div className="min-w-0">
+              <CardTitle className="text-base">{title}</CardTitle>
+              <CardDescription className="mt-1">{subtitle}</CardDescription>
+            </div>
+          </div>
+          {headerActions ? <div className="flex shrink-0 flex-wrap gap-2">{headerActions}</div> : null}
+        </div>
+      </CardHeader>
+      <CardContent className="pt-6">{children}</CardContent>
+    </Card>
+  );
+}
+
+function StatusBanner({
+  tone,
+  icon: Icon,
+  title,
+  children,
+}: {
+  tone: "success" | "info" | "warning";
+  icon: React.ElementType;
+  title: string;
+  children: React.ReactNode;
+}) {
+  const styles = {
+    success: "border-emerald-200/70 bg-emerald-500/[0.06] text-emerald-900",
+    info: "border-blue-200/70 bg-blue-500/[0.06] text-blue-900",
+    warning: "border-amber-200/70 bg-amber-500/[0.06] text-amber-900",
+  };
+  const iconStyles = {
+    success: "text-emerald-600",
+    info: "text-blue-600",
+    warning: "text-amber-600",
+  };
+
+  return (
+    <div className={cn("flex items-start gap-3 rounded-xl border px-4 py-3.5", styles[tone])}>
+      <Icon className={cn("mt-0.5 size-5 shrink-0", iconStyles[tone])} />
+      <div className="min-w-0">
+        <p className="text-sm font-semibold">{title}</p>
+        <div className="mt-0.5 text-xs opacity-90">{children}</div>
+      </div>
     </div>
   );
 }
@@ -343,6 +385,7 @@ export function WorkspacePageClient({ paramsPromise }: { paramsPromise: Promise<
 
   const [caseFile, setCaseFile] = useState<CaseFile | null>(null);
   const [client,   setClient]   = useState<ClientData | null>(null);
+  const [consultantName, setConsultantName] = useState("Consultant");
   const [verification, setVerification] = useState<FormsVerification | null>(null);
   const [hubPreview, setHubPreview] = useState<{
     progress?: { overall_percent: number; documents: { approved: number; total: number } };
@@ -351,16 +394,25 @@ export function WorkspacePageClient({ paramsPromise }: { paramsPromise: Promise<
   } | null>(null);
   const [loading,  setLoading]  = useState(true);
   const [error,    setError]    = useState("");
-  const [acting,   setActing]   = useState(false);
-  const [toast,    setToast]    = useState<{ msg: string; type: "success" | "error" } | null>(null);
-
-  // Checklist state (local mirror)
-  const [checklist, setChecklist] = useState<Record<string, boolean>>({});
+  const [acting, setActing] = useState(false);
+  const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
+  const [qStats, setQStats] = useState<QuestionnaireWorkspaceStats>(buildQuestionnaireStats(null));
 
   const showToast = (msg: string, type: "success" | "error" = "success") => {
     setToast({ msg, type });
     setTimeout(() => setToast(null), 3500);
   };
+
+  const loadQuestionnaireStats = useCallback(async () => {
+    try {
+      const res = await fetch(`${API}/consultant/clients/${id}/questionnaire`, { headers: authHeaders() });
+      if (!res.ok) return;
+      const json = await res.json();
+      setQStats(buildQuestionnaireStats(json.submission as QuestionnaireSubmissionSnapshot | null));
+    } catch {
+      // optional
+    }
+  }, [id]);
 
   const load = useCallback(async () => {
     setLoading(true); setError("");
@@ -370,14 +422,15 @@ export function WorkspacePageClient({ paramsPromise }: { paramsPromise: Promise<
       if (!res.ok) throw new Error(json?.message ?? "Failed to load workspace.");
       setCaseFile(json.case_file);
       setClient(json.client);
+      setConsultantName(json.consultant?.name ?? "Consultant");
       setVerification(json.application_forms_verification ?? null);
-      setChecklist(json.case_file?.checklist_data ?? {});
+      await loadQuestionnaireStats();
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Failed to load workspace.");
     } finally {
       setLoading(false);
     }
-  }, [id]);
+  }, [id, loadQuestionnaireStats]);
 
   const reloadVerification = useCallback(async () => {
     try {
@@ -427,7 +480,6 @@ export function WorkspacePageClient({ paramsPromise }: { paramsPromise: Promise<
       const json = await res.json();
       if (!res.ok) throw new Error(json?.message ?? "Action failed.");
       setCaseFile(json.case_file);
-      setChecklist(json.case_file?.checklist_data ?? checklist);
       showToast(json.message ?? "Done.");
       return json;
     } catch (e: unknown) {
@@ -437,346 +489,398 @@ export function WorkspacePageClient({ paramsPromise }: { paramsPromise: Promise<
     }
   };
 
-  const sendAgreement = () =>
-    act(`${API}/consultant/clients/${id}/case-file/send-agreement`, "POST");
-
-  const toggleCheckItem = async (itemId: string) => {
-    const updated = { ...checklist, [itemId]: !checklist[itemId] };
-    setChecklist(updated);
-    await act(`${API}/consultant/clients/${id}/case-file/checklist`, "PATCH", { checklist_data: updated });
-  };
+  async function clearSelectedPathway() {
+    setActing(true);
+    try {
+      const res = await fetch(`${API}/consultant/clients/${id}/case-file/select-pathway`, {
+        method: "PATCH",
+        headers: authHeaders(),
+        body: JSON.stringify({ immigration_pathway: null }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(typeof json.message === "string" ? json.message : "Could not clear pathway");
+      setCaseFile(prev => prev ? {
+        ...prev,
+        immigration_pathway: null,
+        status: "PENDING_ASSESSMENT",
+      } : prev);
+      showToast("Pathway selection cleared.");
+    } catch (e: unknown) {
+      showToast(e instanceof Error ? e.message : "Clear failed.", "error");
+    } finally {
+      setActing(false);
+    }
+  }
 
   // ── Loading ──
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-40">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      <div className="flex items-center justify-center gap-2 py-40 text-muted-foreground">
+        <Loader2 className="size-6 animate-spin" />
+        Loading workspace…
       </div>
     );
   }
 
   if (error || !caseFile || !client) {
     return (
-      <div className="flex flex-col items-center justify-center py-40 text-center gap-4">
-        <AlertCircle className="h-10 w-10 text-red-400" />
+      <div className="flex flex-col items-center justify-center gap-4 py-40 text-center">
+        <AlertCircle className="size-10 text-destructive/70" />
         <p className="text-lg font-semibold">{error || "Failed to load workspace."}</p>
-        <Button variant="outline" asChild>
-          <Link href={`/dashboard/clients/${id}`}><ArrowLeft className="mr-2 h-4 w-4" />Back to Profile</Link>
+        <Button variant="outline" asChild className="rounded-xl">
+          <Link href={`/dashboard/clients/${id}`}>
+            <ArrowLeft className="mr-2 size-4" />
+            Back to profile
+          </Link>
         </Button>
       </div>
     );
   }
 
   const statusStep = effectiveStatusStep(caseFile);
+  const canClearPathway = Boolean(caseFile.immigration_pathway) && !caseFile.agreement_sent_at;
   const caseManagementUnlocked = verification?.case_management_unlocked ?? Boolean(caseFile.application_forms_verified_at);
-  const checklistItems = getChecklistItems(caseFile.immigration_pathway);
-  const formsForPathway = caseFile.immigration_pathway ? (IRCC_FORMS[caseFile.immigration_pathway] ?? []) : [];
+  const activeStep = getActiveStepIndex(caseFile, caseManagementUnlocked);
+
+  const pathwayStepState = stepUiState(0, activeStep);
+  const agreementStepState = !caseFile.immigration_pathway ? "locked" : stepUiState(1, activeStep);
+  const formsStepState = !caseFile.agreement_signed_at ? "locked" : stepUiState(2, activeStep);
+  const caseHubStepState = stepUiState(3, activeStep);
+
+  const nextAction = resolveNextAction(id, caseFile, qStats, verification);
+  const activityEvents = buildClientActivity(qStats, caseFile, verification);
 
   return (
-    <div className="max-w-3xl mx-auto pb-16">
-      {/* Toast */}
+    <div className="w-full space-y-6 pb-10">
       {toast && (
-        <div className={cn(
-          "fixed top-4 right-4 z-50 flex items-center gap-2 rounded-lg border px-4 py-3 text-sm shadow-lg",
-          toast.type === "success" ? "bg-white border-green-200 text-green-800" : "bg-white border-red-200 text-red-700"
-        )}>
-          {toast.type === "success" ? <Check className="h-4 w-4 shrink-0" /> : <AlertCircle className="h-4 w-4 shrink-0" />}
+        <div
+          className={cn(
+            "fixed top-4 right-4 z-50 flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm shadow-lg backdrop-blur-sm",
+            toast.type === "success"
+              ? "border-emerald-200/80 bg-background text-emerald-800"
+              : "border-red-200/80 bg-background text-red-700",
+          )}
+        >
+          {toast.type === "success" ? <Check className="size-4 shrink-0" /> : <AlertCircle className="size-4 shrink-0" />}
           {toast.msg}
         </div>
       )}
 
-      {/* Back + Header */}
-      <div className="mb-6">
-        <Button variant="ghost" size="sm" asChild className="-ml-2">
-          <Link href={`/dashboard/clients/${id}`}><ArrowLeft className="mr-1.5 h-4 w-4" />Back to Profile</Link>
+      <section className="rounded-2xl border border-border/70 bg-gradient-to-br from-background via-background to-primary/5 p-5 shadow-sm md:p-6">
+        <Button variant="ghost" size="sm" asChild className="-ml-2 mb-4 h-8 px-2 text-muted-foreground">
+          <Link href={`/dashboard/clients/${id}`}>
+            <ArrowLeft className="mr-1.5 size-4" />
+            Back to profile
+          </Link>
         </Button>
-      </div>
 
-      <div className="flex items-start justify-between gap-4 flex-wrap mb-6">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Case Workspace</h1>
-          <p className="text-muted-foreground text-sm mt-0.5">{client.user.name} &mdash; {client.user.email}</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Badge variant="outline" className={cn(
-            "text-xs px-3 py-1",
-            statusStep === 3 ? "bg-green-50 text-green-700 border-green-200"
-            : statusStep >= 1 ? "bg-blue-50 text-blue-700 border-blue-200"
-            : "bg-amber-50 text-amber-700 border-amber-200"
-          )}>
-            {STATUS_LABELS[caseFile.status] ?? caseFile.status}
-          </Badge>
-          <Button variant="ghost" size="icon" onClick={load} disabled={loading || acting}>
-            <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
-          </Button>
-        </div>
-      </div>
-
-      {/* Step Indicator */}
-      <StepIndicator currentStatus={caseFile.status} formsVerified={caseManagementUnlocked} />
-
-      {/* ── STEP 1 — Pathway Recommendation ── */}
-      <div className={cn(
-        "rounded-xl border p-6 mb-4 transition-opacity",
-        statusStep > 1 && "opacity-60"
-      )}>
-        <div className="flex items-center gap-3 mb-4">
-          <div className={cn(
-            "flex h-8 w-8 items-center justify-center rounded-full shrink-0",
-            statusStep >= 2 ? "bg-green-100 text-green-600" : "bg-primary/10 text-primary"
-          )}>
-            {statusStep >= 2 ? <CheckCircle2 className="h-5 w-5" /> : <span className="text-sm font-bold">1</span>}
-          </div>
-          <div>
-            <h2 className="font-semibold">Pathway Recommendation</h2>
-            <p className="text-xs text-muted-foreground">Review the client&apos;s profile and assign the recommended immigration pathway</p>
-          </div>
-          <div className="ml-auto flex items-center gap-2 shrink-0">
-            <Link href={`/dashboard/clients/${id}/workspace/pathway-calculator`}>
-              <Button variant="outline" size="sm" className="gap-1.5">
-                <UserCheck className="h-3.5 w-3.5" />
-                Pathway Calculator
-              </Button>
-            </Link>
-            <Link href={`/dashboard/clients/${id}/workspace/questionnaire-review`}>
-              <Button variant="outline" size="sm" className="gap-1.5">
-                <ClipboardList className="h-3.5 w-3.5" />
-                View Q&amp;A
-              </Button>
-            </Link>
-          </div>
-        </div>
-
-        {/* Assigned Pathway Display */}
-        {caseFile.immigration_pathway ? (
-          <div className="flex items-center gap-3 rounded-lg bg-green-50 border border-green-200 px-4 py-3">
-            <CheckCircle2 className="h-5 w-5 text-green-600 shrink-0" />
-            <div className="flex-1 min-w-0">
-              <p className="text-xs text-green-700 font-medium uppercase tracking-wide mb-0.5">Assigned Pathway</p>
-              <p className="text-sm font-semibold text-green-900 truncate">{caseFile.immigration_pathway}</p>
-            </div>
-            <Link href={`/dashboard/clients/${id}/workspace/pathway-calculator`}>
-              <Button variant="outline" size="sm" className="text-green-700 border-green-300 hover:bg-green-100 gap-1.5 shrink-0">
-                <UserCheck className="h-3.5 w-3.5" />
-                Change
-              </Button>
-            </Link>
-          </div>
-        ) : (
-          <div className="flex items-center gap-3 rounded-lg bg-muted/40 border border-dashed px-4 py-3 text-muted-foreground">
-            <AlertCircle className="h-4 w-4 shrink-0" />
-            <p className="text-sm">No pathway assigned yet. Use the <strong>Pathway Calculator</strong> above to review scores and assign the best pathway to this client.</p>
-          </div>
-        )}
-
-      </div>
-
-      {/* ── STEP 2 — Retainer Agreement ── */}
-      <div className={cn(
-        "rounded-xl border p-6 mb-4 transition-opacity",
-        statusStep < 1 && "opacity-50 pointer-events-none",
-        statusStep > 2 && caseManagementUnlocked && "opacity-60"
-      )}>
-        <div className="flex items-center gap-3 mb-4">
-          <div className={cn(
-            "flex h-8 w-8 items-center justify-center rounded-full shrink-0",
-            statusStep >= 3 ? "bg-green-100 text-green-600" : statusStep >= 1 ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
-          )}>
-            {statusStep >= 3 ? <CheckCircle2 className="h-5 w-5" /> : statusStep < 1 ? <Lock className="h-4 w-4" /> : <span className="text-sm font-bold">2</span>}
-          </div>
-          <div>
-            <h2 className="font-semibold">Retainer Agreement</h2>
-            <p className="text-xs text-muted-foreground">Send the retainer agreement for the client to review and sign digitally</p>
-          </div>
-          <div className="ml-auto">
-            <Link href={`/dashboard/clients/${id}/workspace/retainer-agreement`}>
-              <Button size="sm" variant="outline" className="gap-1.5" disabled={statusStep < 1}>
-                <FileText className="h-3.5 w-3.5" />
-                {caseFile.agreement_sent_at ? "Manage Agreement" : "Create Agreement"}
-              </Button>
-            </Link>
-          </div>
-        </div>
-
-        {statusStep < 1 ? (
-          <p className="text-sm text-muted-foreground italic">Complete Step 1 to unlock this section.</p>
-        ) : statusStep >= 3 ? (
-          <div className="bg-green-50 border border-green-200 rounded-lg p-4 flex items-center gap-3">
-            <CheckCircle2 className="h-5 w-5 text-green-600 shrink-0" />
-            <div>
-              <p className="text-sm font-medium text-green-800">Agreement signed</p>
-              <p className="text-xs text-green-700">Signed on {fmtDateTime(caseFile.agreement_signed_at)}</p>
-            </div>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {caseFile.status === "PATHWAY_SELECTED" && (
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-start gap-3">
-                <FileText className="h-5 w-5 text-blue-600 mt-0.5 shrink-0" />
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-blue-800">Ready to create retainer agreement</p>
-                  <p className="text-xs text-blue-700 mt-0.5">
-                    Click <strong>Create Agreement</strong> above to build a professional, customizable agreement for{" "}
-                    <strong>{caseFile.immigration_pathway}</strong> and send it directly to the client.
-                  </p>
-                </div>
-              </div>
-            )}
-            {caseFile.status === "AGREEMENT_SENT" && (
-              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-start gap-3">
-                <Clock className="h-5 w-5 text-amber-600 mt-0.5 shrink-0" />
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-amber-800">Agreement sent — awaiting client signature</p>
-                  <p className="text-xs text-amber-700 mt-1">Sent on {fmtDateTime(caseFile.agreement_sent_at)}</p>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* ── STEP 2.5 — Verify Application Forms ── */}
-      <div className={cn(
-        "rounded-xl border p-6 mb-4 transition-opacity",
-        statusStep < 3 && "opacity-50 pointer-events-none",
-        caseManagementUnlocked && "opacity-60"
-      )}>
-        <div className="flex items-center gap-3 mb-4">
-          <div className={cn(
-            "flex h-8 w-8 items-center justify-center rounded-full shrink-0",
-            caseManagementUnlocked ? "bg-green-100 text-green-600" : statusStep >= 3 ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
-          )}>
-            {caseManagementUnlocked ? <CheckCircle2 className="h-5 w-5" /> : statusStep < 3 ? <Lock className="h-4 w-4" /> : <FormInput className="h-4 w-4" />}
-          </div>
-          <div className="flex-1 min-w-0">
-            <h2 className="font-semibold">Verify Application Forms</h2>
-            <p className="text-xs text-muted-foreground">
-              Review client-submitted forms before unlocking Full Case Management
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+          <div className="space-y-2">
+            <h1 className="flex items-center gap-2.5 text-2xl font-bold tracking-tight md:text-3xl">
+              <span className="flex size-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                <Briefcase className="size-5" />
+              </span>
+              Case workspace
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              <span className="font-medium text-foreground">{client.user.name}</span>
+              {" · "}
+              {client.user.email}
+            </p>
+            <p className="max-w-2xl text-sm text-muted-foreground">
+              Work through assessment, agreement, form review, then full case management — one step at a time.
             </p>
           </div>
-          {verification && verification.total_forms > 0 && statusStep >= 3 && (
-            <Badge variant="outline" className="shrink-0 text-xs">
-              {verification.reviewed_count}/{verification.total_forms} reviewed
-            </Badge>
-          )}
-          {statusStep >= 3 && caseFile.agreement_signed_at && (
-            <ViewSignedAgreementButton caseFile={caseFile} profileId={id} />
-          )}
-        </div>
 
-        {statusStep < 3 ? (
-          <p className="text-sm text-muted-foreground italic">
-            Unlocks after the retainer agreement is signed by the client.
-          </p>
-        ) : caseManagementUnlocked ? (
-          <div className="bg-green-50 border border-green-200 rounded-lg p-4 flex items-center gap-3">
-            <CheckCircle2 className="h-5 w-5 text-green-600 shrink-0" />
-            <div>
-              <p className="text-sm font-medium text-green-800">Application forms verified</p>
-              <p className="text-xs text-green-700">
-                Verified on {fmtDateTime(verification?.verified_at ?? caseFile.application_forms_verified_at)} — Full Case Management is now unlocked.
-              </p>
+          <div className="flex shrink-0 flex-wrap items-center gap-2">
+            <Badge
+              variant="outline"
+              className={cn(
+                "h-7 rounded-lg px-2.5 text-xs",
+                statusStep === 3
+                  ? "border-emerald-200/60 bg-emerald-500/10 text-emerald-700"
+                  : statusStep >= 1
+                    ? "border-blue-200/60 bg-blue-500/10 text-blue-700"
+                    : "border-amber-200/60 bg-amber-500/10 text-amber-700",
+              )}
+            >
+              {STATUS_LABELS[caseFile.status] ?? caseFile.status}
+            </Badge>
+            {caseFile.immigration_pathway && (
+              <Badge variant="outline" className="h-7 rounded-lg px-2.5 text-xs">
+                {caseFile.immigration_pathway}
+              </Badge>
+            )}
+            <Button variant="outline" size="icon" className="size-8 rounded-xl" onClick={load} disabled={loading || acting}>
+              <RefreshCw className={cn("size-4", loading && "animate-spin")} />
+            </Button>
+          </div>
+        </div>
+      </section>
+
+      <NextActionCard action={nextAction} />
+
+      <Card className="border-border/70 shadow-sm">
+        <CardHeader className="border-b border-border/50 pb-4">
+          <CardTitle className="text-base">Your progress</CardTitle>
+          <CardDescription>
+            Step {activeStep + 1} of {STEPS.length}
+            {activeStep < STEPS.length ? ` — ${STEPS[activeStep].fullLabel}` : ""}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="pt-5">
+          <StepIndicator caseFile={caseFile} caseManagementUnlocked={caseManagementUnlocked} />
+        </CardContent>
+      </Card>
+
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="space-y-6 min-w-0">
+
+      <WorkflowSection
+        step={1}
+        title="Pathway assessment"
+        subtitle="Verify the questionnaire, score CRS, compare routes, and assign the best immigration pathway."
+        state={pathwayStepState}
+        headerActions={
+          <>
+            <Button variant="outline" size="sm" className="gap-1.5 rounded-xl" asChild>
+              <Link href={`/dashboard/clients/${id}/workspace/pathway-calculator`}>
+                <UserCheck className="size-3.5" />
+                Full calculator
+              </Link>
+            </Button>
+            <Button variant="outline" size="sm" className="gap-1.5 rounded-xl" asChild>
+              <Link href={`/dashboard/clients/${id}/workspace/questionnaire-review`}>
+                <ClipboardList className="size-3.5" />
+                View Q&amp;A
+              </Link>
+            </Button>
+          </>
+        }
+      >
+        <AssessmentSubProgress
+          profileId={id}
+          qStats={qStats}
+          pathwayAssigned={caseFile.immigration_pathway}
+          crsScore={caseFile.pathway_assessment_crs_score}
+        />
+
+        <QuestionnaireGateBanner qStats={qStats} profileId={id} />
+
+        {caseFile.immigration_pathway && (
+          <div className="mb-5 flex flex-col gap-3 rounded-xl border border-emerald-200/70 bg-emerald-500/[0.06] px-4 py-3.5 sm:flex-row sm:items-center">
+            <div className="flex min-w-0 flex-1 items-start gap-3">
+              <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-emerald-600" />
+              <div className="min-w-0">
+                <p className="text-[11px] font-medium uppercase tracking-wide text-emerald-700">Selected pathway</p>
+                <p className="truncate text-sm font-semibold text-emerald-900">{caseFile.immigration_pathway}</p>
+              </div>
+            </div>
+            <div className="flex shrink-0 gap-2">
+              {canClearPathway && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="rounded-xl"
+                  disabled={acting}
+                  onClick={clearSelectedPathway}
+                >
+                  Clear
+                </Button>
+              )}
+              <Button variant="outline" size="sm" className="rounded-xl" asChild>
+                <Link href={`/dashboard/clients/${id}/workspace/pathway-calculator`}>Edit</Link>
+              </Button>
             </div>
           </div>
+        )}
+
+        <PathwayRecommendationPanel
+          profileId={id}
+          caseFile={caseFile}
+          clientName={client.user.name}
+          consultantName={consultantName}
+          onPathwaySelected={(pathway) => {
+            setCaseFile((prev) => (prev ? { ...prev, immigration_pathway: pathway, status: "PATHWAY_SELECTED" } : prev));
+            showToast("Pathway assigned.");
+          }}
+          onPathwayCleared={() => {
+            setCaseFile((prev) =>
+              prev ? { ...prev, immigration_pathway: null, status: "PENDING_ASSESSMENT" } : prev,
+            );
+            showToast("Pathway selection cleared.");
+          }}
+          onAssessmentSaved={load}
+        />
+      </WorkflowSection>
+
+      <WorkflowSection
+        step={2}
+        title="Retainer agreement"
+        subtitle="Create and send the retainer agreement for the client to review and sign digitally."
+        state={agreementStepState}
+        headerActions={
+          !caseFile.immigration_pathway ? (
+            <Button size="sm" variant="outline" className="gap-1.5 rounded-xl" disabled>
+              <FileText className="size-3.5" />
+              Create agreement
+            </Button>
+          ) : (
+            <Button size="sm" variant="outline" className="gap-1.5 rounded-xl" asChild>
+              <Link href={`/dashboard/clients/${id}/workspace/retainer-agreement`}>
+                <FileText className="size-3.5" />
+                {caseFile.agreement_sent_at ? "Manage agreement" : "Create agreement"}
+              </Link>
+            </Button>
+          )
+        }
+      >
+        {!caseFile.immigration_pathway ? (
+          <p className="text-sm text-muted-foreground">Assign a pathway in Step 1 to unlock the retainer agreement.</p>
+        ) : caseFile.agreement_signed_at ? (
+          <StatusBanner tone="success" icon={CheckCircle2} title="Agreement signed">
+            Signed on {fmtDateTime(caseFile.agreement_signed_at)}
+          </StatusBanner>
+        ) : (
+          <div className="space-y-3">
+            {!caseFile.agreement_sent_at && (
+              <StatusBanner tone="info" icon={FileText} title="Ready to create retainer agreement">
+                Click <strong>Create agreement</strong> to build a customizable agreement for{" "}
+                <strong>{caseFile.immigration_pathway}</strong> and send it to the client.
+              </StatusBanner>
+            )}
+            {caseFile.agreement_sent_at && !caseFile.agreement_signed_at && (
+              <StatusBanner tone="warning" icon={Clock} title="Awaiting client signature">
+                Agreement sent on {fmtDateTime(caseFile.agreement_sent_at)}
+              </StatusBanner>
+            )}
+          </div>
+        )}
+      </WorkflowSection>
+
+      <WorkflowSection
+        step={3}
+        title="Verify application forms"
+        subtitle="Review client-submitted forms before unlocking full case management."
+        state={formsStepState}
+        headerActions={
+          <>
+            {verification && verification.total_forms > 0 && caseFile.agreement_signed_at && (
+              <Badge variant="outline" className="h-7 rounded-lg text-xs">
+                {verification.reviewed_count}/{verification.total_forms} reviewed
+              </Badge>
+            )}
+            {caseFile.agreement_signed_at && (
+              <ViewSignedAgreementButton caseFile={caseFile} profileId={id} />
+            )}
+          </>
+        }
+      >
+        {!caseFile.agreement_signed_at ? (
+          <p className="text-sm text-muted-foreground">Unlocks after the client signs the retainer agreement.</p>
+        ) : caseManagementUnlocked ? (
+          <StatusBanner tone="success" icon={CheckCircle2} title="Application forms verified">
+            Verified on {fmtDateTime(verification?.verified_at ?? caseFile.application_forms_verified_at)} — full
+            case management is now unlocked.
+          </StatusBanner>
         ) : verification && verification.total_forms === 0 ? (
-          <p className="text-sm text-muted-foreground italic">No interactive forms for this package — verification not required.</p>
+          <p className="text-sm text-muted-foreground">No interactive forms for this package — verification not required.</p>
         ) : (
           <div className="space-y-4">
             {verification && !verification.all_submitted && (
-              <div className="rounded-lg bg-amber-50 border border-amber-200 p-4 text-sm text-amber-800">
-                Waiting for client to submit all forms ({verification.submitted_count}/{verification.total_forms} submitted).
-              </div>
+              <StatusBanner tone="warning" icon={Clock} title="Waiting for client submissions">
+                {verification.submitted_count}/{verification.total_forms} forms submitted so far.
+              </StatusBanner>
             )}
             {verification && verification.all_submitted && !verification.all_reviewed && (
-              <div className="rounded-lg bg-blue-50 border border-blue-200 p-4 text-sm text-blue-800">
-                Client submitted all forms. Review each form below and click <strong>Mark reviewed</strong> to unlock Full Case Management.
-              </div>
+              <StatusBanner tone="info" icon={FormInput} title="Ready for your review">
+                Client submitted all forms. Mark each form as reviewed to unlock full case management.
+              </StatusBanner>
             )}
             <ConsultantInteractiveFormsPanel profileId={id} onVerificationChange={reloadVerification} />
           </div>
         )}
-      </div>
+      </WorkflowSection>
 
-      {/* ── STEP 3 — Case Management ── */}
-      <div className={cn(
-        "rounded-xl border p-6 transition-opacity",
-        !caseManagementUnlocked && "opacity-50 pointer-events-none"
-      )}>
-        <div className="flex items-center gap-3 mb-4">
-          <div className={cn(
-            "flex h-8 w-8 items-center justify-center rounded-full shrink-0",
-            caseManagementUnlocked ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
-          )}>
-            {!caseManagementUnlocked ? <Lock className="h-4 w-4" /> : <span className="text-sm font-bold">3</span>}
-          </div>
-          <div>
-            <h2 className="font-semibold">Full Case Management</h2>
-            <p className="text-xs text-muted-foreground">Document checklist and IRCC forms — unlocked after application forms are verified</p>
-          </div>
-        </div>
-
+      <WorkflowSection
+        step={4}
+        title="Full case management"
+        subtitle="Documents, IRCC forms, pipeline updates, and client communication — all in one hub."
+        state={caseHubStepState}
+        headerActions={
+          caseManagementUnlocked ? (
+            <Button className="gap-2 rounded-xl" asChild>
+              <Link href={`/dashboard/clients/${id}/workspace/case-management`}>
+                <Briefcase className="size-4" />
+                Open case hub
+                <ChevronRight className="size-4" />
+              </Link>
+            </Button>
+          ) : undefined
+        }
+      >
         {!caseManagementUnlocked ? (
-          <p className="text-sm text-muted-foreground italic">
-            {statusStep < 3
-              ? "Sign the retainer agreement first, then verify application forms."
-              : "Review and mark all client application forms as reviewed to unlock this section."}
+          <p className="text-sm text-muted-foreground">
+            {!caseFile.agreement_signed_at
+              ? "Complete the retainer agreement and form verification first."
+              : "Review and approve all client application forms to unlock this section."}
           </p>
         ) : (
           <div className="space-y-4">
             {hubPreview?.progress && (
-              <div className="rounded-lg bg-primary/5 border border-primary/20 p-4 flex items-center justify-between gap-4 flex-wrap">
+              <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-primary/20 bg-primary/[0.04] px-4 py-3.5">
                 <div>
                   <p className="text-sm font-semibold">Case hub is active</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    {hubPreview.progress.documents.approved}/{hubPreview.progress.documents.total} documents approved
-                    · {hubPreview.progress.overall_percent}% overall progress
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    {hubPreview.progress.documents.approved}/{hubPreview.progress.documents.total} documents approved ·{" "}
+                    {hubPreview.progress.overall_percent}% overall progress
                   </p>
                 </div>
-                <Badge className="bg-primary/10 text-primary border-primary/20">
+                <Badge className="rounded-lg border-primary/20 bg-primary/10 text-primary">
                   {hubPreview.progress.overall_percent}% complete
                 </Badge>
               </div>
             )}
 
             {(hubPreview?.ircc_forms?.length ?? 0) > 0 && (
-              <div>
-                <p className="text-sm font-semibold mb-2 flex items-center gap-2">
-                  <FileText className="h-4 w-4 text-primary" />
-                  Required IRCC Forms
+              <div className="space-y-2">
+                <p className="flex items-center gap-2 text-sm font-semibold">
+                  <FileText className="size-4 text-primary" />
+                  Required IRCC forms
                   {caseFile.immigration_pathway && (
-                    <Badge variant="outline" className="text-xs font-normal">{caseFile.immigration_pathway}</Badge>
+                    <Badge variant="outline" className="text-[10px] font-normal">
+                      {caseFile.immigration_pathway}
+                    </Badge>
                   )}
                 </p>
-                <div className="space-y-2">
-                  {hubPreview!.ircc_forms!.slice(0, 5).map((form, i) => (
-                    <div key={`${form.code}-${i}`} className="flex items-center gap-3 rounded-lg border px-4 py-2.5 text-sm">
-                      <span className="font-mono text-primary shrink-0">{form.code}</span>
-                      <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                      <span className="text-muted-foreground truncate">{form.name}</span>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {hubPreview!.ircc_forms!.slice(0, 6).map((form, i) => (
+                    <div
+                      key={`${form.code}-${i}`}
+                      className="flex items-center gap-2 rounded-xl border border-border/60 bg-muted/10 px-3 py-2.5 text-sm"
+                    >
+                      <span className="shrink-0 font-mono text-xs text-primary">{form.code}</span>
+                      <ChevronRight className="size-3 shrink-0 text-muted-foreground" />
+                      <span className="truncate text-muted-foreground">{form.name}</span>
                     </div>
                   ))}
                 </div>
               </div>
             )}
 
-            <p className="text-xs text-muted-foreground">
-              Manage documents, review uploads, update pipeline status, and message your client in the full hub.
+            <p className="text-sm text-muted-foreground">
+              Manage document uploads, review client files, update application progress, and keep the case moving forward.
             </p>
           </div>
         )}
+      </WorkflowSection>
 
-        {/* Go to Full Case Management button */}
-        {caseManagementUnlocked && (
-          <div className="mt-6 flex justify-end">
-            <Link href={`/dashboard/clients/${id}/workspace/case-management`}>
-              <Button className="gap-2">
-                <Briefcase className="h-4 w-4" />
-                Go to Full Case Management
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </Link>
-          </div>
-        )}
+        </div>
+
+        <aside className="space-y-4 xl:sticky xl:top-4 xl:self-start">
+          <ClientActivityTimeline events={activityEvents} />
+        </aside>
       </div>
     </div>
   );

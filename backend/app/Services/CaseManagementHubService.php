@@ -354,4 +354,49 @@ class CaseManagementHubService
 
         return (int) round(($docPct * 0.5) + ($formsPct * 0.2) + ($pipelinePct * 0.3));
     }
+
+    /** Auto-advance pipeline based on document review progress. */
+    public function syncPipelineStatus(CaseFile $caseFile): void
+    {
+        if ($caseFile->status === 'APPLICATION_SUBMITTED') {
+            return;
+        }
+
+        $caseFile->loadMissing('assignedIrccCategory');
+        $package = ApplicationPackageController::formatPackage(
+            $caseFile->assignedIrccCategory,
+            $caseFile->id
+        );
+
+        $submissions = DocumentSubmission::where('case_file_id', $caseFile->id)
+            ->orderByDesc('created_at')
+            ->get();
+
+        $submissionsByType = $submissions->groupBy('document_type')->map(
+            fn ($group) => $this->formatSubmission($group->first())
+        );
+
+        $requirements = $this->buildRequirements($caseFile, $package, $submissionsByType);
+        $docStats     = $this->documentStats($requirements, $submissions);
+
+        $total    = (int) ($docStats['total'] ?? 0);
+        $approved = (int) ($docStats['approved'] ?? 0);
+        $pending  = (int) ($docStats['pending'] ?? 0);
+
+        $hasPendingSubmissions = $submissions
+            ->whereIn('status', ['pending_review', 'under_ai_review', 'ai_flagged'])
+            ->isNotEmpty();
+
+        if ($total > 0 && $approved === $total && $pending === 0 && ! $hasPendingSubmissions) {
+            $caseFile->update(['status' => 'READY_FOR_SUBMISSION']);
+
+            return;
+        }
+
+        if ($hasPendingSubmissions || $pending > 0 || $submissions->isNotEmpty()) {
+            if (in_array($caseFile->status, ['AGREEMENT_SIGNED', 'DOCUMENTS_UPLOADING', 'UNDER_REVIEW'], true)) {
+                $caseFile->update(['status' => 'UNDER_REVIEW']);
+            }
+        }
+    }
 }

@@ -201,4 +201,92 @@
   [data-slot="drawer-overlay"] {
     @apply bg-black/20! backdrop-blur-sm;
   }
+
+  /* Legislation Hub — clickable cross-reference links & popup content */
+  .legislation-viewer {
+    font-size: 0.9375rem;
+    line-height: 1.7;
+    color: var(--foreground);
+  }
+
+  .legislation-viewer .leg-section {
+    margin: 1.25rem 0;
+    padding: 1rem 1.25rem;
+    border: 1px solid var(--border);
+    border-radius: 0.625rem;
+    background: color-mix(in oklab, var(--background) 92%, var(--muted));
+  }
+
+  .legislation-viewer .leg-section-num {
+    font-weight: 700;
+    color: var(--primary);
+  }
+
+  .legislation-viewer .leg-marginal {
+    font-size: 0.75rem;
+    font-style: italic;
+    color: var(--muted-foreground);
+    margin-bottom: 0.35rem;
+  }
+
+  .legislation-viewer a.leg-ref {
+    color: oklch(0.45 0.18 250) !important;
+    font-weight: 600 !important;
+    text-decoration: underline !important;
+    text-underline-offset: 2px;
+    cursor: pointer !important;
+    pointer-events: auto !important;
+  }
+
+  .legislation-viewer a.leg-ref-cached {
+    color: oklch(0.42 0.16 160) !important;
+  }
+
+  .dark .legislation-viewer a.leg-ref-cached {
+    color: oklch(0.75 0.12 160) !important;
+  }
+
+  .legislation-viewer a.leg-ref-manual {
+    color: oklch(0.48 0.2 300) !important;
+  }
+
+  .legislation-viewer a.leg-ref:hover {
+    opacity: 0.85;
+    background: color-mix(in oklab, oklch(0.45 0.18 250) 12%, transparent);
+    border-radius: 0.15rem;
+  }
+
+  .legislation-viewer .leg-html-body {
+    font-size: 0.875rem;
+    line-height: 1.65;
+  }
+
+  .leg-popup-content {
+    border-radius: 0.5rem;
+    border: 1px solid var(--border);
+    background: color-mix(in oklab, var(--muted) 30%, transparent);
+    padding: 1rem 1.25rem;
+    font-size: 0.875rem;
+    line-height: 1.7;
+  }
+
+  .leg-popup-content .leg-popup-section {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--primary);
+    padding-bottom: 0.35rem;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 0.5rem;
+  }
+
+  .leg-popup-content .leg-popup-marginal {
+    font-size: 0.75rem;
+    font-style: italic;
+    color: var(--muted-foreground);
+    margin-bottom: 0.5rem;
+  }
+
+  .leg-popup-content .leg-popup-body-text {
+    text-align: justify;
+  }
 }

@@ -1,3 +1,5 @@
+import type { ClientQuestionnaireStats } from "@/lib/client-questionnaire-stats";
+
 export interface ClientCaseFile {
   id: number;
   status: string;
@@ -6,6 +8,7 @@ export interface ClientCaseFile {
   agreement_sent_at: string | null;
   agreement_signed_at: string | null;
   application_forms_verified_at: string | null;
+  pathway_assessment_at?: string | null;
 }
 
 export interface ClientFormsVerification {
@@ -35,22 +38,26 @@ export interface JourneyStep {
   lockedReason?: string;
 }
 
-const STATUS_ORDER: Record<string, number> = {
-  PENDING_ASSESSMENT: 0,
-  PATHWAY_SELECTED: 1,
-  AGREEMENT_SENT: 2,
-  AGREEMENT_SIGNED: 3,
-  DOCUMENTS_UPLOADING: 4,
-  UNDER_REVIEW: 4,
-  READY_FOR_SUBMISSION: 4,
-  APPLICATION_SUBMITTED: 4,
-};
+export interface ClientJourneyMeta {
+  questionnaireSubmitted: boolean;
+  pendingRefills: number;
+  assessmentWaiting: boolean;
+  pathwayAssigned: string | null;
+}
 
-export function effectiveStatusStep(caseFile: ClientCaseFile): number {
-  const step = STATUS_ORDER[caseFile.status] ?? 0;
-  if (caseFile.agreement_signed_at) return Math.max(step, 3);
-  if (caseFile.agreement_sent_at) return Math.max(step, 2);
-  return step;
+export interface ClientNextAction {
+  tone: "primary" | "warning" | "info" | "success";
+  title: string;
+  description: string;
+  href?: string;
+  buttonLabel?: string;
+}
+
+export interface ClientActivityEvent {
+  id: string;
+  label: string;
+  at: string | null;
+  done: boolean;
 }
 
 export function caseManagementUnlocked(
@@ -65,43 +72,57 @@ export function buildClientJourney(
   caseFile: ClientCaseFile | null,
   verification: ClientFormsVerification | null,
   hasForms: boolean,
-): { steps: JourneyStep[]; currentStepId: JourneyStepId; progressPercent: number } {
-  const order = caseFile ? effectiveStatusStep(caseFile) : 0;
+  qStats: ClientQuestionnaireStats,
+): {
+  steps: JourneyStep[];
+  currentStepId: JourneyStepId;
+  progressPercent: number;
+  meta: ClientJourneyMeta;
+} {
+  const pathwaySet = Boolean(caseFile?.immigration_pathway);
   const agreementSigned = Boolean(caseFile?.agreement_signed_at);
   const agreementSent = Boolean(caseFile?.agreement_sent_at);
-  const pathwaySet = order >= 1;
   const docsUnlocked = caseManagementUnlocked(caseFile, verification);
   const allFormsSubmitted = verification?.all_submitted ?? false;
   const formsReviewed = verification?.all_reviewed ?? false;
+  const pendingRefills = qStats.pendingRefills;
 
-  const questionnaireStatus: JourneyStepStatus =
-    !caseFile || order === 0 ? "active" : "done";
+  const assessmentWaiting =
+    qStats.isSubmitted && pendingRefills === 0 && !pathwaySet;
+
+  let questionnaireStatus: JourneyStepStatus = "active";
+  if (pendingRefills > 0) questionnaireStatus = "active";
+  else if (!qStats.isSubmitted) questionnaireStatus = "active";
+  else if (assessmentWaiting) questionnaireStatus = "waiting";
+  else if (pathwaySet || qStats.isSubmitted) questionnaireStatus = "done";
 
   let retainerStatus: JourneyStepStatus = "locked";
   if (agreementSigned) retainerStatus = "done";
-  else if (agreementSent || order >= 2) retainerStatus = "active";
+  else if (agreementSent) retainerStatus = "active";
   else if (pathwaySet) retainerStatus = "waiting";
+  else if (assessmentWaiting) retainerStatus = "locked";
 
   let formsStatus: JourneyStepStatus = "locked";
   if (docsUnlocked || formsReviewed) formsStatus = "done";
   else if (agreementSigned && hasForms) formsStatus = allFormsSubmitted ? "waiting" : "active";
   else if (agreementSigned && !hasForms) formsStatus = "done";
-  else if (agreementSigned) formsStatus = "active";
 
   let documentsStatus: JourneyStepStatus = "locked";
   if (docsUnlocked) documentsStatus = "active";
-  else if (agreementSigned) documentsStatus = "waiting";
+  else if (agreementSigned && allFormsSubmitted) documentsStatus = "waiting";
 
   const steps: JourneyStep[] = [
     {
       id: "questionnaire",
       number: 1,
-      title: "Complete your profile",
+      title: pendingRefills > 0 ? "Fix questionnaire corrections" : "Complete your profile",
       navLabel: "Questionnaire",
-      description: "Tell us about your background so your consultant can assess eligibility and recommend a pathway.",
+      description: pendingRefills > 0
+        ? `Your consultant flagged ${pendingRefills} item${pendingRefills === 1 ? "" : "s"} to update.`
+        : "Tell us about your background so your consultant can assess eligibility and recommend a pathway.",
       href: "/user-dashboard/questionnaire",
       status: questionnaireStatus,
-      actionLabel: "Open questionnaire",
+      actionLabel: pendingRefills > 0 ? "Fix corrections" : qStats.isSubmitted ? "View questionnaire" : "Open questionnaire",
     },
     {
       id: "retainer",
@@ -113,8 +134,10 @@ export function buildClientJourney(
       status: retainerStatus,
       actionLabel: agreementSent ? "Sign agreement" : "View agreement",
       lockedReason: pathwaySet
-        ? undefined
-        : "Available after your consultant confirms your pathway.",
+        ? agreementSent ? undefined : "Your consultant is preparing the agreement."
+        : assessmentWaiting
+          ? "Available after your consultant confirms your pathway."
+          : "Submit your questionnaire first.",
     },
     {
       id: "forms",
@@ -127,9 +150,7 @@ export function buildClientJourney(
       href: "/user-dashboard/application-forms",
       status: formsStatus,
       actionLabel: allFormsSubmitted ? "View submitted forms" : "Continue forms",
-      lockedReason: agreementSigned
-        ? undefined
-        : "Unlocks after you sign the retainer agreement.",
+      lockedReason: agreementSigned ? undefined : "Unlocks after you sign the retainer agreement.",
     },
     {
       id: "documents",
@@ -157,7 +178,17 @@ export function buildClientJourney(
   const activeBonus = steps.some((s) => s.status === "active") ? 0.5 : 0;
   const progressPercent = Math.round(((doneCount + activeBonus) / steps.length) * 100);
 
-  return { steps, currentStepId, progressPercent };
+  return {
+    steps,
+    currentStepId,
+    progressPercent,
+    meta: {
+      questionnaireSubmitted: qStats.isSubmitted,
+      pendingRefills,
+      assessmentWaiting,
+      pathwayAssigned: caseFile?.immigration_pathway ?? null,
+    },
+  };
 }
 
 export function canAccessNavStep(
@@ -165,21 +196,165 @@ export function canAccessNavStep(
   caseFile: ClientCaseFile | null,
   verification: ClientFormsVerification | null,
 ): boolean {
-  if (!caseFile && stepId !== "questionnaire") return false;
-  const order = caseFile ? effectiveStatusStep(caseFile) : 0;
+  if (stepId === "questionnaire") return true;
+  if (!caseFile) return false;
 
   switch (stepId) {
-    case "questionnaire":
-      return true;
     case "retainer":
-      return order >= 1 || Boolean(caseFile?.agreement_sent_at);
+      return Boolean(caseFile.immigration_pathway) || Boolean(caseFile.agreement_sent_at);
     case "forms":
-      return Boolean(caseFile?.agreement_signed_at);
+      return Boolean(caseFile.agreement_signed_at);
     case "documents":
       return caseManagementUnlocked(caseFile, verification);
     default:
       return false;
   }
+}
+
+export function resolveClientNextAction(
+  caseFile: ClientCaseFile | null,
+  verification: ClientFormsVerification | null,
+  qStats: ClientQuestionnaireStats,
+  hasForms: boolean,
+  meta: ClientJourneyMeta,
+): ClientNextAction {
+  if (qStats.pendingRefills > 0) {
+    return {
+      tone: "warning",
+      title: `${qStats.pendingRefills} correction${qStats.pendingRefills === 1 ? "" : "s"} needed`,
+      description: "Your consultant asked you to update parts of your questionnaire. Fix the flagged items and save your changes.",
+      href: "/user-dashboard/questionnaire",
+      buttonLabel: "Fix questionnaire",
+    };
+  }
+
+  if (!qStats.isSubmitted) {
+    return {
+      tone: "primary",
+      title: "Complete your questionnaire",
+      description: "Fill in your profile and upload identity documents so your consultant can assess your eligibility.",
+      href: "/user-dashboard/questionnaire",
+      buttonLabel: "Open questionnaire",
+    };
+  }
+
+  if (meta.assessmentWaiting) {
+    return {
+      tone: "info",
+      title: "Consultant is reviewing your profile",
+      description: "Your questionnaire was submitted. Your consultant is scoring your profile and selecting the best immigration pathway.",
+    };
+  }
+
+  if (!caseFile?.immigration_pathway) {
+    return {
+      tone: "info",
+      title: "Waiting for pathway confirmation",
+      description: "Your consultant will confirm your immigration pathway soon. You'll be notified when the retainer agreement is ready.",
+    };
+  }
+
+  if (!caseFile.agreement_signed_at) {
+    if (!caseFile.agreement_sent_at) {
+      return {
+        tone: "waiting" as "info",
+        title: "Retainer agreement coming soon",
+        description: `${caseFile.immigration_pathway} is confirmed. Your consultant is preparing your retainer agreement.`,
+      };
+    }
+    return {
+      tone: "primary",
+      title: "Sign your retainer agreement",
+      description: "Your agreement is ready. Review the terms and sign digitally to move forward.",
+      href: "/user-dashboard/retainer-agreement",
+      buttonLabel: "Sign agreement",
+    };
+  }
+
+  if (hasForms && verification && !verification.all_submitted) {
+    return {
+      tone: "primary",
+      title: "Complete application forms",
+      description: `${verification.submitted_count}/${verification.total_forms} forms submitted. Finish the remaining IRCC forms.`,
+      href: "/user-dashboard/application-forms",
+      buttonLabel: "Continue forms",
+    };
+  }
+
+  if (hasForms && verification && verification.all_submitted && !verification.all_reviewed) {
+    return {
+      tone: "info",
+      title: "Forms under consultant review",
+      description: "All forms are submitted. Your consultant is reviewing them — case documents will unlock when verified.",
+      href: "/user-dashboard/application-forms",
+      buttonLabel: "View forms",
+    };
+  }
+
+  if (caseManagementUnlocked(caseFile, verification)) {
+    return {
+      tone: "success",
+      title: "Upload your case documents",
+      description: "Your case hub is open. Upload required documents and message your consultant.",
+      href: "/user-dashboard/case-management",
+      buttonLabel: "Open case documents",
+    };
+  }
+
+  return {
+    tone: "info",
+    title: "Continue your journey",
+    description: "Follow the steps below to keep your application moving.",
+    href: "/user-dashboard",
+    buttonLabel: "View dashboard",
+  };
+}
+
+export function buildClientActivity(
+  caseFile: ClientCaseFile | null,
+  verification: ClientFormsVerification | null,
+  qStats: ClientQuestionnaireStats,
+): ClientActivityEvent[] {
+  return [
+    {
+      id: "submitted",
+      label: qStats.isSubmitted ? "Questionnaire submitted" : "Questionnaire in progress",
+      at: qStats.submittedAt,
+      done: qStats.isSubmitted,
+    },
+    {
+      id: "refill",
+      label: qStats.pendingRefills > 0 ? `${qStats.pendingRefills} corrections requested` : "No corrections pending",
+      at: null,
+      done: qStats.isSubmitted && qStats.pendingRefills === 0,
+    },
+    {
+      id: "pathway",
+      label: caseFile?.immigration_pathway ? `Pathway: ${caseFile.immigration_pathway}` : "Pathway pending",
+      at: caseFile?.pathway_assessment_at ?? null,
+      done: Boolean(caseFile?.immigration_pathway),
+    },
+    {
+      id: "agreement",
+      label: caseFile?.agreement_signed_at ? "Retainer signed" : caseFile?.agreement_sent_at ? "Agreement sent — sign now" : "Retainer agreement",
+      at: caseFile?.agreement_signed_at ?? caseFile?.agreement_sent_at ?? null,
+      done: Boolean(caseFile?.agreement_signed_at),
+    },
+    {
+      id: "forms",
+      label: verification && verification.total_forms > 0
+        ? `Forms ${verification.submitted_count}/${verification.total_forms} submitted`
+        : "Application forms",
+      at: null,
+      done: Boolean(verification?.all_submitted),
+    },
+    {
+      id: "hub",
+      label: "Case documents hub",
+      at: caseFile?.application_forms_verified_at ?? null,
+      done: caseManagementUnlocked(caseFile, verification),
+    },
+  ];
 }
 
 export const CLIENT_STATUS_LABELS: Record<string, string> = {
@@ -196,3 +371,10 @@ export const CLIENT_STATUS_LABELS: Record<string, string> = {
 export function clientStatusLabel(status: string): string {
   return CLIENT_STATUS_LABELS[status] ?? status.replace(/_/g, " ").toLowerCase();
 }
+
+export const JOURNEY_STEP_PAGES: Record<JourneyStepId, { step: number; label: string; title: string }> = {
+  questionnaire: { step: 1, label: "Questionnaire", title: "Immigration questionnaire" },
+  retainer: { step: 2, label: "Retainer agreement", title: "Retainer agreement" },
+  forms: { step: 3, label: "Application forms", title: "Application forms" },
+  documents: { step: 4, label: "Case documents", title: "Case documents" },
+};

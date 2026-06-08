@@ -129,68 +129,95 @@ export function NavMain() {
 
           {/* Retainer */}
           <SidebarMenuItem>
-            <SidebarMenuButton
-              className={cn(
-                "hover:text-foreground active:text-foreground hover:bg-[var(--primary)]/10 active:bg-[var(--primary)]/10",
-                locked.retainer && "opacity-60",
-              )}
-              isActive={pathname === "/user-dashboard/retainer-agreement"}
-              tooltip="Retainer agreement"
-              asChild
-            >
-              <Link href="/user-dashboard/retainer-agreement">
+            {locked.retainer ? (
+              <SidebarMenuButton
+                className="opacity-60 cursor-not-allowed"
+                isActive={false}
+                tooltip="Complete questionnaire and wait for pathway confirmation"
+                onClick={(e) => e.preventDefault()}
+              >
                 <FileTextIcon />
                 <span className="flex-1 truncate">Retainer agreement</span>
-                {locked.retainer && <LockIcon className="h-3.5 w-3.5 shrink-0 opacity-60" />}
-                {current === "retainer" && !locked.retainer && (
-                  <span className="h-2 w-2 rounded-full bg-primary shrink-0" />
-                )}
-              </Link>
-            </SidebarMenuButton>
+                <LockIcon className="h-3.5 w-3.5 shrink-0 opacity-60" />
+              </SidebarMenuButton>
+            ) : (
+              <SidebarMenuButton
+                className="hover:text-foreground active:text-foreground hover:bg-[var(--primary)]/10 active:bg-[var(--primary)]/10"
+                isActive={pathname === "/user-dashboard/retainer-agreement"}
+                tooltip="Retainer agreement"
+                asChild
+              >
+                <Link href="/user-dashboard/retainer-agreement">
+                  <FileTextIcon />
+                  <span className="flex-1 truncate">Retainer agreement</span>
+                  {current === "retainer" && (
+                    <span className="h-2 w-2 rounded-full bg-primary shrink-0" />
+                  )}
+                </Link>
+              </SidebarMenuButton>
+            )}
           </SidebarMenuItem>
 
           {/* Application forms */}
           <SidebarMenuItem>
-            <SidebarMenuButton
-              className={cn(
-                "hover:text-foreground active:text-foreground hover:bg-[var(--primary)]/10 active:bg-[var(--primary)]/10",
-                locked.forms && "opacity-60",
-              )}
-              isActive={pathname === "/user-dashboard/application-forms"}
-              tooltip="Application forms"
-              asChild
-            >
-              <Link href="/user-dashboard/application-forms">
+            {locked.forms ? (
+              <SidebarMenuButton
+                className="opacity-60 cursor-not-allowed"
+                isActive={false}
+                tooltip="Sign your retainer agreement first"
+                onClick={(e) => e.preventDefault()}
+              >
                 <FormInputIcon />
                 <span className="flex-1 truncate">Application forms</span>
-                {locked.forms && <LockIcon className="h-3.5 w-3.5 shrink-0 opacity-60" />}
-                {current === "forms" && !locked.forms && (
-                  <span className="h-2 w-2 rounded-full bg-primary shrink-0" />
-                )}
-              </Link>
-            </SidebarMenuButton>
+                <LockIcon className="h-3.5 w-3.5 shrink-0 opacity-60" />
+              </SidebarMenuButton>
+            ) : (
+              <SidebarMenuButton
+                className="hover:text-foreground active:text-foreground hover:bg-[var(--primary)]/10 active:bg-[var(--primary)]/10"
+                isActive={pathname === "/user-dashboard/application-forms"}
+                tooltip="Application forms"
+                asChild
+              >
+                <Link href="/user-dashboard/application-forms">
+                  <FormInputIcon />
+                  <span className="flex-1 truncate">Application forms</span>
+                  {current === "forms" && (
+                    <span className="h-2 w-2 rounded-full bg-primary shrink-0" />
+                  )}
+                </Link>
+              </SidebarMenuButton>
+            )}
           </SidebarMenuItem>
 
           {/* Case documents */}
           <SidebarMenuItem>
-            <SidebarMenuButton
-              className={cn(
-                "hover:text-foreground active:text-foreground hover:bg-[var(--primary)]/10 active:bg-[var(--primary)]/10",
-                locked.documents && "opacity-60",
-              )}
-              isActive={pathname === "/user-dashboard/case-management"}
-              tooltip="Case documents"
-              asChild
-            >
-              <Link href="/user-dashboard/case-management">
+            {locked.documents ? (
+              <SidebarMenuButton
+                className="opacity-60 cursor-not-allowed"
+                isActive={false}
+                tooltip="Unlocks after forms are verified by your consultant"
+                onClick={(e) => e.preventDefault()}
+              >
                 <FolderUpIcon />
                 <span className="flex-1 truncate">Case documents</span>
-                {locked.documents && <LockIcon className="h-3.5 w-3.5 shrink-0 opacity-60" />}
-                {current === "documents" && !locked.documents && (
-                  <span className="h-2 w-2 rounded-full bg-primary shrink-0" />
-                )}
-              </Link>
-            </SidebarMenuButton>
+                <LockIcon className="h-3.5 w-3.5 shrink-0 opacity-60" />
+              </SidebarMenuButton>
+            ) : (
+              <SidebarMenuButton
+                className="hover:text-foreground active:text-foreground hover:bg-[var(--primary)]/10 active:bg-[var(--primary)]/10"
+                isActive={pathname === "/user-dashboard/case-management"}
+                tooltip="Case documents"
+                asChild
+              >
+                <Link href="/user-dashboard/case-management">
+                  <FolderUpIcon />
+                  <span className="flex-1 truncate">Case documents</span>
+                  {current === "documents" && (
+                    <span className="h-2 w-2 rounded-full bg-primary shrink-0" />
+                  )}
+                </Link>
+              </SidebarMenuButton>
+            )}
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarGroupContent>

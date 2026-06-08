@@ -1,13 +1,14 @@
-﻿"use client";
+"use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useIAQNav } from "@/context/questionnaire-nav-context";
 import {
   ChevronLeft, ChevronRight, Check, Send,
-  CheckCircle2, User, Users, Baby, UserPlus,
+  CheckCircle2, AlertCircle, User, Users, Baby, UserPlus,
   Upload, FileText, Car, CreditCard, Loader2, Eye, X, Star,
+  RotateCcw, MessageSquare,
 } from "lucide-react";
 
 import { Button }           from "@/components/ui/button";
@@ -25,10 +26,25 @@ import {
   Tabs, TabsContent, TabsList, TabsTrigger,
 } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
+import type { FieldRemark } from "@/lib/client-questionnaire-stats";
+import { clientToConsultantKey, getPendingRemark, remarkLabel } from "@/lib/client-field-remarks";
+import { ClientJourneyPageChrome } from "@/components/client-workspace-ui";
+import { useClientJourneyOptional } from "@/context/client-journey-context";
 
 // â”€â”€ API â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const API = (process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000") + "/api/v1";
+
+type RemarkTabKind = "step1" | "main" | "spouse" | "child" | "accompanying";
+
+function remarkFor(
+  remarks: Record<string, FieldRemark> | undefined,
+  tabKind: RemarkTabKind,
+  field: string,
+  index?: number,
+): FieldRemark | undefined {
+  return getPendingRemark(remarks ?? {}, clientToConsultantKey(tabKind, field, index));
+}
 
 function getToken(): string | null {
   if (typeof window === "undefined") return null;
@@ -159,6 +175,10 @@ interface ScoreSet { listening: string; reading: string; writing: string; speaki
 interface MainData {
   dob: string; educationLevels: string[]; educationQuals: EduQualification[]; studiedInCanada: string;
   languageTest: string; scores: ScoreSet;
+  languageTestType: string;
+  frenchTestTaken: string; frenchTestType: string; frenchScores: ScoreSet;
+  intendedNocCode: string; intendedNocTeer: string; intendedNocTitle: string;
+  tradeCertificate: string; provincialNominationInterest: string; provincialNomination: string;
   workExperience: string; canadianWork: string;
   jobOffer: string; settlementFunds: string; canadianRelatives: string;
   passportName: string; governmentIdName: string; governmentIdBackName: string;
@@ -185,7 +205,10 @@ interface MainData {
 }
 interface SpouseData {
   fullName: string; dob: string; educationLevels: string[]; educationQuals: EduQualification[];
-  languageTest: string; scores: ScoreSet; canadianWork: string;
+  languageTest: string; languageTestType: string; scores: ScoreSet;
+  frenchTestTaken: string; frenchTestType: string; frenchScores: ScoreSet;
+  workExperience: string;
+  canadianWork: string;
   passportName: string; governmentIdName: string; governmentIdBackName: string;
   drivingLicenseName: string; drivingLicenseBackName: string;
   // Passport details
@@ -263,6 +286,10 @@ const INITIAL: FormData = {
   hasMedicalCondition: "", hasCriminalRecord: "", hasVisaRefusal: "",
   main: {
     dob: "", educationLevels: [], educationQuals: [], studiedInCanada: "", languageTest: "",
+    languageTestType: "ielts", frenchTestTaken: "", frenchTestType: "none",
+    frenchScores: { ...EMPTY_SCORES },
+    intendedNocCode: "", intendedNocTeer: "", intendedNocTitle: "",
+    tradeCertificate: "", provincialNominationInterest: "", provincialNomination: "",
     scores: { ...EMPTY_SCORES },
     workExperience: "", canadianWork: "", jobOffer: "",
     settlementFunds: "", canadianRelatives: "",
@@ -282,6 +309,9 @@ const INITIAL: FormData = {
   },
   spouse: {
     fullName: "", dob: "", educationLevels: [], educationQuals: [], languageTest: "",
+    languageTestType: "ielts", frenchTestTaken: "", frenchTestType: "tef",
+    frenchScores: { ...EMPTY_SCORES },
+    workExperience: "",
     scores: { ...EMPTY_SCORES }, canadianWork: "",
     passportName: "", governmentIdName: "", governmentIdBackName: "",
     drivingLicenseName: "", drivingLicenseBackName: "",
@@ -319,18 +349,30 @@ function accompanyingCount(val: string) {
 // â”€â”€ Shared field wrapper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function Field({
-  label, required, error, children,
+  label, required, error, children, refillRemark,
 }: {
   label: string; required?: boolean; error?: string; children: React.ReactNode;
+  refillRemark?: FieldRemark;
 }) {
   return (
-    <div className="space-y-1.5">
+    <div className={cn("space-y-1.5", refillRemark && "rounded-lg border border-amber-300 bg-amber-50/40 p-2.5")}>
       <Label className="text-sm font-medium">
         {label}
         {required && <span className="text-destructive ml-1">*</span>}
+        {refillRemark && (
+          <Badge variant="outline" className="ml-2 text-[10px] border-amber-300 bg-amber-100 text-amber-900">
+            Correction requested
+          </Badge>
+        )}
       </Label>
       {children}
       {error && <p className="text-xs text-destructive">{error}</p>}
+      {refillRemark && (
+        <p className="flex items-start gap-1.5 text-xs text-amber-900">
+          <MessageSquare className="mt-0.5 size-3.5 shrink-0" />
+          <span>{refillRemark.remark}</span>
+        </p>
+      )}
     </div>
   );
 }
@@ -424,7 +466,7 @@ function StepIndicator({ step }: { step: 1 | 2 | 3 }) {
 // â”€â”€ Step 1 form â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function Step1Form({
-  data, errors,
+  data, errors, fieldRemarks,
   onChange,
   onSpouseName,
   onChildName,
@@ -432,6 +474,7 @@ function Step1Form({
 }: {
   data: FormData;
   errors: Record<string, string>;
+  fieldRemarks?: Record<string, FieldRemark>;
   onChange: (f: keyof FormData, v: string) => void;
   onSpouseName?: (name: string) => void;
   onChildName?: (i: number, name: string) => void;
@@ -440,7 +483,8 @@ function Step1Form({
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-        <Field label="Full Name" required error={errors.fullName}>
+        <Field label="Full Name" required error={errors.fullName}
+          refillRemark={remarkFor(fieldRemarks, "step1", "fullName")}>
           <Input
             value={data.fullName}
             onChange={(e) => onChange("fullName", e.target.value)}
@@ -448,7 +492,8 @@ function Step1Form({
           />
         </Field>
 
-        <Field label="Email Address" required error={errors.email}>
+        <Field label="Email Address" required error={errors.email}
+          refillRemark={remarkFor(fieldRemarks, "step1", "email")}>
           <Input
             type="email"
             value={data.email}
@@ -457,7 +502,8 @@ function Step1Form({
           />
         </Field>
 
-        <Field label="WhatsApp Number" required error={errors.whatsapp}>
+        <Field label="WhatsApp Number" required error={errors.whatsapp}
+          refillRemark={remarkFor(fieldRemarks, "step1", "whatsapp")}>
           <Input
             value={data.whatsapp}
             onChange={(e) => onChange("whatsapp", e.target.value)}
@@ -603,11 +649,13 @@ function MainApplicantTab({
   data,
   onChange,
   onDocUpload,
+  fieldRemarks,
 }: {
   data: MainData;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onChange: (f: keyof MainData, v: any) => void;
   onDocUpload?: (file: File) => Promise<string>;
+  fieldRemarks?: Record<string, FieldRemark>;
 }) {
   return (
     <div className="space-y-6">
@@ -622,6 +670,8 @@ function MainApplicantTab({
           accept=".pdf,.jpg,.jpeg,.png"
           icon={FileText}
           fileName={data.passportName}
+          remarkKey={clientToConsultantKey("main", "passportName")}
+          fieldRemarks={fieldRemarks}
           onFileChange={(n) => onChange("passportName", n)}
           onUpload={onDocUpload}
           onNewFile={() => {
@@ -646,22 +696,28 @@ function MainApplicantTab({
       <div className="rounded-lg border border-blue-200 bg-blue-50/40 p-4 space-y-3">
         <p className="text-xs font-semibold text-blue-700 uppercase tracking-wider">Passport Details</p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Field label="Full Name (Given Names + Surname)">
+          <Field label="Full Name (Given Names + Surname)"
+            refillRemark={remarkFor(fieldRemarks, "main", "passportFullName")}>
             <Input value={data.passportFullName} onChange={(e) => onChange("passportFullName", e.target.value)} placeholder="As printed on passport" />
           </Field>
-          <Field label="Passport Number">
+          <Field label="Passport Number"
+            refillRemark={remarkFor(fieldRemarks, "main", "passportNumber")}>
             <Input value={data.passportNumber} onChange={(e) => onChange("passportNumber", e.target.value)} placeholder="e.g. AB1234567" />
           </Field>
-          <Field label="Date of Birth" required>
+          <Field label="Date of Birth" required
+            refillRemark={remarkFor(fieldRemarks, "main", "dob")}>
             <Input type="date" value={data.dob} onChange={(e) => onChange("dob", e.target.value)} />
           </Field>
-          <Field label="Expiry Date">
+          <Field label="Expiry Date"
+            refillRemark={remarkFor(fieldRemarks, "main", "passportExpiry")}>
             <Input type="date" value={data.passportExpiry} onChange={(e) => onChange("passportExpiry", e.target.value)} />
           </Field>
-          <Field label="Nationality / Country of Citizenship">
+          <Field label="Nationality / Country of Citizenship"
+            refillRemark={remarkFor(fieldRemarks, "main", "passportNationality")}>
             <Input value={data.passportNationality} onChange={(e) => onChange("passportNationality", e.target.value)} placeholder="e.g. Pakistani" />
           </Field>
-          <Field label="Sex / Gender">
+          <Field label="Sex / Gender"
+            refillRemark={remarkFor(fieldRemarks, "main", "passportGender")}>
             <Select value={data.passportGender || undefined} onValueChange={(v) => onChange("passportGender", v)}>
               <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
               <SelectContent>
@@ -680,6 +736,9 @@ function MainApplicantTab({
           icon={CreditCard}
           frontFileName={data.governmentIdName}
           backFileName={data.governmentIdBackName}
+          frontRemarkKey={clientToConsultantKey("main", "governmentIdName")}
+          backRemarkKey={clientToConsultantKey("main", "governmentIdBackName")}
+          fieldRemarks={fieldRemarks}
           onFrontChange={(n) => onChange("governmentIdName", n)}
           onBackChange={(n) => onChange("governmentIdBackName", n)}
           onUpload={onDocUpload}
@@ -709,6 +768,9 @@ function MainApplicantTab({
           icon={Car}
           frontFileName={data.drivingLicenseName}
           backFileName={data.drivingLicenseBackName}
+          frontRemarkKey={clientToConsultantKey("main", "drivingLicenseName")}
+          backRemarkKey={clientToConsultantKey("main", "drivingLicenseBackName")}
+          fieldRemarks={fieldRemarks}
           onFrontChange={(n) => onChange("drivingLicenseName", n)}
           onBackChange={(n) => onChange("drivingLicenseBackName", n)}
           onUpload={onDocUpload}
@@ -863,8 +925,17 @@ function MainApplicantTab({
 
         {data.languageTest === "yes" && (
           <div className="space-y-3">
+            <Field label="Which English test did you take?">
+              <Select value={data.languageTestType || "ielts"} onValueChange={(v) => onChange("languageTestType", v)}>
+                <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ielts">IELTS (General Training)</SelectItem>
+                  <SelectItem value="celpip">CELPIP-G</SelectItem>
+                </SelectContent>
+              </Select>
+            </Field>
             <DocumentUploadCard
-              title="IELTS / CELPIP Score Report"
+              title={data.languageTestType === "celpip" ? "CELPIP Score Report" : "IELTS Score Report"}
               description="Upload your official test result"
               accept=".pdf,.jpg,.jpeg,.png"
               icon={FileText}
@@ -882,10 +953,99 @@ function MainApplicantTab({
                 onChange("scores", s);
               }}
             />
-            <p className="text-xs text-muted-foreground">Enter your scores (0–9, step 0.5)</p>
+            <p className="text-xs text-muted-foreground">
+              {data.languageTestType === "celpip"
+                ? "Enter CELPIP scores (1–12, maps directly to CLB)"
+                : "Enter IELTS scores (0–9, step 0.5)"}
+            </p>
             <ScoreInputs scores={data.scores} onChange={(f, v) => onChange("scores", { ...data.scores, [f]: v })} />
           </div>
         )}
+
+        <Field label="Have you taken a French test (TEF Canada or TCF Canada)?">
+          <Select value={data.frenchTestTaken || undefined} onValueChange={(v) => onChange("frenchTestTaken", v)}>
+            <SelectTrigger className="w-32"><SelectValue placeholder="Select…" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="yes">Yes</SelectItem>
+              <SelectItem value="no">No</SelectItem>
+            </SelectContent>
+          </Select>
+        </Field>
+
+        {data.frenchTestTaken === "yes" && (
+          <div className="space-y-3 rounded-lg border p-3">
+            <Field label="French test type">
+              <Select value={data.frenchTestType || "tef"} onValueChange={(v) => onChange("frenchTestType", v)}>
+                <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="tef">TEF Canada</SelectItem>
+                  <SelectItem value="tcf">TCF Canada (CLB)</SelectItem>
+                </SelectContent>
+              </Select>
+            </Field>
+            <p className="text-xs text-muted-foreground">
+              {data.frenchTestType === "tcf"
+                ? "Enter CLB levels (4–12) for each skill"
+                : "Enter TEF Canada scores for each skill"}
+            </p>
+            <ScoreInputs scores={data.frenchScores} onChange={(f, v) => onChange("frenchScores", { ...data.frenchScores, [f]: v })} />
+          </div>
+        )}
+      </div>
+
+      <div className="rounded-lg border bg-muted/30 p-4 space-y-4">
+        <p className="text-sm font-semibold">Target Occupation (NOC 2021)</p>
+        <p className="text-xs text-muted-foreground">Used by your consultant for pathway &amp; CRS assessment. Find your NOC at <a href="https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/express-entry/eligibility/find-national-occupation-code.html" target="_blank" rel="noopener noreferrer" className="underline">Canada.ca NOC finder</a>.</p>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <Field label="NOC code (5 digits)">
+            <Input value={data.intendedNocCode} onChange={(e) => onChange("intendedNocCode", e.target.value.replace(/\D/g, "").slice(0, 5))} placeholder="e.g. 21231" />
+          </Field>
+          <Field label="TEER category">
+            <Select value={data.intendedNocTeer || undefined} onValueChange={(v) => onChange("intendedNocTeer", v)}>
+              <SelectTrigger><SelectValue placeholder="Select TEER…" /></SelectTrigger>
+              <SelectContent>
+                {[0, 1, 2, 3, 4, 5].map((t) => (
+                  <SelectItem key={t} value={String(t)}>TEER {t}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+          <Field label="Job title (as in NOC)">
+            <Input value={data.intendedNocTitle} onChange={(e) => onChange("intendedNocTitle", e.target.value)} placeholder="e.g. Software engineer" />
+          </Field>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <Field label="Certificate of qualification in a skilled trade?">
+            <RadioGroup value={data.tradeCertificate} onValueChange={(v) => onChange("tradeCertificate", v)} className="flex gap-4 pt-1">
+              {["yes", "no"].map((v) => (
+                <div key={v} className="flex items-center space-x-2">
+                  <RadioGroupItem value={v} id={`trade-cert-${v}`} />
+                  <Label htmlFor={`trade-cert-${v}`} className="font-normal capitalize cursor-pointer">{v}</Label>
+                </div>
+              ))}
+            </RadioGroup>
+          </Field>
+          <Field label="Interested in Provincial Nominee Program (PNP)?">
+            <RadioGroup value={data.provincialNominationInterest} onValueChange={(v) => onChange("provincialNominationInterest", v)} className="flex gap-4 pt-1">
+              {["yes", "no"].map((v) => (
+                <div key={v} className="flex items-center space-x-2">
+                  <RadioGroupItem value={v} id={`pnp-int-${v}`} />
+                  <Label htmlFor={`pnp-int-${v}`} className="font-normal capitalize cursor-pointer">{v}</Label>
+                </div>
+              ))}
+            </RadioGroup>
+          </Field>
+          <Field label="Already hold a provincial nomination certificate? (+600 CRS)">
+            <RadioGroup value={data.provincialNomination} onValueChange={(v) => onChange("provincialNomination", v)} className="flex gap-4 pt-1">
+              {["yes", "no"].map((v) => (
+                <div key={v} className="flex items-center space-x-2">
+                  <RadioGroupItem value={v} id={`pnp-cert-${v}`} />
+                  <Label htmlFor={`pnp-cert-${v}`} className="font-normal capitalize cursor-pointer">{v === "yes" ? "Yes — I have a nomination" : "No — not yet"}</Label>
+                </div>
+              ))}
+            </RadioGroup>
+          </Field>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
@@ -1023,11 +1183,13 @@ function SpouseTab({
   data,
   onChange,
   onDocUpload,
+  fieldRemarks,
 }: {
   data: SpouseData;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onChange: (f: keyof SpouseData, v: any) => void;
   onDocUpload?: (file: File) => Promise<string>;
+  fieldRemarks?: Record<string, FieldRemark>;
 }) {
   return (
     <div className="space-y-6">
@@ -1042,6 +1204,8 @@ function SpouseTab({
           accept=".pdf,.jpg,.jpeg,.png"
           icon={FileText}
           fileName={data.passportName}
+          remarkKey={clientToConsultantKey("spouse", "passportName")}
+          fieldRemarks={fieldRemarks}
           onFileChange={(n) => onChange("passportName", n)}
           onUpload={onDocUpload}
           onNewFile={() => {
@@ -1066,22 +1230,28 @@ function SpouseTab({
       <div className="rounded-lg border border-blue-200 bg-blue-50/40 p-4 space-y-3">
         <p className="text-xs font-semibold text-blue-700 uppercase tracking-wider">{data.fullName ? `${data.fullName}'s` : "Spouse"} Passport Details</p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Field label="Full Name (Given Names + Surname)">
+          <Field label="Full Name (Given Names + Surname)"
+            refillRemark={remarkFor(fieldRemarks, "spouse", "passportFullName")}>
             <Input value={data.passportFullName} onChange={(e) => onChange("passportFullName", e.target.value)} placeholder="As printed on passport" />
           </Field>
-          <Field label="Passport Number">
+          <Field label="Passport Number"
+            refillRemark={remarkFor(fieldRemarks, "spouse", "passportNumber")}>
             <Input value={data.passportNumber} onChange={(e) => onChange("passportNumber", e.target.value)} placeholder="e.g. AB1234567" />
           </Field>
-          <Field label="Date of Birth" required>
+          <Field label="Date of Birth" required
+            refillRemark={remarkFor(fieldRemarks, "spouse", "dob")}>
             <Input type="date" value={data.dob} onChange={(e) => onChange("dob", e.target.value)} />
           </Field>
-          <Field label="Expiry Date">
+          <Field label="Expiry Date"
+            refillRemark={remarkFor(fieldRemarks, "spouse", "passportExpiry")}>
             <Input type="date" value={data.passportExpiry} onChange={(e) => onChange("passportExpiry", e.target.value)} />
           </Field>
-          <Field label="Nationality / Country of Citizenship">
+          <Field label="Nationality / Country of Citizenship"
+            refillRemark={remarkFor(fieldRemarks, "spouse", "passportNationality")}>
             <Input value={data.passportNationality} onChange={(e) => onChange("passportNationality", e.target.value)} placeholder="e.g. Pakistani" />
           </Field>
-          <Field label="Sex / Gender">
+          <Field label="Sex / Gender"
+            refillRemark={remarkFor(fieldRemarks, "spouse", "passportGender")}>
             <Select value={data.passportGender || undefined} onValueChange={(v) => onChange("passportGender", v)}>
               <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
               <SelectContent>
@@ -1100,6 +1270,9 @@ function SpouseTab({
           icon={CreditCard}
           frontFileName={data.governmentIdName}
           backFileName={data.governmentIdBackName}
+          frontRemarkKey={clientToConsultantKey("spouse", "governmentIdName")}
+          backRemarkKey={clientToConsultantKey("spouse", "governmentIdBackName")}
+          fieldRemarks={fieldRemarks}
           onFrontChange={(n) => onChange("governmentIdName", n)}
           onBackChange={(n) => onChange("governmentIdBackName", n)}
           onUpload={onDocUpload}
@@ -1129,6 +1302,9 @@ function SpouseTab({
           icon={Car}
           frontFileName={data.drivingLicenseName}
           backFileName={data.drivingLicenseBackName}
+          frontRemarkKey={clientToConsultantKey("spouse", "drivingLicenseName")}
+          backRemarkKey={clientToConsultantKey("spouse", "drivingLicenseBackName")}
+          fieldRemarks={fieldRemarks}
           onFrontChange={(n) => onChange("drivingLicenseName", n)}
           onBackChange={(n) => onChange("drivingLicenseBackName", n)}
           onUpload={onDocUpload}
@@ -1235,8 +1411,17 @@ function SpouseTab({
 
         {data.languageTest === "yes" && (
           <div className="space-y-3">
+            <Field label="Which English test did your spouse take?">
+              <Select value={data.languageTestType || "ielts"} onValueChange={(v) => onChange("languageTestType", v)}>
+                <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ielts">IELTS (General Training)</SelectItem>
+                  <SelectItem value="celpip">CELPIP-G</SelectItem>
+                </SelectContent>
+              </Select>
+            </Field>
             <DocumentUploadCard
-              title="IELTS / CELPIP Score Report"
+              title={data.languageTestType === "celpip" ? "CELPIP Score Report" : "IELTS Score Report"}
               description="Upload your spouse's official test result"
               accept=".pdf,.jpg,.jpeg,.png"
               icon={FileText}
@@ -1254,11 +1439,51 @@ function SpouseTab({
                 onChange("scores", s);
               }}
             />
-            <p className="text-xs text-muted-foreground">Enter spouse&apos;s scores (0–9, step 0.5)</p>
+            <p className="text-xs text-muted-foreground">
+              {data.languageTestType === "celpip"
+                ? "Enter CELPIP scores (1–12)"
+                : "Enter IELTS scores (0–9, step 0.5)"}
+            </p>
             <ScoreInputs scores={data.scores} onChange={(f, v) => onChange("scores", { ...data.scores, [f]: v })} />
           </div>
         )}
+
+        <Field label="Has your spouse taken a French test (TEF Canada or TCF Canada)?">
+          <Select value={data.frenchTestTaken || undefined} onValueChange={(v) => onChange("frenchTestTaken", v)}>
+            <SelectTrigger className="w-32"><SelectValue placeholder="Select…" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="yes">Yes</SelectItem>
+              <SelectItem value="no">No</SelectItem>
+            </SelectContent>
+          </Select>
+        </Field>
+
+        {data.frenchTestTaken === "yes" && (
+          <div className="space-y-3 rounded-lg border p-3">
+            <Field label="French test type">
+              <Select value={data.frenchTestType || "tef"} onValueChange={(v) => onChange("frenchTestType", v)}>
+                <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="tef">TEF Canada</SelectItem>
+                  <SelectItem value="tcf">TCF Canada (CLB)</SelectItem>
+                </SelectContent>
+              </Select>
+            </Field>
+            <ScoreInputs scores={data.frenchScores} onChange={(f, v) => onChange("frenchScores", { ...data.frenchScores, [f]: v })} />
+          </div>
+        )}
       </div>
+
+      <Field label="Spouse's total skilled foreign work experience (past 10 years)">
+        <Select value={data.workExperience || undefined} onValueChange={(v) => onChange("workExperience", v)}>
+          <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="less_than_1">Less than 1 year</SelectItem>
+            <SelectItem value="1_to_2">1–2 years</SelectItem>
+            <SelectItem value="3_or_more">3 years or more</SelectItem>
+          </SelectContent>
+        </Select>
+      </Field>
 
       <Field label="Does your spouse have 1 year of authorized Canadian work experience?">
         <RadioGroup value={data.canadianWork} onValueChange={(v) => onChange("canadianWork", v)} className="flex gap-6 pt-1">
@@ -1676,11 +1901,15 @@ function ChildSingleTab({
   data,
   onChange,
   onDocUpload,
+  fieldRemarks,
+  childIndex,
 }: {
   data: ChildData;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onChange: (f: keyof ChildData, v: any) => void;
   onDocUpload?: (file: File) => Promise<string>;
+  fieldRemarks?: Record<string, FieldRemark>;
+  childIndex: number;
 }) {
   return (
     <div className="space-y-4">
@@ -1694,6 +1923,8 @@ function ChildSingleTab({
           accept=".pdf,.jpg,.jpeg,.png"
           icon={FileText}
           fileName={data.passportName}
+          remarkKey={clientToConsultantKey("child", "passportName", childIndex)}
+          fieldRemarks={fieldRemarks}
           onFileChange={(n) => onChange("passportName", n)}
           onUpload={onDocUpload}
           onNewFile={() => {
@@ -1715,22 +1946,28 @@ function ChildSingleTab({
       <div className="rounded-lg border border-blue-200 bg-blue-50/40 p-4 space-y-3">
         <p className="text-xs font-semibold text-blue-700 uppercase tracking-wider">{data.name ? `${data.name}'s` : "Child's"} Passport Details</p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Field label="Full Name (Given Names + Surname)">
+          <Field label="Full Name (Given Names + Surname)"
+            refillRemark={remarkFor(fieldRemarks, "child", "passportFullName", childIndex)}>
             <Input value={data.passportFullName} onChange={(e) => onChange("passportFullName", e.target.value)} placeholder="As printed on passport" />
           </Field>
-          <Field label="Passport Number">
+          <Field label="Passport Number"
+            refillRemark={remarkFor(fieldRemarks, "child", "passportNumber", childIndex)}>
             <Input value={data.passportNumber} onChange={(e) => onChange("passportNumber", e.target.value)} placeholder="e.g. AB1234567" />
           </Field>
-          <Field label="Date of Birth">
+          <Field label="Date of Birth"
+            refillRemark={remarkFor(fieldRemarks, "child", "dob", childIndex)}>
             <Input type="date" value={data.dob} onChange={(e) => onChange("dob", e.target.value)} />
           </Field>
-          <Field label="Expiry Date">
+          <Field label="Expiry Date"
+            refillRemark={remarkFor(fieldRemarks, "child", "passportExpiry", childIndex)}>
             <Input type="date" value={data.passportExpiry} onChange={(e) => onChange("passportExpiry", e.target.value)} />
           </Field>
-          <Field label="Nationality / Country of Citizenship">
+          <Field label="Nationality / Country of Citizenship"
+            refillRemark={remarkFor(fieldRemarks, "child", "passportNationality", childIndex)}>
             <Input value={data.passportNationality} onChange={(e) => onChange("passportNationality", e.target.value)} placeholder="e.g. Pakistani" />
           </Field>
-          <Field label="Sex / Gender">
+          <Field label="Sex / Gender"
+            refillRemark={remarkFor(fieldRemarks, "child", "passportGender", childIndex)}>
             <Select value={data.passportGender || undefined} onValueChange={(v) => onChange("passportGender", v)}>
               <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
               <SelectContent>
@@ -1746,6 +1983,9 @@ function ChildSingleTab({
         <TwoSidedDocumentCard
           title="Government ID" description="National ID / CNIC" icon={CreditCard}
           frontFileName={data.governmentIdName} backFileName={data.governmentIdBackName}
+          frontRemarkKey={clientToConsultantKey("child", "governmentIdName", childIndex)}
+          backRemarkKey={clientToConsultantKey("child", "governmentIdBackName", childIndex)}
+          fieldRemarks={fieldRemarks}
           onFrontChange={(n) => onChange("governmentIdName", n)}
           onBackChange={(n) => onChange("governmentIdBackName", n)}
           onUpload={onDocUpload}
@@ -1768,6 +2008,9 @@ function ChildSingleTab({
         <TwoSidedDocumentCard
           title="Driving Licence" description="If applicable" icon={Car}
           frontFileName={data.drivingLicenseName} backFileName={data.drivingLicenseBackName}
+          frontRemarkKey={clientToConsultantKey("child", "drivingLicenseName", childIndex)}
+          backRemarkKey={clientToConsultantKey("child", "drivingLicenseBackName", childIndex)}
+          fieldRemarks={fieldRemarks}
           onFrontChange={(n) => onChange("drivingLicenseName", n)}
           onBackChange={(n) => onChange("drivingLicenseBackName", n)}
           onUpload={onDocUpload}
@@ -1786,10 +2029,12 @@ function ChildSingleTab({
       </div>
       <Separator />
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <Field label="Full Name">
+        <Field label="Full Name"
+          refillRemark={remarkFor(fieldRemarks, "child", "name", childIndex)}>
           <Input value={data.name} onChange={(e) => onChange("name", e.target.value)} placeholder="Child's full name" />
         </Field>
-        <Field label="Current Education Level">
+        <Field label="Current Education Level"
+          refillRemark={remarkFor(fieldRemarks, "child", "educationLevel", childIndex)}>
           <Select value={data.educationLevel || undefined} onValueChange={(v) => onChange("educationLevel", v)}>
             <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
             <SelectContent>
@@ -1816,11 +2061,15 @@ function AccompanyingPersonSingleTab({
   data,
   onChange,
   onDocUpload,
+  fieldRemarks,
+  personIndex,
 }: {
   data: AccompanyingPerson;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onChange: (f: keyof AccompanyingPerson, v: any) => void;
   onDocUpload?: (file: File) => Promise<string>;
+  fieldRemarks?: Record<string, FieldRemark>;
+  personIndex: number;
 }) {
   return (
     <div className="space-y-4">
@@ -1834,6 +2083,8 @@ function AccompanyingPersonSingleTab({
           accept=".pdf,.jpg,.jpeg,.png"
           icon={FileText}
           fileName={data.passportName}
+          remarkKey={clientToConsultantKey("accompanying", "passportName", personIndex)}
+          fieldRemarks={fieldRemarks}
           onFileChange={(n) => onChange("passportName", n)}
           onUpload={onDocUpload}
           onNewFile={() => {
@@ -1855,22 +2106,28 @@ function AccompanyingPersonSingleTab({
       <div className="rounded-lg border border-blue-200 bg-blue-50/40 p-4 space-y-3">
         <p className="text-xs font-semibold text-blue-700 uppercase tracking-wider">{data.fullName ? `${data.fullName}'s` : "This Person's"} Passport Details</p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Field label="Full Name (Given Names + Surname)">
+          <Field label="Full Name (Given Names + Surname)"
+            refillRemark={remarkFor(fieldRemarks, "accompanying", "passportFullName", personIndex)}>
             <Input value={data.passportFullName} onChange={(e) => onChange("passportFullName", e.target.value)} placeholder="As printed on passport" />
           </Field>
-          <Field label="Passport Number">
+          <Field label="Passport Number"
+            refillRemark={remarkFor(fieldRemarks, "accompanying", "passportNumber", personIndex)}>
             <Input value={data.passportNumber} onChange={(e) => onChange("passportNumber", e.target.value)} placeholder="e.g. AB1234567" />
           </Field>
-          <Field label="Date of Birth">
+          <Field label="Date of Birth"
+            refillRemark={remarkFor(fieldRemarks, "accompanying", "dob", personIndex)}>
             <Input type="date" value={data.dob} onChange={(e) => onChange("dob", e.target.value)} />
           </Field>
-          <Field label="Expiry Date">
+          <Field label="Expiry Date"
+            refillRemark={remarkFor(fieldRemarks, "accompanying", "passportExpiry", personIndex)}>
             <Input type="date" value={data.passportExpiry} onChange={(e) => onChange("passportExpiry", e.target.value)} />
           </Field>
-          <Field label="Nationality / Country of Citizenship">
+          <Field label="Nationality / Country of Citizenship"
+            refillRemark={remarkFor(fieldRemarks, "accompanying", "passportNationality", personIndex)}>
             <Input value={data.passportNationality} onChange={(e) => onChange("passportNationality", e.target.value)} placeholder="e.g. Pakistani" />
           </Field>
-          <Field label="Sex / Gender">
+          <Field label="Sex / Gender"
+            refillRemark={remarkFor(fieldRemarks, "accompanying", "passportGender", personIndex)}>
             <Select value={data.passportGender || undefined} onValueChange={(v) => onChange("passportGender", v)}>
               <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
               <SelectContent>
@@ -1886,6 +2143,9 @@ function AccompanyingPersonSingleTab({
         <TwoSidedDocumentCard
           title="Government ID" description="National ID / CNIC" icon={CreditCard}
           frontFileName={data.governmentIdName} backFileName={data.governmentIdBackName}
+          frontRemarkKey={clientToConsultantKey("accompanying", "governmentIdName", personIndex)}
+          backRemarkKey={clientToConsultantKey("accompanying", "governmentIdBackName", personIndex)}
+          fieldRemarks={fieldRemarks}
           onFrontChange={(n) => onChange("governmentIdName", n)}
           onBackChange={(n) => onChange("governmentIdBackName", n)}
           onUpload={onDocUpload}
@@ -1908,6 +2168,9 @@ function AccompanyingPersonSingleTab({
         <TwoSidedDocumentCard
           title="Driving Licence" description="If applicable" icon={Car}
           frontFileName={data.drivingLicenseName} backFileName={data.drivingLicenseBackName}
+          frontRemarkKey={clientToConsultantKey("accompanying", "drivingLicenseName", personIndex)}
+          backRemarkKey={clientToConsultantKey("accompanying", "drivingLicenseBackName", personIndex)}
+          fieldRemarks={fieldRemarks}
           onFrontChange={(n) => onChange("drivingLicenseName", n)}
           onBackChange={(n) => onChange("drivingLicenseBackName", n)}
           onUpload={onDocUpload}
@@ -1926,10 +2189,12 @@ function AccompanyingPersonSingleTab({
       </div>
       <Separator />
       <div className="space-y-3">
-        <Field label="Full Name" required>
+        <Field label="Full Name" required
+          refillRemark={remarkFor(fieldRemarks, "accompanying", "fullName", personIndex)}>
           <Input value={data.fullName} onChange={(e) => onChange("fullName", e.target.value)} placeholder="As in Passport" />
         </Field>
-        <Field label="Relationship to Main Applicant" required>
+        <Field label="Relationship to Main Applicant" required
+          refillRemark={remarkFor(fieldRemarks, "accompanying", "relationship", personIndex)}>
           <Select value={data.relationship || undefined} onValueChange={(v) => onChange("relationship", v)}>
             <SelectTrigger><SelectValue placeholder="Select relationship…" /></SelectTrigger>
             <SelectContent>
@@ -1960,6 +2225,7 @@ function AccompanyingPersonSingleTab({
 function TwoSidedDocumentCard({
   title, description, icon: Icon,
   frontFileName, backFileName,
+  frontRemarkKey, backRemarkKey, fieldRemarks,
   onFrontChange, onBackChange,
   onUpload,
   onScanComplete,
@@ -1970,6 +2236,9 @@ function TwoSidedDocumentCard({
   icon: React.ComponentType<{ className?: string }>;
   frontFileName: string;
   backFileName: string;
+  frontRemarkKey?: string;
+  backRemarkKey?: string;
+  fieldRemarks?: Record<string, FieldRemark>;
   onFrontChange: (n: string) => void;
   onBackChange: (n: string) => void;
   onUpload?: (file: File) => Promise<string>;
@@ -1994,6 +2263,8 @@ function TwoSidedDocumentCard({
           accept=".pdf,.jpg,.jpeg,.png"
           icon={Icon}
           fileName={frontFileName}
+          remarkKey={frontRemarkKey}
+          fieldRemarks={fieldRemarks}
           onFileChange={onFrontChange}
           onUpload={onUpload}
           onScanComplete={onScanComplete}
@@ -2005,6 +2276,8 @@ function TwoSidedDocumentCard({
           accept=".pdf,.jpg,.jpeg,.png"
           icon={Icon}
           fileName={backFileName}
+          remarkKey={backRemarkKey}
+          fieldRemarks={fieldRemarks}
           onFileChange={onBackChange}
           onUpload={onUpload}
           onScanComplete={onScanComplete}
@@ -2019,6 +2292,8 @@ function DocumentUploadCard({
   title, description, accept,
   icon: Icon,
   fileName,
+  remarkKey,
+  fieldRemarks,
   onFileChange,
   onUpload,
   onScanComplete,
@@ -2029,6 +2304,8 @@ function DocumentUploadCard({
   accept: string;
   icon: React.ComponentType<{ className?: string }>;
   fileName: string;
+  remarkKey?: string;
+  fieldRemarks?: Record<string, FieldRemark>;
   onFileChange: (name: string) => void;
   onUpload?: (file: File) => Promise<string>;
   onScanComplete?: (result: OcrResult) => void;
@@ -2042,11 +2319,50 @@ function DocumentUploadCard({
   const [scanResult, setScanResult]   = useState<OcrResult | null>(null);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [scanning, setScanning]         = useState(false);
+  const [loadingStored, setLoadingStored] = useState(false);
+  const refillRemark = remarkKey ? getPendingRemark(fieldRemarks ?? {}, remarkKey) : undefined;
 
   // S3 paths look like "client-document/2026/05/name.pdf" — show only basename
   const displayName = fileName
     ? (fileName.includes("/") ? fileName.split("/").pop()! : fileName)
     : "";
+
+  // Load preview for previously uploaded S3 documents on page reload
+  useEffect(() => {
+    if (!fileName?.startsWith("client-document/") || uploadedFile) return;
+    let objectUrl: string | null = null;
+    let cancelled = false;
+
+    async function loadStoredPreview() {
+      const token = getToken();
+      if (!token) return;
+      setLoadingStored(true);
+      try {
+        const res = await fetch(
+          `${API}/questionnaire/document/stream?path=${encodeURIComponent(fileName)}`,
+          { headers: { Authorization: `Bearer ${token}` } },
+        );
+        if (!res.ok || cancelled) return;
+        const blob = await res.blob();
+        if (cancelled) return;
+        objectUrl = URL.createObjectURL(blob);
+        setPreviewUrl(objectUrl);
+        previewTypeRef.current = blob.type.startsWith("image/")
+          ? "image"
+          : blob.type === "application/pdf"
+          ? "pdf"
+          : "other";
+      } finally {
+        if (!cancelled) setLoadingStored(false);
+      }
+    }
+
+    loadStoredPreview();
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [fileName, uploadedFile]);
 
   async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -2119,7 +2435,7 @@ function DocumentUploadCard({
 
   return (
     <>
-      <div className="rounded-xl border bg-card p-5 space-y-4">
+      <div className={cn("rounded-xl border bg-card p-5 space-y-4", refillRemark && "border-amber-300 bg-amber-50/30")}>
         <div className="flex items-center gap-3">
           <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
             <Icon className="h-5 w-5 text-primary" />
@@ -2129,23 +2445,29 @@ function DocumentUploadCard({
             <p className="text-xs text-muted-foreground">{description}</p>
           </div>
         </div>
+        {refillRemark && (
+          <p className="flex items-start gap-1.5 rounded-lg border border-amber-200 bg-white/70 px-3 py-2 text-xs text-amber-900">
+            <MessageSquare className="mt-0.5 size-3.5 shrink-0" />
+            <span><span className="font-semibold">Consultant note:</span> {refillRemark.remark}</span>
+          </p>
+        )}
 
         {/* Drop zone */}
         <div
           className={cn(
             "rounded-lg border-2 border-dashed transition-colors relative",
-            uploading
+            uploading || loadingStored
               ? "border-primary/40 bg-primary/5"
               : displayName
               ? "border-green-400 bg-green-50"
               : "border-border hover:border-primary/50 hover:bg-muted/30 cursor-pointer",
           )}
-          onClick={() => !uploading && !displayName && inputRef.current?.click()}
+          onClick={() => !uploading && !loadingStored && !displayName && inputRef.current?.click()}
         >
-          {uploading ? (
+          {uploading || loadingStored ? (
             <div className="flex items-center justify-center gap-2 text-sm text-primary p-5">
               <Loader2 className="h-4 w-4 animate-spin" />
-              <span>Uploading…</span>
+              <span>{loadingStored ? "Loading document…" : "Uploading…"}</span>
             </div>
           ) : displayName ? (
             /* â”€â”€ Uploaded: large thumbnail with eye-icon overlay â”€â”€ */
@@ -2656,7 +2978,13 @@ function ReviewStep({
         <RR label="Languages"         v={fmtLangs(data.main.languages)} />
         <RR label="Education"         v={fmtEdus(data.main.educationLevels)} />
         <RR label="Language Test"     v={data.main.languageTest} />
+        <RR label="English Test Type" v={data.main.languageTestType?.toUpperCase()} />
         <RR label="Test Scores"       v={fmtScore(data.main.scores)} />
+        <RR label="French Test"       v={yesno(data.main.frenchTestTaken)} />
+        <RR label="NOC Code"          v={data.main.intendedNocCode} />
+        <RR label="Trade Certificate" v={yesno(data.main.tradeCertificate)} />
+        <RR label="PNP Interest"      v={yesno(data.main.provincialNominationInterest)} />
+        <RR label="Prov. Nomination"  v={yesno(data.main.provincialNomination)} />
         <RR label="Work Experience"   v={data.main.workExperience} />
         <RR label="Canadian Work"     v={yesno(data.main.canadianWork)} />
         {data.main.canadianWork === "yes" && <>
@@ -2686,7 +3014,10 @@ function ReviewStep({
           <RR label="Languages"      v={fmtLangs(data.spouse.languages)} />
           <RR label="Education"      v={fmtEdus(data.spouse.educationLevels)} />
           <RR label="Language Test"  v={data.spouse.languageTest} />
+          <RR label="English Type"   v={data.spouse.languageTestType?.toUpperCase()} />
           <RR label="Test Scores"    v={fmtScore(data.spouse.scores)} />
+          <RR label="French Test"    v={yesno(data.spouse.frenchTestTaken)} />
+          <RR label="Foreign Work"   v={data.spouse.workExperience} />
           <RR label="Canadian Work"  v={yesno(data.spouse.canadianWork)} />
           {data.spouse.canadianWork === "yes" && <>
             <RR label="Employer"     v={data.spouse.canadianWorkEmployer} />
@@ -2748,6 +3079,53 @@ function YesNo({ value, onChange, id }: { value: string; onChange: (v: string) =
   );
 }
 
+function PathwayDataChecklist({ data }: { data: FormData }) {
+  const checks: { ok: boolean; label: string }[] = [
+    { ok: !!data.main.dob, label: "Main applicant — date of birth" },
+    { ok: (data.main.educationLevels ?? []).length > 0, label: "Main applicant — education level" },
+    { ok: data.main.languageTest === "yes" && Object.values(data.main.scores).some(Boolean), label: "Main applicant — English test scores" },
+    { ok: !!data.main.workExperience, label: "Main applicant — foreign work experience" },
+    { ok: !!data.main.intendedNocCode, label: "Main applicant — target NOC code" },
+    ...(data.married === "yes"
+      ? [
+          { ok: !!data.spouse.dob, label: "Spouse — date of birth" },
+          { ok: (data.spouse.educationLevels ?? []).length > 0 || !!data.spouseEduLevel, label: "Spouse — education" },
+          { ok: data.spouse.languageTest === "yes" && Object.values(data.spouse.scores).some(Boolean), label: "Spouse — English test scores" },
+        ]
+      : []),
+  ];
+  const done = checks.filter(c => c.ok).length;
+
+  return (
+    <section className="rounded-xl border border-blue-200 bg-blue-50/40 p-5 space-y-3">
+      <div>
+        <h3 className="text-sm font-semibold text-blue-900">Pathway & CRS data (from Step 2)</h3>
+        <p className="text-xs text-blue-800/90 mt-1 leading-relaxed">
+          Education, language tests, work history, NOC, and nomination details are collected in Step 2 under
+          <strong> Main Applicant</strong>{data.married === "yes" ? " and Spouse" : ""} tabs.
+          Complete any missing items there — your consultant uses that data for pathway recommendations.
+        </p>
+      </div>
+      <div className="flex items-center gap-2">
+        <Badge variant={done === checks.length ? "default" : "outline"} className="text-xs">
+          {done}/{checks.length} key items captured
+        </Badge>
+      </div>
+      <ul className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+        {checks.map(c => (
+          <li key={c.label} className={cn(
+            "flex items-center gap-2 text-xs rounded-md px-2 py-1.5",
+            c.ok ? "bg-green-50 text-green-800" : "bg-amber-50 text-amber-900"
+          )}>
+            {c.ok ? <CheckCircle2 className="h-3.5 w-3.5 shrink-0" /> : <AlertCircle className="h-3.5 w-3.5 shrink-0" />}
+            {c.label}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 function Step3Form({
   data,
   onChange,
@@ -2761,245 +3139,14 @@ function Step3Form({
   return (
     <div className="space-y-8">
 
-      {/* 1. Educational Background */}
-      <section className="space-y-4">
-        <h3 className="text-sm font-semibold flex items-center gap-2 text-primary uppercase tracking-wide">
-          1. Educational Background
-        </h3>
-
-        {/* Multi-select education level toggles */}
-        <Field label="Select all education levels you hold" required>
-          <div className="flex flex-wrap gap-2 pt-1">
-            {EDU_LEVELS.map(({ value, label }) => {
-              const checked = (data.eduLevels ?? []).includes(value);
-              return (
-                <button
-                  key={value}
-                  type="button"
-                  onClick={() => {
-                    const current: string[] = data.eduLevels ?? [];
-                    const next = checked
-                      ? current.filter((l) => l !== value)
-                      : [...current, value];
-                    const currentQuals: EduQualification[] = data.eduQualifications ?? [];
-                    const nextQuals = next.map((l) => {
-                      const existing = currentQuals.find((q) => q.level === l);
-                      return existing ?? {
-                        level: l,
-                        universityName: "",
-                        courseName: "",
-                        graduationYear: "",
-                        country: "",
-                        documentName: "",
-                      };
-                    });
-                    onChange("eduLevels", next);
-                    onChange("eduQualifications", nextQuals);
-                  }}
-                  className={cn(
-                    "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-medium transition-colors",
-                    checked
-                      ? "bg-primary text-primary-foreground border-primary"
-                      : "bg-background text-muted-foreground border-border hover:border-primary/50"
-                  )}
-                >
-                  {checked && <Check className="h-3 w-3" />}
-                  {label}
-                </button>
-              );
-            })}
-          </div>
-        </Field>
-
-        {/* Per-level upload cards */}
-        {(data.eduQualifications ?? []).length > 0 && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2">
-            {(data.eduQualifications ?? []).map((qual, idx) => (
-              <EduQualCard
-                key={qual.level}
-                qual={qual}
-                onChange={(updated) => {
-                  const next = (data.eduQualifications ?? []).map((q, i) =>
-                    i === idx ? updated : q
-                  );
-                  onChange("eduQualifications", next);
-                }}
-                onUpload={onUpload}
-              />
-            ))}
-          </div>
-        )}
-
-        {/* Spouse education — single select */}
-        {data.married === "yes" && (
-          <div className="pt-2">
-            <Field label="Spouse's Highest Education">
-              <Select
-                value={data.spouseEduLevel || undefined}
-                onValueChange={(v) => onChange("spouseEduLevel", v)}
-              >
-                <SelectTrigger className="w-64">
-                  <SelectValue placeholder="Select level…" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="phd">PhD / Doctorate</SelectItem>
-                  <SelectItem value="masters">Master&apos;s Degree</SelectItem>
-                  <SelectItem value="bachelors">Bachelor&apos;s Degree (3+ years)</SelectItem>
-                  <SelectItem value="diploma">Diploma (2 years)</SelectItem>
-                  <SelectItem value="al">A/L (Advanced Level)</SelectItem>
-                  <SelectItem value="other">Other</SelectItem>
-                </SelectContent>
-              </Select>
-            </Field>
-          </div>
-        )}
-      </section>
+      <PathwayDataChecklist data={data} />
 
       <Separator />
 
-      {/* 2. Work Experience */}
+      {/* 1. Financial Capacity */}
       <section className="space-y-4">
         <h3 className="text-sm font-semibold flex items-center gap-2 text-primary uppercase tracking-wide">
-          2. Work Experience
-        </h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-          <Field label="Current Job Title">
-            <Input
-              value={data.currentJobTitle}
-              onChange={(e) => onChange("currentJobTitle", e.target.value)}
-              placeholder="e.g. Software Engineer"
-            />
-          </Field>
-
-          <Field label="Industry / Field">
-            <Input
-              value={data.currentJobField}
-              onChange={(e) => onChange("currentJobField", e.target.value)}
-              placeholder="e.g. Information Technology"
-            />
-          </Field>
-
-          <Field label="Total Years of Experience in Field">
-            <Select value={data.totalExpYears || undefined} onValueChange={(v) => onChange("totalExpYears", v)}>
-              <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="less_1">Less than 1 year</SelectItem>
-                <SelectItem value="1_2">1–2 years</SelectItem>
-                <SelectItem value="3_5">3–5 years</SelectItem>
-                <SelectItem value="6_9">6–9 years</SelectItem>
-                <SelectItem value="10_plus">10+ years</SelectItem>
-              </SelectContent>
-            </Select>
-          </Field>
-
-          <Field label="Work Category (closest match)">
-            <Select value={data.workCategory || undefined} onValueChange={(v) => onChange("workCategory", v)}>
-              <SelectTrigger><SelectValue placeholder="Select category…" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="it">IT / Software</SelectItem>
-                <SelectItem value="engineering">Engineering</SelectItem>
-                <SelectItem value="healthcare">Healthcare / Medical</SelectItem>
-                <SelectItem value="finance">Finance / Accounting</SelectItem>
-                <SelectItem value="skilled_trade">Skilled Trade</SelectItem>
-                <SelectItem value="management">Management / Business</SelectItem>
-                <SelectItem value="education">Education</SelectItem>
-                <SelectItem value="other">Other</SelectItem>
-              </SelectContent>
-            </Select>
-          </Field>
-
-          <Field label="1+ year continuous full-time work in last 10 years?">
-            <YesNo value={data.continuousFullTime} onChange={(v) => onChange("continuousFullTime", v)} id="continuous" />
-          </Field>
-
-          {data.married === "yes" && (
-            <Field label="Spouse's Work Experience">
-              <Select value={data.spouseExpYears || undefined} onValueChange={(v) => onChange("spouseExpYears", v)}>
-                <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">None</SelectItem>
-                  <SelectItem value="less_1">Less than 1 year</SelectItem>
-                  <SelectItem value="1_2">1–2 years</SelectItem>
-                  <SelectItem value="3_5">3–5 years</SelectItem>
-                  <SelectItem value="6_plus">6+ years</SelectItem>
-                </SelectContent>
-              </Select>
-            </Field>
-          )}
-        </div>
-      </section>
-
-      <Separator />
-
-      {/* 3. Language Proficiency */}
-      <section className="space-y-4">
-        <h3 className="text-sm font-semibold flex items-center gap-2 text-primary uppercase tracking-wide">
-          3. Language Proficiency
-        </h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-          <Field label="Have you taken IELTS / CELPIP / PTE?">
-            <Select value={data.intlTestTaken || undefined} onValueChange={(v) => onChange("intlTestTaken", v)}>
-              <SelectTrigger className="w-32"><SelectValue placeholder="Select…" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="yes">Yes</SelectItem>
-                <SelectItem value="no">No</SelectItem>
-              </SelectContent>
-            </Select>
-          </Field>
-
-          {data.intlTestTaken === "yes" && (
-            <Field label="Test Type">
-              <Select value={data.intlTestType || undefined} onValueChange={(v) => onChange("intlTestType", v)}>
-                <SelectTrigger className="w-40"><SelectValue placeholder="Select…" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ielts">IELTS</SelectItem>
-                  <SelectItem value="celpip">CELPIP</SelectItem>
-                  <SelectItem value="pte">PTE</SelectItem>
-                </SelectContent>
-              </Select>
-            </Field>
-          )}
-        </div>
-
-        {data.intlTestTaken === "yes" && (
-          <div className="rounded-lg border bg-muted/30 p-4 space-y-2">
-            <p className="text-xs text-muted-foreground">Band scores (0–9, step 0.5)</p>
-            <ScoreInputs
-              scores={data.intlTestScores}
-              onChange={(f, v) => onChange("intlTestScores", { ...data.intlTestScores, [f]: v })}
-            />
-          </div>
-        )}
-
-        {data.intlTestTaken === "no" && (
-          <Field label="Expected English proficiency level">
-            <Input
-              value={data.expectedClb}
-              onChange={(e) => onChange("expectedClb", e.target.value)}
-              placeholder="e.g. CLB 7, CLB 9"
-            />
-          </Field>
-        )}
-
-        <Field label="Do you have French language proficiency? (TEF / TCF)">
-          <Select value={data.frenchProficiency || undefined} onValueChange={(v) => onChange("frenchProficiency", v)}>
-            <SelectTrigger className="w-48"><SelectValue placeholder="Select…" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">No French knowledge</SelectItem>
-              <SelectItem value="basic">Basic (A1–A2)</SelectItem>
-              <SelectItem value="intermediate">Intermediate (B1–B2)</SelectItem>
-              <SelectItem value="advanced">Advanced (C1–C2)</SelectItem>
-            </SelectContent>
-          </Select>
-        </Field>
-      </section>
-
-      <Separator />
-
-      {/* 4. Financial Capacity */}
-      <section className="space-y-4">
-        <h3 className="text-sm font-semibold flex items-center gap-2 text-primary uppercase tracking-wide">
-          4. Financial Capacity (Proof of Funds)
+          1. Financial Capacity (Proof of Funds)
         </h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
           <Field label="Available Settlement Funds (approx.)">
@@ -3022,10 +3169,10 @@ function Step3Form({
 
       <Separator />
 
-      {/* 5. Adaptability & Foreign Ties */}
+      {/* 2. Adaptability & Foreign Ties */}
       <section className="space-y-4">
         <h3 className="text-sm font-semibold flex items-center gap-2 text-primary uppercase tracking-wide">
-          5. Adaptability &amp; Foreign Ties
+          2. Adaptability &amp; Foreign Ties
         </h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
           <Field label="Close relative (sibling/parent) in destination country as PR/Citizen?">
@@ -3055,10 +3202,10 @@ function Step3Form({
 
       <Separator />
 
-      {/* 6. Inadmissibility */}
+      {/* 3. Background Checks */}
       <section className="space-y-4">
         <h3 className="text-sm font-semibold flex items-center gap-2 text-primary uppercase tracking-wide">
-          6. Background Checks
+          3. Background Checks
         </h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
           <Field label="Any serious medical condition for you or family?">
@@ -3080,17 +3227,19 @@ function Step3Form({
 }
 
 export function QuestionnaireForm() {
+  const router = useRouter();
+  const journey = useClientJourneyOptional();
   const [step, setStep]           = useState<1 | 2 | 3>(1);
   const [activeTab, setActiveTab] = useState(0);
-  const [submitted, setSubmitted] = useState(false);
   const [formData, setFormData]   = useState<FormData>(() => ({
     ...INITIAL,
     main:   { ...INITIAL.main,   scores: { ...EMPTY_SCORES } },
-    spouse: { ...INITIAL.spouse, scores: { ...EMPTY_SCORES } },
+    spouse: { ...INITIAL.spouse, scores: { ...EMPTY_SCORES }, frenchScores: { ...EMPTY_SCORES } },
   }));
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [submitting, setSubmitting] = useState(false);
+  const [fieldRemarks, setFieldRemarks] = useState<Record<string, FieldRemark>>({});
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isLoadingRef = useRef(true);
 
@@ -3119,6 +3268,7 @@ export function QuestionnaireForm() {
               children:     s.children_data     ?? prev.children,
               accompanying: s.accompanying_data ?? prev.accompanying,
             }));
+            if (s.field_remarks) setFieldRemarks(s.field_remarks);
           }
         }
       } finally {
@@ -3216,6 +3366,20 @@ export function QuestionnaireForm() {
     });
   }, [formData.dependentChildren]);
 
+  // Keep spouse education in sync when assessment-step spouseEduLevel is set (legacy drafts)
+  useEffect(() => {
+    if (formData.married !== "yes" || !formData.spouseEduLevel) return;
+    setFormData((prev) => {
+      const levels = prev.spouse.educationLevels ?? [];
+      if (levels.includes(formData.spouseEduLevel)) return prev;
+      if (levels.length > 0) return prev;
+      return {
+        ...prev,
+        spouse: { ...prev.spouse, educationLevels: [formData.spouseEduLevel] },
+      };
+    });
+  }, [formData.spouseEduLevel, formData.married]);
+
   // Sync accompanying persons array length
   useEffect(() => {
     if (formData.hasAccompanying !== "yes") {
@@ -3300,7 +3464,8 @@ export function QuestionnaireForm() {
         },
       });
       if (!res.ok) throw new Error("Submit failed");
-      setSubmitted(true);
+      await journey?.refresh();
+      router.push("/user-dashboard?questionnaire=submitted");
     } catch {
       setSaveStatus("error");
     } finally {
@@ -3351,64 +3516,49 @@ export function QuestionnaireForm() {
     return uploadDocumentFile(file);
   }, []);
 
-  // â”€â”€ Success screen â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
-  if (submitted) {
-    return (
-      <div className="max-w-lg mx-auto py-20 text-center space-y-6">
-        <div className="flex justify-center">
-          <div className="h-20 w-20 rounded-full bg-green-100 flex items-center justify-center">
-            <CheckCircle2 className="h-10 w-10 text-green-600" />
-          </div>
-        </div>
-        <div>
-          <h2 className="text-2xl font-bold">Questionnaire Submitted!</h2>
-          <p className="text-muted-foreground mt-2 text-sm leading-relaxed">
-            Thank you, <span className="font-medium text-foreground">{formData.fullName}</span>!
-            Your profile has been submitted. Your consultant will review your information
-            and reach out to you shortly.
-          </p>
-        </div>
-        <Button asChild>
-          <Link href="/user-dashboard">Return to Dashboard</Link>
-        </Button>
-      </div>
-    );
-  }
-
-  // â”€â”€ Main render â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  const saveBadge = saveStatus === "saving" ? (
+    <span className="flex items-center gap-1 text-xs text-muted-foreground">
+      <Loader2 className="h-3 w-3 animate-spin" />Saving…
+    </span>
+  ) : saveStatus === "saved" ? (
+    <span className="text-xs text-green-600">Saved</span>
+  ) : saveStatus === "error" ? (
+    <span className="text-xs text-destructive">Save failed</span>
+  ) : null;
 
   return (
-    <div className="w-full space-y-6 pb-10">
-
-      {/* Page header */}
-      <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" asChild>
-          <Link href="/user-dashboard">
-            <ChevronLeft className="h-4 w-4" />
-          </Link>
-        </Button>
-        <div className="flex-1">
-          <h1 className="text-xl font-bold">Immigration Assessment Questionnaire</h1>
-          <p className="text-sm text-muted-foreground">
-            Complete your profile so your consultant can assess your eligibility
-          </p>
-        </div>
-        {saveStatus === "saving" && (
-          <span className="text-xs text-muted-foreground flex items-center gap-1 shrink-0">
-            <Loader2 className="h-3 w-3 animate-spin" />Saving…
-          </span>
-        )}
-        {saveStatus === "saved" && (
-          <span className="text-xs text-green-600 shrink-0">âœ“ Saved</span>
-        )}
-        {saveStatus === "error" && (
-          <span className="text-xs text-destructive shrink-0">Save failed</span>
-        )}
-      </div>
-
+    <ClientJourneyPageChrome
+      stepId="questionnaire"
+      description="Complete your profile so your consultant can assess your eligibility and recommend the best pathway."
+      extra={saveBadge}
+    >
       {/* Step indicator */}
       <StepIndicator step={step} />
+
+      {Object.values(fieldRemarks).some((r) => r.status === "pending") && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-4">
+          <p className="flex items-center gap-2 text-sm font-semibold text-amber-900">
+            <RotateCcw className="size-4" />
+            Your consultant requested corrections
+          </p>
+          <p className="mt-1 text-xs text-amber-800">
+            Please review the notes below, update the highlighted fields, and save your changes.
+          </p>
+          <ul className="mt-3 space-y-2">
+            {Object.entries(fieldRemarks)
+              .filter(([, r]) => r.status === "pending")
+              .map(([key, r]) => (
+                <li key={key} className="rounded-lg border border-amber-200/80 bg-white/70 px-3 py-2 text-xs">
+                  <p className="font-semibold text-foreground">{remarkLabel(key)}</p>
+                  <p className="mt-0.5 flex items-start gap-1.5 text-amber-900">
+                    <MessageSquare className="mt-0.5 size-3 shrink-0" />
+                    {r.remark}
+                  </p>
+                </li>
+              ))}
+          </ul>
+        </div>
+      )}
 
       {/* â”€â”€ STEP 1 â”€â”€ */}
       {step === 1 && (
@@ -3421,6 +3571,7 @@ export function QuestionnaireForm() {
             <Step1Form
               data={formData}
               errors={errors}
+              fieldRemarks={fieldRemarks}
               onChange={setField}
               onSpouseName={(name) => setSpouse("fullName", name)}
               onChildName={(i, name) => setChild(i, "name", name)}
@@ -3466,19 +3617,41 @@ export function QuestionnaireForm() {
               </TabsList>
 
               <TabsContent value="main">
-                <MainApplicantTab data={formData.main} onChange={setMain} onDocUpload={handleDocUpload} />
+                <MainApplicantTab
+                  data={formData.main}
+                  onChange={setMain}
+                  onDocUpload={handleDocUpload}
+                  fieldRemarks={fieldRemarks}
+                />
               </TabsContent>
               <TabsContent value="spouse">
-                <SpouseTab data={formData.spouse} onChange={setSpouse} onDocUpload={handleDocUpload} />
+                <SpouseTab
+                  data={formData.spouse}
+                  onChange={setSpouse}
+                  onDocUpload={handleDocUpload}
+                  fieldRemarks={fieldRemarks}
+                />
               </TabsContent>
               {formData.children.map((child, i) => (
                 <TabsContent key={`child_${i}`} value={`child_${i}`}>
-                  <ChildSingleTab data={child} onChange={(f, v) => setChild(i, f, v)} onDocUpload={handleDocUpload} />
+                  <ChildSingleTab
+                    data={child}
+                    onChange={(f, v) => setChild(i, f, v)}
+                    onDocUpload={handleDocUpload}
+                    fieldRemarks={fieldRemarks}
+                    childIndex={i}
+                  />
                 </TabsContent>
               ))}
               {formData.accompanying.map((person, i) => (
                 <TabsContent key={`accompanying_${i}`} value={`accompanying_${i}`}>
-                  <AccompanyingPersonSingleTab data={person} onChange={(f, v) => setAccompanying(i, f, v)} onDocUpload={handleDocUpload} />
+                  <AccompanyingPersonSingleTab
+                    data={person}
+                    onChange={(f, v) => setAccompanying(i, f, v)}
+                    onDocUpload={handleDocUpload}
+                    fieldRemarks={fieldRemarks}
+                    personIndex={i}
+                  />
                 </TabsContent>
               ))}
             </Tabs>
@@ -3564,6 +3737,6 @@ export function QuestionnaireForm() {
           </>
         )}
       </div>
-    </div>
+    </ClientJourneyPageChrome>
   );
 }

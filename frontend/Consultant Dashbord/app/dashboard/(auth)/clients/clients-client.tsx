@@ -23,10 +23,20 @@ import {
   List,
   SlidersHorizontal,
   X,
+  MessageCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -84,7 +94,7 @@ function authHeaders() {
   const token = typeof window !== "undefined" ? localStorage.getItem("wtc_consultant_token") : null;
   return {
     "Content-Type": "application/json",
-    "Accept": "application/json",
+    Accept: "application/json",
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
   };
 }
@@ -94,43 +104,140 @@ function formatDate(iso: string | null) {
   return new Date(iso).toLocaleDateString("en-CA", { year: "numeric", month: "short", day: "numeric" });
 }
 
+function clientPhone(client: Client): string | null {
+  return client.user.phone ?? client.phone;
+}
+
+function toWhatsAppUrl(phone: string): string {
+  let digits = phone.replace(/\D/g, "");
+  if (digits.length === 10) digits = `1${digits}`;
+  return `https://wa.me/${digits}`;
+}
+
+function initials(name: string) {
+  return name
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0]?.toUpperCase())
+    .join("");
+}
+
 const PATHWAY_COLORS: Record<string, string> = {
-  "Express Entry":        "bg-blue-100 text-blue-700 border-blue-200",
-  "PNP":                  "bg-purple-100 text-purple-700 border-purple-200",
-  "Family Sponsorship":   "bg-pink-100 text-pink-700 border-pink-200",
-  "Study Permit":         "bg-amber-100 text-amber-700 border-amber-200",
-  "Work Permit":          "bg-green-100 text-green-700 border-green-200",
-  "Refugee":              "bg-red-100 text-red-700 border-red-200",
+  "Express Entry": "bg-blue-500/10 text-blue-700 border-blue-200/60",
+  PNP: "bg-violet-500/10 text-violet-700 border-violet-200/60",
+  "Family Sponsorship": "bg-pink-500/10 text-pink-700 border-pink-200/60",
+  "Study Permit": "bg-amber-500/10 text-amber-700 border-amber-200/60",
+  "Work Permit": "bg-emerald-500/10 text-emerald-700 border-emerald-200/60",
+  Refugee: "bg-red-500/10 text-red-700 border-red-200/60",
 };
 
 function filterClients(clients: Client[], name: string, email: string, phone: string): Client[] {
   const n = name.trim().toLowerCase();
   const e = email.trim().toLowerCase();
   const p = phone.trim().replace(/\D/g, "");
-  return clients.filter(c => {
+  return clients.filter((c) => {
     if (n && !c.user.name.toLowerCase().includes(n)) return false;
     if (e && !c.user.email.toLowerCase().includes(e)) return false;
     if (p) {
-      const clientPhone = (c.user.phone ?? c.phone ?? "").replace(/\D/g, "");
-      if (!clientPhone.includes(p)) return false;
+      const clientPhoneDigits = (clientPhone(c) ?? "").replace(/\D/g, "");
+      if (!clientPhoneDigits.includes(p)) return false;
     }
     return true;
   });
 }
 
+function EmailLink({ email }: { email: string }) {
+  return (
+    <a
+      href={`mailto:${email}`}
+      onClick={(e) => e.stopPropagation()}
+      className="inline-flex max-w-full items-center gap-1.5 truncate text-sm text-primary underline-offset-4 hover:underline"
+      title={`Email ${email}`}
+    >
+      <Mail className="size-3.5 shrink-0 opacity-70" />
+      <span className="truncate">{email}</span>
+    </a>
+  );
+}
+
+function PhoneLink({ phone }: { phone: string }) {
+  return (
+    <a
+      href={toWhatsAppUrl(phone)}
+      target="_blank"
+      rel="noopener noreferrer"
+      onClick={(e) => e.stopPropagation()}
+      className="inline-flex items-center gap-1.5 text-sm text-emerald-700 underline-offset-4 hover:text-emerald-800 hover:underline dark:text-emerald-400 dark:hover:text-emerald-300"
+      title={`Open WhatsApp chat with ${phone}`}
+    >
+      <MessageCircle className="size-3.5 shrink-0" />
+      <span>{phone}</span>
+    </a>
+  );
+}
+
+function ClientActions({
+  client,
+  resending,
+  onResend,
+  onDelete,
+}: {
+  client: Client;
+  resending: number | null;
+  onResend: (client: Client) => void;
+  onDelete: (client: Client) => void;
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+        <Button variant="ghost" size="icon" className="size-8 shrink-0">
+          <MoreHorizontal className="size-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+        <DropdownMenuItem asChild>
+          <Link href={`/dashboard/clients/${client.id}`}>
+            <Eye className="mr-2 size-4" />
+            View profile
+          </Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => onResend(client)} disabled={resending === client.id}>
+          {resending === client.id ? (
+            <>
+              <Loader2 className="mr-2 size-4 animate-spin" />
+              Sending…
+            </>
+          ) : (
+            <>
+              <Send className="mr-2 size-4" />
+              Resend invite
+            </>
+          )}
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem className="text-red-600 focus:text-red-600" onClick={() => onDelete(client)}>
+          <Trash2 className="mr-2 size-4" />
+          Remove client
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 export function ClientsPageClient() {
   const router = useRouter();
-  const [pagination,  setPagination]  = useState<Pagination | null>(null);
-  const [allClients,  setAllClients]  = useState<Client[]>([]);
-  const [loading,     setLoading]     = useState(true);
-  const [error,       setError]       = useState("");
-  const [page,        setPage]        = useState(1);
-  const [deleting,    setDeleting]    = useState<Client | null>(null);
-  const [resending,   setResending]   = useState<number | null>(null);
-  const [toast,       setToast]       = useState<{ msg: string; type: "success" | "error" } | null>(null);
-  const [layout,      setLayout]      = useState<Layout>("grid");
+  const [pagination, setPagination] = useState<Pagination | null>(null);
+  const [allClients, setAllClients] = useState<Client[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [page, setPage] = useState(1);
+  const [deleting, setDeleting] = useState<Client | null>(null);
+  const [resending, setResending] = useState<number | null>(null);
+  const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
+  const [layout, setLayout] = useState<Layout>("list");
   const [showFilters, setShowFilters] = useState(false);
-  const [filterName,  setFilterName]  = useState("");
+  const [filterName, setFilterName] = useState("");
   const [filterEmail, setFilterEmail] = useState("");
   const [filterPhone, setFilterPhone] = useState("");
 
@@ -141,24 +248,29 @@ export function ClientsPageClient() {
     setTimeout(() => setToast(null), 3500);
   };
 
-  const load = useCallback(async (p = page) => {
-    setLoading(true);
-    setError("");
-    try {
-      const params = new URLSearchParams({ page: String(p), per_page: "200" });
-      const res  = await fetch(`${API}/consultant/clients?${params}`, { headers: authHeaders() });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json?.message ?? "Failed to load clients.");
-      setPagination(json);
-      setAllClients(json.data ?? []);
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Failed to load clients.");
-    } finally {
-      setLoading(false);
-    }
-  }, [page]);
+  const load = useCallback(
+    async (p = page) => {
+      setLoading(true);
+      setError("");
+      try {
+        const params = new URLSearchParams({ page: String(p), per_page: "200" });
+        const res = await fetch(`${API}/consultant/clients?${params}`, { headers: authHeaders() });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json?.message ?? "Failed to load clients.");
+        setPagination(json);
+        setAllClients(json.data ?? []);
+      } catch (e: unknown) {
+        setError(e instanceof Error ? e.message : "Failed to load clients.");
+      } finally {
+        setLoading(false);
+      }
+    },
+    [page],
+  );
 
-  useEffect(() => { load(page); }, [page]);
+  useEffect(() => {
+    load(page);
+  }, [page]);
 
   const clearFilters = () => {
     setFilterName("");
@@ -174,8 +286,8 @@ export function ClientsPageClient() {
       });
       if (!res.ok) throw new Error("Failed to remove client.");
       showToast("Client removed successfully.");
-      setAllClients(prev => prev.filter(c => c.id !== client.id));
-      if (pagination) setPagination(prev => prev ? { ...prev, total: prev.total - 1 } : prev);
+      setAllClients((prev) => prev.filter((c) => c.id !== client.id));
+      if (pagination) setPagination((prev) => (prev ? { ...prev, total: prev.total - 1 } : prev));
     } catch (e: unknown) {
       showToast(e instanceof Error ? e.message : "Failed to remove client.", "error");
     } finally {
@@ -201,287 +313,343 @@ export function ClientsPageClient() {
   };
 
   const clients = filterClients(allClients, filterName, filterEmail, filterPhone);
+  const openClient = (id: number) => router.push(`/dashboard/clients/${id}`);
 
-  const CardItem = ({ client }: { client: Client }) => (
-    <div
-      className="rounded-xl border bg-card p-5 shadow-sm hover:shadow-md transition-shadow cursor-pointer"
-      onClick={() => router.push(`/dashboard/clients/${client.id}`)}
-    >
-      <div className="flex items-start justify-between gap-2 mb-3">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary font-bold text-sm uppercase shrink-0">
-            {client.user.name.charAt(0)}
+  const CardItem = ({ client }: { client: Client }) => {
+    const phone = clientPhone(client);
+    return (
+      <div
+        className="cursor-pointer rounded-xl border border-border/70 bg-card p-5 shadow-sm transition-all hover:border-primary/20 hover:shadow-md"
+        onClick={() => openClient(client.id)}
+      >
+        <div className="mb-4 flex items-start justify-between gap-2">
+          <div className="flex items-center gap-3">
+            <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-sm font-bold text-primary">
+              {initials(client.user.name) || client.user.name.charAt(0)}
+            </div>
+            <div>
+              <p className="font-semibold leading-tight">{client.user.name}</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">Added {formatDate(client.created_at)}</p>
+            </div>
           </div>
-          <div>
-            <p className="font-semibold leading-tight">{client.user.name}</p>
-            <p className="text-xs text-muted-foreground mt-0.5">Added {formatDate(client.created_at)}</p>
-          </div>
+          <ClientActions
+            client={client}
+            resending={resending}
+            onResend={handleResendInvite}
+            onDelete={setDeleting}
+          />
         </div>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild onClick={e => e.stopPropagation()}>
-            <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
-              <MoreHorizontal className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" onClick={e => e.stopPropagation()}>
-            <DropdownMenuItem asChild>
-              <Link href={`/dashboard/clients/${client.id}`}><Eye className="mr-2 h-4 w-4" /> View Profile</Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => handleResendInvite(client)} disabled={resending === client.id}>
-              {resending === client.id
-                ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Sending&hellip;</>
-                : <><Send className="mr-2 h-4 w-4" /> Resend Invite</>}
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem className="text-red-600 focus:text-red-600" onClick={() => setDeleting(client)}>
-              <Trash2 className="mr-2 h-4 w-4" /> Remove Client
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
-      <div className="space-y-1.5 text-sm text-muted-foreground mb-3">
-        <div className="flex items-center gap-2"><Mail className="h-3.5 w-3.5 shrink-0" /><span className="truncate">{client.user.email}</span></div>
-        {(client.user.phone ?? client.phone) && (
-          <div className="flex items-center gap-2"><Phone className="h-3.5 w-3.5 shrink-0" /><span>{client.user.phone ?? client.phone}</span></div>
-        )}
-        {client.passport_number && (
-          <div className="flex items-center gap-2"><Globe className="h-3.5 w-3.5 shrink-0" /><span className="font-mono text-xs">{client.passport_number}</span></div>
-        )}
-      </div>
-      {client.immigration_pathway && (
-        <Badge variant="outline" className={cn("text-xs", PATHWAY_COLORS[client.immigration_pathway] ?? "bg-gray-100 text-gray-700 border-gray-200")}>
-          {client.immigration_pathway}
-        </Badge>
-      )}
-    </div>
-  );
-
-  const ListItem = ({ client }: { client: Client }) => (
-    <div
-      className="flex items-center gap-4 rounded-xl border bg-card px-5 py-3.5 hover:shadow-sm transition-shadow cursor-pointer"
-      onClick={() => router.push(`/dashboard/clients/${client.id}`)}
-    >
-      <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary font-bold text-sm uppercase shrink-0">
-        {client.user.name.charAt(0)}
-      </div>
-      <div className="flex-1 min-w-0 grid sm:grid-cols-3 gap-1 sm:gap-4">
-        <div className="min-w-0">
-          <p className="font-semibold truncate leading-tight">{client.user.name}</p>
-          <p className="text-xs text-muted-foreground">Added {formatDate(client.created_at)}</p>
-        </div>
-        <div className="min-w-0 flex flex-col gap-0.5 text-sm text-muted-foreground">
-          <span className="flex items-center gap-1.5 truncate"><Mail className="h-3.5 w-3.5 shrink-0" />{client.user.email}</span>
-          {(client.user.phone ?? client.phone) && (
-            <span className="flex items-center gap-1.5"><Phone className="h-3.5 w-3.5 shrink-0" />{client.user.phone ?? client.phone}</span>
+        <div className="space-y-2">
+          <EmailLink email={client.user.email} />
+          {phone && <PhoneLink phone={phone} />}
+          {client.passport_number && (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Globe className="size-3.5 shrink-0" />
+              <span className="font-mono">{client.passport_number}</span>
+            </div>
           )}
         </div>
-        <div className="hidden sm:flex items-center">
-          {client.immigration_pathway && (
-            <Badge variant="outline" className={cn("text-xs", PATHWAY_COLORS[client.immigration_pathway] ?? "bg-gray-100 text-gray-700 border-gray-200")}>
-              {client.immigration_pathway}
-            </Badge>
-          )}
-        </div>
+        {client.immigration_pathway && (
+          <Badge
+            variant="outline"
+            className={cn(
+              "mt-4 text-xs",
+              PATHWAY_COLORS[client.immigration_pathway] ?? "bg-muted text-muted-foreground",
+            )}
+          >
+            {client.immigration_pathway}
+          </Badge>
+        )}
       </div>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild onClick={e => e.stopPropagation()}>
-          <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
-            <MoreHorizontal className="h-4 w-4" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" onClick={e => e.stopPropagation()}>
-          <DropdownMenuItem asChild>
-            <Link href={`/dashboard/clients/${client.id}`}><Eye className="mr-2 h-4 w-4" /> View Profile</Link>
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => handleResendInvite(client)} disabled={resending === client.id}>
-            {resending === client.id
-              ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Sending&hellip;</>
-              : <><Send className="mr-2 h-4 w-4" /> Resend Invite</>}
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem className="text-red-600 focus:text-red-600" onClick={() => setDeleting(client)}>
-            <Trash2 className="mr-2 h-4 w-4" /> Remove Client
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </div>
-  );
+    );
+  };
 
   return (
     <div className="space-y-6 pb-10">
       {toast && (
-        <div className={cn(
-          "fixed top-4 right-4 z-50 px-4 py-3 rounded-lg shadow-lg text-sm font-medium",
-          toast.type === "success" ? "bg-green-600 text-white" : "bg-red-600 text-white"
-        )}>
+        <div
+          className={cn(
+            "fixed top-4 right-4 z-50 rounded-xl border px-4 py-2.5 text-sm font-medium shadow-lg backdrop-blur-sm",
+            toast.type === "success"
+              ? "border-emerald-200/80 bg-background text-emerald-800"
+              : "border-red-200/80 bg-background text-red-700",
+          )}
+        >
           {toast.msg}
         </div>
       )}
 
-      {/* Header */}
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">My Clients</h1>
-          <p className="text-muted-foreground text-sm mt-1">
-            {loading ? "Loading\u2026" : `${clients.length} of ${allClients.length} client${allClients.length !== 1 ? "s" : ""}`}
-          </p>
-        </div>
-        <Button asChild>
-          <Link href="/dashboard/clients/new">
-            <UserPlus className="mr-2 h-4 w-4" />
-            Add New Client
-          </Link>
-        </Button>
-      </div>
-
-      {/* Toolbar */}
-      <div className="space-y-3">
-        <div className="flex items-center gap-2 flex-wrap">
-          <div className="relative flex-1 min-w-[180px]">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              className="pl-9"
-              placeholder="Search by name"
-              value={filterName}
-              onChange={e => setFilterName(e.target.value)}
-            />
+      <section className="rounded-2xl border border-border/70 bg-gradient-to-br from-background via-background to-primary/5 p-5 shadow-sm">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="space-y-1">
+            <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight md:text-3xl">
+              <span className="flex size-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                <Users className="size-5" />
+              </span>
+              My clients
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              {loading
+                ? "Loading…"
+                : `${clients.length} of ${allClients.length} client${allClients.length !== 1 ? "s" : ""} in your practice`}
+            </p>
           </div>
-
-          <Button
-            variant={showFilters ? "default" : "outline"}
-            size="sm"
-            className="gap-1.5"
-            onClick={() => setShowFilters(v => !v)}
-          >
-            <SlidersHorizontal className="h-4 w-4" />
-            Filters
-            {hasActiveFilters && (
-              <span className="ml-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-white text-primary text-[10px] font-bold">!</span>
-            )}
+          <Button asChild className="shrink-0 rounded-xl">
+            <Link href="/dashboard/clients/new">
+              <UserPlus className="mr-2 size-4" />
+              Add new client
+            </Link>
           </Button>
+        </div>
+      </section>
 
-          {hasActiveFilters && (
-            <Button variant="ghost" size="sm" className="gap-1.5 text-muted-foreground" onClick={clearFilters}>
-              <X className="h-4 w-4" />
-              Clear
+      <Card className="border-border/70 shadow-sm">
+        <CardContent className="space-y-3 p-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative min-w-[200px] flex-1">
+              <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                className="h-9 rounded-xl bg-muted/20 pl-9"
+                placeholder="Search by name…"
+                value={filterName}
+                onChange={(e) => setFilterName(e.target.value)}
+              />
+            </div>
+
+            <Button
+              variant={showFilters ? "default" : "outline"}
+              size="sm"
+              className="gap-1.5 rounded-xl"
+              onClick={() => setShowFilters((v) => !v)}
+            >
+              <SlidersHorizontal className="size-4" />
+              Filters
+              {hasActiveFilters && (
+                <span className="ml-0.5 flex size-4 items-center justify-center rounded-full bg-background text-[10px] font-bold text-primary">
+                  !
+                </span>
+              )}
             </Button>
+
+            {hasActiveFilters && (
+              <Button variant="ghost" size="sm" className="gap-1.5 text-muted-foreground" onClick={clearFilters}>
+                <X className="size-4" />
+                Clear
+              </Button>
+            )}
+
+            <div className="ml-auto flex items-center overflow-hidden rounded-xl border">
+              <button
+                type="button"
+                className={cn(
+                  "p-2 transition-colors",
+                  layout === "list" ? "bg-primary text-primary-foreground" : "hover:bg-muted",
+                )}
+                onClick={() => setLayout("list")}
+                title="List view"
+              >
+                <List className="size-4" />
+              </button>
+              <button
+                type="button"
+                className={cn(
+                  "p-2 transition-colors",
+                  layout === "grid" ? "bg-primary text-primary-foreground" : "hover:bg-muted",
+                )}
+                onClick={() => setLayout("grid")}
+                title="Grid view"
+              >
+                <LayoutGrid className="size-4" />
+              </button>
+            </div>
+
+            <Button variant="ghost" size="icon" className="rounded-xl" onClick={() => load(page)} disabled={loading}>
+              <RefreshCw className={cn("size-4", loading && "animate-spin")} />
+            </Button>
+          </div>
+
+          {showFilters && (
+            <div className="grid gap-3 rounded-xl border border-border/60 bg-muted/15 p-4 sm:grid-cols-2">
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  className="h-9 rounded-xl bg-background pl-9"
+                  placeholder="Filter by email"
+                  value={filterEmail}
+                  onChange={(e) => setFilterEmail(e.target.value)}
+                />
+              </div>
+              <div className="relative">
+                <Phone className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  className="h-9 rounded-xl bg-background pl-9"
+                  placeholder="Filter by phone number"
+                  value={filterPhone}
+                  onChange={(e) => setFilterPhone(e.target.value)}
+                />
+              </div>
+            </div>
           )}
+        </CardContent>
+      </Card>
 
-          <div className="flex items-center rounded-md border overflow-hidden ml-auto">
-            <button
-              className={cn("p-1.5 transition-colors", layout === "grid" ? "bg-primary text-primary-foreground" : "hover:bg-muted")}
-              onClick={() => setLayout("grid")}
-              title="Grid view"
-            >
-              <LayoutGrid className="h-4 w-4" />
-            </button>
-            <button
-              className={cn("p-1.5 transition-colors", layout === "list" ? "bg-primary text-primary-foreground" : "hover:bg-muted")}
-              onClick={() => setLayout("list")}
-              title="List view"
-            >
-              <List className="h-4 w-4" />
-            </button>
-          </div>
-
-          <Button variant="ghost" size="icon" onClick={() => load(page)} disabled={loading}>
-            <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
-          </Button>
-        </div>
-
-        {showFilters && (
-          <div className="grid sm:grid-cols-2 gap-3 rounded-xl border bg-muted/40 p-4">
-            <div className="relative">
-              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                className="pl-9"
-                placeholder="Filter by email"
-                value={filterEmail}
-                onChange={e => setFilterEmail(e.target.value)}
-              />
-            </div>
-            <div className="relative">
-              <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                className="pl-9"
-                placeholder="Filter by phone number"
-                value={filterPhone}
-                onChange={e => setFilterPhone(e.target.value)}
-              />
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Error */}
       {error && (
-        <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-          <AlertCircle className="h-4 w-4 shrink-0" />
+        <div className="flex items-center gap-2 rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
+          <AlertCircle className="size-4 shrink-0" />
           {error}
           <Button variant="ghost" size="sm" className="ml-auto" onClick={() => load(page)}>
-            <RefreshCw className="h-4 w-4" />
+            <RefreshCw className="size-4" />
           </Button>
         </div>
       )}
 
-      {/* Loading */}
       {loading && (
-        <div className="flex items-center justify-center py-20 text-muted-foreground">
-          <Loader2 className="h-6 w-6 animate-spin mr-2" />
-          Loading clients&hellip;
+        <div className="flex items-center justify-center gap-2 py-20 text-muted-foreground">
+          <Loader2 className="size-5 animate-spin" />
+          Loading clients…
         </div>
       )}
 
-      {/* Empty state */}
       {!loading && !error && clients.length === 0 && (
-        <div className="flex flex-col items-center justify-center py-24 text-center">
-          <Users className="h-12 w-12 text-muted-foreground/40 mb-4" />
-          <h3 className="font-semibold text-lg mb-1">No clients found</h3>
-          <p className="text-muted-foreground text-sm mb-6 max-w-xs">
-            {hasActiveFilters
-              ? "No clients match your filters. Try adjusting or clearing them."
-              : "Get started by adding your first client. They\u2019ll receive an invitation email."}
-          </p>
-          {hasActiveFilters ? (
-            <Button variant="outline" onClick={clearFilters}><X className="mr-2 h-4 w-4" />Clear Filters</Button>
-          ) : (
-            <Button asChild>
-              <Link href="/dashboard/clients/new"><UserPlus className="mr-2 h-4 w-4" />Add New Client</Link>
-            </Button>
-          )}
-        </div>
+        <Card className="border-dashed border-border/70 shadow-none">
+          <CardContent className="flex flex-col items-center justify-center py-20 text-center">
+            <Users className="mb-4 size-12 text-muted-foreground/40" />
+            <h3 className="mb-1 text-lg font-semibold">No clients found</h3>
+            <p className="mb-6 max-w-sm text-sm text-muted-foreground">
+              {hasActiveFilters
+                ? "No clients match your filters. Try adjusting or clearing them."
+                : "Get started by adding your first client. They'll receive an invitation email."}
+            </p>
+            {hasActiveFilters ? (
+              <Button variant="outline" onClick={clearFilters} className="rounded-xl">
+                <X className="mr-2 size-4" />
+                Clear filters
+              </Button>
+            ) : (
+              <Button asChild className="rounded-xl">
+                <Link href="/dashboard/clients/new">
+                  <UserPlus className="mr-2 size-4" />
+                  Add new client
+                </Link>
+              </Button>
+            )}
+          </CardContent>
+        </Card>
       )}
 
-      {/* Client list */}
       {!loading && clients.length > 0 && (
         <>
-          {layout === "grid" ? (
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-              {clients.map(client => <CardItem key={client.id} client={client} />)}
-            </div>
+          {layout === "list" ? (
+            <Card className="overflow-hidden border-border/70 shadow-sm">
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="hover:bg-transparent">
+                      <TableHead className="min-w-[200px]">Client</TableHead>
+                      <TableHead className="min-w-[220px]">Email</TableHead>
+                      <TableHead className="min-w-[160px]">Phone / WhatsApp</TableHead>
+                      <TableHead>Pathway</TableHead>
+                      <TableHead>Added</TableHead>
+                      <TableHead className="w-[52px]" />
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {clients.map((client) => {
+                      const phone = clientPhone(client);
+                      return (
+                        <TableRow
+                          key={client.id}
+                          className="cursor-pointer"
+                          onClick={() => openClient(client.id)}
+                        >
+                          <TableCell>
+                            <div className="flex items-center gap-3">
+                              <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-xs font-bold text-primary">
+                                {initials(client.user.name) || client.user.name.charAt(0)}
+                              </div>
+                              <div className="min-w-0">
+                                <p className="truncate font-semibold leading-tight">{client.user.name}</p>
+                                {client.passport_number && (
+                                  <p className="truncate font-mono text-[10px] text-muted-foreground">
+                                    {client.passport_number}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <EmailLink email={client.user.email} />
+                          </TableCell>
+                          <TableCell>
+                            {phone ? (
+                              <PhoneLink phone={phone} />
+                            ) : (
+                              <span className="text-xs text-muted-foreground">—</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {client.immigration_pathway ? (
+                              <Badge
+                                variant="outline"
+                                className={cn(
+                                  "text-[10px]",
+                                  PATHWAY_COLORS[client.immigration_pathway] ?? "bg-muted text-muted-foreground",
+                                )}
+                              >
+                                {client.immigration_pathway}
+                              </Badge>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">—</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
+                            {formatDate(client.created_at)}
+                          </TableCell>
+                          <TableCell>
+                            <ClientActions
+                              client={client}
+                              resending={resending}
+                              onResend={handleResendInvite}
+                              onDelete={setDeleting}
+                            />
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            </Card>
           ) : (
-            <div className="flex flex-col gap-2">
-              {clients.map(client => <ListItem key={client.id} client={client} />)}
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              {clients.map((client) => (
+                <CardItem key={client.id} client={client} />
+              ))}
             </div>
           )}
 
           {pagination && pagination.last_page > 1 && (
-            <div className="flex items-center justify-center gap-2 pt-4">
-              <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>
-                <ChevronLeft className="h-4 w-4" />
+            <div className="flex items-center justify-center gap-2 pt-2">
+              <Button variant="outline" size="sm" className="rounded-xl" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
+                <ChevronLeft className="size-4" />
               </Button>
               <span className="text-sm text-muted-foreground">
                 Page {pagination.current_page} of {pagination.last_page}
               </span>
-              <Button variant="outline" size="sm" disabled={page >= pagination.last_page} onClick={() => setPage(p => p + 1)}>
-                <ChevronRight className="h-4 w-4" />
+              <Button
+                variant="outline"
+                size="sm"
+                className="rounded-xl"
+                disabled={page >= pagination.last_page}
+                onClick={() => setPage((p) => p + 1)}
+              >
+                <ChevronRight className="size-4" />
               </Button>
             </div>
           )}
         </>
       )}
 
-      {/* Delete confirmation dialog */}
       <AlertDialog open={!!deleting} onOpenChange={(o) => !o && setDeleting(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>

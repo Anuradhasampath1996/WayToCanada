@@ -11,6 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { WorkspaceBreadcrumb } from "../workspace-flow-ui";
 import { ConsultantInteractiveFormsPanel } from "./consultant-interactive-forms-panel";
 import {
   CaseHubProgressHeader, CaseHubOverview, CaseHubLocked,
@@ -261,6 +262,8 @@ export function CaseManagementClient({ paramsPromise }: { paramsPromise: Promise
   const [statusMenuOpen, setStatusMenuOpen] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState(false);
   const [pdfViewer, setPdfViewer] = useState<{ title: string; streamUrl: string } | null>(null);
+  const [togglingCheckId, setTogglingCheckId] = useState<string | null>(null);
+  const [checklistData, setChecklistData] = useState<Record<string, boolean>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const openPdf = (title: string, streamUrl: string) => setPdfViewer({ title, streamUrl });
@@ -291,6 +294,11 @@ export function CaseManagementClient({ paramsPromise }: { paramsPromise: Promise
       setCaseManagementUnlocked(Boolean(hubJson.case_management_unlocked));
       setHubProgress(hubJson.progress ?? null);
       setRequirements(hubJson.document_requirements ?? []);
+      setChecklistData(
+        Object.fromEntries(
+          (hubJson.document_requirements ?? []).map((r: HubRequirement) => [r.id, r.checked]),
+        ),
+      );
       setIrccForms(hubJson.ircc_forms ?? []);
       setHubPackage(hubJson.application_package ?? null);
       setDocuments(hubJson.documents ?? []);
@@ -328,6 +336,28 @@ export function CaseManagementClient({ paramsPromise }: { paramsPromise: Promise
       showToast(e instanceof Error ? e.message : "Failed to send.", "error");
     } finally {
       setSending(false);
+    }
+  };
+
+  const toggleChecklist = async (docId: string, checked: boolean) => {
+    const next = { ...checklistData, [docId]: checked };
+    setTogglingCheckId(docId);
+    setChecklistData(next);
+    setRequirements((prev) => prev.map((r) => (r.id === docId ? { ...r, checked } : r)));
+    try {
+      const res = await fetch(`${API}/consultant/clients/${id}/case-file/checklist`, {
+        method: "PATCH",
+        headers: authHeaders(),
+        body: JSON.stringify({ checklist_data: next }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.message ?? "Failed to update checklist.");
+    } catch (e: unknown) {
+      setChecklistData((prev) => ({ ...prev, [docId]: !checked }));
+      setRequirements((prev) => prev.map((r) => (r.id === docId ? { ...r, checked: !checked } : r)));
+      showToast(e instanceof Error ? e.message : "Checklist update failed.", "error");
+    } finally {
+      setTogglingCheckId(null);
     }
   };
 
@@ -399,7 +429,7 @@ export function CaseManagementClient({ paramsPromise }: { paramsPromise: Promise
   ];
 
   return (
-    <div className="max-w-4xl mx-auto pb-16">
+    <div className="w-full px-4 py-6 pb-16">
       {/* Toast */}
       {toast && (
         <div className={cn(
@@ -411,12 +441,16 @@ export function CaseManagementClient({ paramsPromise }: { paramsPromise: Promise
         </div>
       )}
 
-      {/* Header */}
-      <div className="mb-6">
-        <Button variant="ghost" size="sm" asChild className="-ml-2">
-          <Link href={`/dashboard/clients/${id}/workspace`}><ArrowLeft className="mr-1.5 h-4 w-4" />Back to Workspace</Link>
+      <div className="mb-4">
+        <Button variant="ghost" size="sm" asChild className="-ml-2 rounded-lg">
+          <Link href={`/dashboard/clients/${id}/workspace`}>
+            <ArrowLeft className="mr-1.5 size-4" />
+            Back to case workspace
+          </Link>
         </Button>
       </div>
+
+      <WorkspaceBreadcrumb profileId={id} workspaceStep={4} pageLabel="Case management" />
 
       <div className="flex items-start justify-between gap-4 flex-wrap mb-6">
         <div>
@@ -536,6 +570,7 @@ export function CaseManagementClient({ paramsPromise }: { paramsPromise: Promise
           nextActions={nextActions}
           onViewPdf={openPdf}
           buildPackageDocStreamUrl={packageDocStreamUrl}
+          onActionClick={(tab) => setActiveTab(tab as typeof activeTab)}
         />
       )}
 
@@ -547,6 +582,8 @@ export function CaseManagementClient({ paramsPromise }: { paramsPromise: Promise
             <DocumentRequirementsGrid
               requirements={requirements}
               consultantView
+              onToggleCheck={toggleChecklist}
+              togglingCheckId={togglingCheckId}
               onReview={(submissionId) => {
                 const doc = documents.find((d) => d.id === submissionId);
                 if (doc) setReviewDoc(doc);
@@ -646,7 +683,7 @@ export function CaseManagementClient({ paramsPromise }: { paramsPromise: Promise
       )}
 
       {activeTab === "forms" && (
-        <ConsultantInteractiveFormsPanel profileId={id} />
+        <ConsultantInteractiveFormsPanel profileId={id} onVerificationChange={() => void load()} />
       )}
 
       {/* ── MESSAGES TAB ── */}
@@ -704,10 +741,11 @@ export function CaseManagementClient({ paramsPromise }: { paramsPromise: Promise
           profileId={id}
           onClose={() => setReviewDoc(null)}
           onViewPdf={openPdf}
-          onDone={updated => {
+          onDone={async (updated) => {
             setDocuments(prev => prev.map(d => d.id === updated.id ? updated : d));
             setReviewDoc(null);
             showToast("Document review saved.");
+            await load();
           }}
         />
       )}

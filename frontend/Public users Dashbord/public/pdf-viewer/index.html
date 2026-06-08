@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>PDF Viewer</title>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/web/pdf_viewer.css" />
+  <link rel="stylesheet" href="/pdf-viewer/vendor/web/pdf_viewer.css" />
   <style>
     html, body {
       margin: 0;
@@ -32,25 +32,38 @@
       color: #fff;
       text-align: center;
       font-family: system-ui, sans-serif;
+      font-size: 14px;
+      line-height: 1.5;
     }
     #errorBox.visible { display: flex; }
+    #nativeFallback {
+      display: none;
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      border: 0;
+    }
+    #nativeFallback.visible { display: block; }
   </style>
 </head>
 <body>
   <div id="outerContainer">
     <div id="viewerContainer"></div>
+    <iframe id="nativeFallback" title="PDF fallback"></iframe>
     <div id="errorBox"></div>
   </div>
   <script type="module">
-    import * as pdfjsLib from "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.mjs";
-    import { EventBus, PDFViewer } from "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/web/pdf_viewer.mjs";
+    import * as pdfjsLib from "/pdf-viewer/vendor/build/pdf.mjs";
+    import { EventBus, PDFViewer } from "/pdf-viewer/vendor/web/pdf_viewer.mjs";
 
-    const PDFJS = "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38";
+    const PDFJS = "/pdf-viewer/vendor";
     pdfjsLib.GlobalWorkerOptions.workerSrc = `${PDFJS}/build/pdf.worker.mjs`;
 
     const eventBus = new EventBus();
     const container = document.getElementById("viewerContainer");
     const errorBox = document.getElementById("errorBox");
+    const nativeFallback = document.getElementById("nativeFallback");
 
     const pdfViewer = new PDFViewer({
       container,
@@ -68,18 +81,33 @@
 
     function showError(message) {
       container.style.display = "none";
+      nativeFallback.classList.remove("visible");
       errorBox.textContent = message;
       errorBox.classList.add("visible");
       notifyParent({ type: "error", message });
     }
 
+    function showNativeFallback(url) {
+      container.style.display = "none";
+      errorBox.classList.remove("visible");
+      nativeFallback.src = url;
+      nativeFallback.classList.add("visible");
+      notifyParent({ type: "loaded", numPages: 1, nativeFallback: true });
+    }
+
     async function loadPdf(data) {
       try {
         errorBox.classList.remove("visible");
+        nativeFallback.classList.remove("visible");
+        nativeFallback.removeAttribute("src");
         container.style.display = "block";
 
+        const bytes = data instanceof Uint8Array
+          ? data
+          : new Uint8Array(data instanceof ArrayBuffer ? data : data.buffer || data);
+
         const loadingTask = pdfjsLib.getDocument({
-          data,
+          data: bytes,
           enableXfa: true,
           cMapUrl: `${PDFJS}/cmaps/`,
           cMapPacked: true,
@@ -104,10 +132,11 @@
       if (!msg || msg.target !== "wtc-pdf-viewer") return;
 
       if (msg.type === "load-bytes" && msg.data) {
-        const bytes = msg.data instanceof ArrayBuffer
-          ? new Uint8Array(msg.data)
-          : new Uint8Array(msg.data);
-        loadPdf(bytes);
+        loadPdf(msg.data);
+      }
+
+      if (msg.type === "load-url" && msg.url) {
+        showNativeFallback(msg.url);
       }
 
       if (msg.type === "set-scale" && typeof msg.scale === "number") {
@@ -117,6 +146,14 @@
       if (msg.type === "set-page" && typeof msg.page === "number") {
         pdfViewer.currentPageNumber = msg.page;
       }
+    });
+
+    window.addEventListener("error", (event) => {
+      showError(event.message || "PDF viewer failed to load.");
+    });
+
+    window.addEventListener("unhandledrejection", (event) => {
+      showError(event.reason?.message || "PDF viewer failed to load.");
     });
 
     notifyParent({ type: "ready" });

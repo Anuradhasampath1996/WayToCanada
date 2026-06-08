@@ -5,503 +5,156 @@ import {
   SidebarGroupContent,
   SidebarGroupLabel,
   SidebarMenu,
-  SidebarMenuBadge,
-  SidebarMenuButton,
   SidebarMenuItem,
-  SidebarMenuSub,
-  SidebarMenuSubButton,
-  SidebarMenuSubItem,
-  useSidebar
 } from "@/components/ui/sidebar";
 import {
-  ActivityIcon,
-  ArchiveRestoreIcon,
-  BadgeDollarSignIcon,
-  BrainCircuitIcon,
-  BrainIcon,
-  Building2Icon,
-  CalendarIcon,
-  ChartBarDecreasingIcon,
-  ChartPieIcon,
-  ChevronRight,
-  ClipboardCheckIcon,
-  ClipboardMinusIcon,
-  ComponentIcon,
-  CookieIcon,
-  FingerprintIcon,
-  FolderDotIcon,
-  FolderIcon,
-  GaugeIcon,
-  GraduationCapIcon,
   HomeIcon,
-  ImagesIcon,
-  KeyIcon,
-  MailIcon,
-  MessageSquareIcon,
-  ProportionsIcon,
-  SettingsIcon,
-  ShoppingBagIcon,
-  SquareCheckIcon,
+  ScaleIcon,
   SquareKanbanIcon,
-  StickyNoteIcon,
-  UserIcon,
+  UserPlusIcon,
   UsersIcon,
-  WalletMinimalIcon,
   type LucideIcon,
-  GithubIcon,
-  RedoDotIcon,
-  BrushCleaningIcon,
-  CreditCardIcon,
-  SpeechIcon,
-  MessageSquareHeartIcon,
-  BookAIcon,
-  PuzzleIcon,
-  BellIcon
 } from "lucide-react";
 import Link from "next/link";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { usePathname } from "next/navigation";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuTrigger
-} from "@/components/ui/dropdown-menu";
-
-type NavGroup = {
-  title: string;
-  items: NavItem;
-};
+import { cn } from "@/lib/utils";
 
 type NavItem = {
   title: string;
   href: string;
-  icon?: LucideIcon;
-  isComing?: boolean;
-  isDataBadge?: string;
-  isNew?: boolean;
-  newTab?: boolean;
-  items?: NavItem;
-}[];
+  description?: string;
+  icon: LucideIcon;
+  badge?: string;
+  match?: (pathname: string) => boolean;
+};
+
+type NavGroup = {
+  title: string;
+  items: NavItem[];
+};
 
 export const navItems: NavGroup[] = [
   {
-    title: "Main",
+    title: "Overview",
     items: [
       {
         title: "Dashboard",
         href: "/consultantdashboard",
+        description: "Home & activity",
         icon: HomeIcon,
+        match: (p) => p === "/consultantdashboard" || p === "/dashboard/default",
+      },
+      {
+        title: "Legislations Hub",
+        href: "/dashboard/legislations",
+        description: "Acts & regulations",
+        icon: ScaleIcon,
+        badge: "New",
+        match: (p) => p.startsWith("/dashboard/legislations"),
       },
     ],
   },
   {
-    title: "My Clients",
+    title: "Client Work",
     items: [
       {
         title: "All Clients",
         href: "/dashboard/clients",
+        description: "Profiles & workspaces",
         icon: UsersIcon,
+        match: (p) =>
+          p.startsWith("/dashboard/clients") && !p.startsWith("/dashboard/clients/new"),
       },
       {
         title: "Add New Client",
         href: "/dashboard/clients/new",
-        icon: UserIcon,
-        isNew: true,
+        description: "Invite a new applicant",
+        icon: UserPlusIcon,
+        match: (p) => p.startsWith("/dashboard/clients/new"),
       },
       {
-        title: "Case Pipeline",
+        title: "Application Progress Board",
         href: "/dashboard/case-pipeline",
+        description: "Retainer to submission stages",
         icon: SquareKanbanIcon,
+        match: (p) => p.startsWith("/dashboard/case-pipeline"),
       },
     ],
   },
-  {
-    title: "Dashboards",
-    items: [
-      {
-        title: "Classic Dashboard",
-        href: "/dashboard/default",
-        icon: ChartPieIcon
-      },
-      {
-        title: "E-commerce",
-        href: "#",
-        icon: ShoppingBagIcon,
-        items: [
-          { title: "Dashboard", href: "/dashboard/ecommerce" },
-          { title: "Product List", href: "/dashboard/pages/products" },
-          { title: "Product Detail", href: "/dashboard/pages/products/1" },
-          { title: "Add Product", href: "/dashboard/pages/products/create" },
-          { title: "Order List", href: "/dashboard/pages/orders" },
-          { title: "Order Detail", href: "/dashboard/pages/orders/detail" }
-        ]
-      },
-      {
-        title: "Payment Dashboard",
-        href: "/dashboard/payment",
-        icon: CreditCardIcon,
-        items: [
-          { title: "Dashboard", href: "/dashboard/payment" },
-          { title: "Transactions", href: "/dashboard/payment/transactions" }
-        ]
-      },
-      {
-        title: "Hotel Dashboard",
-        href: "/dashboard/hotel",
-        icon: Building2Icon,
-        items: [
-          { title: "Dashboard", href: "/dashboard/hotel" },
-          { title: "Bookings", href: "/dashboard/hotel/bookings" }
-        ]
-      },
-      {
-        title: "Project Management",
-        href: "/dashboard/project-management",
-        icon: FolderDotIcon,
-        items: [
-          { title: "Dashboard", href: "/dashboard/project-management" },
-          { title: "Project List", href: "/dashboard/project-list" }
-        ]
-      },
-      {
-        title: "Real Estate",
-        href: "/dashboard/real-estate",
-        icon: Building2Icon,
-        items: [
-          { title: "Dashboard", href: "/dashboard/real-estate" },
-          { title: "Listings", href: "/dashboard/real-estate/list" },
-          { title: "Detail Page", href: "/dashboard/real-estate/detail" },
-          { title: "Filter", href: "/dashboard/real-estate/filter" }
-        ]
-      },
-      { title: "Sales", href: "/dashboard/sales", icon: BadgeDollarSignIcon },
-      { title: "CRM", href: "/dashboard/crm", icon: ChartBarDecreasingIcon },
-      {
-        title: "Website Analytics",
-        href: "/dashboard/website-analytics",
-        icon: GaugeIcon
-      },
-      {
-        title: "File Manager",
-        href: "/dashboard/file-manager",
-        icon: FolderIcon
-      },
-      { title: "Crypto", href: "/dashboard/crypto", icon: WalletMinimalIcon },
-      { title: "Academy/School", href: "/dashboard/academy", icon: GraduationCapIcon },
-      { title: "Hospital Management", href: "/dashboard/hospital-management", icon: ActivityIcon },
-      {
-        title: "Finance Dashboard",
-        href: "/dashboard/finance",
-        icon: WalletMinimalIcon
-      }
-    ]
-  },
-  {
-    title: "Apps",
-    items: [
-      {
-        title: "Kanban",
-        href: "/dashboard/apps/kanban",
-        icon: SquareKanbanIcon
-      },
-      { title: "Notes", href: "/dashboard/apps/notes", icon: StickyNoteIcon, isDataBadge: "8" },
-      { title: "Chats", href: "/dashboard/apps/chat", icon: MessageSquareIcon, isDataBadge: "5" },
-      {
-        title: "Social Media",
-        href: "/dashboard/apps/social-media",
-        icon: MessageSquareHeartIcon,
-        isNew: true
-      },
-      { title: "Mail", href: "/dashboard/apps/mail", icon: MailIcon },
-      {
-        title: "Todo List App",
-        href: "/dashboard/apps/todo-list-app",
-        icon: SquareCheckIcon
-      },
-      {
-        title: "Tasks",
-        href: "/dashboard/apps/tasks",
-        icon: ClipboardCheckIcon
-      },
-      { title: "Calendar", href: "/dashboard/apps/calendar", icon: CalendarIcon },
-      {
-        title: "File Manager",
-        href: "/dashboard/apps/file-manager",
-        icon: ArchiveRestoreIcon,
-        isNew: true
-      },
-      { title: "Api Keys", href: "/dashboard/apps/api-keys", icon: KeyIcon },
-      { title: "POS App", href: "/dashboard/apps/pos-system", icon: CookieIcon },
-      { title: "Courses", href: "/dashboard/apps/courses", icon: BookAIcon, isNew: true }
-    ]
-  },
-  {
-    title: "AI Apps",
-    items: [
-      { title: "AI Chat", href: "/dashboard/apps/ai-chat", icon: BrainIcon },
-      {
-        title: "AI Chat V2",
-        href: "/dashboard/apps/ai-chat-v2",
-        icon: BrainCircuitIcon,
-        isNew: true
-      },
-      {
-        title: "Image Generator",
-        href: "/dashboard/apps/ai-image-generator",
-        icon: ImagesIcon
-      },
-      {
-        title: "Text to Speech",
-        href: "/dashboard/apps/text-to-speech",
-        icon: SpeechIcon,
-        isComing: true
-      }
-    ]
-  },
-  {
-    title: "Pages",
-    items: [
-      {
-        title: "Users List",
-        href: "/dashboard/pages/users",
-        icon: UsersIcon
-      },
-      {
-        title: "Profile V1",
-        href: "/dashboard/pages/profile",
-        icon: UserIcon
-      },
-      {
-        title: "Profile V2",
-        href: "/dashboard/pages/user-profile",
-        icon: UserIcon
-      },
-      {
-        title: "Onboarding Flow",
-        href: "/dashboard/pages/onboarding-flow",
-        icon: RedoDotIcon
-      },
-      {
-        title: "Empty States",
-        href: "/dashboard/pages/empty-states/01",
-        icon: BrushCleaningIcon,
-        items: [
-          { title: "Empty States 01", href: "/dashboard/pages/empty-states/01" },
-          { title: "Empty States 02", href: "/dashboard/pages/empty-states/02" },
-          { title: "Empty States 03", href: "/dashboard/pages/empty-states/03" },
-          { title: "Empty States 04", href: "/dashboard/pages/empty-states/04" }
-        ]
-      },
-      {
-        title: "Settings",
-        href: "/dashboard/pages/settings",
-        icon: SettingsIcon,
-        items: [
-          { title: "Profile", href: "/dashboard/pages/settings" },
-          { title: "Account", href: "/dashboard/pages/settings/account" },
-          { title: "Billing", href: "/dashboard/pages/settings/billing" },
-          { title: "Appearance", href: "/dashboard/pages/settings/appearance" },
-          { title: "Notifications", href: "/dashboard/pages/settings/notifications" },
-          { title: "Display", href: "/dashboard/pages/settings/display" }
-        ]
-      },
-      {
-        title: "Pricing",
-        href: "#",
-        icon: BadgeDollarSignIcon,
-        items: [
-          { title: "Column Pricing", href: "/dashboard/pages/pricing/column" },
-          { title: "Table Pricing", href: "/dashboard/pages/pricing/table" },
-          { title: "Single Pricing", href: "/dashboard/pages/pricing/single" }
-        ]
-      },
-      {
-        title: "Authentication",
-        href: "/",
-        icon: FingerprintIcon,
-        items: [
-          { title: "Login v1", href: "/dashboard/login/v1" },
-          { title: "Login v2", href: "/dashboard/login/v2" },
-          { title: "Register v1", href: "/dashboard/register/v1" },
-          { title: "Register v2", href: "/dashboard/register/v2" },
-          { title: "Forgot Password", href: "/dashboard/forgot-password" }
-        ]
-      },
-      {
-        title: "Notifications Page",
-        href: "/dashboard/pages/notifications",
-        icon: BellIcon
-      },
-      {
-        title: "Error Pages",
-        href: "/",
-        icon: FingerprintIcon,
-        items: [
-          { title: "404", href: "/dashboard/pages/error/404" },
-          { title: "500", href: "/dashboard/pages/error/500" },
-          { title: "403", href: "/dashboard/pages/error/403" }
-        ]
-      }
-    ]
-  },
-  {
-    title: "Others",
-    items: [
-      {
-        title: "Widgets",
-        href: "#",
-        icon: PuzzleIcon,
-        items: [
-          { title: "Fitness", href: "/dashboard/widgets/fitness" },
-          { title: "E-commerce", href: "/dashboard/widgets/ecommerce" },
-          { title: "Analytics", href: "/dashboard/widgets/analytics" }
-        ]
-      },
-      {
-        title: "Download Shadcn UI Kit",
-        href: "/pricing",
-        icon: ClipboardMinusIcon,
-        newTab: true
-      },
-      {
-        title: "Components",
-        href: "/components",
-        icon: ComponentIcon,
-        newTab: true
-      },
-      {
-        title: "Blocks",
-        href: "/blocks",
-        icon: ComponentIcon,
-        newTab: true
-      },
-      {
-        title: "Examples",
-        href: "/examples",
-        icon: ComponentIcon,
-        newTab: true
-      },
-      {
-        title: "WebsiteTemplates",
-        href: "/templates",
-        icon: ProportionsIcon,
-        newTab: true
-      },
-      {
-        title: "Github",
-        href: "https://github.com/bundui",
-        icon: GithubIcon,
-        newTab: true
-      }
-    ]
-  }
 ];
+
+function isItemActive(item: NavItem, pathname: string): boolean {
+  if (item.match) return item.match(pathname);
+  return pathname === item.href;
+}
 
 export function NavMain() {
   const pathname = usePathname();
-  const { isMobile } = useSidebar();
 
   return (
-    <>
-      {navItems.map((nav) => (
-        <SidebarGroup key={nav.title}>
-          <SidebarGroupLabel>{nav.title}</SidebarGroupLabel>
-          <SidebarGroupContent className="flex flex-col gap-2">
-            <SidebarMenu>
-              {nav.items.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  {Array.isArray(item.items) && item.items.length > 0 ? (
-                    <>
-                      <div className="hidden group-data-[collapsible=icon]:block">
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <SidebarMenuButton tooltip={item.title}>
-                              {item.icon && <item.icon />}
-                              <span>{item.title}</span>
-                              <ChevronRight className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
-                            </SidebarMenuButton>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent
-                            side={isMobile ? "bottom" : "right"}
-                            align={isMobile ? "end" : "start"}
-                            className="min-w-48 rounded-lg">
-                            <DropdownMenuLabel>{item.title}</DropdownMenuLabel>
-                            {item.items?.map((item) => (
-                              <DropdownMenuItem
-                                className="hover:text-foreground active:text-foreground hover:bg-[var(--primary)]/10! active:bg-[var(--primary)]/10!"
-                                asChild
-                                key={item.title}>
-                                <a href={item.href}>{item.title}</a>
-                              </DropdownMenuItem>
-                            ))}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
-                      <Collapsible
-                        className="group/collapsible block group-data-[collapsible=icon]:hidden"
-                        defaultOpen={!!item.items.find((s) => s.href === pathname)}>
-                        <CollapsibleTrigger asChild>
-                          <SidebarMenuButton
-                            className="hover:text-foreground active:text-foreground hover:bg-[var(--primary)]/10 active:bg-[var(--primary)]/10"
-                            tooltip={item.title}>
-                            {item.icon && <item.icon />}
-                            <span>{item.title}</span>
-                            <ChevronRight className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
-                          </SidebarMenuButton>
-                        </CollapsibleTrigger>
-                        <CollapsibleContent>
-                          <SidebarMenuSub>
-                            {item?.items?.map((subItem, key) => (
-                              <SidebarMenuSubItem key={key}>
-                                <SidebarMenuSubButton
-                                  className="hover:text-foreground active:text-foreground hover:bg-[var(--primary)]/10 active:bg-[var(--primary)]/10"
-                                  isActive={pathname === subItem.href}
-                                  asChild>
-                                  <Link href={subItem.href} target={subItem.newTab ? "_blank" : ""}>
-                                    <span>{subItem.title}</span>
-                                  </Link>
-                                </SidebarMenuSubButton>
-                              </SidebarMenuSubItem>
-                            ))}
-                          </SidebarMenuSub>
-                        </CollapsibleContent>
-                      </Collapsible>
-                    </>
-                  ) : (
-                    <SidebarMenuButton
-                      className="hover:text-foreground active:text-foreground hover:bg-[var(--primary)]/10 active:bg-[var(--primary)]/10"
-                      isActive={pathname === item.href}
-                      tooltip={item.title}
-                      asChild>
-                      <Link href={item.href} target={item.newTab ? "_blank" : ""}>
-                        {item.icon && <item.icon />}
-                        <span>{item.title}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  )}
-                  {!!item.isComing && (
-                    <SidebarMenuBadge className="peer-hover/menu-button:text-foreground opacity-50">
-                      Coming
-                    </SidebarMenuBadge>
-                  )}
-                  {!!item.isNew && (
-                    <SidebarMenuBadge className="border border-green-400 text-green-600 peer-hover/menu-button:text-green-600">
-                      New
-                    </SidebarMenuBadge>
-                  )}
-                  {!!item.isDataBadge && (
-                    <SidebarMenuBadge className="peer-hover/menu-button:text-foreground">
-                      {item.isDataBadge}
-                    </SidebarMenuBadge>
-                  )}
-                </SidebarMenuItem>
-              ))}
+    <div className="space-y-5 px-2 py-3">
+      {navItems.map((group, groupIndex) => (
+        <SidebarGroup key={group.title} className="p-0">
+          <SidebarGroupLabel className="px-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/80">
+            {group.title}
+          </SidebarGroupLabel>
+          <SidebarGroupContent className="mt-1.5">
+            <SidebarMenu className="gap-1">
+              {group.items.map((item) => {
+                const active = isItemActive(item, pathname);
+                const Icon = item.icon;
+
+                return (
+                  <SidebarMenuItem key={item.title}>
+                    <Link
+                      href={item.href}
+                      className={cn(
+                        "group/nav-item relative flex w-full items-center gap-3 rounded-xl px-3 py-2.5 transition-all duration-200",
+                        "hover:bg-primary/8 hover:shadow-sm",
+                        active
+                          ? "bg-primary/12 text-foreground shadow-sm ring-1 ring-primary/15"
+                          : "text-muted-foreground hover:text-foreground",
+                      )}>
+                      {active && (
+                        <span className="absolute inset-y-2.5 left-0 w-1 rounded-r-full bg-primary" />
+                      )}
+                      <span
+                        className={cn(
+                          "flex size-9 shrink-0 items-center justify-center rounded-lg border transition-colors",
+                          active
+                            ? "border-primary/20 bg-primary text-primary-foreground shadow-sm"
+                            : "border-border/60 bg-background/80 group-hover/nav-item:border-primary/20 group-hover/nav-item:bg-primary/5",
+                        )}>
+                        <Icon className="size-4" strokeWidth={active ? 2.25 : 2} />
+                      </span>
+                      <span className="min-w-0 flex-1 group-data-[collapsible=icon]:hidden">
+                        <span className="flex items-center gap-2">
+                          <span className={cn("truncate text-sm", active ? "font-semibold" : "font-medium")}>
+                            {item.title}
+                          </span>
+                          {item.badge && (
+                            <span className="rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-400">
+                              {item.badge}
+                            </span>
+                          )}
+                        </span>
+                        {item.description && (
+                          <span className="mt-0.5 block truncate text-[11px] text-muted-foreground/90">
+                            {item.description}
+                          </span>
+                        )}
+                      </span>
+                    </Link>
+                  </SidebarMenuItem>
+                );
+              })}
             </SidebarMenu>
           </SidebarGroupContent>
+          {groupIndex < navItems.length - 1 && (
+            <div className="mx-3 mt-4 h-px bg-border/60 group-data-[collapsible=icon]:hidden" />
+          )}
         </SidebarGroup>
       ))}
-    </>
+    </div>
   );
 }

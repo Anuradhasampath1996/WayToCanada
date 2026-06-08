@@ -1,14 +1,12 @@
-import { generateMeta } from "@/lib/utils";
-import { RetainerAgreementClient } from "./retainer-agreement-client";
+"use client";
 
-export async function generateMetadata() {
-  return generateMeta({
-    title: "Retainer Agreement",
-    description: "View, sign, or upload your retainer agreement.",
-    canonical: "/user-dashboard/retainer-agreement",
-  });
-}
+import { RetainerAgreementClient } from "./retainer-agreement-client";
+import { ClientJourneyGate } from "@/components/client-journey-gate";
 
 export default function Page() {
-  return <RetainerAgreementClient />;
+  return (
+    <ClientJourneyGate stepId="retainer">
+      <RetainerAgreementClient />
+    </ClientJourneyGate>
+  );
 }

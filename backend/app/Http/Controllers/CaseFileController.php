@@ -3,20 +3,28 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\ApplicationPackageController;
+use App\Mail\AgreementSignedEmail;
 use App\Mail\RetainerAgreementEmail;
 use App\Models\CaseFile;
 use App\Models\ClientProfile;
 use App\Models\IrccCategory;
+use App\Mail\AgreementReminderEmail;
+use App\Services\AgreementReminderService;
 use App\Services\IrccInteractiveFormVerificationService;
+use App\Services\RetainerAgreementPdfService;
+use App\Support\RetainerAgreementConfig;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
+use Symfony\Component\HttpFoundation\Response;
 
 class CaseFileController extends Controller
 {
     public function __construct(
         private IrccInteractiveFormVerificationService $verificationService,
+        private RetainerAgreementPdfService $pdfService,
+        private AgreementReminderService $reminderService,
     ) {}
 
     // ── Private helper ─────────────────────────────────────────────────────────
@@ -83,12 +91,38 @@ class CaseFileController extends Controller
         $this->authorizeConsultant($request, $profile);
 
         $data = $request->validate([
-            'immigration_pathway' => 'required|string|max:100',
+            'immigration_pathway' => 'nullable|string|max:100',
         ]);
 
         $caseFile = CaseFile::where('client_profile_id', $profile->id)->firstOrFail();
 
-        $updates = ['immigration_pathway' => $data['immigration_pathway']];
+        $pathway = isset($data['immigration_pathway']) && $data['immigration_pathway'] !== ''
+            ? $data['immigration_pathway']
+            : null;
+
+        if ($pathway === null) {
+            if ($caseFile->statusStep() >= CaseFile::statusOrder()['AGREEMENT_SENT']) {
+                return response()->json([
+                    'message' => 'Cannot clear the pathway after the retainer agreement has been sent.',
+                ], 422);
+            }
+
+            $caseFile->update([
+                'immigration_pathway'         => null,
+                'assigned_ircc_category_id'   => null,
+                'application_package_assigned_at' => null,
+                'status'                      => 'PENDING_ASSESSMENT',
+            ]);
+
+            $profile->update(['immigration_pathway' => null]);
+
+            return response()->json([
+                'case_file' => $caseFile->fresh(),
+                'message'   => 'Pathway selection cleared.',
+            ]);
+        }
+
+        $updates = ['immigration_pathway' => $pathway];
 
         // Advance workflow only — never downgrade after agreement sent/signed.
         if ($caseFile->statusStep() < CaseFile::statusOrder()['PATHWAY_SELECTED']) {
@@ -98,11 +132,42 @@ class CaseFileController extends Controller
         $caseFile->update($updates);
 
         // Mirror pathway to the client profile
-        $profile->update(['immigration_pathway' => $data['immigration_pathway']]);
+        $profile->update(['immigration_pathway' => $pathway]);
 
         return response()->json([
             'case_file' => $caseFile->fresh(),
             'message'   => 'Immigration pathway confirmed.',
+        ]);
+    }
+
+    // ── PATCH /consultant/clients/{profile}/case-file/pathway-assessment ───────
+
+    public function savePathwayAssessment(Request $request, ClientProfile $profile): JsonResponse
+    {
+        $this->authorizeConsultant($request, $profile);
+
+        $data = $request->validate([
+            'notes'              => 'nullable|string|max:10000',
+            'crs_score'          => 'nullable|integer|min:0|max:1200',
+            'ircc_crs_score'     => 'nullable|integer|min:0|max:1200',
+            'rules_version'      => 'nullable|string|max:32',
+            'assessment_snapshot'=> 'nullable|array',
+        ]);
+
+        $caseFile = CaseFile::where('client_profile_id', $profile->id)->firstOrFail();
+
+        $caseFile->update([
+            'pathway_assessment_notes'         => $data['notes'] ?? $caseFile->pathway_assessment_notes,
+            'pathway_assessment_crs_score'     => $data['crs_score'] ?? $caseFile->pathway_assessment_crs_score,
+            'pathway_assessment_ircc_crs_score'=> $data['ircc_crs_score'] ?? $caseFile->pathway_assessment_ircc_crs_score,
+            'pathway_assessment_rules_version' => $data['rules_version'] ?? $caseFile->pathway_assessment_rules_version,
+            'pathway_assessment_snapshot'      => $data['assessment_snapshot'] ?? $caseFile->pathway_assessment_snapshot,
+            'pathway_assessment_at'            => now(),
+        ]);
+
+        return response()->json([
+            'case_file' => $caseFile->fresh(),
+            'message'   => 'Pathway assessment saved.',
         ]);
     }
 
@@ -151,19 +216,48 @@ class CaseFileController extends Controller
             return response()->json(['message' => 'Pathway must be selected before sending the agreement.'], 422);
         }
 
-        $request->validate([
-            'agreement_fee'   => 'nullable|numeric|min:0',
-            'agreement_notes' => 'nullable|string|max:5000',
-        ]);
+        if ($caseFile->isAgreementSigned()) {
+            return response()->json(['message' => 'Cannot resend — the client has already signed this agreement.'], 422);
+        }
 
-        $token = Str::random(64);
+        $request->validate(RetainerAgreementConfig::validateRules());
+
+        $rawConfig = $request->input('agreement_config', []);
+        $config    = RetainerAgreementConfig::normalize(
+            is_array($rawConfig) ? $rawConfig : [],
+            $caseFile->immigration_pathway
+        );
+
+        if (RetainerAgreementConfig::milestonePctSum($config) !== 100) {
+            return response()->json(['message' => 'Milestone percentages must total exactly 100%.'], 422);
+        }
+
+        if ($request->filled('agreement_fee')) {
+            $config['totalFee'] = (float) $request->input('agreement_fee');
+        }
+
+        if ($request->filled('agreement_notes')) {
+            $config['customClauses'] = $request->input('agreement_notes');
+        }
+
+        $config['clientName']     = $config['clientName'] ?: ($profile->user->name ?? '');
+        $config['clientEmail']    = $config['clientEmail'] ?: ($profile->user->email ?? '');
+        $config['consultantName'] = $config['consultantName'] ?: $request->user()->name;
+
+        $isResend = $caseFile->agreement_sent_at !== null && $caseFile->agreement_token;
+        $token    = $isResend ? $caseFile->agreement_token : Str::random(64);
+
         $updateData = [
-            'agreement_token'   => $token,
-            'agreement_sent_at' => now(),
-            'status'            => 'AGREEMENT_SENT',
+            'agreement_token'              => $token,
+            'agreement_sent_at'            => now(),
+            'agreement_version'            => $isResend ? ((int) $caseFile->agreement_version + 1) : 1,
+            'agreement_config'             => $config,
+            'agreement_fee'                => $config['totalFee'],
+            'agreement_notes'              => $config['customClauses'] ?: null,
+            'agreement_milestone_payments' => $caseFile->agreement_milestone_payments
+                ?? RetainerAgreementConfig::defaultMilestonePayments(),
+            'status'                       => 'AGREEMENT_SENT',
         ];
-        if ($request->filled('agreement_fee'))   $updateData['agreement_fee']   = $request->input('agreement_fee');
-        if ($request->filled('agreement_notes')) $updateData['agreement_notes'] = $request->input('agreement_notes');
 
         $caseFile->update($updateData);
 
@@ -172,7 +266,130 @@ class CaseFileController extends Controller
 
         return response()->json([
             'case_file' => $caseFile->fresh(),
-            'message'   => 'Retainer agreement sent successfully.',
+            'message'   => $isResend
+                ? 'Retainer agreement updated and resent to the client.'
+                : 'Retainer agreement sent successfully.',
+        ]);
+    }
+
+    // ── POST /consultant/clients/{profile}/case-file/send-agreement-reminder ───
+
+    public function sendAgreementReminder(Request $request, ClientProfile $profile): JsonResponse
+    {
+        $this->authorizeConsultant($request, $profile);
+        $profile->load('user');
+
+        $caseFile = CaseFile::where('client_profile_id', $profile->id)->firstOrFail();
+
+        if (! $caseFile->agreement_sent_at) {
+            return response()->json(['message' => 'Agreement has not been sent yet.'], 422);
+        }
+
+        if ($caseFile->isAgreementSigned()) {
+            return response()->json(['message' => 'Agreement is already signed.'], 422);
+        }
+
+        $phone = $this->reminderService->resolveClientPhone($profile);
+        if (! $phone) {
+            return response()->json(['message' => 'No client phone or WhatsApp number on file.'], 422);
+        }
+
+        $request->validate(['send_email' => 'boolean']);
+
+        $clientName     = $profile->user->name ?? 'Client';
+        $consultantName = $request->user()->name;
+        $message        = $this->reminderService->buildReminderMessage($caseFile, $clientName, $consultantName);
+        $whatsappUrl    = $this->reminderService->toWhatsAppUrl($phone, $message);
+
+        $emailSent  = false;
+        $twilioSent = false;
+        $twilioError = null;
+
+        if ($request->boolean('send_email', true) && $profile->user->email) {
+            Mail::to($profile->user->email)
+                ->send(new AgreementReminderEmail($profile, $caseFile, $request->user()));
+            $emailSent = true;
+        }
+
+        $twilio = $this->reminderService->sendViaTwilio($phone, $message);
+        $twilioSent  = $twilio['sent'];
+        $twilioError = $twilio['error'];
+
+        $caseFile->update([
+            'agreement_last_reminder_at' => now(),
+            'agreement_reminder_count'   => ((int) $caseFile->agreement_reminder_count) + 1,
+        ]);
+
+        return response()->json([
+            'message'        => 'Reminder recorded.',
+            'whatsapp_url'   => $whatsappUrl,
+            'phone'          => $phone,
+            'email_sent'     => $emailSent,
+            'twilio_sent'    => $twilioSent,
+            'twilio_error'   => $twilioError,
+            'reminder_count' => $caseFile->fresh()->agreement_reminder_count,
+            'last_reminder_at' => $caseFile->fresh()->agreement_last_reminder_at?->toIso8601String(),
+        ]);
+    }
+
+    // ── GET /consultant/clients/{profile}/case-file/agreement-pdf ─────────────
+
+    public function downloadAgreementPdf(Request $request, ClientProfile $profile): Response
+    {
+        $this->authorizeConsultant($request, $profile);
+
+        $caseFile = CaseFile::where('client_profile_id', $profile->id)->firstOrFail();
+
+        if (! $caseFile->agreement_sent_at) {
+            abort(422, 'Agreement has not been sent yet.');
+        }
+
+        $pdf = $this->pdfService->generate($caseFile);
+
+        return $pdf->download($this->pdfService->filename($caseFile));
+    }
+
+    // ── Public: GET /case-file/agreement/{token}/pdf ───────────────────────────
+
+    public function downloadAgreementPdfPublic(string $token): Response
+    {
+        $caseFile = CaseFile::where('agreement_token', $token)->firstOrFail();
+
+        if (! $caseFile->agreement_sent_at) {
+            abort(404);
+        }
+
+        $pdf = $this->pdfService->generate($caseFile);
+
+        return $pdf->download($this->pdfService->filename($caseFile));
+    }
+
+    // ── PATCH /consultant/clients/{profile}/case-file/agreement-milestones ─────
+
+    public function updateAgreementMilestones(Request $request, ClientProfile $profile): JsonResponse
+    {
+        $this->authorizeConsultant($request, $profile);
+
+        $data = $request->validate([
+            'milestone_payments'   => 'required|array',
+            'milestone_payments.1' => 'boolean',
+            'milestone_payments.2' => 'boolean',
+            'milestone_payments.3' => 'boolean',
+        ]);
+
+        $caseFile = CaseFile::where('client_profile_id', $profile->id)->firstOrFail();
+
+        if (! $caseFile->isAgreementSigned()) {
+            return response()->json(['message' => 'Agreement must be signed before tracking milestone payments.'], 422);
+        }
+
+        $caseFile->update([
+            'agreement_milestone_payments' => $data['milestone_payments'],
+        ]);
+
+        return response()->json([
+            'case_file' => $caseFile->fresh(),
+            'message'   => 'Milestone payment status updated.',
         ]);
     }
 
@@ -192,6 +409,10 @@ class CaseFileController extends Controller
             return response()->json(['message' => 'Agreement must be signed first.'], 422);
         }
 
+        if (! $this->verificationService->isCaseManagementUnlocked($caseFile)) {
+            return response()->json(['message' => 'Case management is not unlocked yet.'], 403);
+        }
+
         $caseFile->update(['checklist_data' => $request->checklist_data]);
 
         return response()->json([
@@ -208,18 +429,23 @@ class CaseFileController extends Controller
             ->with('clientProfile.user:id,name,email', 'consultant')
             ->firstOrFail();
 
-        $c = $caseFile->consultant;
+        $c      = $caseFile->consultant;
+        $config = RetainerAgreementConfig::formatAgreementPayload($caseFile);
 
         return response()->json([
-            'case_file' => $caseFile->only([
+            'case_file' => array_merge($caseFile->only([
                 'id', 'status', 'immigration_pathway',
                 'agreement_sent_at', 'agreement_signed_at',
                 'agreement_fee', 'agreement_notes',
+                'agreement_config', 'agreement_version',
+                'agreement_milestone_payments',
                 'client_signature', 'signed_document_path',
+            ]), [
+                'agreement_config' => $config,
             ]),
-            'client_name'        => $caseFile->clientProfile->user->name  ?? null,
-            'client_email'       => $caseFile->clientProfile->user->email ?? null,
-            'consultant_name'    => $c?->name ?? null,
+            'client_name'        => $config['clientName'] ?: ($caseFile->clientProfile->user->name ?? null),
+            'client_email'       => $config['clientEmail'] ?: ($caseFile->clientProfile->user->email ?? null),
+            'consultant_name'    => $config['consultantName'] ?: ($c?->name ?? null),
             'consultant_profile' => $c ? [
                 'name'                  => $c->name,
                 'email'                 => $c->email,
@@ -260,11 +486,19 @@ class CaseFileController extends Controller
             return response()->json(['message' => 'Invalid signature format.'], 422);
         }
 
+        $wasSigned = $caseFile->isAgreementSigned();
+
         $caseFile->update([
-            'agreement_signed_at' => now(),
-            'status'              => 'AGREEMENT_SIGNED',
-            'client_signature'    => $sig,
+            'agreement_signed_at'        => now(),
+            'status'                     => 'AGREEMENT_SIGNED',
+            'client_signature'           => $sig,
+            'agreement_signed_ip'        => $request->ip(),
+            'agreement_signed_user_agent'=> substr((string) $request->userAgent(), 0, 500),
         ]);
+
+        if (! $wasSigned) {
+            $this->notifyConsultantAgreementSigned($caseFile->fresh(), 'digital_signature');
+        }
 
         return response()->json(['message' => 'Agreement signed successfully. Your consultant has been notified.']);
     }
@@ -285,16 +519,38 @@ class CaseFileController extends Controller
 
         $url = rtrim(config('app.url'), '/') . '/storage/signed-agreements/' . $filename;
 
+        $wasSigned = $caseFile->isAgreementSigned();
+
         $caseFile->update([
-            'signed_document_path' => $url,
-            'agreement_signed_at'  => $caseFile->agreement_signed_at ?? now(),
-            'status'               => 'AGREEMENT_SIGNED',
+            'signed_document_path'       => $url,
+            'agreement_signed_at'        => $caseFile->agreement_signed_at ?? now(),
+            'status'                     => 'AGREEMENT_SIGNED',
+            'agreement_signed_ip'        => $request->ip(),
+            'agreement_signed_user_agent'=> substr((string) $request->userAgent(), 0, 500),
         ]);
+
+        if (! $wasSigned) {
+            $this->notifyConsultantAgreementSigned($caseFile->fresh(), 'uploaded_pdf');
+        }
 
         return response()->json([
             'message'             => 'Signed document uploaded successfully.',
             'signed_document_url' => $url,
         ]);
+    }
+
+    private function notifyConsultantAgreementSigned(CaseFile $caseFile, string $via): void
+    {
+        $caseFile->loadMissing('clientProfile.user', 'consultant');
+        $profile    = $caseFile->clientProfile;
+        $consultant = $caseFile->consultant;
+
+        if (! $profile?->user || ! $consultant) {
+            return;
+        }
+
+        Mail::to($consultant->email)
+            ->send(new AgreementSignedEmail($profile, $caseFile, $consultant, $via));
     }
 
     // ── Client: GET /client/dashboard ─────────────────────────────────────────

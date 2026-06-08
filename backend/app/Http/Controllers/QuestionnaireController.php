@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\QuestionnaireSubmission;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class QuestionnaireController extends Controller
 {
@@ -65,5 +67,67 @@ class QuestionnaireController extends Controller
         }
 
         return response()->json(['message' => 'Questionnaire submitted successfully.']);
+    }
+
+    // ── GET /questionnaire/document/stream ─────────────────────────────────────
+    // Client streams their own uploaded questionnaire document.
+
+    public function streamDocument(Request $request): StreamedResponse
+    {
+        $data = $request->validate([
+            'path' => 'required|string|max:500',
+        ]);
+
+        $path = $data['path'];
+
+        if (! preg_match('#^client-document/\d{4}/\d{2}/#', $path)) {
+            abort(422, 'Invalid document path.');
+        }
+
+        $submission = QuestionnaireSubmission::where('user_id', $request->user()->id)->firstOrFail();
+
+        if (! $this->submissionContainsFilePath($submission, $path)) {
+            abort(403, 'Document not linked to your questionnaire.');
+        }
+
+        if (! Storage::disk('localstack')->exists($path)) {
+            abort(404, 'File not found.');
+        }
+
+        $filename = basename($path);
+        $mime     = Storage::disk('localstack')->mimeType($path) ?: 'application/octet-stream';
+
+        return Storage::disk('localstack')->response($path, $filename, [
+            'Content-Type'        => $mime,
+            'Content-Disposition' => 'inline; filename="'.addslashes($filename).'"',
+            'Cache-Control'       => 'private, max-age=3600',
+        ]);
+    }
+
+    private function submissionContainsFilePath(QuestionnaireSubmission $submission, string $filePath): bool
+    {
+        return $this->arrayContainsValue($submission->step1_data, $filePath)
+            || $this->arrayContainsValue($submission->main_data, $filePath)
+            || $this->arrayContainsValue($submission->spouse_data, $filePath)
+            || $this->arrayContainsValue($submission->children_data, $filePath)
+            || $this->arrayContainsValue($submission->accompanying_data, $filePath);
+    }
+
+    private function arrayContainsValue(mixed $data, string $needle): bool
+    {
+        if (! is_array($data)) {
+            return false;
+        }
+
+        foreach ($data as $value) {
+            if (is_string($value) && $value === $needle) {
+                return true;
+            }
+            if (is_array($value) && $this->arrayContainsValue($value, $needle)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

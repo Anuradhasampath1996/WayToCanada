@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\CaseFile;
 use App\Models\ClientProfile;
 use App\Services\CaseManagementHubService;
+use App\Services\IrccInteractiveFormVerificationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -12,6 +13,7 @@ class CaseManagementHubController extends Controller
 {
     public function __construct(
         private CaseManagementHubService $hubService,
+        private IrccInteractiveFormVerificationService $verificationService,
     ) {}
 
     /** GET /api/v1/consultant/clients/{profile}/case-management-hub */
@@ -48,7 +50,22 @@ class CaseManagementHubController extends Controller
 
         $caseFile = $profile->caseFile;
         $caseFile->syncStatusFromAgreement();
+        $caseFile = $caseFile->fresh();
 
-        return response()->json($this->hubService->buildForCaseFile($caseFile->fresh()));
+        $verification = $this->verificationService->getVerificationStatus($caseFile);
+
+        if (! ($verification['case_management_unlocked'] ?? false)) {
+            return response()->json([
+                'case_management_unlocked' => false,
+                'verification'           => $verification,
+                'case_file'              => $caseFile->only([
+                    'id', 'status', 'immigration_pathway',
+                    'agreement_signed_at', 'application_forms_verified_at',
+                ]),
+                'message'                => 'Complete and have your application forms reviewed before uploading documents.',
+            ], 403);
+        }
+
+        return response()->json($this->hubService->buildForCaseFile($caseFile));
     }
 }

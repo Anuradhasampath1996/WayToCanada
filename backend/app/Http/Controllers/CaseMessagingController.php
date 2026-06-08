@@ -5,11 +5,15 @@ namespace App\Http\Controllers;
 use App\Models\CaseFile;
 use App\Models\CaseMessage;
 use App\Models\ClientProfile;
+use App\Services\IrccInteractiveFormVerificationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class CaseMessagingController extends Controller
 {
+    public function __construct(
+        private IrccInteractiveFormVerificationService $verificationService,
+    ) {}
     /**
      * GET /api/v1/consultant/clients/{profile}/messages
      * GET /api/v1/client/messages
@@ -36,6 +40,8 @@ class CaseMessagingController extends Controller
         if (! $caseFile) {
             return response()->json(['messages' => []]);
         }
+
+        $this->verificationService->assertCaseManagementUnlocked($caseFile);
 
         $messages = $this->getMessages($caseFile, $request->user()->id, 'client');
 
@@ -82,6 +88,8 @@ class CaseMessagingController extends Controller
         if (! $caseFile) {
             return response()->json(['message' => 'No case file found.'], 404);
         }
+
+        $this->verificationService->assertCaseManagementUnlocked($caseFile);
 
         $msg = CaseMessage::create([
             'case_file_id' => $caseFile->id,

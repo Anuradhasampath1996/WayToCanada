@@ -6,6 +6,8 @@ use App\Models\ClientProfile;
 use App\Models\QuestionnaireSubmission;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class QuestionnaireReviewController extends Controller
 {
@@ -110,5 +112,109 @@ class QuestionnaireReviewController extends Controller
             'message'    => 'Field updated successfully.',
             'submission' => $submission->fresh(),
         ]);
+    }
+
+    // ── GET /consultant/clients/{profile}/questionnaire/document/stream ────────
+    // Stream a questionnaire-uploaded file (passport, ID, etc.) from storage.
+    // Query: ?path=client-document/2026/06/passport.jpg
+
+    public function streamDocument(Request $request, ClientProfile $profile): StreamedResponse
+    {
+        $this->authorizeConsultant($request, $profile);
+
+        $data = $request->validate([
+            'path' => 'required|string|max:500',
+        ]);
+
+        $path = $data['path'];
+
+        if (! preg_match('#^client-document/\d{4}/\d{2}/#', $path)) {
+            abort(422, 'Invalid document path.');
+        }
+
+        $submission = QuestionnaireSubmission::where('user_id', $profile->user_id)->firstOrFail();
+
+        if (! $this->submissionContainsFilePath($submission, $path)) {
+            abort(403, 'Document not linked to this client questionnaire.');
+        }
+
+        if (! Storage::disk('localstack')->exists($path)) {
+            abort(404, 'File not found.');
+        }
+
+        $filename = basename($path);
+        $mime     = Storage::disk('localstack')->mimeType($path) ?: 'application/octet-stream';
+        $download = $request->boolean('download');
+
+        return Storage::disk('localstack')->response($path, $filename, [
+            'Content-Type'        => $mime,
+            'Content-Disposition' => ($download ? 'attachment' : 'inline').'; filename="'.addslashes($filename).'"',
+            'Cache-Control'       => 'private, max-age=3600',
+        ]);
+    }
+
+    // ── PATCH /consultant/clients/{profile}/questionnaire/request-refill ───────
+    // Ask the client to correct a field. Body: { field_key, remark }
+
+    public function requestRefill(Request $request, ClientProfile $profile): JsonResponse
+    {
+        $this->authorizeConsultant($request, $profile);
+
+        $data = $request->validate([
+            'field_key' => 'required|string|max:200',
+            'remark'    => 'required|string|max:2000',
+        ]);
+
+        $submission = QuestionnaireSubmission::where('user_id', $profile->user_id)->firstOrFail();
+
+        $remarks = $submission->field_remarks ?? [];
+        $remarks[$data['field_key']] = [
+            'remark'       => $data['remark'],
+            'requested_at' => now()->toIso8601String(),
+            'status'       => 'pending',
+        ];
+
+        $verifiedFields = $submission->verified_fields ?? [];
+        unset($verifiedFields[$data['field_key']]);
+
+        $submission->update([
+            'field_remarks'   => $remarks,
+            'verified_fields' => $verifiedFields,
+        ]);
+
+        return response()->json([
+            'message'         => 'Refill requested. The client will see your remark.',
+            'field_remarks'   => $remarks,
+            'verified_fields' => $verifiedFields,
+        ]);
+    }
+
+    // ── Private helpers ────────────────────────────────────────────────────────
+
+    private function submissionContainsFilePath(QuestionnaireSubmission $submission, string $filePath): bool
+    {
+        return $this->arrayContainsValue($submission->step1_data, $filePath)
+            || $this->arrayContainsValue($submission->main_data, $filePath)
+            || $this->arrayContainsValue($submission->spouse_data, $filePath)
+            || $this->arrayContainsValue($submission->children_data, $filePath)
+            || $this->arrayContainsValue($submission->accompanying_data, $filePath);
+    }
+
+    private function arrayContainsValue(mixed $data, string $needle): bool
+    {
+        if (! is_array($data)) {
+            return false;
+        }
+
+        foreach ($data as $value) {
+            if (is_string($value) && $value === $needle) {
+                return true;
+            }
+            if (is_array($value) && $this->arrayContainsValue($value, $needle)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

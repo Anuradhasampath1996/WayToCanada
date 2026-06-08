@@ -97,10 +97,24 @@ class IrccInteractiveFormVerificationService
         $this->getVerificationStatus($caseFile);
     }
 
+    public function isCaseManagementUnlocked(CaseFile $caseFile): bool
+    {
+        return (bool) ($this->getVerificationStatus($caseFile)['case_management_unlocked'] ?? false);
+    }
+
+    public function assertCaseManagementUnlocked(CaseFile $caseFile): void
+    {
+        if (! $this->isCaseManagementUnlocked($caseFile)) {
+            abort(403, 'Case management unlocks after your consultant reviews all application forms.');
+        }
+    }
+
     private function syncVerificationTimestamp(CaseFile $caseFile, bool $ready): void
     {
         if ($ready && ! $caseFile->application_forms_verified_at) {
             $caseFile->update(['application_forms_verified_at' => now()]);
+        } elseif (! $ready && $caseFile->application_forms_verified_at) {
+            $caseFile->update(['application_forms_verified_at' => null]);
         }
     }
 

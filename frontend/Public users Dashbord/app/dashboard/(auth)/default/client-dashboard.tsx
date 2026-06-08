@@ -1,15 +1,23 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   Loader2, AlertCircle, RefreshCw, UserCheck, Mail, Phone, Award,
-  MapPin, ChevronRight,
+  MapPin, ChevronRight, CheckCircle2,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
 import { useClientJourney } from "@/context/client-journey-context";
-import { ClientJourneyTimeline, ClientNextStepCard } from "@/components/client-journey-ui";
+import { ClientJourneyTimeline } from "@/components/client-journey-ui";
+import {
+  AssessmentWaitingCard,
+  ClientActivityTimeline,
+  ClientNextActionCard,
+  FormsProgressStrip,
+  PathwayAssignedCard,
+} from "@/components/client-workspace-ui";
 import { clientStatusLabel } from "@/lib/client-journey";
 
 function ConsultantCard({ consultant }: {
@@ -23,6 +31,7 @@ function ConsultantCard({ consultant }: {
       <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-4">Your consultant</p>
       <div className="flex items-start gap-4">
         {consultant.avatar ? (
+          // eslint-disable-next-line @next/next/no-img-element
           <img src={consultant.avatar} alt={consultant.name}
             className="h-14 w-14 rounded-full object-cover shrink-0 border-2 border-primary/20" />
         ) : (
@@ -78,12 +87,22 @@ function NoConsultantBanner({ name }: { name: string }) {
 }
 
 export function ClientDashboard() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const showSubmittedBanner = searchParams.get("questionnaire") === "submitted";
+
   const {
-    loading, error, refresh, consultant, client, caseFile, steps, currentStepId, progressPercent,
+    loading, error, refresh, consultant, client, caseFile, steps, currentStepId,
+    progressPercent, meta, nextAction, activityEvents, verification, qStats,
   } = useClientJourney();
 
   const firstName = (client?.name ?? "there").split(" ")[0];
-  const currentStep = steps.find((s) => s.id === currentStepId) ?? steps.find((s) => s.status === "active");
+
+  useEffect(() => {
+    if (!showSubmittedBanner) return;
+    const t = setTimeout(() => router.replace("/user-dashboard"), 8000);
+    return () => clearTimeout(t);
+  }, [showSubmittedBanner, router]);
 
   if (loading) {
     return (
@@ -104,14 +123,24 @@ export function ClientDashboard() {
   }
 
   return (
-    <div className="space-y-6 w-full pb-10">
-      {/* Header + progress */}
+    <div className="w-full space-y-6 pb-10">
+      {showSubmittedBanner && (
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50/80 p-4">
+          <p className="flex items-center gap-2 text-sm font-semibold text-emerald-900">
+            <CheckCircle2 className="size-4 shrink-0" />
+            Questionnaire submitted successfully
+          </p>
+          <p className="mt-1 text-sm text-emerald-800/90">
+            Thank you! Your consultant will review your profile and confirm your immigration pathway.
+          </p>
+        </div>
+      )}
       <div className="space-y-4">
         <div className="flex items-start justify-between gap-3 flex-wrap">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">Hi {firstName} 👋</h1>
+            <h1 className="text-2xl font-bold tracking-tight">Hi {firstName}</h1>
             <p className="text-muted-foreground text-sm mt-1">
-              Follow the 4 steps below — we&apos;ll guide you through your immigration case.
+              Follow the 4 steps below — your consultant guides you through each stage.
             </p>
           </div>
           <Button variant="ghost" size="icon" onClick={refresh} aria-label="Refresh">
@@ -138,6 +167,11 @@ export function ClientDashboard() {
               {caseFile.immigration_pathway && (
                 <Badge variant="secondary" className="font-normal">{caseFile.immigration_pathway}</Badge>
               )}
+              {qStats.pendingRefills > 0 && (
+                <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-800">
+                  {qStats.pendingRefills} correction{qStats.pendingRefills === 1 ? "" : "s"}
+                </Badge>
+              )}
             </div>
           </div>
         )}
@@ -146,9 +180,24 @@ export function ClientDashboard() {
       {!consultant && <NoConsultantBanner name={firstName} />}
 
       {consultant && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-          <div className="lg:col-span-2 space-y-5 order-2 lg:order-1">
-            <ClientNextStepCard step={currentStep} />
+        <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
+          <div className="space-y-5 lg:col-span-2 order-2 lg:order-1">
+            <ClientNextActionCard action={nextAction} />
+
+            {meta.assessmentWaiting && <AssessmentWaitingCard />}
+
+            {meta.pathwayAssigned && !caseFile?.agreement_signed_at && (
+              <PathwayAssignedCard pathway={meta.pathwayAssigned} />
+            )}
+
+            {verification && verification.total_forms > 0 && (
+              <FormsProgressStrip
+                submitted={verification.submitted_count}
+                total={verification.total_forms}
+                reviewed={verification.reviewed_count}
+              />
+            )}
+
             <ClientJourneyTimeline steps={steps} highlightId={currentStepId} />
 
             {!caseFile && (
@@ -163,15 +212,16 @@ export function ClientDashboard() {
             )}
           </div>
 
-          <div className="lg:col-span-1 space-y-5 order-1 lg:order-2">
+          <div className="space-y-5 lg:col-span-1 order-1 lg:order-2">
             <ConsultantCard consultant={consultant} />
+            <ClientActivityTimeline events={activityEvents} />
             <div className="rounded-xl border p-4 text-xs text-muted-foreground space-y-2">
               <p className="font-semibold text-foreground text-sm">How it works</p>
               <ol className="list-decimal list-inside space-y-1.5 leading-relaxed">
                 <li>Complete your questionnaire</li>
-                <li>Sign the retainer when sent</li>
-                <li>Submit assigned IRCC forms</li>
-                <li>Upload documents & chat with your consultant</li>
+                <li>Wait for pathway confirmation</li>
+                <li>Sign the retainer agreement</li>
+                <li>Submit IRCC forms & upload documents</li>
               </ol>
             </div>
           </div>

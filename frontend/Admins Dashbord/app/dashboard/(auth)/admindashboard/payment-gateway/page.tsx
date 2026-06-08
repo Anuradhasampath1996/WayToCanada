@@ -462,7 +462,7 @@ export default function PaymentGatewayPage() {
   const paypal = gateways.find((g) => g.gateway === "paypal");
 
   return (
-    <div className="p-6 space-y-6 max-w-2xl mx-auto">
+    <div className="space-y-6">
       {/* Page header */}
       <div className="flex items-center gap-3">
         <CreditCardIcon className="size-7 text-primary" />

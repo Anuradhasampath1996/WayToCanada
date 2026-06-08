@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PDF Form Viewer</title>
+  <link rel="stylesheet" href="/pdf-viewer/vendor/web/pdf_viewer.css" />
+  <style>
+    html, body { margin: 0; padding: 0; height: 100%; background: #525659; overflow: hidden; }
+    #outerContainer { position: absolute; inset: 0; }
+    #viewerContainer {
+      position: absolute;
+      inset: 0;
+      overflow: auto;
+    }
+    #errorBox {
+      display: none;
+      position: absolute;
+      inset: 0;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      color: #fff;
+      text-align: center;
+      font-family: system-ui, sans-serif;
+      font-size: 14px;
+      line-height: 1.5;
+      z-index: 10;
+    }
+    #errorBox.visible { display: flex; }
+  </style>
+</head>
+<body>
+  <div id="outerContainer">
+    <div id="viewerContainer">
+      <div class="pdfViewer"></div>
+    </div>
+    <div id="errorBox"></div>
+  </div>
+  <script type="module">
+    import * as pdfjsLib from "/pdf-viewer/vendor/build/pdf.mjs";
+    import { EventBus, PDFViewer } from "/pdf-viewer/vendor/web/pdf_viewer.mjs";
+
+    const PDFJS = "/pdf-viewer/vendor";
+    pdfjsLib.GlobalWorkerOptions.workerSrc = `${PDFJS}/build/pdf.worker.mjs`;
+
+    const container = document.getElementById("viewerContainer");
+    const errorBox = document.getElementById("errorBox");
+    const eventBus = new EventBus();
+
+    const pdfViewer = new PDFViewer({
+      container,
+      viewer: container.querySelector(".pdfViewer"),
+      eventBus,
+      enableXfa: true,
+      annotationMode: 2,
+      textLayerMode: 2,
+    });
+
+    let pdfDocument = null;
+
+    function notifyParent(payload) {
+      window.parent?.postMessage({ source: "wtc-pdf-viewer", ...payload }, "*");
+    }
+
+    function showError(message) {
+      container.style.visibility = "hidden";
+      errorBox.textContent = message;
+      errorBox.classList.add("visible");
+      notifyParent({ type: "error", message });
+    }
+
+    async function loadPdf(data) {
+      try {
+        errorBox.classList.remove("visible");
+        container.style.visibility = "visible";
+
+        const bytes = data instanceof Uint8Array
+          ? data
+          : new Uint8Array(data instanceof ArrayBuffer ? data : data.buffer || data);
+
+        const loadingTask = pdfjsLib.getDocument({
+          data: bytes,
+          enableXfa: true,
+          cMapUrl: `${PDFJS}/cmaps/`,
+          cMapPacked: true,
+          standardFontDataUrl: `${PDFJS}/standard_fonts/`,
+        });
+
+        pdfDocument = await loadingTask.promise;
+        pdfViewer.setDocument(pdfDocument);
+
+        notifyParent({
+          type: "loaded",
+          numPages: pdfDocument.numPages,
+          isPureXfa: pdfDocument.isPureXfa,
+        });
+      } catch (err) {
+        showError(err?.message || "Could not open this PDF.");
+      }
+    }
+
+    async function savePdf() {
+      if (!pdfDocument) {
+        notifyParent({ type: "error", message: "No document loaded." });
+        return;
+      }
+      try {
+        const bytes = await pdfDocument.saveDocument();
+        notifyParent({ type: "saved", data: bytes });
+      } catch (err) {
+        notifyParent({ type: "error", message: err?.message || "Could not save form data." });
+      }
+    }
+
+    window.addEventListener("message", (event) => {
+      const msg = event.data;
+      if (!msg || msg.target !== "wtc-pdf-viewer") return;
+
+      if (msg.type === "load-bytes" && msg.data) loadPdf(msg.data);
+      if (msg.type === "save") savePdf();
+      if (msg.type === "set-scale" && typeof msg.scale === "number") {
+        pdfViewer.currentScale = msg.scale;
+      }
+      if (msg.type === "set-page" && typeof msg.page === "number") {
+        pdfViewer.currentPageNumber = msg.page;
+      }
+    });
+
+    window.addEventListener("error", (e) => showError(e.message || "Viewer error."));
+    window.addEventListener("unhandledrejection", (e) => {
+      showError(e.reason?.message || "Viewer error.");
+    });
+
+    notifyParent({ type: "ready" });
+  </script>
+</body>
+</html>

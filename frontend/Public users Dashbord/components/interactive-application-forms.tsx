@@ -3,6 +3,7 @@
 import * as React from "react";
 import {
   Loader2, CheckCircle2, Clock, FormInput, Save, Send, ChevronLeft, Sparkles,
+  AlertCircle, Upload, FileText, MessageSquare,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,8 +15,8 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-
-const API = (process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000") + "/api/v1";
+import { CLIENT_API, clientAuthHeaders } from "@/lib/client-api";
+import { useClientJourneyOptional } from "@/context/client-journey-context";
 
 type FormField = {
   type: string;
@@ -27,16 +28,22 @@ type FormField = {
   options?: { value: string; label: string }[];
 };
 
+type FormResponse = {
+  id?: number;
+  status: string;
+  submitted_at?: string | null;
+  reviewed_at?: string | null;
+  consultant_notes?: string | null;
+  updated_at?: string | null;
+};
+
 type FormSummary = {
   id: number;
   slug: string;
   title: string;
   description?: string | null;
   field_count?: number;
-  response?: {
-    status: string;
-    submitted_at?: string | null;
-  } | null;
+  response?: FormResponse | null;
 };
 
 type FormDetail = {
@@ -44,26 +51,59 @@ type FormDetail = {
   title: string;
   description?: string | null;
   form_schema: { fields: FormField[] };
-  response?: {
-    status: string;
-    response_data?: Record<string, unknown>;
-    submitted_at?: string | null;
-  } | null;
+  response?: FormResponse & { response_data?: Record<string, unknown> } | null;
 };
 
-function getToken(): string | null {
-  if (typeof window === "undefined") return null;
-  const cookie = document.cookie.match(/(?:^|;\s*)wtc_token=([^;]+)/);
-  return localStorage.getItem("wtc_token") ?? (cookie ? decodeURIComponent(cookie[1]) : null);
+function formStatusBadge(response: FormResponse | null | undefined): {
+  label: string;
+  variant: "default" | "outline" | "secondary";
+  className?: string;
+  icon: React.ReactNode;
+} {
+  if (!response) {
+    return { label: "Not started", variant: "secondary", icon: <Clock className="h-3 w-3" /> };
+  }
+  if (response.reviewed_at) {
+    return {
+      label: "Verified",
+      variant: "default",
+      className: "bg-green-600",
+      icon: <CheckCircle2 className="h-3 w-3" />,
+    };
+  }
+  if (response.status === "submitted") {
+    return {
+      label: "Under review",
+      variant: "outline",
+      className: "border-amber-200 text-amber-800",
+      icon: <Clock className="h-3 w-3" />,
+    };
+  }
+  return {
+    label: "Draft",
+    variant: "outline",
+    className: "border-blue-200 text-blue-700",
+    icon: <Save className="h-3 w-3" />,
+  };
 }
 
-function authHeaders(json = false): Record<string, string> {
-  const token = getToken();
-  return {
-    Accept: "application/json",
-    ...(json ? { "Content-Type": "application/json" } : {}),
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-  };
+function isEmptyValue(value: unknown, type: string): boolean {
+  if (type === "checkbox") return value === null || value === undefined;
+  if (type === "file") return !value || value === "";
+  return value === null || value === undefined || value === "";
+}
+
+function validateForm(fields: FormField[], values: Record<string, unknown>): string[] {
+  const errors: string[] = [];
+  for (const field of fields) {
+    if (field.type === "section" || !field.key) continue;
+    if (!field.required) continue;
+    const val = values[field.key];
+    if (isEmptyValue(val, field.type)) {
+      errors.push(`${field.label} is required.`);
+    }
+  }
+  return errors;
 }
 
 function FieldRenderer({
@@ -71,12 +111,18 @@ function FieldRenderer({
   value,
   onChange,
   disabled,
+  error,
+  onFileUpload,
 }: {
   field: FormField;
   value: unknown;
   onChange: (v: unknown) => void;
   disabled: boolean;
+  error?: string;
+  onFileUpload?: (file: File) => Promise<void>;
 }) {
+  const [uploading, setUploading] = React.useState(false);
+
   if (field.type === "section") {
     return (
       <div className="pt-2">
@@ -88,6 +134,16 @@ function FieldRenderer({
   }
 
   const id = field.key ?? field.label;
+
+  const handleFile = async (file: File) => {
+    if (!onFileUpload) return;
+    setUploading(true);
+    try {
+      await onFileUpload(file);
+    } finally {
+      setUploading(false);
+    }
+  };
 
   return (
     <div className="space-y-1.5">
@@ -104,14 +160,11 @@ function FieldRenderer({
           value={String(value ?? "")}
           placeholder={field.placeholder}
           onChange={(e) => onChange(e.target.value)}
+          className={error ? "border-destructive" : undefined}
         />
       ) : field.type === "select" || field.type === "radio" ? (
-        <Select
-          disabled={disabled}
-          value={String(value ?? "")}
-          onValueChange={onChange}
-        >
-          <SelectTrigger id={id}>
+        <Select disabled={disabled} value={String(value ?? "")} onValueChange={onChange}>
+          <SelectTrigger id={id} className={error ? "border-destructive" : undefined}>
             <SelectValue placeholder={field.placeholder ?? "Select…"} />
           </SelectTrigger>
           <SelectContent>
@@ -130,16 +183,65 @@ function FieldRenderer({
           />
           <label htmlFor={id} className="text-sm">{field.label}</label>
         </div>
+      ) : field.type === "file" ? (
+        <div className="space-y-2">
+          {value ? (
+            <div className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm">
+              <FileText className="h-4 w-4 text-primary shrink-0" />
+              <span className="flex-1 truncate">{String(value).split("/").pop()}</span>
+              {!disabled && (
+                <button type="button" className="text-xs text-primary hover:underline" onClick={() => onChange("")}>
+                  Remove
+                </button>
+              )}
+            </div>
+          ) : null}
+          {!disabled && (
+            <label className={cn(
+              "flex flex-col items-center gap-1 rounded-lg border border-dashed py-4 cursor-pointer hover:bg-muted/30",
+              uploading && "opacity-60 pointer-events-none",
+              error && "border-destructive",
+            )}>
+              {uploading ? (
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+              ) : (
+                <Upload className="h-5 w-5 text-muted-foreground" />
+              )}
+              <span className="text-xs text-muted-foreground">
+                {uploading ? "Uploading…" : "Click to upload (PDF, JPG, PNG · max 10 MB)"}
+              </span>
+              <input
+                type="file"
+                accept="application/pdf,image/jpeg,image/png"
+                className="hidden"
+                disabled={disabled || uploading}
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) handleFile(f);
+                  e.target.value = "";
+                }}
+              />
+            </label>
+          )}
+        </div>
       ) : (
         <Input
           id={id}
           disabled={disabled}
-          type={field.type === "number" ? "number" : field.type === "date" ? "date" : field.type === "email" ? "email" : field.type === "tel" ? "tel" : "text"}
+          type={
+            field.type === "number" ? "number"
+            : field.type === "date" ? "date"
+            : field.type === "email" ? "email"
+            : field.type === "tel" ? "tel"
+            : "text"
+          }
           value={String(value ?? "")}
           placeholder={field.placeholder}
-          onChange={(e) => onChange(field.type === "number" ? e.target.value : e.target.value)}
+          onChange={(e) => onChange(e.target.value)}
+          className={error ? "border-destructive" : undefined}
         />
       )}
+      {error && <p className="text-xs text-destructive">{error}</p>}
     </div>
   );
 }
@@ -153,18 +255,27 @@ function FormEditor({
   onBack: () => void;
   onSaved: () => void;
 }) {
+  const journey = useClientJourneyOptional();
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
   const [submitting, setSubmitting] = React.useState(false);
+  const [autoSaveStatus, setAutoSaveStatus] = React.useState<"idle" | "saving" | "saved">("idle");
   const [error, setError] = React.useState("");
+  const [fieldErrors, setFieldErrors] = React.useState<Record<string, string>>({});
   const [form, setForm] = React.useState<FormDetail | null>(null);
   const [values, setValues] = React.useState<Record<string, unknown>>({});
   const [prefilled, setPrefilled] = React.useState(false);
+  const autoSaveTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const skipAutoSave = React.useRef(true);
+
+  const refreshJourney = React.useCallback(async () => {
+    await journey?.refresh();
+  }, [journey]);
 
   React.useEffect(() => {
     setLoading(true);
     setError("");
-    fetch(`${API}/client/interactive-forms/${formId}`, { headers: authHeaders() })
+    fetch(`${CLIENT_API}/client/interactive-forms/${formId}`, { headers: clientAuthHeaders() })
       .then((r) => r.json())
       .then((json) => {
         if (!json.data) throw new Error(json.message ?? "Failed to load form.");
@@ -175,45 +286,106 @@ function FormEditor({
         const initial = { ...merged, ...existing };
         setValues(initial);
         setPrefilled(Object.keys(json.prefill ?? {}).length > 0 && Object.keys(existing).length === 0);
+        skipAutoSave.current = true;
       })
       .catch((e) => setError(e instanceof Error ? e.message : "Failed to load form."))
       .finally(() => setLoading(false));
   }, [formId]);
 
   const isSubmitted = form?.response?.status === "submitted";
+  const isVerified = !!form?.response?.reviewed_at;
+  const readOnly = isSubmitted;
 
-  async function saveDraft() {
-    setSaving(true);
+  const saveDraft = React.useCallback(async (silent = false) => {
+    if (readOnly) return;
+    if (!silent) setSaving(true);
+    else setAutoSaveStatus("saving");
     setError("");
     try {
-      const res = await fetch(`${API}/client/interactive-forms/${formId}`, {
+      const res = await fetch(`${CLIENT_API}/client/interactive-forms/${formId}`, {
         method: "PUT",
-        headers: authHeaders(true),
+        headers: clientAuthHeaders(true),
         body: JSON.stringify({ response_data: values }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.message ?? "Save failed.");
-      onSaved();
+      if (silent) {
+        setAutoSaveStatus("saved");
+        setTimeout(() => setAutoSaveStatus("idle"), 2000);
+      } else {
+        await refreshJourney();
+        onSaved();
+      }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Save failed.");
+      if (!silent) setError(e instanceof Error ? e.message : "Save failed.");
+      else setAutoSaveStatus("idle");
     } finally {
-      setSaving(false);
+      if (!silent) setSaving(false);
     }
+  }, [formId, values, readOnly, refreshJourney, onSaved]);
+
+  React.useEffect(() => {
+    if (loading || readOnly) return;
+    if (skipAutoSave.current) {
+      skipAutoSave.current = false;
+      return;
+    }
+    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+    autoSaveTimer.current = setTimeout(() => saveDraft(true), 2000);
+    return () => {
+      if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+    };
+  }, [values, loading, readOnly, saveDraft]);
+
+  async function uploadFieldFile(file: File, fieldKey: string) {
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("type", "client-document");
+    const res = await fetch(`${CLIENT_API}/upload`, {
+      method: "POST",
+      headers: clientAuthHeaders(),
+      body: formData,
+    });
+    const json = await res.json();
+    if (!res.ok) throw new Error(json.message ?? "Upload failed.");
+    setValues((prev) => ({ ...prev, [fieldKey]: json.path ?? json.url ?? "" }));
   }
 
   async function submitForm() {
+    if (!form) return;
+    const fields = form.form_schema?.fields ?? [];
+    const validationErrors = validateForm(fields, values);
+    if (validationErrors.length > 0) {
+      const errMap: Record<string, string> = {};
+      for (const field of fields) {
+        if (field.key && field.required && isEmptyValue(values[field.key], field.type)) {
+          errMap[field.key] = `${field.label} is required.`;
+        }
+      }
+      setFieldErrors(errMap);
+      setError(validationErrors[0]);
+      return;
+    }
+    setFieldErrors({});
     setSubmitting(true);
     setError("");
     try {
-      await saveDraft();
-      const res = await fetch(`${API}/client/interactive-forms/${formId}/submit`, {
+      const res = await fetch(`${CLIENT_API}/client/interactive-forms/${formId}/submit`, {
         method: "POST",
-        headers: authHeaders(true),
+        headers: clientAuthHeaders(true),
         body: JSON.stringify({ response_data: values }),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.message ?? Object.values(json.errors ?? {})[0] ?? "Submit failed.");
-      setForm((prev) => prev ? { ...prev, response: json.data?.response ?? { status: "submitted" } } : prev);
+      if (!res.ok) {
+        const serverErr = json.errors
+          ? Object.values(json.errors as Record<string, string>)[0]
+          : json.message;
+        throw new Error(String(serverErr ?? "Submit failed."));
+      }
+      setForm((prev) =>
+        prev ? { ...prev, response: json.data?.response ?? { status: "submitted" } } : prev,
+      );
+      await refreshJourney();
       onSaved();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Submit failed.");
@@ -234,6 +406,8 @@ function FormEditor({
     return <p className="text-sm text-destructive py-8">{error || "Form not found."}</p>;
   }
 
+  const status = formStatusBadge(form.response);
+
   return (
     <div className="space-y-4">
       <Button variant="ghost" size="sm" onClick={onBack} className="gap-1 -ml-2">
@@ -243,22 +417,38 @@ function FormEditor({
       <div>
         <h3 className="font-semibold text-lg">{form.title}</h3>
         {form.description && <p className="text-sm text-muted-foreground mt-1">{form.description}</p>}
-        <div className="flex flex-wrap gap-2 mt-2">
-          {isSubmitted ? (
-            <Badge className="bg-green-600">Submitted</Badge>
-          ) : (
-            <Badge variant="outline">Draft</Badge>
-          )}
+        <div className="flex flex-wrap items-center gap-2 mt-2">
+          <Badge variant={status.variant} className={cn("gap-1", status.className)}>
+            {status.icon} {status.label}
+          </Badge>
           {prefilled && !isSubmitted && (
             <Badge variant="outline" className="border-blue-200 text-blue-700 gap-1">
               <Sparkles className="h-3 w-3" /> Auto-filled from questionnaire
             </Badge>
           )}
+          {autoSaveStatus === "saving" && (
+            <span className="text-xs text-muted-foreground flex items-center gap-1">
+              <Loader2 className="h-3 w-3 animate-spin" /> Auto-saving…
+            </span>
+          )}
+          {autoSaveStatus === "saved" && (
+            <span className="text-xs text-green-600">Draft saved</span>
+          )}
         </div>
       </div>
 
+      {form.response?.consultant_notes && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <p className="font-medium flex items-center gap-1.5">
+            <MessageSquare className="h-4 w-4" /> Consultant notes
+          </p>
+          <p className="mt-1 whitespace-pre-wrap">{form.response.consultant_notes}</p>
+        </div>
+      )}
+
       {error && (
-        <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+        <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive flex items-start gap-2">
+          <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
           {error}
         </div>
       )}
@@ -269,15 +459,32 @@ function FormEditor({
             key={field.key ?? `section-${idx}`}
             field={field}
             value={field.key ? values[field.key] : undefined}
-            disabled={isSubmitted}
-            onChange={(v) => field.key && setValues((prev) => ({ ...prev, [field.key!]: v }))}
+            disabled={readOnly}
+            error={field.key ? fieldErrors[field.key] : undefined}
+            onChange={(v) => {
+              if (field.key) {
+                setValues((prev) => ({ ...prev, [field.key!]: v }));
+                if (fieldErrors[field.key]) {
+                  setFieldErrors((prev) => {
+                    const next = { ...prev };
+                    delete next[field.key!];
+                    return next;
+                  });
+                }
+              }
+            }}
+            onFileUpload={
+              field.key
+                ? (file) => uploadFieldFile(file, field.key!)
+                : undefined
+            }
           />
         ))}
       </div>
 
-      {!isSubmitted && (
+      {!readOnly && (
         <div className="flex flex-wrap gap-2">
-          <Button variant="outline" onClick={saveDraft} disabled={saving || submitting}>
+          <Button variant="outline" onClick={() => saveDraft(false)} disabled={saving || submitting}>
             <Save className="mr-1.5 h-4 w-4" />
             {saving ? "Saving…" : "Save draft"}
           </Button>
@@ -287,11 +494,18 @@ function FormEditor({
           </Button>
         </div>
       )}
+
+      {isSubmitted && !isVerified && (
+        <p className="text-sm text-muted-foreground">
+          Your form has been submitted. Your consultant will review it and may add notes above.
+        </p>
+      )}
     </div>
   );
 }
 
 export function InteractiveApplicationForms({ compact = false }: { compact?: boolean }) {
+  const journey = useClientJourneyOptional();
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState("");
   const [forms, setForms] = React.useState<FormSummary[]>([]);
@@ -301,7 +515,7 @@ export function InteractiveApplicationForms({ compact = false }: { compact?: boo
     setLoading(true);
     setError("");
     try {
-      const res = await fetch(`${API}/client/interactive-forms`, { headers: authHeaders() });
+      const res = await fetch(`${CLIENT_API}/client/interactive-forms`, { headers: clientAuthHeaders() });
       const json = await res.json();
       if (!res.ok) throw new Error(json.message ?? "Failed to load forms.");
       setForms(json.forms ?? []);
@@ -315,12 +529,17 @@ export function InteractiveApplicationForms({ compact = false }: { compact?: boo
 
   React.useEffect(() => { loadForms(); }, [loadForms]);
 
+  const handleSaved = React.useCallback(async () => {
+    await loadForms();
+    await journey?.refresh();
+  }, [loadForms, journey]);
+
   if (activeFormId) {
     return (
       <FormEditor
         formId={activeFormId}
         onBack={() => { setActiveFormId(null); loadForms(); }}
-        onSaved={loadForms}
+        onSaved={handleSaved}
       />
     );
   }
@@ -355,19 +574,19 @@ export function InteractiveApplicationForms({ compact = false }: { compact?: boo
   }
 
   const submittedCount = forms.filter((f) => f.response?.status === "submitted").length;
+  const verifiedCount = forms.filter((f) => f.response?.reviewed_at).length;
 
   return (
     <div className="space-y-3">
       {!compact && (
-        <div className="flex items-center justify-between gap-2">
-          <p className="text-sm text-muted-foreground">
-            {submittedCount}/{forms.length} forms submitted
-          </p>
+        <div className="flex items-center justify-between gap-2 text-sm text-muted-foreground">
+          <span>{submittedCount}/{forms.length} submitted · {verifiedCount}/{forms.length} verified</span>
         </div>
       )}
 
       {forms.map((form) => {
-        const submitted = form.response?.status === "submitted";
+        const status = formStatusBadge(form.response);
+        const hasNotes = !!form.response?.consultant_notes;
         return (
           <div
             key={form.id}
@@ -379,22 +598,23 @@ export function InteractiveApplicationForms({ compact = false }: { compact?: boo
               {form.description && !compact && (
                 <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{form.description}</p>
               )}
-              <div className="mt-1.5">
-                {submitted ? (
-                  <Badge className="bg-green-600 text-[10px] gap-1">
-                    <CheckCircle2 className="h-3 w-3" /> Submitted
+              <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                <Badge variant={status.variant} className={cn("text-[10px] gap-1", status.className)}>
+                  {status.icon} {status.label}
+                </Badge>
+                {hasNotes && (
+                  <Badge variant="outline" className="text-[10px] border-amber-200 text-amber-800">
+                    Consultant notes
                   </Badge>
-                ) : form.response ? (
-                  <Badge variant="outline" className="text-[10px] gap-1">
-                    <Clock className="h-3 w-3" /> Draft saved
-                  </Badge>
-                ) : (
-                  <Badge variant="secondary" className="text-[10px]">Not started</Badge>
                 )}
               </div>
             </div>
-            <Button size="sm" variant={submitted ? "outline" : "default"} onClick={() => setActiveFormId(form.id)}>
-              {submitted ? "View" : "Fill"}
+            <Button
+              size="sm"
+              variant={form.response?.status === "submitted" ? "outline" : "default"}
+              onClick={() => setActiveFormId(form.id)}
+            >
+              {form.response?.status === "submitted" ? "View" : "Fill"}
             </Button>
           </div>
         );

@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import path from "path";
 import { config } from "dotenv";
 
 config();
@@ -6,6 +7,9 @@ config();
 const isProduction = process.env.NODE_ENV === "production";
 
 const nextConfig: NextConfig = {
+  turbopack: {
+    root: path.resolve(__dirname),
+  },
   assetPrefix: isProduction ? undefined : undefined,
   async rewrites() {
     return [

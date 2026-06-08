@@ -1,18 +1,28 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useRef, useState, useCallback } from "react";
 import {
   Loader2, AlertCircle, Check, FileText, Upload, MessageSquare,
   Send, CheckCircle2, XCircle, Clock, Bot, ShieldCheck, ShieldAlert,
-  ShieldQuestion, CloudUpload, Eye, RefreshCw, ChevronLeft,
+  ShieldQuestion, CloudUpload, Eye, RefreshCw, Briefcase,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { PdfViewerDialog } from "@/components/pdf-viewer-dialog";
+import { PackagePdfFormDialog } from "@/components/package-pdf-form-dialog";
 import { cn } from "@/lib/utils";
-
-const API = (process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000") + "/api/v1";
+import { ClientJourneyPageChrome } from "@/components/client-workspace-ui";
+import { CLIENT_API, clientAuthHeaders } from "@/lib/client-api";
+import {
+  CaseHubProgressHeader,
+  ClientRequirementsStatusGrid,
+  IrccFormsList,
+  ClientHubNextActions,
+  CaseManagementLockedPanel,
+  type HubProgress,
+  type HubRequirement,
+  type HubIrccForm,
+} from "@/components/client-case-hub-ui";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -46,22 +56,6 @@ interface CaseMessage {
   created_at: string;
 }
 
-interface DashboardData {
-  case_file: {
-    id: number;
-    status: string;
-    immigration_pathway: string | null;
-    agreement_signed_at: string | null;
-    application_forms_verified_at?: string | null;
-  } | null;
-  application_package?: ApplicationPackage | null;
-  application_forms_verification?: {
-    case_management_unlocked: boolean;
-    all_submitted: boolean;
-    all_reviewed: boolean;
-  } | null;
-}
-
 interface ApplicationPackage {
   id: number;
   label: string;
@@ -73,98 +67,18 @@ interface ApplicationPackage {
     doc_type: string;
     original_filename: string;
     file_url: string;
+    submission?: { id: number; status: string; submitted_at: string | null } | null;
   }[];
 }
 
-// ── Pathway Document Requirements ─────────────────────────────────────────────
-
-const BASE_DOCS: DocumentRequirement[] = [
-  { id: "passport",      label: "Valid Passport (all pages)" },
-  { id: "photos",        label: "Passport-style photos (2x)" },
-  { id: "proof_address", label: "Proof of address" },
-  { id: "police_cert",   label: "Police clearance certificate" },
-  { id: "medical_exam",  label: "Medical examination (IMM 1017E)" },
-];
-
-const PATHWAY_DOCS: Record<string, DocumentRequirement[]> = {
-  "Express Entry": [
-    { id: "ielts_results",         label: "Language test results (IELTS / CELPIP)" },
-    { id: "eca",                   label: "Educational Credential Assessment (ECA/WES)" },
-    { id: "employment_refs",       label: "Employment reference letters" },
-    { id: "pay_stubs",             label: "Pay stubs (last 3 months)" },
-    { id: "tax_returns",           label: "NOA / Tax returns" },
-    { id: "proof_funds",           label: "Proof of funds (bank statements)" },
-    { id: "express_entry_profile", label: "Express Entry profile confirmation" },
-  ],
-  "PNP": [
-    { id: "ielts_results",   label: "Language test results" },
-    { id: "eca",             label: "Educational Credential Assessment" },
-    { id: "employment_refs", label: "Employment reference letters" },
-    { id: "pnp_nomination",  label: "Provincial Nomination Certificate" },
-    { id: "job_offer",       label: "Job offer letter (if applicable)" },
-    { id: "proof_funds",     label: "Proof of funds" },
-  ],
-  "Family Sponsorship": [
-    { id: "sponsor_status",     label: "Sponsor's PR card / citizenship certificate" },
-    { id: "marriage_cert",      label: "Marriage / relationship certificate" },
-    { id: "sponsor_income",     label: "Sponsor's proof of income (NOA)" },
-    { id: "relationship_proof", label: "Proof of genuine relationship (photos, messages)" },
-    { id: "birth_certs",        label: "Birth certificates (dependents)" },
-  ],
-  "Study Permit": [
-    { id: "acceptance_letter", label: "Letter of acceptance from DLI" },
-    { id: "ielts_results",     label: "Language test results" },
-    { id: "transcripts",       label: "Academic transcripts (O/L & A/L certificates)" },
-    { id: "study_plan",        label: "Statement of purpose / study plan" },
-    { id: "proof_funds",       label: "Proof of financial support (bank statements)" },
-    { id: "sponsor_letter",    label: "Sponsor letter (if applicable)" },
-  ],
-  "Work Permit": [
-    { id: "lmia_job_offer",      label: "LMIA-approved job offer / LMIA-exempt offer" },
-    { id: "employment_contract", label: "Signed employment contract" },
-    { id: "ielts_results",       label: "Language test results (if required)" },
-    { id: "qualifications",      label: "Educational / professional qualifications" },
-    { id: "resume",              label: "Current resume / CV" },
-  ],
-};
-
-function getRequiredDocsFromHub(requirements: { id: string; label: string }[]): DocumentRequirement[] {
-  return requirements.map((r) => ({ id: r.id, label: r.label }));
-}
-
-function pathwayFamily(pathway: string | null): string | null {
-  if (!pathway) return null;
-  if (pathway.includes("Express Entry")) return "Express Entry";
-  if (pathway.includes("PNP") || pathway.includes("Provincial")) return "PNP";
-  if (pathway.includes("Sponsorship")) return "Family Sponsorship";
-  if (pathway.includes("Study")) return "Study Permit";
-  if (pathway.includes("Work")) return "Work Permit";
-  return pathway;
-}
-
-function getRequiredDocs(pathway: string | null): DocumentRequirement[] {
-  const family = pathwayFamily(pathway);
-  const extra = family && PATHWAY_DOCS[family] ? PATHWAY_DOCS[family] : (family && PATHWAY_DOCS[pathway] ? PATHWAY_DOCS[pathway] : []);
-  return [...BASE_DOCS, ...extra];
+interface FormsVerification {
+  case_management_unlocked?: boolean;
+  total_forms?: number;
+  submitted_count?: number;
+  reviewed_count?: number;
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
-
-function getCookieToken(): string | null {
-  if (typeof document === "undefined") return null;
-  const m = document.cookie.match(/(?:^|;\s*)wtc_token=([^;]+)/);
-  return m ? decodeURIComponent(m[1]) : null;
-}
-
-function authHeaders(): Record<string, string> {
-  const token = typeof window !== "undefined"
-    ? (localStorage.getItem("wtc_token") ?? getCookieToken())
-    : null;
-  return {
-    "Accept": "application/json",
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-  };
-}
 
 function fmtDate(iso: string | null) {
   if (!iso) return "";
@@ -279,7 +193,6 @@ function DropZone({
             </div>
           )}
 
-          {/* Upload area — show if no approved doc, or if rejected */}
           {(!hasUpload || isRejected) && (
             <div
               onDragOver={e => { e.preventDefault(); setDraggingOver(true); }}
@@ -317,7 +230,7 @@ function DropZone({
                   className="h-6 text-xs gap-1"
                   onClick={() => onViewPdf(
                     existingSubmission.document_label || existingSubmission.original_filename,
-                    `${API}/client/documents/${existingSubmission.id}/stream`,
+                    `${CLIENT_API}/client/documents/${existingSubmission.id}/stream`,
                   )}
                 >
                   <Eye className="h-3 w-3" />View
@@ -347,50 +260,87 @@ function DropZone({
 
 export function CaseManagementClient() {
   const [loading, setLoading]     = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [locked, setLocked]       = useState(false);
+  const [lockedMessage, setLockedMessage] = useState("");
+  const [lockedVerification, setLockedVerification] = useState<FormsVerification | null>(null);
   const [error, setError]         = useState("");
   const [pathway, setPathway]     = useState<string | null>(null);
-  const [caseStatus, setCaseStatus] = useState<string | null>(null);
-  const [caseManagementUnlocked, setCaseManagementUnlocked] = useState(false);
-  const [hubRequirements, setHubRequirements] = useState<DocumentRequirement[]>([]);
-  const [hubProgress, setHubProgress] = useState<{ overall_percent: number; documents: { approved: number; total: number; missing: number } } | null>(null);
+  const [hubRequirements, setHubRequirements] = useState<HubRequirement[]>([]);
+  const [hubProgress, setHubProgress] = useState<HubProgress | null>(null);
+  const [irccForms, setIrccForms] = useState<HubIrccForm[]>([]);
   const [documents, setDocuments] = useState<DocumentSubmission[]>([]);
   const [applicationPackage, setApplicationPackage] = useState<ApplicationPackage | null>(null);
   const [messages, setMessages]   = useState<CaseMessage[]>([]);
-  const [activeTab, setActiveTab] = useState<"documents" | "messages">("documents");
+  const [activeTab, setActiveTab] = useState<"overview" | "documents" | "messages">("overview");
   const [msgInput, setMsgInput]   = useState("");
   const [sending, setSending]     = useState(false);
   const [toast, setToast]         = useState<{ msg: string; type: "success" | "error" } | null>(null);
   const [pdfViewer, setPdfViewer] = useState<{ title: string; streamUrl: string } | null>(null);
+  const [packageForm, setPackageForm] = useState<{
+    documentId: number;
+    title: string;
+    streamUrl: string;
+    alreadySubmitted: boolean;
+  } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const pdfAuthHeaders = useCallback(() => clientAuthHeaders(), []);
 
   const showToast = (msg: string, type: "success" | "error" = "success") => {
     setToast({ msg, type });
     setTimeout(() => setToast(null), 3500);
   };
 
-  const load = useCallback(async () => {
-    setLoading(true); setError("");
+  const loadMessages = useCallback(async () => {
+    try {
+      const res = await fetch(`${CLIENT_API}/client/messages`, { headers: clientAuthHeaders() });
+      if (!res.ok) return;
+      const json = await res.json();
+      setMessages(json.messages ?? []);
+    } catch {
+      // silent poll failure
+    }
+  }, []);
+
+  const load = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
+    else setRefreshing(true);
+    setError("");
+    setLocked(false);
     try {
       const [hubRes, msgsRes] = await Promise.all([
-        fetch(`${API}/client/case-management-hub`, { headers: authHeaders() }),
-        fetch(`${API}/client/messages`, { headers: authHeaders() }),
+        fetch(`${CLIENT_API}/client/case-management-hub`, { headers: clientAuthHeaders() }),
+        fetch(`${CLIENT_API}/client/messages`, { headers: clientAuthHeaders() }),
       ]);
-      const [hubJson, msgsJson] = await Promise.all([hubRes.json(), msgsRes.json()]);
-      if (!hubRes.ok) throw new Error(hubJson.message ?? "Failed to load.");
+      const hubJson = await hubRes.json();
+
+      if (hubRes.status === 403) {
+        setLocked(true);
+        setLockedMessage(hubJson.message ?? "Complete application forms before uploading documents.");
+        setLockedVerification(hubJson.verification ?? null);
+        setPathway(hubJson.case_file?.immigration_pathway ?? null);
+        return;
+      }
+
+      if (!hubRes.ok) {
+        throw new Error(hubJson.message ?? "Failed to load.");
+      }
+
+      const msgsJson = msgsRes.ok ? await msgsRes.json() : { messages: [] };
 
       const cf = hubJson.case_file;
       setPathway(cf?.immigration_pathway ?? null);
-      setCaseStatus(cf?.status ?? null);
-      setCaseManagementUnlocked(Boolean(hubJson.case_management_unlocked));
       setApplicationPackage(hubJson.application_package ?? null);
       setHubProgress(hubJson.progress ?? null);
-      setHubRequirements(getRequiredDocsFromHub(hubJson.document_requirements ?? []));
+      setHubRequirements(hubJson.document_requirements ?? []);
+      setIrccForms(hubJson.ircc_forms ?? []);
       setDocuments(hubJson.documents ?? []);
       setMessages(msgsJson.messages ?? []);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Failed to load.");
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, []);
 
@@ -402,17 +352,22 @@ export function CaseManagementClient() {
     }
   }, [messages, activeTab]);
 
+  useEffect(() => {
+    if (locked || activeTab !== "messages") return;
+    const interval = setInterval(loadMessages, 30000);
+    return () => clearInterval(interval);
+  }, [locked, activeTab, loadMessages]);
+
   const uploadDocument = async (docType: string, docLabel: string, file: File) => {
-    const token = typeof window !== "undefined" ? (localStorage.getItem("wtc_token") ?? getCookieToken()) : null;
     const form = new FormData();
     form.append("document_type", docType);
     form.append("document_label", docLabel);
     form.append("file", file);
 
     try {
-      const res = await fetch(`${API}/client/documents/upload`, {
+      const res = await fetch(`${CLIENT_API}/client/documents/upload`, {
         method: "POST",
-        headers: { "Accept": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        headers: clientAuthHeaders(),
         body: form,
       });
       const json = await res.json();
@@ -427,6 +382,7 @@ export function CaseManagementClient() {
         return [json.document, ...prev];
       });
       showToast("Document uploaded successfully.");
+      load(true);
     } catch (e: unknown) {
       showToast(e instanceof Error ? e.message : "Upload failed.", "error");
     }
@@ -435,11 +391,10 @@ export function CaseManagementClient() {
   const sendMessage = async () => {
     if (!msgInput.trim()) return;
     setSending(true);
-    const token = typeof window !== "undefined" ? (localStorage.getItem("wtc_token") ?? getCookieToken()) : null;
     try {
-      const res = await fetch(`${API}/client/messages`, {
+      const res = await fetch(`${CLIENT_API}/client/messages`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "Accept": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        headers: clientAuthHeaders(true),
         body: JSON.stringify({ message: msgInput.trim() }),
       });
       const json = await res.json();
@@ -453,8 +408,6 @@ export function CaseManagementClient() {
     }
   };
 
-  // ── Loading / Error ────────────────────────────────────────────────────────
-
   if (loading) {
     return (
       <div className="flex items-center justify-center py-40">
@@ -463,71 +416,60 @@ export function CaseManagementClient() {
     );
   }
 
+  if (locked) {
+    return (
+      <ClientJourneyPageChrome
+        stepId="documents"
+        description="Complete your application forms to unlock document uploads."
+      >
+        <CaseManagementLockedPanel message={lockedMessage} verification={lockedVerification} />
+      </ClientJourneyPageChrome>
+    );
+  }
+
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center py-40 gap-4 text-center">
         <AlertCircle className="h-10 w-10 text-red-400" />
         <p className="text-lg font-semibold">{error}</p>
-        <Button variant="outline" onClick={load}><RefreshCw className="mr-2 h-4 w-4" />Retry</Button>
+        <Button variant="outline" onClick={() => load()}><RefreshCw className="mr-2 h-4 w-4" />Retry</Button>
       </div>
     );
   }
 
-  // Agreement must be signed
-  const agreementSigned = caseStatus && ["AGREEMENT_SIGNED", "DOCUMENTS_UPLOADING", "UNDER_REVIEW", "READY_FOR_SUBMISSION", "APPLICATION_SUBMITTED"].includes(caseStatus);
-
-  if (!agreementSigned) {
-    return (
-      <div className="flex flex-col items-center justify-center py-24 gap-4 text-center max-w-md mx-auto">
-        <FileText className="h-12 w-12 text-muted-foreground/40" />
-        <p className="text-xs font-semibold uppercase tracking-wider text-primary">Step 2 of 4</p>
-        <h2 className="text-xl font-bold">Sign your retainer first</h2>
-        <p className="text-sm text-muted-foreground">
-          Case documents unlock after you sign the retainer agreement and complete application forms.
-        </p>
-        <div className="flex flex-col sm:flex-row gap-2 pt-2">
-          <Button asChild>
-            <Link href="/user-dashboard/retainer-agreement">Go to retainer agreement</Link>
-          </Button>
-          <Button variant="outline" asChild>
-            <Link href="/user-dashboard">Back to home</Link>
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
-  if (!caseManagementUnlocked) {
-    return (
-      <div className="flex flex-col items-center justify-center py-24 gap-4 text-center max-w-md mx-auto">
-        <Clock className="h-12 w-12 text-muted-foreground/40" />
-        <p className="text-xs font-semibold uppercase tracking-wider text-primary">Step 3 of 4</p>
-        <h2 className="text-xl font-bold">Almost there — forms under review</h2>
-        <p className="text-sm text-muted-foreground">
-          Submit all application forms, then wait for your consultant to verify them. Case documents will unlock automatically.
-        </p>
-        <div className="flex flex-col sm:flex-row gap-2 pt-2">
-          <Button asChild>
-            <Link href="/user-dashboard/application-forms">Continue application forms</Link>
-          </Button>
-          <Button variant="outline" asChild>
-            <Link href="/user-dashboard">Back to home</Link>
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
-  const requiredDocs = hubRequirements.length > 0 ? hubRequirements : getRequiredDocs(pathway);
+  const requiredDocs: DocumentRequirement[] = hubRequirements.map((r) => ({ id: r.id, label: r.label }));
   const submissionMap = Object.fromEntries(documents.map(d => [d.document_type, d]));
   const approvedCount = documents.filter(d => ["consultant_approved", "ai_verified"].includes(d.status)).length;
   const rejectedCount = documents.filter(d => d.status === "consultant_rejected").length;
   const pendingCount  = documents.filter(d => ["pending_review", "under_ai_review", "ai_flagged"].includes(d.status)).length;
   const unreadCount   = messages.filter(m => m.sender_type === "consultant" && !m.read_at).length;
+  const missingDocs   = hubRequirements.filter((r) => r.status === "missing" || r.status === "rejected").length;
+
+  const clientNextActions = [
+    ...(missingDocs > 0 ? [{ label: `Upload ${missingDocs} required document(s)`, tab: "documents" as const, urgent: true }] : []),
+    ...(pendingCount > 0 ? [{ label: `${pendingCount} document(s) awaiting consultant review`, tab: "documents" as const }] : []),
+    ...(rejectedCount > 0 ? [{ label: `${rejectedCount} document(s) need re-upload`, tab: "documents" as const, urgent: true }] : []),
+    ...(unreadCount > 0 ? [{ label: `${unreadCount} new message(s) from consultant`, tab: "messages" as const }] : []),
+  ];
 
   return (
-    <div className="w-full pb-16">
-      {/* Toast */}
+    <ClientJourneyPageChrome
+      stepId="documents"
+      description={`Upload required documents and message your consultant for your ${pathway ?? "immigration"} application.`}
+      extra={
+        <div className="flex items-center gap-2">
+          {hubProgress && (
+            <div className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
+              {hubProgress.overall_percent}% complete
+            </div>
+          )}
+          <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => load(true)} disabled={refreshing}>
+            <RefreshCw className={cn("h-3.5 w-3.5 mr-1", refreshing && "animate-spin")} />
+            Refresh
+          </Button>
+        </div>
+      }
+    >
       {toast && (
         <div className={cn(
           "fixed top-4 right-4 z-50 flex items-center gap-2 rounded-lg border px-4 py-3 text-sm shadow-lg",
@@ -538,56 +480,37 @@ export function CaseManagementClient() {
         </div>
       )}
 
-      {/* Header */}
-      <div className="mb-6">
-        <Button variant="ghost" size="sm" className="h-8 -ml-2 mb-3 text-muted-foreground" asChild>
-          <Link href="/user-dashboard">
-            <ChevronLeft className="h-4 w-4 mr-0.5" /> Back to home
-          </Link>
-        </Button>
-        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">Step 4 of 4</p>
-        <h1 className="text-2xl font-bold tracking-tight">Case documents</h1>
-        <p className="text-muted-foreground text-sm mt-0.5">
-          Upload required documents and message your consultant for <strong>{pathway ?? "your"}</strong> application
-        </p>
-        {hubProgress && (
-          <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-primary/10 text-primary px-3 py-1 text-xs font-medium">
-            {hubProgress.overall_percent}% case complete · {hubProgress.documents.approved}/{hubProgress.documents.total} docs approved
-          </div>
-        )}
-      </div>
+      {hubProgress && (
+        <CaseHubProgressHeader
+          progress={hubProgress}
+          pathway={pathway}
+          packageLabel={applicationPackage?.label}
+          pipelineLabel={hubProgress.pipeline.label}
+        />
+      )}
 
-      {/* Progress stats */}
-      <div className="grid grid-cols-3 gap-3 mb-6">
-        <div className="rounded-xl border p-4 text-center">
-          <p className="text-2xl font-bold text-green-600">{approvedCount}</p>
-          <p className="text-xs text-muted-foreground mt-0.5">Approved</p>
-        </div>
-        <div className={cn("rounded-xl border p-4 text-center", pendingCount > 0 ? "border-amber-200" : "")}>
-          <p className={cn("text-2xl font-bold", pendingCount > 0 ? "text-amber-600" : "text-muted-foreground")}>{pendingCount}</p>
-          <p className="text-xs text-muted-foreground mt-0.5">Under Review</p>
-        </div>
-        <div className={cn("rounded-xl border p-4 text-center", rejectedCount > 0 ? "border-red-200" : "")}>
-          <p className={cn("text-2xl font-bold", rejectedCount > 0 ? "text-red-600" : "text-muted-foreground")}>{rejectedCount}</p>
-          <p className="text-xs text-muted-foreground mt-0.5">Need Reupload</p>
-        </div>
-      </div>
-
-      {/* AI notice */}
       <div className="flex items-start gap-3 rounded-xl border bg-blue-50 border-blue-200 p-4 mb-6 text-sm text-blue-800">
         <Bot className="h-5 w-5 shrink-0 mt-0.5 text-blue-600" />
         <div>
           <p className="font-medium">AI-Powered Document Verification</p>
           <p className="text-xs mt-0.5 text-blue-700">
-            After uploading, our AI system automatically scans and verifies your documents. 
-            If everything matches your questionnaire data, the document is auto-approved. 
-            Your consultant will be notified only if a review is needed.
+            After uploading, our AI system automatically scans and verifies your documents.
+            Image files are auto-scanned against your questionnaire data. PDF uploads are reviewed manually by your consultant.
           </p>
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="flex border-b mb-6">
+      <div className="flex border-b mb-6 overflow-x-auto">
+        <button
+          onClick={() => setActiveTab("overview")}
+          className={cn(
+            "px-4 py-2 text-sm font-medium border-b-2 transition-colors shrink-0",
+            activeTab === "overview" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
+          )}
+        >
+          <Briefcase className="inline h-4 w-4 mr-1.5" />
+          Overview
+        </button>
         <button
           onClick={() => setActiveTab("documents")}
           className={cn(
@@ -596,7 +519,7 @@ export function CaseManagementClient() {
           )}
         >
           <Upload className="inline h-4 w-4 mr-1.5" />
-          Documents ({documents.length} / {requiredDocs.length})
+          Documents ({approvedCount} / {requiredDocs.length})
         </button>
         <button
           onClick={() => setActiveTab("messages")}
@@ -615,7 +538,34 @@ export function CaseManagementClient() {
         </button>
       </div>
 
-      {/* ── DOCUMENTS TAB ── */}
+      {activeTab === "overview" && (
+        <div className="space-y-6">
+          <ClientHubNextActions actions={clientNextActions} onActionClick={(tab) => setActiveTab(tab as typeof activeTab)} />
+
+          {applicationPackage && (
+            <div className="rounded-xl border p-4 space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Your application package</p>
+              <p className="font-semibold">{applicationPackage.label}</p>
+              <p className="text-sm text-muted-foreground">{applicationPackage.breadcrumb.join(" › ")}</p>
+            </div>
+          )}
+
+          <div className="rounded-xl border p-4 space-y-3">
+            <p className="text-sm font-semibold">Document checklist</p>
+            {hubRequirements.length > 0 ? (
+              <ClientRequirementsStatusGrid requirements={hubRequirements} />
+            ) : (
+              <p className="text-sm text-muted-foreground italic">No document requirements configured yet.</p>
+            )}
+          </div>
+
+          <div className="rounded-xl border p-4 space-y-3">
+            <p className="text-sm font-semibold">IRCC forms for your pathway</p>
+            <IrccFormsList forms={irccForms} pathway={pathway} />
+          </div>
+        </div>
+      )}
+
       {activeTab === "documents" && (
         <div className="space-y-3">
           {applicationPackage && (
@@ -648,15 +598,23 @@ export function CaseManagementClient() {
                     <button
                       key={doc.id}
                       type="button"
-                      onClick={() => setPdfViewer({
+                      onClick={() => setPackageForm({
+                        documentId: doc.id,
                         title: doc.label,
-                        streamUrl: `${API}/client/package-documents/${doc.id}/stream`,
+                        streamUrl: `${CLIENT_API}/client/package-documents/${doc.id}/stream`,
+                        alreadySubmitted: !!doc.submission?.submitted_at,
                       })}
                       className="w-full flex items-center gap-2 rounded-lg border bg-white px-3 py-2 text-sm hover:bg-muted/40 text-left"
                     >
                       <FileText className="h-4 w-4 text-primary shrink-0" />
                       <span className="font-medium flex-1">{doc.label}</span>
-                      <Badge variant="outline" className="text-[10px] shrink-0">{doc.doc_type}</Badge>
+                      {doc.submission?.submitted_at ? (
+                        <Badge className="bg-green-600 text-[10px] shrink-0">Submitted</Badge>
+                      ) : doc.doc_type === "form" ? (
+                        <Badge variant="secondary" className="text-[10px] shrink-0">Fill & submit</Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-[10px] shrink-0">{doc.doc_type}</Badge>
+                      )}
                       <Eye className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                     </button>
                   ))}
@@ -665,17 +623,22 @@ export function CaseManagementClient() {
             </div>
           )}
 
-          {requiredDocs.map(doc => (
-            <DropZone
-              key={doc.id}
-              doc={doc}
-              existingSubmission={submissionMap[doc.id]}
-              onUpload={uploadDocument}
-              onViewPdf={(title, streamUrl) => setPdfViewer({ title, streamUrl })}
-            />
-          ))}
+          {requiredDocs.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-8 text-center">
+              No document requirements from your consultant yet.
+            </p>
+          ) : (
+            requiredDocs.map(doc => (
+              <DropZone
+                key={doc.id}
+                doc={doc}
+                existingSubmission={submissionMap[doc.id]}
+                onUpload={uploadDocument}
+                onViewPdf={(title, streamUrl) => setPdfViewer({ title, streamUrl })}
+              />
+            ))
+          )}
 
-          {/* Extra uploads not in required list */}
           {documents.filter(d => !requiredDocs.find(r => r.id === d.document_type)).map(doc => (
             <div key={doc.id} className="rounded-xl border p-4">
               <div className="flex items-center gap-3">
@@ -696,7 +659,7 @@ export function CaseManagementClient() {
                   type="button"
                   onClick={() => setPdfViewer({
                     title: doc.document_label || doc.original_filename,
-                    streamUrl: `${API}/client/documents/${doc.id}/stream`,
+                    streamUrl: `${CLIENT_API}/client/documents/${doc.id}/stream`,
                   })}
                   className="mt-2 inline-flex items-center gap-1 text-xs text-primary hover:underline"
                 >
@@ -712,7 +675,6 @@ export function CaseManagementClient() {
         </div>
       )}
 
-      {/* ── MESSAGES TAB ── */}
       {activeTab === "messages" && (
         <div className="flex flex-col gap-4">
           <div className="rounded-xl border bg-muted/10 p-4 h-[400px] overflow-y-auto flex flex-col gap-3">
@@ -759,13 +721,28 @@ export function CaseManagementClient() {
           </div>
         </div>
       )}
+
+      <PackagePdfFormDialog
+        open={packageForm !== null}
+        onOpenChange={(open) => { if (!open) setPackageForm(null); }}
+        documentId={packageForm?.documentId ?? 0}
+        title={packageForm?.title ?? "Form"}
+        streamUrl={packageForm?.streamUrl ?? ""}
+        alreadySubmitted={packageForm?.alreadySubmitted}
+        getAuthHeaders={pdfAuthHeaders}
+        onSubmitted={() => {
+          showToast("Form submitted to your consultant.");
+          load(true);
+        }}
+      />
+
       <PdfViewerDialog
         open={pdfViewer !== null}
         onOpenChange={(open) => { if (!open) setPdfViewer(null); }}
         title={pdfViewer?.title ?? "Document"}
         streamUrl={pdfViewer?.streamUrl ?? ""}
-        getAuthHeaders={authHeaders}
+        getAuthHeaders={pdfAuthHeaders}
       />
-    </div>
+    </ClientJourneyPageChrome>
   );
 }

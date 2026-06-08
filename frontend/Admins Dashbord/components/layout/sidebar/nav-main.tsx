@@ -55,7 +55,9 @@ import {
   MessageSquareHeartIcon,
   BookAIcon,
   PuzzleIcon,
-  BellIcon
+  BellIcon,
+  CalculatorIcon,
+  ScaleIcon
 } from "lucide-react";
 import Link from "next/link";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -118,6 +120,17 @@ export const navItems: NavGroup[] = [
         title: "Application Package Manage",
         href: "/admindashboard/application-packages",
         icon: FolderDotIcon
+      },
+      {
+        title: "CRS Calculator Sync",
+        href: "/admindashboard/crs-calculator-sync",
+        icon: CalculatorIcon
+      },
+      {
+        title: "Legislation Hub",
+        href: "/admindashboard/legislations-hub",
+        icon: ScaleIcon,
+        isNew: true
       }
     ]
   },

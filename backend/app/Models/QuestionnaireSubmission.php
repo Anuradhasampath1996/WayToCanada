@@ -17,6 +17,7 @@ class QuestionnaireSubmission extends Model
         'children_data',
         'accompanying_data',
         'verified_fields',
+        'field_remarks',
         'is_submitted',
         'submitted_at',
     ];
@@ -30,6 +31,7 @@ class QuestionnaireSubmission extends Model
             'children_data'     => 'array',
             'accompanying_data' => 'array',
             'verified_fields'   => 'array',
+            'field_remarks'     => 'array',
             'is_submitted'      => 'boolean',
             'submitted_at'      => 'datetime',
         ];

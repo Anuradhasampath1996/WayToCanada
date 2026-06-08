@@ -4,6 +4,9 @@ use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\Auth\ConsultantRegisterController;
 use App\Http\Controllers\Auth\ConsultantOnboardingController;
 use App\Http\Controllers\Auth\PublicRegisterController;
+use App\Http\Controllers\Admin\AdminCrsController;
+use App\Http\Controllers\Admin\AdminLegislationController;
+use App\Http\Controllers\LegislationController;
 use App\Http\Controllers\Admin\AdminApplicationPackageController;
 use App\Http\Controllers\Admin\AdminIrccInteractiveFormController;
 use App\Http\Controllers\Admin\AdminStatsController;
@@ -15,6 +18,7 @@ use App\Http\Controllers\Admin\AdminSubscriptionPackageController;
 use App\Http\Controllers\Admin\AdminSubscriptionPaymentsController;
 use App\Http\Controllers\ApplicationPackageController;
 use App\Http\Controllers\SecurePdfController;
+use App\Http\Controllers\AgreementTemplateController;
 use App\Http\Controllers\CaseFileController;
 use App\Http\Controllers\CaseManagementHubController;
 use App\Http\Controllers\CaseMessagingController;
@@ -23,9 +27,11 @@ use App\Http\Controllers\ClientIrccInteractiveFormController;
 use App\Http\Controllers\ConsultantIrccInteractiveFormController;
 use App\Http\Controllers\ConsultantProfileController;
 use App\Http\Controllers\ConsultantSubscriptionController;
+use App\Http\Controllers\CrsController;
 use App\Http\Controllers\DocumentOcrController;
 use App\Http\Controllers\DocumentSubmissionController;
 use App\Http\Controllers\FileUploadController;
+use App\Http\Controllers\PackageDocumentSubmissionController;
 use App\Http\Controllers\IrccFormController;
 use App\Http\Controllers\IrccNewsController;
 use App\Http\Controllers\PaymentController;
@@ -53,9 +59,17 @@ Route::get('ircc-news', [IrccNewsController::class, 'index'])->name('ircc-news.i
 // ── Public: IRCC Application Forms & Guides tree (no auth required) ──────────
 Route::get('ircc-forms/tree', [IrccFormController::class, 'tree'])->name('ircc-forms.tree');
 
+// ── Public: CRS scoring rules & Express Entry draws (auto-updated) ───────────
+Route::prefix('crs')->name('crs.')->group(function () {
+    Route::get('rules',  [CrsController::class, 'rules'])->name('rules');
+    Route::post('calculate', [CrsController::class, 'calculate'])->name('calculate');
+    Route::get('draws',  [CrsController::class, 'draws'])->name('draws');
+});
+
 // ── Public: Case File — agreement (token-secured, no auth) ───────────────────
 Route::prefix('case-file')->name('case-file.public.')->group(function () {
     Route::get('agreement/{token}',            [CaseFileController::class, 'getAgreement'])->name('agreement.get');
+    Route::get('agreement/{token}/pdf',         [CaseFileController::class, 'downloadAgreementPdfPublic'])->name('agreement.pdf');
     Route::post('agreement/{token}/sign',      [CaseFileController::class, 'signAgreement'])->name('agreement.sign');
     Route::post('agreement/{token}/upload-doc',[CaseFileController::class, 'uploadSignedDoc'])->name('agreement.upload-doc');
 });
@@ -114,12 +128,22 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('me',      [AuthController::class, 'me'])->name('auth.me');
     Route::post('logout', [AuthController::class, 'logout'])->name('auth.logout');
 
+    Route::post('crs/sync', [CrsController::class, 'sync'])->name('crs.sync');
+
     // ── Consultant profile ────────────────────────────────────────────────────
     Route::get('consultant/profile',        [ConsultantProfileController::class, 'show'])->name('consultant.profile.show');
     Route::put('consultant/profile',        [ConsultantProfileController::class, 'update'])->name('consultant.profile.update');
     Route::post('consultant/profile/logo',      [ConsultantProfileController::class, 'uploadLogo'])->name('consultant.profile.logo');
     Route::post('consultant/profile/signature', [ConsultantProfileController::class, 'saveSignature'])->name('consultant.profile.signature');
     Route::get('consultant/rcic-registry',      [ConsultantProfileController::class, 'rcicRegistry'])->name('consultant.rcic-registry');
+
+    // ── Consultant agreement template library ─────────────────────────────────
+    Route::prefix('consultant/agreement-templates')->name('consultant.agreement-templates.')->group(function () {
+        Route::get('/',                    [AgreementTemplateController::class, 'index'])->name('index');
+        Route::post('/',                   [AgreementTemplateController::class, 'store'])->name('store');
+        Route::put('{template}',           [AgreementTemplateController::class, 'update'])->name('update');
+        Route::delete('{template}',        [AgreementTemplateController::class, 'destroy'])->name('destroy');
+    });
 
     // ── Consultant RCIC onboarding ────────────────────────────────────────────
     Route::post('consultant/onboarding', [ConsultantOnboardingController::class, 'submit'])
@@ -144,6 +168,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('client/dashboard', [CaseFileController::class, 'clientDashboard'])->name('client.dashboard');
     Route::get('client/case-management-hub', [CaseManagementHubController::class, 'clientShow'])->name('client.case-management-hub');
     Route::get('client/package-documents/{document}/stream', [SecurePdfController::class, 'clientPackageDocument'])->name('client.package-documents.stream');
+    Route::post('client/package-documents/{document}/submit', [PackageDocumentSubmissionController::class, 'clientSubmit'])->name('client.package-documents.submit');
     Route::get('client/application-package', [ApplicationPackageController::class, 'clientShow'])->name('client.application-package');
 
     Route::prefix('client/interactive-forms')->name('client.interactive-forms.')->group(function () {
@@ -165,9 +190,18 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // ── Client: Immigration Questionnaire (autosave + submit) ─────────────────
     Route::prefix('questionnaire')->name('questionnaire.')->group(function () {
-        Route::get('/',       [QuestionnaireController::class, 'show'])->name('show');
-        Route::put('/',       [QuestionnaireController::class, 'upsert'])->name('upsert');
-        Route::post('/submit', [QuestionnaireController::class, 'submit'])->name('submit');
+        Route::get('/',                         [QuestionnaireController::class, 'show'])->name('show');
+        Route::get('/document/stream',          [QuestionnaireController::class, 'streamDocument'])->name('document-stream');
+        Route::put('/',                         [QuestionnaireController::class, 'upsert'])->name('upsert');
+        Route::post('/submit',                  [QuestionnaireController::class, 'submit'])->name('submit');
+    });
+
+    // ── Consultant: Legislation Hub ───────────────────────────────────────────
+    Route::prefix('legislation')->name('legislation.')->group(function () {
+        Route::get('documents', [LegislationController::class, 'documents'])->name('documents');
+        Route::get('documents/{document}', [LegislationController::class, 'show'])->name('documents.show');
+        Route::get('documents/{document}/download', [LegislationController::class, 'download'])->name('documents.download');
+        Route::get('resolve', [LegislationController::class, 'resolve'])->name('resolve');
     });
 
     // ── Consultant: Case Pipeline (Kanban — all signed clients) ──────────────
@@ -187,8 +221,12 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('{profile}/case-management-hub',               [CaseManagementHubController::class, 'consultantShow'])->name('case-management-hub');
         Route::get('{profile}/package-documents/{document}/stream', [SecurePdfController::class, 'consultantPackageDocument'])->name('package-documents.stream');
         Route::patch('{profile}/case-file/select-pathway',         [CaseFileController::class, 'selectPathway'])->name('case-file.select-pathway');
+        Route::patch('{profile}/case-file/pathway-assessment',   [CaseFileController::class, 'savePathwayAssessment'])->name('case-file.pathway-assessment');
         Route::patch('{profile}/case-file/assign-application-package', [CaseFileController::class, 'assignApplicationPackage'])->name('case-file.assign-application-package');
         Route::post('{profile}/case-file/send-agreement',          [CaseFileController::class, 'sendAgreement'])->name('case-file.send-agreement');
+        Route::post('{profile}/case-file/send-agreement-reminder', [CaseFileController::class, 'sendAgreementReminder'])->name('case-file.send-agreement-reminder');
+        Route::get('{profile}/case-file/agreement-pdf',            [CaseFileController::class, 'downloadAgreementPdf'])->name('case-file.agreement-pdf');
+        Route::patch('{profile}/case-file/agreement-milestones',  [CaseFileController::class, 'updateAgreementMilestones'])->name('case-file.agreement-milestones');
         Route::patch('{profile}/case-file/checklist',              [CaseFileController::class, 'updateChecklist'])->name('case-file.checklist');
 
         // ── Document submissions (per-client) ─────────────────────────────────
@@ -203,9 +241,11 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::patch('{profile}/messages/mark-read',                        [CaseMessagingController::class, 'consultantMarkRead'])->name('messages.mark-read');
 
         // ── Questionnaire Review (consultant verifies client answers) ──────────
-        Route::get('{profile}/questionnaire',          [QuestionnaireReviewController::class, 'show'])->name('questionnaire.show');
-        Route::patch('{profile}/questionnaire/verify', [QuestionnaireReviewController::class, 'verify'])->name('questionnaire.verify');
-        Route::patch('{profile}/questionnaire/field',  [QuestionnaireReviewController::class, 'updateField'])->name('questionnaire.update-field');
+        Route::get('{profile}/questionnaire',                         [QuestionnaireReviewController::class, 'show'])->name('questionnaire.show');
+        Route::get('{profile}/questionnaire/document/stream',         [QuestionnaireReviewController::class, 'streamDocument'])->name('questionnaire.document-stream');
+        Route::patch('{profile}/questionnaire/verify',               [QuestionnaireReviewController::class, 'verify'])->name('questionnaire.verify');
+        Route::patch('{profile}/questionnaire/field',                [QuestionnaireReviewController::class, 'updateField'])->name('questionnaire.update-field');
+        Route::patch('{profile}/questionnaire/request-refill',       [QuestionnaireReviewController::class, 'requestRefill'])->name('questionnaire.request-refill');
 
         // ── Interactive IRCC forms (online-only application data) ───────────────
         Route::get('{profile}/interactive-forms/verification-status', [ConsultantIrccInteractiveFormController::class, 'verificationStatus'])->name('interactive-forms.verification-status');
@@ -273,6 +313,36 @@ Route::middleware('auth:sanctum')->group(function () {
 
         // Subscription payments
         Route::get('subscription-payments', [AdminSubscriptionPaymentsController::class, 'index'])->name('subscription-payments.index');
+
+        // Legislation Hub — Canadian Acts & Regulations sync
+        Route::prefix('legislation')->name('legislation.')->group(function () {
+            Route::get('sync-status', [AdminLegislationController::class, 'syncStatus'])->name('sync-status');
+            Route::get('catalog', [AdminLegislationController::class, 'catalog'])->name('catalog');
+            Route::post('discover-catalog', [AdminLegislationController::class, 'discoverCatalog'])->name('discover-catalog');
+            Route::post('catalog/{entry}/sync', [AdminLegislationController::class, 'syncCatalogEntry'])->name('catalog.sync');
+            Route::get('sync-runs/{run}', [AdminLegislationController::class, 'syncRun'])->name('sync-run');
+            Route::post('sync', [AdminLegislationController::class, 'sync'])->name('sync');
+            Route::get('resolve', [AdminLegislationController::class, 'resolve'])->name('resolve');
+            Route::get('references/preview', [AdminLegislationController::class, 'previewReference'])->name('references.preview');
+            Route::get('documents', [AdminLegislationController::class, 'documents'])->name('documents');
+            Route::get('documents/{document}', [AdminLegislationController::class, 'showDocument'])->name('documents.show');
+            Route::get('documents/{document}/download', [AdminLegislationController::class, 'downloadDocument'])->name('documents.download');
+            Route::post('documents/{document}/analyze', [AdminLegislationController::class, 'analyzeDocument'])->name('documents.analyze');
+            Route::post('documents/{document}/analyze-and-linkify', [AdminLegislationController::class, 'analyzeAndLinkify'])->name('documents.analyze-linkify');
+            Route::get('documents/{document}/reference-cache', [AdminLegislationController::class, 'referenceCache'])->name('documents.reference-cache');
+            Route::post('documents/{document}/apply-references', [AdminLegislationController::class, 'applyReferences'])->name('documents.apply-references');
+            Route::get('documents/{document}/references', [AdminLegislationController::class, 'references'])->name('references.index');
+            Route::post('documents/{document}/references', [AdminLegislationController::class, 'storeReference'])->name('references.store');
+            Route::put('references/{reference}', [AdminLegislationController::class, 'updateReference'])->name('references.update');
+            Route::post('references/{reference}/activate', [AdminLegislationController::class, 'activateReference'])->name('references.activate');
+            Route::delete('references/{reference}', [AdminLegislationController::class, 'destroyReference'])->name('references.destroy');
+        });
+
+        // CRS / pathway calculator — IRCC rules & Express Entry draws
+        Route::prefix('crs-calculator')->name('crs-calculator.')->group(function () {
+            Route::get('sync-status', [AdminCrsController::class, 'syncStatus'])->name('sync-status');
+            Route::post('sync', [AdminCrsController::class, 'sync'])->name('sync');
+        });
 
         // Application packages (IRCC forms & guides)
         Route::prefix('application-packages')->name('application-packages.')->group(function () {

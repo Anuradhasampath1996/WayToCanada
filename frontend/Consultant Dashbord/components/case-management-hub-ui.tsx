@@ -123,12 +123,16 @@ export function DocumentRequirementsGrid({
   onViewPdf,
   buildSubmissionStreamUrl,
   consultantView = true,
+  onToggleCheck,
+  togglingCheckId,
 }: {
   requirements: HubRequirement[];
   onReview?: (submissionId: number) => void;
   onViewPdf?: (title: string, streamUrl: string) => void;
   buildSubmissionStreamUrl?: (submissionId: number) => string;
   consultantView?: boolean;
+  onToggleCheck?: (docId: string, checked: boolean) => void;
+  togglingCheckId?: string | null;
 }) {
   const grouped = requirements.reduce<Record<string, HubRequirement[]>>((acc, r) => {
     (acc[r.category] ??= []).push(r);
@@ -161,7 +165,19 @@ export function DocumentRequirementsGrid({
                     )}
                   </div>
                   <Badge variant="outline" className={cn("text-[10px] shrink-0", st.className)}>{st.label}</Badge>
-                  {consultantView && req.checked && (
+                  {consultantView && onToggleCheck && (
+                    <label className="flex items-center gap-1.5 text-[10px] text-muted-foreground shrink-0 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={req.checked}
+                        disabled={togglingCheckId === req.id}
+                        onChange={(e) => onToggleCheck(req.id, e.target.checked)}
+                        className="rounded border-input"
+                      />
+                      Verified
+                    </label>
+                  )}
+                  {consultantView && !onToggleCheck && req.checked && (
                     <Badge variant="outline" className="text-[10px] shrink-0 bg-green-50">Checked</Badge>
                   )}
                   {req.submission && onReview && ["pending", "uploaded"].includes(req.status) && (
@@ -245,6 +261,7 @@ export function CaseHubOverview({
   nextActions,
   onViewPdf,
   buildPackageDocStreamUrl,
+  onActionClick,
 }: {
   progress: HubProgress;
   pathway: string | null;
@@ -254,6 +271,7 @@ export function CaseHubOverview({
   nextActions: { label: string; tab?: string; href?: string; urgent?: boolean }[];
   onViewPdf?: (title: string, streamUrl: string) => void;
   buildPackageDocStreamUrl?: (documentId: number) => string;
+  onActionClick?: (tab: string) => void;
 }) {
   const missing = requirements.filter((r) => r.status === "missing").length;
   const pendingReview = requirements.filter((r) => r.status === "pending" || r.status === "uploaded").length;
@@ -268,13 +286,33 @@ export function CaseHubOverview({
           </p>
           <ul className="space-y-1.5">
             {nextActions.map((action, i) => (
-              <li key={i} className="flex items-center gap-2 text-sm">
-                {action.urgent ? (
-                  <AlertCircle className="h-3.5 w-3.5 text-amber-600 shrink-0" />
+              <li key={i}>
+                {action.tab && onActionClick ? (
+                  <button
+                    type="button"
+                    onClick={() => onActionClick(action.tab!)}
+                    className={cn(
+                      "flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm transition-colors hover:bg-primary/10",
+                      action.urgent && "text-amber-900",
+                    )}
+                  >
+                    {action.urgent ? (
+                      <AlertCircle className="h-3.5 w-3.5 text-amber-600 shrink-0" />
+                    ) : (
+                      <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                    )}
+                    <span className="font-medium">{action.label}</span>
+                  </button>
                 ) : (
-                  <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                  <div className="flex items-center gap-2 text-sm px-2 py-1">
+                    {action.urgent ? (
+                      <AlertCircle className="h-3.5 w-3.5 text-amber-600 shrink-0" />
+                    ) : (
+                      <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                    )}
+                    <span>{action.label}</span>
+                  </div>
                 )}
-                <span>{action.label}</span>
               </li>
             ))}
           </ul>

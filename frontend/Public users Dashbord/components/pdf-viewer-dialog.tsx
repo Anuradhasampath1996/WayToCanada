@@ -1,22 +1,33 @@
 "use client";
 
 import * as React from "react";
-import {
-  ChevronLeft, ChevronRight, Download, Loader2, AlertCircle, ZoomIn, ZoomOut,
-} from "lucide-react";
+import { Download, Loader2, AlertCircle, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
-import { cn } from "@/lib/utils";
 
-async function fetchPdfBytes(streamUrl: string, headers: Record<string, string>): Promise<ArrayBuffer> {
-  const res = await fetch(streamUrl, { headers });
+async function fetchPdfBlob(streamUrl: string, headers: Record<string, string>): Promise<Blob> {
+  const res = await fetch(streamUrl, {
+    headers: {
+      ...headers,
+      Accept: "application/pdf, application/octet-stream, */*",
+    },
+  });
   if (!res.ok) {
     const json = await res.json().catch(() => ({}));
     throw new Error((json as { message?: string }).message ?? "Failed to load PDF.");
   }
-  return res.arrayBuffer();
+  const contentType = res.headers.get("content-type") ?? "";
+  if (contentType.includes("application/json")) {
+    const json = await res.json().catch(() => ({}));
+    throw new Error((json as { message?: string }).message ?? "Failed to load PDF.");
+  }
+  const blob = await res.blob();
+  if (!blob.size) {
+    throw new Error("PDF file is empty.");
+  }
+  return blob;
 }
 
 export function PdfViewerDialog({
@@ -32,27 +43,31 @@ export function PdfViewerDialog({
   streamUrl: string;
   getAuthHeaders: () => Record<string, string>;
 }) {
-  const iframeRef = React.useRef<HTMLIFrameElement>(null);
-  const pendingBytesRef = React.useRef<ArrayBuffer | null>(null);
+  const blobUrlRef = React.useRef<string | null>(null);
+  const getAuthHeadersRef = React.useRef(getAuthHeaders);
 
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
-  const [page, setPage] = React.useState(1);
-  const [numPages, setNumPages] = React.useState(0);
-  const [scale, setScale] = React.useState(1.1);
-  const [viewerReady, setViewerReady] = React.useState(false);
+  const [blobUrl, setBlobUrl] = React.useState<string | null>(null);
+  const [showXfaHint, setShowXfaHint] = React.useState(false);
+  const [hintDismissed, setHintDismissed] = React.useState(false);
 
-  const postToViewer = React.useCallback((payload: Record<string, unknown>) => {
-    iframeRef.current?.contentWindow?.postMessage(
-      { target: "wtc-pdf-viewer", ...payload },
-      "*",
-    );
+  getAuthHeadersRef.current = getAuthHeaders;
+
+  const revokeBlobUrl = React.useCallback(() => {
+    if (blobUrlRef.current) {
+      URL.revokeObjectURL(blobUrlRef.current);
+      blobUrlRef.current = null;
+    }
+    setBlobUrl(null);
   }, []);
 
   React.useEffect(() => {
     if (!open || !streamUrl) {
-      setViewerReady(false);
-      pendingBytesRef.current = null;
+      setError(null);
+      setShowXfaHint(false);
+      setHintDismissed(false);
+      revokeBlobUrl();
       return;
     }
 
@@ -61,16 +76,22 @@ export function PdfViewerDialog({
     (async () => {
       setLoading(true);
       setError(null);
-      setPage(1);
-      setNumPages(0);
+      setShowXfaHint(false);
+      setHintDismissed(false);
+      revokeBlobUrl();
 
       try {
-        const buffer = await fetchPdfBytes(streamUrl, getAuthHeaders());
+        const blob = await fetchPdfBlob(streamUrl, getAuthHeadersRef.current());
         if (cancelled) return;
-        pendingBytesRef.current = buffer;
-        if (iframeRef.current?.contentWindow) {
-          postToViewer({ type: "load-bytes", data: buffer });
-        }
+
+        const url = URL.createObjectURL(blob);
+        blobUrlRef.current = url;
+        setBlobUrl(url);
+
+        // IRCC package PDFs are often legacy XFA forms — browser may show a blank panel.
+        setShowXfaHint(
+          /citizenship|imm\s*\d|ircc|xfa|application for/i.test(title),
+        );
       } catch (e: unknown) {
         if (!cancelled) {
           setError(e instanceof Error ? e.message : "Could not display this PDF.");
@@ -82,50 +103,22 @@ export function PdfViewerDialog({
 
     return () => {
       cancelled = true;
-      pendingBytesRef.current = null;
-      setViewerReady(false);
+      revokeBlobUrl();
     };
-  }, [open, streamUrl, getAuthHeaders, postToViewer]);
-
-  React.useEffect(() => {
-    const onMessage = (event: MessageEvent) => {
-      const msg = event.data;
-      if (!msg || msg.source !== "wtc-pdf-viewer") return;
-
-      if (msg.type === "ready") {
-        setViewerReady(true);
-        if (pendingBytesRef.current) {
-          postToViewer({ type: "load-bytes", data: pendingBytesRef.current });
-        }
-      }
-
-      if (msg.type === "loaded") {
-        setNumPages(Number(msg.numPages) || 0);
-        setPage(1);
-        setError(null);
-      }
-
-      if (msg.type === "error") {
-        setError(String(msg.message ?? "Could not display this PDF."));
-      }
-    };
-
-    window.addEventListener("message", onMessage);
-    return () => window.removeEventListener("message", onMessage);
-  }, [postToViewer]);
-
-  React.useEffect(() => {
-    if (!viewerReady || loading || error) return;
-    postToViewer({ type: "set-page", page });
-  }, [page, viewerReady, loading, error, postToViewer]);
-
-  React.useEffect(() => {
-    if (!viewerReady || loading || error) return;
-    postToViewer({ type: "set-scale", scale });
-  }, [scale, viewerReady, loading, error, postToViewer]);
+  }, [open, streamUrl, revokeBlobUrl]);
 
   const downloadPdf = () => {
-    fetch(`${streamUrl}${streamUrl.includes("?") ? "&" : "?"}download=1`, { headers: getAuthHeaders() })
+    if (blobUrlRef.current) {
+      const a = document.createElement("a");
+      a.href = blobUrlRef.current;
+      a.download = title.replace(/[^\w\s.-]/g, "_") + ".pdf";
+      a.click();
+      return;
+    }
+
+    fetch(`${streamUrl}${streamUrl.includes("?") ? "&" : "?"}download=1`, {
+      headers: getAuthHeadersRef.current(),
+    })
       .then((r) => r.blob())
       .then((blob) => {
         const u = URL.createObjectURL(blob);
@@ -138,45 +131,61 @@ export function PdfViewerDialog({
       .catch(() => setError("Download failed."));
   };
 
+  const openInNewTab = () => {
+    if (blobUrlRef.current) {
+      window.open(blobUrlRef.current, "_blank", "noopener,noreferrer");
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-5xl w-[96vw] max-h-[92vh] flex flex-col p-0 gap-0 sm:max-w-5xl">
         <DialogHeader className="px-5 pt-5 pb-3 border-b shrink-0">
           <DialogTitle className="pr-8">{title}</DialogTitle>
           <DialogDescription>
-            Full PDF viewer with IRCC XFA form support — scroll to navigate pages.
+            View your consultant&apos;s document below, or download to open locally.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex items-center justify-between gap-2 px-5 py-2 border-b bg-muted/30 shrink-0 flex-wrap">
-          <div className="flex items-center gap-1">
-            <Button size="icon" variant="outline" className="h-8 w-8" disabled={page <= 1 || loading || !!error} onClick={() => setPage((p) => p - 1)}>
-              <ChevronLeft className="h-4 w-4" />
+        <div className="flex items-center justify-end gap-2 px-5 py-2 border-b bg-muted/30 shrink-0 flex-wrap">
+          {blobUrl && (
+            <Button size="sm" variant="outline" className="gap-1.5" onClick={openInNewTab}>
+              <ExternalLink className="h-3.5 w-3.5" /> Open in new tab
             </Button>
-            <span className="text-xs tabular-nums px-2 min-w-[80px] text-center">
-              {numPages > 0 ? `${page} / ${numPages}` : "—"}
-            </span>
-            <Button size="icon" variant="outline" className="h-8 w-8" disabled={page >= numPages || loading || !!error} onClick={() => setPage((p) => p + 1)}>
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
-          <div className="flex items-center gap-1">
-            <Button size="icon" variant="outline" className="h-8 w-8" disabled={!!error} onClick={() => setScale((s) => Math.max(0.6, s - 0.15))}>
-              <ZoomOut className="h-4 w-4" />
-            </Button>
-            <span className="text-xs w-12 text-center tabular-nums">{Math.round(scale * 100)}%</span>
-            <Button size="icon" variant="outline" className="h-8 w-8" disabled={!!error} onClick={() => setScale((s) => Math.min(2.5, s + 0.15))}>
-              <ZoomIn className="h-4 w-4" />
-            </Button>
-            <Button size="sm" variant="outline" className="gap-1.5 ml-2" onClick={downloadPdf} disabled={loading}>
-              <Download className="h-3.5 w-3.5" /> Download
-            </Button>
-          </div>
+          )}
+          <Button
+            size="sm"
+            variant={showXfaHint ? "default" : "outline"}
+            className="gap-1.5"
+            onClick={downloadPdf}
+            disabled={loading}
+          >
+            <Download className="h-3.5 w-3.5" />
+            {showXfaHint ? "Download for Acrobat Reader" : "Download PDF"}
+          </Button>
         </div>
 
-        <div className="relative flex-1 min-h-[55vh] bg-neutral-700">
+        {showXfaHint && !hintDismissed && !loading && !error && (
+          <div className="mx-5 mt-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-900 shrink-0 flex items-start gap-3">
+            <div className="flex-1 min-w-0">
+              <p className="text-xs text-amber-800">
+                This IRCC form may not display fully in your browser. Download it and open with{" "}
+                <strong>Adobe Acrobat Reader</strong> (free) to view and fill all fields.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setHintDismissed(true)}
+              className="text-xs text-amber-700 hover:underline shrink-0"
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
+
+        <div className="relative flex-1 min-h-[55vh] bg-neutral-200">
           {loading && (
-            <div className="absolute inset-0 z-10 flex items-center justify-center gap-2 bg-neutral-100/90 dark:bg-neutral-900/90 text-sm text-muted-foreground">
+            <div className="absolute inset-0 z-10 flex items-center justify-center gap-2 bg-background/90 text-sm text-muted-foreground">
               <Loader2 className="h-5 w-5 animate-spin" /> Loading PDF…
             </div>
           )}
@@ -186,9 +195,6 @@ export function PdfViewerDialog({
               <div className="max-w-md text-center space-y-3 bg-background rounded-xl border p-6 shadow-lg">
                 <AlertCircle className="h-10 w-10 text-amber-500 mx-auto" />
                 <p className="text-sm font-medium">{error}</p>
-                <p className="text-xs text-muted-foreground">
-                  If this is a legacy IRCC form, download and open in Adobe Acrobat Reader (desktop).
-                </p>
                 <Button size="sm" variant="outline" onClick={downloadPdf}>
                   <Download className="h-4 w-4 mr-1.5" /> Download PDF
                 </Button>
@@ -196,12 +202,13 @@ export function PdfViewerDialog({
             </div>
           )}
 
-          <iframe
-            ref={iframeRef}
-            title={title}
-            src="/pdf-viewer/index.html"
-            className={cn("absolute inset-0 h-full w-full border-0", (loading || error) && "opacity-0 pointer-events-none")}
-          />
+          {blobUrl && !error && (
+            <iframe
+              title={title}
+              src={blobUrl}
+              className="absolute inset-0 h-full w-full border-0 bg-white"
+            />
+          )}
         </div>
       </DialogContent>
     </Dialog>
