@@ -54,9 +54,15 @@ jobs:
             git fetch origin main
             git reset --hard origin/main
 
+            echo ">>> Ensuring backend .env exists..."
+            if [ ! -f backend/.env ]; then
+              cp backend/.env.example backend/.env
+              sed -i "s/^APP_KEY=.*/APP_KEY=base64:$(openssl rand -base64 32)/" backend/.env
+              echo "WARNING: Created backend/.env from example — set production DB/OAuth secrets on the server."
+            fi
+
             echo ">>> Building and starting Docker containers..."
             if [ -f docker-compose.prod.yml ]; then
-              docker compose -f docker-compose.prod.yml pull --ignore-pull-failures || true
               docker compose -f docker-compose.prod.yml up -d --build --remove-orphans
             else
               docker compose pull --ignore-pull-failures || true

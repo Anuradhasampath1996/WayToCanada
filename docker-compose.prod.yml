@@ -1,0 +1,49 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: wtc_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-db_cws}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-secret}
+    volumes:
+      - wtc_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
+    container_name: wtc_api
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8000:8000"
+    env_file:
+      - ./backend/.env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./backend/storage:/var/www/storage
+
+  ocr-service:
+    build:
+      context: ./ai-service
+      dockerfile: Dockerfile
+    container_name: wtc_ocr_service
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8001:8001"
+    environment:
+      EASYOCR_GPU: "false"
+      CONFIDENCE_THRESHOLD: "0.35"
+      MAX_FILE_SIZE_MB: "10"
+      DEBUG: "false"
+
+volumes:
+  wtc_pgdata:
