@@ -413,7 +413,7 @@ export function CaseManagementClient({ paramsPromise }: { paramsPromise: Promise
     );
   }
 
-  const pipelineOptions = hubProgress?.pipeline?.options ?? PIPELINE_STATUSES.map((s) => ({ value: s.value, label: s.label }));
+  const pipelineOptions = PIPELINE_STATUSES.map((s) => ({ value: s.value, label: s.label }));
   const currentStatusLabel = hubProgress?.pipeline?.label ?? PIPELINE_STATUSES.find(s => s.value === caseFile?.status)?.label ?? caseFile?.status ?? "—";
 
   const pendingDocs = documents.filter(d => ["pending_review", "under_ai_review", "ai_flagged"].includes(d.status));

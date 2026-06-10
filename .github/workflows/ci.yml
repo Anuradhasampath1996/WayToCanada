@@ -94,6 +94,10 @@ jobs:
         working-directory: backend
         run: php artisan migrate --force
 
+      - name: Seed roles for tests
+        working-directory: backend
+        run: php artisan db:seed --class=RolesAndPermissionsSeeder --force
+
       - name: Run tests
         working-directory: backend
         run: php artisan test
