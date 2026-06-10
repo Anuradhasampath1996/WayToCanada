@@ -98,9 +98,17 @@ jobs:
             docker builder prune -af || true
             docker system prune -af || true
 
-            echo ">>> Building and starting Docker containers..."
+            echo ">>> Building and starting core Docker containers (postgres + api)..."
+            export COMPOSE_PARALLEL_LIMIT=1
             if [ -f docker-compose.prod.yml ]; then
-              docker compose -f docker-compose.prod.yml up -d --build --remove-orphans
+              docker compose -f docker-compose.prod.yml build postgres api
+              docker compose -f docker-compose.prod.yml up -d --remove-orphans postgres api
+              echo ">>> Building OCR service (optional; needs ~3GB free disk)..."
+              if docker compose -f docker-compose.prod.yml --profile ocr build ocr-service; then
+                docker compose -f docker-compose.prod.yml --profile ocr up -d ocr-service
+              else
+                echo "WARNING: OCR service build failed — API and Postgres are still running."
+              fi
             else
               docker compose pull --ignore-pull-failures || true
               docker compose up -d --build --remove-orphans

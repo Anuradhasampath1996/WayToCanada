@@ -32,6 +32,8 @@ services:
       - ./backend/storage:/var/www/storage
 
   ocr-service:
+    profiles:
+      - ocr
     build:
       context: ./ai-service
       dockerfile: Dockerfile

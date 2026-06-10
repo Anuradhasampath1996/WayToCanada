@@ -13,17 +13,11 @@ WORKDIR /app
 
 # CPU-only PyTorch keeps the image small (default pip wheel pulls ~900MB CUDA deps).
 COPY requirements.txt .
-RUN pip install --no-cache-dir torch torchvision --index-url https://download.pytorch.org/whl/cpu \
+RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu \
     && pip install --no-cache-dir -r requirements.txt
 
 # Copy application source
 COPY . .
-
-# Pre-download EasyOCR English model at build time so the first request is fast
-RUN python - <<'EOF'
-import easyocr
-easyocr.Reader(["en"], gpu=False, verbose=False)
-EOF
 
 EXPOSE 8001
 
