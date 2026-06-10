@@ -34,10 +34,12 @@ class DocumentOcrController extends Controller
 
         $file       = $request->file('file');
         $serviceUrl = rtrim(config('services.ocr.url'), '/') . '/scan-document';
+        $timeout    = (int) config('services.ocr.timeout', 300);
 
         // ── 2. Forward to AI service ──────────────────────────────────────────
         try {
-            $response = Http::timeout(60)
+            $response = Http::timeout($timeout)
+                ->connectTimeout(15)
                 ->attach(
                     'file',
                     file_get_contents($file->getRealPath()),
@@ -52,9 +54,14 @@ class DocumentOcrController extends Controller
                 'error' => $e->getMessage(),
             ]);
 
+            $msg = $e->getMessage();
+            $userMessage = str_contains($msg, 'timed out') || str_contains($msg, 'cURL error 28')
+                ? 'Document scan is taking longer than expected. Wait a moment, then use Re-scan — the first scan after starting the OCR service can take 1–2 minutes.'
+                : 'AI service is temporarily unavailable. Ensure the OCR service is running on port 8001, then try again.';
+
             return response()->json([
                 'status'  => 'error',
-                'message' => 'AI service is temporarily unavailable. Please fill in the details manually.',
+                'message' => $userMessage,
             ], 503);
         }
 
@@ -66,10 +73,16 @@ class DocumentOcrController extends Controller
                 'body'   => $response->body(),
             ]);
 
+            $body = $response->json();
+            $detail = is_array($body) ? ($body['detail'] ?? $body['message'] ?? null) : null;
+            if (is_array($detail)) {
+                $detail = collect($detail)->pluck('msg')->filter()->first() ?? json_encode($detail);
+            }
+
             return response()->json([
                 'status'  => 'error',
-                'message' => 'Document scanning failed. Please try again or fill in the details manually.',
-            ], 502);
+                'message' => $detail ?: 'Document scanning failed. Please try again or fill in the details manually.',
+            ], $response->status() >= 400 && $response->status() < 600 ? $response->status() : 502);
         }
 
         // ── 4. Return the AI response as-is to the frontend ───────────────────

@@ -44,7 +44,10 @@ class AdminSubscriptionPaymentsController extends Controller
         $active  = ConsultantSubscription::where('status', 'active')->count();
         $trials  = ConsultantSubscription::where('status', 'trial')->count();
         $revenue = ConsultantSubscription::where('status', 'active')
-            ->whereNotNull('paypal_order_id')
+            ->where(function ($q) {
+                $q->whereNotNull('stripe_subscription_id')
+                  ->orWhereNotNull('paypal_order_id');
+            })
             ->join('subscription_packages', 'consultant_subscriptions.subscription_package_id', '=', 'subscription_packages.id')
             ->selectRaw("
                 SUM(CASE WHEN consultant_subscriptions.billing_cycle = 'monthly' THEN subscription_packages.monthly_price

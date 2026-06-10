@@ -152,7 +152,42 @@ interface OcrResult {
   message?: string;
 }
 
-async function scanDocumentFile(file: File): Promise<OcrResult | null> {
+type ScanKind = "passport" | "id";
+
+function mapPassportGender(g?: string): string {
+  if (!g) return "";
+  const u = g.trim().toUpperCase();
+  if (u === "M" || u === "MALE") return "Male";
+  if (u === "F" || u === "FEMALE") return "Female";
+  if (u === "X" || u === "OTHER" || u === "UNSPECIFIED") return "Other";
+  return g;
+}
+
+function applyPassportOcrFields(
+  d: OcrExtracted,
+  onField: (field: string, value: string) => void,
+) {
+  if (d.dob) onField("dob", d.dob);
+  if (d.fullName) onField("passportFullName", d.fullName);
+  if (d.passportNumber) onField("passportNumber", d.passportNumber);
+  if (d.expiryDate) onField("passportExpiry", d.expiryDate);
+  if (d.nationality) onField("passportNationality", d.nationality);
+  const gender = mapPassportGender(d.gender);
+  if (gender) onField("passportGender", gender);
+}
+
+function scanKindMismatch(kind: ScanKind, documentType: OcrResult["document_type"]): string | null {
+  if (documentType === "unknown") return null;
+  if (kind === "passport" && documentType !== "passport") {
+    return "This image does not look like a passport bio-data page. Upload the photo page with MRZ lines at the bottom.";
+  }
+  if (kind === "id" && documentType === "passport") {
+    return "This looks like a passport, not a government ID card.";
+  }
+  return null;
+}
+
+async function scanDocumentFile(file: File): Promise<{ result: OcrResult | null; error: string | null }> {
   try {
     const fd = new globalThis.FormData();
     fd.append("file", file);
@@ -162,10 +197,13 @@ async function scanDocumentFile(file: File): Promise<OcrResult | null> {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
       body: fd,
     });
-    if (!res.ok) return null;
-    return (await res.json()) as OcrResult;
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      return { result: null, error: (json as { message?: string }).message ?? `Scan failed (${res.status})` };
+    }
+    return { result: json as OcrResult, error: null };
   } catch {
-    return null; // OCR is best-effort — never block upload
+    return { result: null, error: "Could not reach the scan service. Check that the OCR service is running." };
   }
 }
 
@@ -669,6 +707,7 @@ function MainApplicantTab({
           description="Bio-data page"
           accept=".pdf,.jpg,.jpeg,.png"
           icon={FileText}
+          scanKind="passport"
           fileName={data.passportName}
           remarkKey={clientToConsultantKey("main", "passportName")}
           fieldRemarks={fieldRemarks}
@@ -683,13 +722,7 @@ function MainApplicantTab({
             onChange("passportGender", "");
           }}
           onScanComplete={(result) => {
-            const d = result.extracted_data;
-            if (d.dob)            onChange("dob", d.dob);
-            if (d.fullName)       onChange("passportFullName", d.fullName);
-            if (d.passportNumber) onChange("passportNumber", d.passportNumber);
-            if (d.expiryDate)     onChange("passportExpiry", d.expiryDate);
-            if (d.nationality)    onChange("passportNationality", d.nationality);
-            if (d.gender)         onChange("passportGender", d.gender);
+            applyPassportOcrFields(result.extracted_data, (f, v) => onChange(f as keyof MainData, v));
           }}
         />
       </div>
@@ -734,6 +767,7 @@ function MainApplicantTab({
           title="Government ID"
           description="National ID / CNIC"
           icon={CreditCard}
+          scanKind="id"
           frontFileName={data.governmentIdName}
           backFileName={data.governmentIdBackName}
           frontRemarkKey={clientToConsultantKey("main", "governmentIdName")}
@@ -1203,6 +1237,7 @@ function SpouseTab({
           description="Bio-data page"
           accept=".pdf,.jpg,.jpeg,.png"
           icon={FileText}
+          scanKind="passport"
           fileName={data.passportName}
           remarkKey={clientToConsultantKey("spouse", "passportName")}
           fieldRemarks={fieldRemarks}
@@ -1217,13 +1252,7 @@ function SpouseTab({
             onChange("passportGender", "");
           }}
           onScanComplete={(result) => {
-            const d = result.extracted_data;
-            if (d.dob)            onChange("dob", d.dob);
-            if (d.fullName)       onChange("passportFullName", d.fullName);
-            if (d.passportNumber) onChange("passportNumber", d.passportNumber);
-            if (d.expiryDate)     onChange("passportExpiry", d.expiryDate);
-            if (d.nationality)    onChange("passportNationality", d.nationality);
-            if (d.gender)         onChange("passportGender", d.gender);
+            applyPassportOcrFields(result.extracted_data, (f, v) => onChange(f as keyof SpouseData, v));
           }}
         />
       </div>
@@ -1268,6 +1297,7 @@ function SpouseTab({
           title="Government ID"
           description="National ID / CNIC"
           icon={CreditCard}
+          scanKind="id"
           frontFileName={data.governmentIdName}
           backFileName={data.governmentIdBackName}
           frontRemarkKey={clientToConsultantKey("spouse", "governmentIdName")}
@@ -1553,6 +1583,7 @@ function ChildrenTab({
                 description="Bio-data page"
                 accept=".pdf,.jpg,.jpeg,.png"
                 icon={FileText}
+                scanKind="passport"
                 fileName={child.passportName}
                 onFileChange={(n) => onChange(i, "passportName", n)}
                 onUpload={onDocUpload}
@@ -1565,13 +1596,7 @@ function ChildrenTab({
                   onChange(i, "passportGender", "");
                 }}
                 onScanComplete={(result) => {
-                  const d = result.extracted_data;
-                  if (d.dob)            onChange(i, "dob", d.dob);
-                  if (d.fullName)       onChange(i, "passportFullName", d.fullName);
-                  if (d.passportNumber) onChange(i, "passportNumber", d.passportNumber);
-                  if (d.expiryDate)     onChange(i, "passportExpiry", d.expiryDate);
-                  if (d.nationality)    onChange(i, "passportNationality", d.nationality);
-                  if (d.gender)         onChange(i, "passportGender", d.gender);
+                  applyPassportOcrFields(result.extracted_data, (f, v) => onChange(i, f as keyof ChildData, v));
                 }}
               />
             </div>
@@ -1610,6 +1635,7 @@ function ChildrenTab({
                 title="Government ID"
                 description="National ID / CNIC"
                 icon={CreditCard}
+                scanKind="id"
                 frontFileName={child.governmentIdName}
                 backFileName={child.governmentIdBackName}
                 onFrontChange={(n) => onChange(i, "governmentIdName", n)}
@@ -1732,6 +1758,7 @@ function AccompanyingPersonsTab({
                 description="Bio-data page"
                 accept=".pdf,.jpg,.jpeg,.png"
                 icon={FileText}
+                scanKind="passport"
                 fileName={person.passportName}
                 onFileChange={(n) => onChange(i, "passportName", n)}
                 onUpload={onDocUpload}
@@ -1744,13 +1771,7 @@ function AccompanyingPersonsTab({
                   onChange(i, "passportGender", "");
                 }}
                 onScanComplete={(result) => {
-                  const d = result.extracted_data;
-                  if (d.dob)            onChange(i, "dob", d.dob);
-                  if (d.fullName)       onChange(i, "passportFullName", d.fullName);
-                  if (d.passportNumber) onChange(i, "passportNumber", d.passportNumber);
-                  if (d.expiryDate)     onChange(i, "passportExpiry", d.expiryDate);
-                  if (d.nationality)    onChange(i, "passportNationality", d.nationality);
-                  if (d.gender)         onChange(i, "passportGender", d.gender);
+                  applyPassportOcrFields(result.extracted_data, (f, v) => onChange(i, f as keyof AccompanyingPerson, v));
                 }}
               />
             </div>
@@ -1789,6 +1810,7 @@ function AccompanyingPersonsTab({
                 title="Government ID"
                 description="National ID / CNIC"
                 icon={CreditCard}
+                scanKind="id"
                 frontFileName={person.governmentIdName}
                 backFileName={person.governmentIdBackName}
                 onFrontChange={(n) => onChange(i, "governmentIdName", n)}
@@ -1922,6 +1944,7 @@ function ChildSingleTab({
           description="Bio-data page"
           accept=".pdf,.jpg,.jpeg,.png"
           icon={FileText}
+          scanKind="passport"
           fileName={data.passportName}
           remarkKey={clientToConsultantKey("child", "passportName", childIndex)}
           fieldRemarks={fieldRemarks}
@@ -1933,13 +1956,7 @@ function ChildSingleTab({
             onChange("passportNationality", ""); onChange("passportGender", "");
           }}
           onScanComplete={(result) => {
-            const d = result.extracted_data;
-            if (d.dob)            onChange("dob", d.dob);
-            if (d.fullName)       onChange("passportFullName", d.fullName);
-            if (d.passportNumber) onChange("passportNumber", d.passportNumber);
-            if (d.expiryDate)     onChange("passportExpiry", d.expiryDate);
-            if (d.nationality)    onChange("passportNationality", d.nationality);
-            if (d.gender)         onChange("passportGender", d.gender);
+            applyPassportOcrFields(result.extracted_data, (f, v) => onChange(f as keyof ChildData, v));
           }}
         />
       </div>
@@ -1981,7 +1998,7 @@ function ChildSingleTab({
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
         <TwoSidedDocumentCard
-          title="Government ID" description="National ID / CNIC" icon={CreditCard}
+          title="Government ID" description="National ID / CNIC" icon={CreditCard} scanKind="id"
           frontFileName={data.governmentIdName} backFileName={data.governmentIdBackName}
           frontRemarkKey={clientToConsultantKey("child", "governmentIdName", childIndex)}
           backRemarkKey={clientToConsultantKey("child", "governmentIdBackName", childIndex)}
@@ -2082,6 +2099,7 @@ function AccompanyingPersonSingleTab({
           description="Bio-data page"
           accept=".pdf,.jpg,.jpeg,.png"
           icon={FileText}
+          scanKind="passport"
           fileName={data.passportName}
           remarkKey={clientToConsultantKey("accompanying", "passportName", personIndex)}
           fieldRemarks={fieldRemarks}
@@ -2093,13 +2111,7 @@ function AccompanyingPersonSingleTab({
             onChange("passportNationality", ""); onChange("passportGender", "");
           }}
           onScanComplete={(result) => {
-            const d = result.extracted_data;
-            if (d.dob)            onChange("dob", d.dob);
-            if (d.fullName)       onChange("passportFullName", d.fullName);
-            if (d.passportNumber) onChange("passportNumber", d.passportNumber);
-            if (d.expiryDate)     onChange("passportExpiry", d.expiryDate);
-            if (d.nationality)    onChange("passportNationality", d.nationality);
-            if (d.gender)         onChange("passportGender", d.gender);
+            applyPassportOcrFields(result.extracted_data, (f, v) => onChange(f as keyof AccompanyingPerson, v));
           }}
         />
       </div>
@@ -2141,7 +2153,7 @@ function AccompanyingPersonSingleTab({
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
         <TwoSidedDocumentCard
-          title="Government ID" description="National ID / CNIC" icon={CreditCard}
+          title="Government ID" description="National ID / CNIC" icon={CreditCard} scanKind="id"
           frontFileName={data.governmentIdName} backFileName={data.governmentIdBackName}
           frontRemarkKey={clientToConsultantKey("accompanying", "governmentIdName", personIndex)}
           backRemarkKey={clientToConsultantKey("accompanying", "governmentIdBackName", personIndex)}
@@ -2226,6 +2238,7 @@ function TwoSidedDocumentCard({
   title, description, icon: Icon,
   frontFileName, backFileName,
   frontRemarkKey, backRemarkKey, fieldRemarks,
+  scanKind,
   onFrontChange, onBackChange,
   onUpload,
   onScanComplete,
@@ -2239,6 +2252,7 @@ function TwoSidedDocumentCard({
   frontRemarkKey?: string;
   backRemarkKey?: string;
   fieldRemarks?: Record<string, FieldRemark>;
+  scanKind?: ScanKind;
   onFrontChange: (n: string) => void;
   onBackChange: (n: string) => void;
   onUpload?: (file: File) => Promise<string>;
@@ -2262,6 +2276,7 @@ function TwoSidedDocumentCard({
           description=""
           accept=".pdf,.jpg,.jpeg,.png"
           icon={Icon}
+          scanKind={scanKind}
           fileName={frontFileName}
           remarkKey={frontRemarkKey}
           fieldRemarks={fieldRemarks}
@@ -2294,6 +2309,7 @@ function DocumentUploadCard({
   fileName,
   remarkKey,
   fieldRemarks,
+  scanKind,
   onFileChange,
   onUpload,
   onScanComplete,
@@ -2306,6 +2322,7 @@ function DocumentUploadCard({
   fileName: string;
   remarkKey?: string;
   fieldRemarks?: Record<string, FieldRemark>;
+  scanKind?: ScanKind;
   onFileChange: (name: string) => void;
   onUpload?: (file: File) => Promise<string>;
   onScanComplete?: (result: OcrResult) => void;
@@ -2317,10 +2334,25 @@ function DocumentUploadCard({
   const [previewOpen, setPreviewOpen] = useState(false);
   const previewTypeRef                = useRef<"image" | "pdf" | "other">("other");
   const [scanResult, setScanResult]   = useState<OcrResult | null>(null);
+  const [scanError, setScanError]     = useState<string | null>(null);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [scanning, setScanning]         = useState(false);
   const [loadingStored, setLoadingStored] = useState(false);
   const refillRemark = remarkKey ? getPendingRemark(fieldRemarks ?? {}, remarkKey) : undefined;
+
+  function processScanResult(result: OcrResult) {
+    if (scanKind) {
+      const mismatch = scanKindMismatch(scanKind, result.document_type);
+      if (mismatch) {
+        setScanError(mismatch);
+        setScanResult(result);
+        return;
+      }
+    }
+    setScanError(result.message ?? null);
+    setScanResult(result);
+    onScanComplete?.(result);
+  }
 
   // S3 paths look like "client-document/2026/05/name.pdf" — show only basename
   const displayName = fileName
@@ -2397,12 +2429,14 @@ function DocumentUploadCard({
     // Auto-analyse immediately after upload
     setScanning(true);
     setScanResult(null);
+    setScanError(null);
     try {
-      const result = await scanDocumentFile(file);
-      if (result) {
-        setScanResult(result);
-        if (onScanComplete) onScanComplete(result);
+      const { result, error } = await scanDocumentFile(file);
+      if (error) {
+        setScanError(error);
+        return;
       }
+      if (result) processScanResult(result);
     } finally {
       setScanning(false);
     }
@@ -2414,6 +2448,7 @@ function DocumentUploadCard({
     setPreviewUrl(null);
     setPreviewOpen(false);
     setScanResult(null);
+    setScanError(null);
     setUploadedFile(null);
     onFileChange("");
   }
@@ -2422,12 +2457,14 @@ function DocumentUploadCard({
     if (!uploadedFile) return;
     setScanning(true);
     setScanResult(null);
+    setScanError(null);
     try {
-      const result = await scanDocumentFile(uploadedFile);
-      if (result) {
-        setScanResult(result);
-        if (onScanComplete) onScanComplete(result);
+      const { result, error } = await scanDocumentFile(uploadedFile);
+      if (error) {
+        setScanError(error);
+        return;
       }
+      if (result) processScanResult(result);
     } finally {
       setScanning(false);
     }
@@ -2539,7 +2576,7 @@ function DocumentUploadCard({
                     <div className="absolute bottom-8 right-2 w-5 h-5 border-b-2 border-r-2 border-primary" />
                     <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex items-center gap-1.5 bg-primary text-primary-foreground text-[10px] font-bold px-2.5 py-1 rounded-full whitespace-nowrap shadow-lg">
                       <Loader2 className="h-3 w-3 animate-spin" />
-                      Scanning document…
+                      Scanning document… (may take up to 2 min)
                     </div>
                   </div>
                 </>
@@ -2563,6 +2600,12 @@ function DocumentUploadCard({
         </div>
 
         {/* OCR extracted data summary — shown for both success and partial_success */}
+        {scanError && (
+          <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2">
+            <p className="text-[10px] font-semibold text-red-700">{scanError}</p>
+          </div>
+        )}
+
         {scanResult && (() => {
           const d = scanResult.extracted_data;
           const fields: Array<[string, string | undefined]> = [
@@ -2601,16 +2644,28 @@ function DocumentUploadCard({
           );
         })()}
 
-        {/* Remove button */}
+        {/* Remove / rescan */}
         {displayName && !uploading && (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="text-xs text-muted-foreground h-7 px-2"
-            onClick={handleRemove}
-          >
-            Remove file
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-xs h-7 px-2"
+              disabled={scanning || !uploadedFile}
+              onClick={handleScan}
+            >
+              {scanning ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
+              Re-scan document
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-xs text-muted-foreground h-7 px-2"
+              onClick={handleRemove}
+            >
+              Remove file
+            </Button>
+          </div>
         )}
       </div>
 

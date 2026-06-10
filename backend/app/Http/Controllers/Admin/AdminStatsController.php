@@ -17,8 +17,8 @@ class AdminStatsController extends Controller
     {
         $userCounts = User::selectRaw('COUNT(*) as total')
             ->addSelect([
-                \DB::raw('SUM(is_verified = 1) as verified'),
-                \DB::raw('SUM(is_verified = 0) as unverified'),
+                \DB::raw('SUM(CASE WHEN is_verified THEN 1 ELSE 0 END) as verified'),
+                \DB::raw('SUM(CASE WHEN NOT is_verified THEN 1 ELSE 0 END) as unverified'),
             ])
             ->first();
 
@@ -32,8 +32,8 @@ class AdminStatsController extends Controller
 
         $rcicStats = RcicConsultant::selectRaw(
             'COUNT(*) as total,
-             SUM(entitled_to_practise = 1) as active,
-             SUM(entitled_to_practise = 0) as inactive'
+             SUM(CASE WHEN entitled_to_practise THEN 1 ELSE 0 END) as active,
+             SUM(CASE WHEN NOT entitled_to_practise THEN 1 ELSE 0 END) as inactive'
         )->first();
 
         return response()->json([

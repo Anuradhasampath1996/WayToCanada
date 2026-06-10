@@ -1,8 +1,8 @@
 "use client";
 
 import * as React from "react";
+import Image from "next/image";
 import {
-  CreditCardIcon,
   Eye,
   EyeOff,
   CheckCircle2,
@@ -11,19 +11,17 @@ import {
   Trash2,
   Save,
   Webhook,
+  Zap,
+  Copy,
+  Check,
+  Shield,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import {
   Select,
   SelectContent,
@@ -41,7 +39,9 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Separator } from "@/components/ui/separator";
 import { adminAuthHeaders } from "@/lib/admin-auth";
+import { TestClockPanel } from "./test-clock-panel";
 
 const API = process.env.NEXT_PUBLIC_API_URL + "/api/v1";
 
@@ -54,7 +54,8 @@ type GatewayData = {
   has_secret: boolean;
   publishable_key_preview: string | null;
   secret_key_preview: string | null;
-  webhook_id: string | null;
+  has_webhook: boolean;
+  webhook_preview: string | null;
   updated_at: string;
 };
 
@@ -66,13 +67,78 @@ type FormState = {
   webhook_id: string;
 };
 
+type TestResult = {
+  success: boolean;
+  message: string;
+  account?: {
+    id: string;
+    display_name: string | null;
+    country: string | null;
+    livemode: boolean;
+  };
+};
+
 function authHeaders() { return adminAuthHeaders("application/json"); }
 
-function PayPalLogo() {
+function StripeLogo({ className = "h-8" }: { className?: string }) {
   return (
-    <div className="flex items-center gap-1.5">
-      <span className="text-[#003087] font-black text-2xl tracking-tight">Pay</span>
-      <span className="text-[#009CDE] font-black text-2xl tracking-tight">Pal</span>
+    <Image
+      src="/images/stripe-logo.svg"
+      alt="Stripe"
+      width={80}
+      height={32}
+      className={`w-auto object-contain ${className}`}
+      priority
+    />
+  );
+}
+
+function KeyField({
+  label,
+  hint,
+  placeholder,
+  value,
+  onChange,
+  hasSaved,
+  savedPreview,
+}: {
+  label: string;
+  hint?: string;
+  placeholder: string;
+  value: string;
+  onChange: (v: string) => void;
+  hasSaved: boolean;
+  savedPreview: string | null;
+}) {
+  const [show, setShow] = React.useState(false);
+
+  return (
+    <div className="space-y-2 min-w-0">
+      <Label>{label}</Label>
+      {hasSaved && savedPreview && (
+        <span className="inline-flex max-w-full items-center gap-1 rounded-md bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-xs text-emerald-700">
+          <CheckCircle2 className="size-3 shrink-0" />
+          <span className="font-mono truncate">{savedPreview}</span>
+        </span>
+      )}
+      {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
+      <div className="relative">
+        <Input
+          type={show ? "text" : "password"}
+          placeholder={placeholder}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          autoComplete="off"
+          className="pr-10 font-mono text-sm"
+        />
+        <button
+          type="button"
+          onClick={() => setShow((s) => !s)}
+          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+        >
+          {show ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+        </button>
+      </div>
     </div>
   );
 }
@@ -89,17 +155,22 @@ function GatewayCard({
     is_active: data.is_active,
     publishable_key: "",
     secret_key: "",
-    webhook_id: data.webhook_id ?? "",
+    webhook_id: "",
   });
-  const [showPub, setShowPub] = React.useState(false);
-  const [showSec, setShowSec] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
+  const [testing, setTesting] = React.useState(false);
   const [clearing, setClearing] = React.useState(false);
+  const [copied, setCopied] = React.useState(false);
   const [toast, setToast] = React.useState<{
     type: "success" | "error";
     msg: string;
   } | null>(null);
+  const [testResult, setTestResult] = React.useState<TestResult | null>(null);
   const [confirmClear, setConfirmClear] = React.useState(false);
+
+  const webhookUrl =
+    (process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000") +
+    "/api/v1/webhooks/stripe";
 
   function showToast(type: "success" | "error", msg: string) {
     setToast({ type, msg });
@@ -108,6 +179,7 @@ function GatewayCard({
 
   async function handleSave() {
     setSaving(true);
+    setTestResult(null);
     try {
       const res = await fetch(`${API}/admin/payment-gateways/${data.gateway}`, {
         method: "PUT",
@@ -132,6 +204,33 @@ function GatewayCard({
     }
   }
 
+  async function handleTestConnection() {
+    setTesting(true);
+    setTestResult(null);
+    try {
+      const res = await fetch(`${API}/admin/payment-gateways/${data.gateway}/test`, {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify({
+          secret_key: form.secret_key || null,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        setTestResult({ success: false, message: json.message || "Connection failed." });
+        return;
+      }
+      setTestResult(json);
+    } catch (e: unknown) {
+      setTestResult({
+        success: false,
+        message: e instanceof Error ? e.message : "Connection test failed.",
+      });
+    } finally {
+      setTesting(false);
+    }
+  }
+
   async function handleClearKeys() {
     setClearing(true);
     try {
@@ -142,6 +241,7 @@ function GatewayCard({
       const json = await res.json();
       if (!res.ok) throw new Error(json.message || "Clear failed");
       showToast("success", json.message);
+      setTestResult(null);
       onSaved();
     } catch (e: unknown) {
       showToast("error", e instanceof Error ? e.message : "An error occurred");
@@ -151,50 +251,56 @@ function GatewayCard({
     }
   }
 
+  function copyWebhookUrl() {
+    navigator.clipboard.writeText(webhookUrl);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  const canTest = form.secret_key.trim() !== "" || data.has_secret;
+
   return (
     <>
-      <Card className="relative overflow-hidden">
-        {/* Header band */}
-        <div className="absolute top-0 left-0 right-0 h-1 bg-[#009CDE]" />
-
-        <CardHeader className="pt-6">
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex flex-col gap-2">
-              <PayPalLogo />
-              <CardDescription>
-                Accept PayPal and card payments via PayPal.
-              </CardDescription>
+      <Card className="overflow-hidden border-0 shadow-sm">
+        {/* Branded header */}
+        <div className="bg-gradient-to-r from-[#635BFF] to-[#7A73FF] px-6 py-5">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="bg-white rounded-lg px-4 py-2.5 shadow-sm">
+                <StripeLogo className="h-7" />
+              </div>
+              <div className="text-white">
+                <p className="font-semibold text-sm opacity-90">Payment Gateway</p>
+                <p className="text-xs opacity-75">Consultant subscription billing</p>
+              </div>
             </div>
-
-            <div className="flex flex-col items-end gap-2 shrink-0">
-              {/* Active badge */}
+            <div className="flex items-center gap-2">
               <Badge
-                variant={data.is_active ? "default" : "secondary"}
-                className={data.is_active ? "bg-green-600" : ""}
+                className={
+                  data.is_active
+                    ? "bg-white/20 text-white border-white/30 hover:bg-white/20"
+                    : "bg-black/20 text-white/80 border-white/20 hover:bg-black/20"
+                }
               >
                 {data.is_active ? "Active" : "Inactive"}
               </Badge>
-
-              {/* Mode badge */}
               <Badge
-                variant="outline"
                 className={
                   data.mode === "production"
-                    ? "border-orange-400 text-orange-500"
-                    : "border-blue-400 text-blue-500"
+                    ? "bg-orange-500/90 text-white border-0 hover:bg-orange-500/90"
+                    : "bg-white/20 text-white border-white/30 hover:bg-white/20"
                 }
               >
-                {data.mode === "production" ? "🔴 Production" : "🔵 Test"}
+                {data.mode === "production" ? "Live" : "Test"}
               </Badge>
             </div>
           </div>
-        </CardHeader>
+        </div>
 
-        <CardContent className="space-y-5">
-          {/* Toast */}
+        <CardHeader className="pb-0 pt-5">
           {toast && (
             <div
-              className={`flex items-center gap-2 rounded-md px-3 py-2 text-sm ${
+              className={`flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm mb-4 ${
                 toast.type === "success"
                   ? "bg-green-50 text-green-700 border border-green-200"
                   : "bg-red-50 text-red-700 border border-red-200"
@@ -209,164 +315,161 @@ function GatewayCard({
             </div>
           )}
 
-          {/* Toggle active */}
-          <div className="flex items-center justify-between rounded-lg border px-4 py-3">
-            <div>
-              <p className="text-sm font-medium">Enable Gateway</p>
-              <p className="text-muted-foreground text-xs">
-                When off, this gateway will not process any payments
-              </p>
-            </div>
-            <Switch
-              checked={form.is_active}
-              onCheckedChange={(v) => setForm((f) => ({ ...f, is_active: v }))}
-            />
-          </div>
-
-          {/* Mode selector */}
-          <div className="space-y-1.5">
-            <Label>Mode</Label>
-            <Select
-              value={form.mode}
-              onValueChange={(v) =>
-                setForm((f) => ({ ...f, mode: v as "test" | "production" }))
-              }
+          {testResult && (
+            <div
+              className={`rounded-lg px-4 py-3 text-sm mb-4 border ${
+                testResult.success
+                  ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                  : "bg-red-50 text-red-700 border-red-200"
+              }`}
             >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="test">
-                  <span className="flex items-center gap-2">
-                    <span className="size-2 rounded-full bg-blue-500 inline-block" />
-                    Test Mode — use sandbox keys
-                  </span>
-                </SelectItem>
-                <SelectItem value="production">
-                  <span className="flex items-center gap-2">
-                    <span className="size-2 rounded-full bg-orange-500 inline-block" />
-                    Production Mode — live transactions
-                  </span>
-                </SelectItem>
-              </SelectContent>
-            </Select>
-            {form.mode === "production" && (
-              <p className="text-orange-500 text-xs flex items-center gap-1 mt-1">
-                <AlertCircle className="size-3" />
-                Production mode will charge real money. Double-check your keys.
-              </p>
-            )}
-          </div>
+              <div className="flex items-start gap-2">
+                {testResult.success ? (
+                  <CheckCircle2 className="size-4 mt-0.5 shrink-0 text-emerald-600" />
+                ) : (
+                  <AlertCircle className="size-4 mt-0.5 shrink-0" />
+                )}
+                <div>
+                  <p className="font-medium">{testResult.message}</p>
+                  {testResult.success && testResult.account && (
+                    <p className="text-xs mt-1 opacity-80">
+                      Account: {testResult.account.display_name ?? testResult.account.id}
+                      {testResult.account.country && ` · ${testResult.account.country}`}
+                      {` · ${testResult.account.livemode ? "Live" : "Test"} mode`}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+        </CardHeader>
 
-          {/* Client ID */}
-          <div className="space-y-1.5">
-            <Label>Client ID</Label>
-            {data.has_publishable ? (
-              <p className="text-muted-foreground text-xs">
-                Currently set:{" "}
-                <code className="bg-muted px-1 py-0.5 rounded text-xs">
-                  {data.publishable_key_preview}
-                </code>
-                &nbsp;— leave blank to keep existing
-              </p>
-            ) : (
-              <p className="text-xs text-amber-600 flex items-center gap-1">
-                <AlertCircle className="size-3" /> No Client ID saved yet
-              </p>
-            )}
-            <div className="relative">
-              <Input
-                type={showPub ? "text" : "password"}
-                placeholder={data.has_publishable ? "Enter new Client ID to replace…" : "AXxx… (Client ID)"}
-                value={form.publishable_key}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, publishable_key: e.target.value }))
-                }
-                autoComplete="off"
-                className="pr-10"
+        <CardContent className="space-y-6 pt-4">
+          {/* Quick toggles */}
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="flex items-center justify-between rounded-xl border bg-muted/30 px-4 py-3.5">
+              <div>
+                <p className="text-sm font-medium">Enable Gateway</p>
+                <p className="text-muted-foreground text-xs mt-0.5">
+                  Allow consultant subscriptions
+                </p>
+              </div>
+              <Switch
+                checked={form.is_active}
+                onCheckedChange={(v) => setForm((f) => ({ ...f, is_active: v }))}
               />
-              <button
-                type="button"
-                onClick={() => setShowPub((s) => !s)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+            </div>
+
+            <div className="rounded-xl border bg-muted/30 px-4 py-3.5 space-y-2">
+              <Label className="text-sm">Environment</Label>
+              <Select
+                value={form.mode}
+                onValueChange={(v) =>
+                  setForm((f) => ({ ...f, mode: v as "test" | "production" }))
+                }
               >
-                {showPub ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-              </button>
+                <SelectTrigger className="bg-background">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="test">Test — pk_test_ / sk_test_</SelectItem>
+                  <SelectItem value="production">Production — pk_live_ / sk_live_</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
 
-          {/* Secret Key */}
-          <div className="space-y-1.5">
-            <Label>Secret Key</Label>
-            {data.has_secret ? (
-              <p className="text-muted-foreground text-xs">
-                Currently set:{" "}
-                <code className="bg-muted px-1 py-0.5 rounded text-xs">
-                  {data.secret_key_preview}
-                </code>
-                &nbsp;— leave blank to keep existing
-              </p>
-            ) : (
-              <p className="text-xs text-amber-600 flex items-center gap-1">
-                <AlertCircle className="size-3" /> No Secret Key saved yet
-              </p>
-            )}
-            <div className="relative">
-              <Input
-                type={showSec ? "text" : "password"}
-                placeholder={data.has_secret ? "Enter new Secret Key to replace…" : "EXxx… (Secret)"}
-                value={form.secret_key}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, secret_key: e.target.value }))
-                }
-                autoComplete="off"
-                className="pr-10"
-              />
-              <button
-                type="button"
-                onClick={() => setShowSec((s) => !s)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-              >
-                {showSec ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-              </button>
-            </div>
-          </div>
-
-          {/* Webhook ID */}
-          <div className="space-y-1.5">
-            <Label className="flex items-center gap-1.5">
-              <Webhook className="size-3.5 text-muted-foreground" />
-              Webhook ID
-            </Label>
-            <p className="text-xs text-muted-foreground">
-              Found in PayPal Developer Dashboard → Apps → Your App → Webhooks.
-              Required for auto-renewal events (subscription activated, payment received, etc.).
+          {form.mode === "production" && (
+            <p className="text-orange-600 text-xs flex items-center gap-1.5 -mt-2">
+              <AlertCircle className="size-3.5 shrink-0" />
+              Production mode charges real money. Verify your keys carefully.
             </p>
-            <Input
-              type="text"
-              placeholder={data.webhook_id ? "Update Webhook ID…" : "WH-XXXX… (Webhook ID)"}
-              value={form.webhook_id}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, webhook_id: e.target.value }))
-              }
-              autoComplete="off"
-            />
-            {data.webhook_id && (
-              <p className="text-xs text-muted-foreground">
-                Currently set:{" "}
-                <code className="bg-muted px-1 py-0.5 rounded text-xs">
-                  {data.webhook_id.slice(0, 6)}…{data.webhook_id.slice(-4)}
-                </code>
-              </p>
-            )}
-            {!data.webhook_id && (
-              <p className="text-xs text-amber-600 flex items-center gap-1">
-                <AlertCircle className="size-3" /> No Webhook ID saved — subscription events will not be verified
-              </p>
-            )}
+          )}
+
+          <Separator />
+
+          {/* API Keys */}
+          <div>
+            <h3 className="text-sm font-semibold mb-1">API Keys</h3>
+            <p className="text-xs text-muted-foreground mb-4">
+              Get keys from{" "}
+              <a
+                href="https://dashboard.stripe.com/apikeys"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[#635BFF] hover:underline"
+              >
+                Stripe Dashboard → API Keys
+              </a>
+              . Leave fields blank to keep existing saved keys.
+            </p>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <KeyField
+                label="Publishable Key"
+                placeholder="pk_test_…"
+                value={form.publishable_key}
+                onChange={(v) => setForm((f) => ({ ...f, publishable_key: v }))}
+                hasSaved={data.has_publishable}
+                savedPreview={data.publishable_key_preview}
+              />
+              <KeyField
+                label="Secret Key"
+                placeholder="sk_test_…"
+                value={form.secret_key}
+                onChange={(v) => setForm((f) => ({ ...f, secret_key: v }))}
+                hasSaved={data.has_secret}
+                savedPreview={data.secret_key_preview}
+              />
+            </div>
           </div>
 
-          {/* Last updated */}
+          <Separator />
+
+          {/* Webhook */}
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <Webhook className="size-4 text-muted-foreground" />
+              <h3 className="text-sm font-semibold">Webhook (optional)</h3>
+            </div>
+            <p className="text-xs text-muted-foreground mb-3">
+              Required for auto-renewal events. Add this URL in Stripe Dashboard → Webhooks.
+            </p>
+
+            <div className="flex items-center gap-2 mb-4">
+              <code className="flex-1 text-xs bg-muted px-3 py-2 rounded-lg break-all font-mono">
+                {webhookUrl}
+              </code>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className="shrink-0"
+                onClick={copyWebhookUrl}
+              >
+                {copied ? <Check className="size-4 text-green-600" /> : <Copy className="size-4" />}
+              </Button>
+            </div>
+
+            <KeyField
+              label="Signing Secret"
+              hint="Events: checkout.session.completed, invoice.paid, customer.subscription.updated, customer.subscription.deleted"
+              placeholder="whsec_…"
+              value={form.webhook_id}
+              onChange={(v) => setForm((f) => ({ ...f, webhook_id: v }))}
+              hasSaved={data.has_webhook}
+              savedPreview={data.webhook_preview}
+            />
+          </div>
+
+          {/* Security note */}
+          <div className="flex items-start gap-2.5 rounded-xl bg-muted/40 px-4 py-3 text-xs text-muted-foreground">
+            <Shield className="size-4 mt-0.5 shrink-0 text-[#635BFF]" />
+            <span>
+              Keys are encrypted with AES-256. Only the last 4 characters are shown here.
+            </span>
+          </div>
+
           {data.updated_at && (
             <p className="text-muted-foreground text-xs">
               Last saved:{" "}
@@ -378,12 +481,26 @@ function GatewayCard({
           )}
 
           {/* Actions */}
-          <div className="flex gap-2 pt-1">
-            <Button onClick={handleSave} disabled={saving} className="flex-1">
-              {saving ? (
-                <RefreshCw className="size-4 animate-spin mr-2" />
+          <div className="flex flex-wrap gap-2 pt-1">
+            <Button
+              variant="outline"
+              onClick={handleTestConnection}
+              disabled={testing || !canTest}
+              className="gap-2"
+            >
+              {testing ? (
+                <RefreshCw className="size-4 animate-spin" />
               ) : (
-                <Save className="size-4 mr-2" />
+                <Zap className="size-4" />
+              )}
+              Test Connection
+            </Button>
+
+            <Button onClick={handleSave} disabled={saving} className="gap-2 flex-1 sm:flex-none">
+              {saving ? (
+                <RefreshCw className="size-4 animate-spin" />
+              ) : (
+                <Save className="size-4" />
               )}
               Save Settings
             </Button>
@@ -391,7 +508,7 @@ function GatewayCard({
             {(data.has_publishable || data.has_secret) && (
               <Button
                 variant="outline"
-                className="text-destructive hover:bg-destructive/10 border-destructive/40"
+                className="text-destructive hover:bg-destructive/10 border-destructive/40 ml-auto"
                 onClick={() => setConfirmClear(true)}
                 disabled={clearing}
               >
@@ -402,15 +519,14 @@ function GatewayCard({
         </CardContent>
       </Card>
 
-      {/* Confirm clear dialog */}
       <AlertDialog open={confirmClear} onOpenChange={setConfirmClear}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Clear PayPal Keys?</AlertDialogTitle>
+            <AlertDialogTitle>Clear Stripe Keys?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete the stored PayPal API keys and
+              This will permanently delete the stored Stripe API keys and
               deactivate the gateway. You will need to re-enter them to use
-              PayPal again.
+              Stripe again.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -459,63 +575,44 @@ export default function PaymentGatewayPage() {
     fetchGateways();
   }, []);
 
-  const paypal = gateways.find((g) => g.gateway === "paypal");
+  const stripe = gateways.find((g) => g.gateway === "stripe");
 
   return (
-    <div className="space-y-6">
-      {/* Page header */}
-      <div className="flex items-center gap-3">
-        <CreditCardIcon className="size-7 text-primary" />
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">
-            PayPal Payment Gateway
-          </h1>
-          <p className="text-muted-foreground text-sm">
-            Configure PayPal for your platform. Keys are encrypted at rest.
-            Switch between test and production modes without losing your keys.
-          </p>
-        </div>
-      </div>
-
-      {/* Info banner */}
-      <div className="flex items-start gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
-        <AlertCircle className="size-4 mt-0.5 shrink-0 text-blue-500" />
-        <div>
-          <strong>Security note:</strong> Your API keys are encrypted using
-          AES-256 before storage. They are never exposed in plain text through
-          this interface — only the last 4 characters are shown as a reference.
-        </div>
+    <div className="w-full space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight">Payment Gateway</h1>
+        <p className="text-muted-foreground text-sm mt-1">
+          Connect Stripe to accept consultant subscription payments.
+        </p>
       </div>
 
       {loading && (
         <div className="flex items-center justify-center py-20 text-muted-foreground gap-2">
           <RefreshCw className="size-5 animate-spin" />
-          Loading gateway settings…
+          Loading…
         </div>
       )}
 
       {error && !loading && (
-        <div className="flex items-center gap-2 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           <AlertCircle className="size-4 shrink-0" />
           {error}
-          <Button
-            variant="ghost"
-            size="sm"
-            className="ml-auto"
-            onClick={fetchGateways}
-          >
+          <Button variant="ghost" size="sm" className="ml-auto" onClick={fetchGateways}>
             Retry
           </Button>
         </div>
       )}
 
-      {!loading && !error && paypal && (
-        <GatewayCard data={paypal} onSaved={fetchGateways} />
+      {!loading && !error && stripe && (
+        <div className="grid gap-6 xl:grid-cols-[1fr_380px]">
+          <GatewayCard data={stripe} onSaved={fetchGateways} />
+          {stripe.mode === "test" && <TestClockPanel />}
+        </div>
       )}
 
-      {!loading && !error && !paypal && (
+      {!loading && !error && !stripe && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          PayPal gateway record not found in the database. Please run migrations.
+          Stripe gateway record not found. Please run database migrations.
         </div>
       )}
     </div>

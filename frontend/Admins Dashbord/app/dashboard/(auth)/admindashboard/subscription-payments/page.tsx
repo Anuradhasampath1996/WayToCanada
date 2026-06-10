@@ -61,6 +61,8 @@ type Subscription = {
   trial_ends_at: string | null;
   last_payment_at: string | null;
   paypal_order_id: string | null;
+  stripe_subscription_id: string | null;
+  stripe_checkout_session_id: string | null;
   user: { id: number; name: string; email: string } | null;
   package: { id: number; name: string; monthly_price: number | null; yearly_price: number | null } | null;
 };
@@ -181,7 +183,7 @@ export default function SubscriptionPaymentsPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Subscription Payments</h1>
           <p className="text-muted-foreground text-sm mt-1">
-            All consultant subscription records and PayPal payment history.
+            All consultant subscription records and Stripe payment history.
           </p>
         </div>
         <Button variant="outline" size="sm" onClick={fetchData} disabled={loading}>
@@ -279,7 +281,7 @@ export default function SubscriptionPaymentsPage() {
                   <TableHead>Status</TableHead>
                   <TableHead>Started</TableHead>
                   <TableHead>Expires</TableHead>
-                  <TableHead className="pr-6">PayPal Order</TableHead>
+                  <TableHead className="pr-6">Stripe Reference</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -304,8 +306,16 @@ export default function SubscriptionPaymentsPage() {
                       {sub.is_trial ? fmtDate(sub.trial_ends_at) : fmtDate(sub.ends_at)}
                     </TableCell>
                     <TableCell className="pr-6">
-                      {sub.paypal_order_id ? (
-                        <span className="font-mono text-xs text-muted-foreground">
+                      {sub.stripe_subscription_id ? (
+                        <span className="font-mono text-xs text-muted-foreground" title={sub.stripe_subscription_id}>
+                          {sub.stripe_subscription_id.slice(0, 18)}…
+                        </span>
+                      ) : sub.stripe_checkout_session_id ? (
+                        <span className="font-mono text-xs text-muted-foreground" title={sub.stripe_checkout_session_id}>
+                          {sub.stripe_checkout_session_id.slice(0, 18)}…
+                        </span>
+                      ) : sub.paypal_order_id ? (
+                        <span className="font-mono text-xs text-muted-foreground" title={sub.paypal_order_id}>
                           {sub.paypal_order_id.slice(0, 18)}…
                         </span>
                       ) : (

@@ -16,10 +16,13 @@ class PaymentGatewaySetting extends Model
         'publishable_key',
         'secret_key',
         'webhook_id',
+        'stripe_test_clock_id',
+        'use_test_clock',
     ];
 
     protected $casts = [
-        'is_active' => 'boolean',
+        'is_active'      => 'boolean',
+        'use_test_clock' => 'boolean',
     ];
 
     /**
@@ -48,9 +51,20 @@ class PaymentGatewaySetting extends Model
      */
     public static function maskKey(?string $decrypted): ?string
     {
-        if (!$decrypted) return null;
-        $len = strlen($decrypted);
-        if ($len <= 4) return str_repeat('*', $len);
-        return str_repeat('*', $len - 4) . substr($decrypted, -4);
+        if (! $decrypted) {
+            return null;
+        }
+
+        $last4 = substr($decrypted, -4);
+
+        if (preg_match('/^(pk|sk)_(test|live)_/', $decrypted, $m)) {
+            return $m[0] . '••••' . $last4;
+        }
+
+        if (str_starts_with($decrypted, 'whsec_')) {
+            return 'whsec_••••' . $last4;
+        }
+
+        return '••••' . $last4;
     }
 }

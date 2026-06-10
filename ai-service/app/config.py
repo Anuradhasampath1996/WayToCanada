@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     # OCR
     easyocr_languages: list[str] = ["en"]
     easyocr_gpu: bool = False
-    confidence_threshold: float = 0.10
+    confidence_threshold: float = 0.35
 
     # Upload limits
     max_file_size_mb: int = 10

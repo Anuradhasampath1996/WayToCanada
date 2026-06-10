@@ -27,7 +27,7 @@ export default function Page() {
   // Redirect already-logged-in admins to the dashboard
   useEffect(() => {
     if (getCookie("wtc_admin_token")) {
-      router.replace("/dashboard/default");
+      router.replace("/admindashboard");
     }
   }, [router]);
 
@@ -63,7 +63,7 @@ export default function Page() {
         document.cookie = `wtc_admin_token=${data.token}; path=/; max-age=${maxAge}; SameSite=Lax`;
       }
 
-      router.push("/dashboard/default");
+      router.push("/admindashboard");
     } catch {
       setError("Network error. Is the backend server running at port 8000?");
     } finally {

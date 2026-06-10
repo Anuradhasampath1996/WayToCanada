@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\PaymentGatewaySetting;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Stripe\Account;
+use Stripe\Stripe;
 
 class AdminPaymentGatewayController extends Controller
 {
@@ -20,18 +22,20 @@ class AdminPaymentGatewayController extends Controller
         $data = $rows->map(function (PaymentGatewaySetting $row) {
             $decryptedPublishable = PaymentGatewaySetting::decryptKey($row->publishable_key);
             $decryptedSecret      = PaymentGatewaySetting::decryptKey($row->secret_key);
+            $decryptedWebhook     = PaymentGatewaySetting::decryptKey($row->webhook_id) ?? $row->webhook_id;
 
             return [
                 'id'              => $row->id,
                 'gateway'         => $row->gateway,
                 'mode'            => $row->mode,
                 'is_active'       => $row->is_active,
-                'has_publishable' => !is_null($decryptedPublishable),
-                'has_secret'      => !is_null($decryptedSecret),
+                'has_publishable' => ! is_null($decryptedPublishable),
+                'has_secret'      => ! is_null($decryptedSecret),
+                'has_webhook'     => ! empty($decryptedWebhook),
                 // Masked previews so admin can confirm keys are set
                 'publishable_key_preview' => PaymentGatewaySetting::maskKey($decryptedPublishable),
                 'secret_key_preview'      => PaymentGatewaySetting::maskKey($decryptedSecret),
-                'webhook_id'      => $row->webhook_id,
+                'webhook_preview'           => PaymentGatewaySetting::maskKey($decryptedWebhook),
                 'updated_at'      => $row->updated_at,
             ];
         });
@@ -71,7 +75,9 @@ class AdminPaymentGatewayController extends Controller
             $row->secret_key = PaymentGatewaySetting::encryptKey($validated['secret_key']);
         }
         if (array_key_exists('webhook_id', $validated)) {
-            $row->webhook_id = $validated['webhook_id'] ?: null;
+            $row->webhook_id = ! empty($validated['webhook_id'])
+                ? PaymentGatewaySetting::encryptKey($validated['webhook_id'])
+                : null;
         }
 
         $row->save();
@@ -97,5 +103,60 @@ class AdminPaymentGatewayController extends Controller
         ]);
 
         return response()->json(['message' => ucfirst($gateway) . ' keys cleared.']);
+    }
+
+    /**
+     * POST /api/v1/admin/payment-gateways/{gateway}/test
+     * Verify Stripe API credentials by calling the Stripe Account API.
+     */
+    public function testConnection(Request $request, string $gateway): JsonResponse
+    {
+        if ($gateway !== 'stripe') {
+            return response()->json(['message' => 'Only Stripe connection tests are supported.'], 422);
+        }
+
+        $validated = $request->validate([
+            'secret_key' => 'nullable|string|max:512',
+        ]);
+
+        $row = PaymentGatewaySetting::where('gateway', 'stripe')->firstOrFail();
+
+        $secret = ! empty($validated['secret_key'])
+            ? $validated['secret_key']
+            : PaymentGatewaySetting::decryptKey($row->secret_key);
+
+        if (! $secret) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No secret key found. Enter your Stripe secret key and try again.',
+            ], 422);
+        }
+
+        try {
+            Stripe::setApiKey($secret);
+            $account = Account::retrieve();
+
+            $displayName = $account->business_profile->name
+                ?? $account->settings->dashboard->display_name
+                ?? null;
+
+            $isLive = str_starts_with($secret, 'sk_live_');
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Stripe connection successful.',
+                'account' => [
+                    'id'           => $account->id,
+                    'display_name' => $displayName,
+                    'country'      => $account->country ?? null,
+                    'livemode'     => $isLive,
+                ],
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Connection failed: ' . $e->getMessage(),
+            ], 422);
+        }
     }
 }

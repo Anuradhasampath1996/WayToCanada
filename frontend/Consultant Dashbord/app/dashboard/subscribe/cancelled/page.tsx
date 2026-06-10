@@ -17,7 +17,7 @@ export default function SubscribeCancelledPage() {
         <h1 className="text-2xl font-bold text-slate-900">Payment Cancelled</h1>
 
         <p className="text-slate-500 text-sm leading-relaxed">
-          You cancelled the PayPal checkout. No charges were made to your account.
+          You cancelled the Stripe checkout. No charges were made to your account.
         </p>
 
         <div className="flex flex-col gap-2 pt-2">

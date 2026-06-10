@@ -1,9 +1,7 @@
 import { ReturnClient } from "./return-client";
 
 interface SearchParams {
-  subscription_id?: string;
-  ba_token?:        string;
-  token?:           string;
+  session_id?: string;
 }
 
 export default async function SubscribeReturnPage({
@@ -13,8 +11,7 @@ export default async function SubscribeReturnPage({
 }) {
   const params = await searchParams;
 
-  // PayPal passes `subscription_id` in the query string on return
-  const subscriptionId = params.subscription_id ?? params.ba_token ?? params.token ?? "";
+  const sessionId = params.session_id ?? "";
 
-  return <ReturnClient subscriptionId={subscriptionId} />;
+  return <ReturnClient sessionId={sessionId} />;
 }

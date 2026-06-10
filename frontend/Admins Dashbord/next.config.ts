@@ -9,7 +9,7 @@ const nextConfig: NextConfig = {
   assetPrefix: isProduction ? "https://dashboard.shadcnuikit.com" : undefined,
   async rewrites() {
     return [
-      { source: "/admindashboard", destination: "/dashboard/default" },
+      { source: "/admindashboard", destination: "/dashboard/admindashboard" },
       { source: "/dashboard/login", destination: "/dashboard/login/v1" },
       { source: "/admindashboard/users/admins", destination: "/dashboard/admindashboard/users/admins" },
       { source: "/admindashboard/users/rcic", destination: "/dashboard/admindashboard/users/rcic" },
@@ -20,17 +20,13 @@ const nextConfig: NextConfig = {
       { source: "/admindashboard/subscription-payments", destination: "/dashboard/admindashboard/subscription-payments" },
       { source: "/admindashboard/application-packages", destination: "/dashboard/admindashboard/application-packages" },
       { source: "/admindashboard/crs-calculator-sync", destination: "/dashboard/admindashboard/crs-calculator-sync" },
+      { source: "/admindashboard/gst-hst-sync", destination: "/dashboard/admindashboard/gst-hst-sync" },
       { source: "/admindashboard/legislations-hub", destination: "/dashboard/admindashboard/legislations-hub" },
       { source: "/admindashboard/legislations-hub/documents/:id", destination: "/dashboard/admindashboard/legislations-hub/documents/:id" },
     ];
   },
   async redirects() {
     return [
-      {
-        source: "/dashboard/default",
-        destination: "/admindashboard",
-        permanent: false,
-      },
       {
         source: "/dashboard/login/v1",
         destination: "/dashboard/login",

@@ -21,6 +21,9 @@ class SubscriptionPackage extends Model
         'paypal_product_id',
         'paypal_monthly_plan_id',
         'paypal_yearly_plan_id',
+        'stripe_product_id',
+        'stripe_monthly_price_id',
+        'stripe_yearly_price_id',
     ];
 
     protected $casts = [

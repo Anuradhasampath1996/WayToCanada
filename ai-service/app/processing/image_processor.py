@@ -22,6 +22,8 @@ import numpy as np
 # If the image is narrower than this we upscale before OCR.
 # EasyOCR accuracy drops sharply below ~1000 px; 1400 px is comfortable.
 _MIN_WIDTH = 1400
+# Cap width so 12 MP phone photos do not make CPU OCR exceed HTTP timeouts.
+_MAX_WIDTH = 2000
 
 
 def preprocess_image(image_bytes: bytes) -> np.ndarray:
@@ -43,8 +45,12 @@ def preprocess_image(image_bytes: bytes) -> np.ndarray:
     if img is None:
         raise ValueError("Could not decode image — ensure it is a valid JPEG, PNG or WEBP file.")
 
-    # ── 1. Upscale small images ───────────────────────────────────────────────
+    # ── 1. Normalize dimensions for OCR speed + accuracy ─────────────────────
     h, w = img.shape[:2]
+    if w > _MAX_WIDTH:
+        scale = _MAX_WIDTH / w
+        img = cv2.resize(img, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_AREA)
+        h, w = img.shape[:2]
     if w < _MIN_WIDTH:
         scale = _MIN_WIDTH / w
         new_w, new_h = int(w * scale), int(h * scale)

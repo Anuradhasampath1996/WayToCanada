@@ -98,6 +98,17 @@ class PassportParser(BaseParser):
 
     # ── Public ────────────────────────────────────────────────────────────────
 
+    @staticmethod
+    def _map_sex(raw: str) -> str:
+        code = (raw or "").upper().replace("<", "")
+        if code in ("M", "MALE"):
+            return "Male"
+        if code in ("F", "FEMALE"):
+            return "Female"
+        if code in ("X", "U", "UNSPECIFIED"):
+            return "Other"
+        return ""
+
     def parse(self, text: str) -> ExtractedData:
         # Strategy 1: full MRZ (strategies 1+2 inside _try_mrz)
         mrz_result = self._try_mrz(text)
@@ -207,7 +218,7 @@ class PassportParser(BaseParser):
             data.nationality    = self._ISO_NATIONALITY.get(nationality, nationality.title())
             data.dob            = self.normalize_date(dob_raw)
             data.expiryDate     = self.normalize_date(expiry_raw)
-            data.gender         = "Male" if sex_raw == "M" else ("Female" if sex_raw == "F" else "")
+            data.gender         = self._map_sex(sex_raw)
 
         # Return only if we extracted something meaningful
         return data if (data.passportNumber or data.fullName) else None
@@ -239,7 +250,7 @@ class PassportParser(BaseParser):
         if not data.dob:
             data.dob = self.normalize_date(dob_raw)
         if not data.gender:
-            data.gender = "Male" if sex_raw == "M" else ("Female" if sex_raw == "F" else "")
+            data.gender = self._map_sex(sex_raw)
         if not data.expiryDate:
             data.expiryDate = self.normalize_date(expiry_raw)
 
@@ -293,7 +304,7 @@ class PassportParser(BaseParser):
         mg2 = self._GENDER.search(text)
         if mg2:
             raw_g = mg2.group(1).upper()
-            data.gender = "Male" if raw_g in ("M", "MALE") else "Female"
+            data.gender = self._map_sex(raw_g)
 
         # Dates — try labeled patterns first
         md = self._DOB_LABEL.search(text)

@@ -53,7 +53,14 @@ def extract_text(image: np.ndarray) -> tuple[str, float]:
 
     # detail=1 → returns [(bbox, text, confidence), ...]
     # paragraph=False → keep individual line boxes for better ordering
-    results: list[tuple] = reader.readtext(image, detail=1, paragraph=False)
+    # width_ths groups characters into lines; slightly higher = fewer boxes = faster on CPU
+    results: list[tuple] = reader.readtext(
+        image,
+        detail=1,
+        paragraph=False,
+        width_ths=0.8,
+        batch_size=4,
+    )
 
     if not results:
         return "", 0.0

@@ -4,6 +4,7 @@ use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\Auth\ConsultantRegisterController;
 use App\Http\Controllers\Auth\ConsultantOnboardingController;
 use App\Http\Controllers\Auth\PublicRegisterController;
+use App\Http\Controllers\Admin\AdminGstHstController;
 use App\Http\Controllers\Admin\AdminCrsController;
 use App\Http\Controllers\Admin\AdminLegislationController;
 use App\Http\Controllers\LegislationController;
@@ -14,6 +15,7 @@ use App\Http\Controllers\Admin\AdminUsersController;
 use App\Http\Controllers\Admin\AdminRcicController;
 use App\Http\Controllers\Admin\AdminImmigrationConsultantController;
 use App\Http\Controllers\Admin\AdminPaymentGatewayController;
+use App\Http\Controllers\Admin\AdminStripeTestController;
 use App\Http\Controllers\Admin\AdminSubscriptionPackageController;
 use App\Http\Controllers\Admin\AdminSubscriptionPaymentsController;
 use App\Http\Controllers\ApplicationPackageController;
@@ -27,6 +29,7 @@ use App\Http\Controllers\ClientIrccInteractiveFormController;
 use App\Http\Controllers\ConsultantIrccInteractiveFormController;
 use App\Http\Controllers\ConsultantProfileController;
 use App\Http\Controllers\ConsultantSubscriptionController;
+use App\Http\Controllers\GstHstController;
 use App\Http\Controllers\CrsController;
 use App\Http\Controllers\DocumentOcrController;
 use App\Http\Controllers\DocumentSubmissionController;
@@ -34,8 +37,8 @@ use App\Http\Controllers\FileUploadController;
 use App\Http\Controllers\PackageDocumentSubmissionController;
 use App\Http\Controllers\IrccFormController;
 use App\Http\Controllers\IrccNewsController;
-use App\Http\Controllers\PaymentController;
-use App\Http\Controllers\PayPalWebhookController;
+use App\Http\Controllers\StripePaymentController;
+use App\Http\Controllers\StripeWebhookController;
 use App\Http\Controllers\QuestionnaireController;
 use App\Http\Controllers\QuestionnaireReviewController;
 use Illuminate\Support\Facades\Route;
@@ -59,6 +62,12 @@ Route::get('ircc-news', [IrccNewsController::class, 'index'])->name('ircc-news.i
 // ── Public: IRCC Application Forms & Guides tree (no auth required) ──────────
 Route::get('ircc-forms/tree', [IrccFormController::class, 'tree'])->name('ircc-forms.tree');
 
+// ── Public: GST/HST sales tax rates for payments (CRA place-of-supply) ───────
+Route::prefix('tax')->name('tax.')->group(function () {
+    Route::get('gst-hst/rates',      [GstHstController::class, 'rates'])->name('gst-hst.rates');
+    Route::post('gst-hst/calculate', [GstHstController::class, 'calculate'])->name('gst-hst.calculate');
+});
+
 // ── Public: CRS scoring rules & Express Entry draws (auto-updated) ───────────
 Route::prefix('crs')->name('crs.')->group(function () {
     Route::get('rules',  [CrsController::class, 'rules'])->name('rules');
@@ -74,9 +83,9 @@ Route::prefix('case-file')->name('case-file.public.')->group(function () {
     Route::post('agreement/{token}/upload-doc',[CaseFileController::class, 'uploadSignedDoc'])->name('agreement.upload-doc');
 });
 
-// ── Public: PayPal webhook (no auth — verified via PayPal signature) ──────────
-Route::post('webhooks/paypal', [PayPalWebhookController::class, 'handle'])
-    ->name('webhooks.paypal');
+// ── Public: Stripe webhook (no auth — verified via Stripe signature) ────────────
+Route::post('webhooks/stripe', [StripeWebhookController::class, 'handle'])
+    ->name('webhooks.stripe');
 
 // ── Authentication (Google OAuth + email/password) ───────────────────────────
 Route::prefix('auth')->group(function () {
@@ -154,14 +163,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('consultant/subscription/start-trial', [ConsultantSubscriptionController::class, 'startTrial'])->name('consultant.subscription.start-trial');
     Route::post('consultant/subscription/subscribe',   [ConsultantSubscriptionController::class, 'subscribe'])->name('consultant.subscription.subscribe');
 
-    // ── Consultant PayPal payment ─────────────────────────────────────────────
-    Route::prefix('consultant/payment/paypal')->name('consultant.payment.paypal.')->group(function () {
-        Route::get('config',                    [PaymentController::class, 'paypalConfig'])->name('config');
-        Route::post('create-order',             [PaymentController::class, 'createOrder'])->name('create-order');
-        Route::post('capture-order',            [PaymentController::class, 'captureOrder'])->name('capture-order');
-        // ── Subscriptions API (auto-renewal) ────────────────────────────────
-        Route::post('subscription/create',      [PaymentController::class, 'createSubscription'])->name('subscription.create');
-        Route::post('subscription/activate',    [PaymentController::class, 'activateSubscription'])->name('subscription.activate');
+    // ── Consultant Stripe payment ─────────────────────────────────────────────
+    Route::prefix('consultant/payment/stripe')->name('consultant.payment.stripe.')->group(function () {
+        Route::get('config',              [StripePaymentController::class, 'config'])->name('config');
+        Route::get('tax-quote',           [StripePaymentController::class, 'taxQuote'])->name('tax-quote');
+        Route::post('checkout-session',   [StripePaymentController::class, 'createCheckoutSession'])->name('checkout-session');
+        Route::post('verify-session',     [StripePaymentController::class, 'verifySession'])->name('verify-session');
     });
 
     // ── Client: own journey dashboard ─────────────────────────────────────────
@@ -298,6 +305,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::prefix('payment-gateways')->name('payment-gateways.')->group(function () {
             Route::get('/',                          [AdminPaymentGatewayController::class, 'index'])->name('index');
             Route::put('{gateway}',                  [AdminPaymentGatewayController::class, 'update'])->name('update');
+            Route::post('{gateway}/test',           [AdminPaymentGatewayController::class, 'testConnection'])->name('test');
             Route::delete('{gateway}/keys',          [AdminPaymentGatewayController::class, 'clearKeys'])->name('clearKeys');
         });
 
@@ -313,6 +321,16 @@ Route::middleware('auth:sanctum')->group(function () {
 
         // Subscription payments
         Route::get('subscription-payments', [AdminSubscriptionPaymentsController::class, 'index'])->name('subscription-payments.index');
+
+        // Stripe Test Clock — recurring billing simulation (test mode only)
+        Route::prefix('stripe-test')->name('stripe-test.')->group(function () {
+            Route::get('status',                              [AdminStripeTestController::class, 'status'])->name('status');
+            Route::post('clock/enable',                       [AdminStripeTestController::class, 'enableClock'])->name('clock.enable');
+            Route::post('clock/disable',                      [AdminStripeTestController::class, 'disableClock'])->name('clock.disable');
+            Route::post('clock/advance',                      [AdminStripeTestController::class, 'advanceClock'])->name('clock.advance');
+            Route::post('subscriptions/sync',                 [AdminStripeTestController::class, 'syncSubscriptions'])->name('subscriptions.sync');
+            Route::post('subscriptions/{subscription}/sync',  [AdminStripeTestController::class, 'syncOne'])->name('subscriptions.sync-one');
+        });
 
         // Legislation Hub — Canadian Acts & Regulations sync
         Route::prefix('legislation')->name('legislation.')->group(function () {
@@ -336,6 +354,13 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::put('references/{reference}', [AdminLegislationController::class, 'updateReference'])->name('references.update');
             Route::post('references/{reference}/activate', [AdminLegislationController::class, 'activateReference'])->name('references.activate');
             Route::delete('references/{reference}', [AdminLegislationController::class, 'destroyReference'])->name('references.destroy');
+        });
+
+        // GST/HST — sales tax for payments (CRA place of supply)
+        Route::prefix('gst-hst')->name('gst-hst.')->group(function () {
+            Route::get('sync-status', [AdminGstHstController::class, 'syncStatus'])->name('sync-status');
+            Route::post('sync',        [AdminGstHstController::class, 'sync'])->name('sync');
+            Route::post('calculate',   [AdminGstHstController::class, 'calculate'])->name('calculate');
         });
 
         // CRS / pathway calculator — IRCC rules & Express Entry draws

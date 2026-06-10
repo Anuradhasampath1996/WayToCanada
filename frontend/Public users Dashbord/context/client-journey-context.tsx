@@ -44,6 +44,8 @@ interface Consultant {
   phone?: string | null;
   rcic_number?: string | null;
   avatar?: string | null;
+  company_logo?: string | null;
+  company_name?: string | null;
 }
 
 interface ClientInfo {

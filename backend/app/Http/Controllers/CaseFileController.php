@@ -561,7 +561,7 @@ class CaseFileController extends Controller
 
         // Find the client profile for this user
         $profile = ClientProfile::where('user_id', $user->id)
-            ->with('consultant:id,name,email,phone,rcic_number,avatar')
+            ->with('consultant:id,name,email,phone,rcic_number,avatar,company_logo,company_name')
             ->first();
 
         if (! $profile) {
@@ -591,6 +591,8 @@ class CaseFileController extends Controller
                 'phone'        => $profile->consultant->phone,
                 'rcic_number'  => $profile->consultant->rcic_number,
                 'avatar'       => $profile->consultant->avatar,
+                'company_logo' => $profile->consultant->company_logo,
+                'company_name' => $profile->consultant->company_name,
             ] : null,
             'client' => [
                 'name'               => $user->name,

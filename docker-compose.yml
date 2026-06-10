@@ -24,7 +24,7 @@ services:
       - "8001:8001"
     environment:
       - EASYOCR_GPU=false
-      - CONFIDENCE_THRESHOLD=0.30
+      - CONFIDENCE_THRESHOLD=0.35
       - MAX_FILE_SIZE_MB=10
       - DEBUG=false
     restart: unless-stopped

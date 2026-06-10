@@ -7,52 +7,37 @@ import { AlertTriangle, ArrowLeft, CheckCircle2, Loader2 } from "lucide-react";
 const API = (process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000") + "/api/v1";
 
 interface Props {
-  subscriptionId: string;
+  sessionId: string;
 }
 
 type Step = "activating" | "success" | "error";
 
-export function ReturnClient({ subscriptionId }: Props) {
+export function ReturnClient({ sessionId }: Props) {
   const router = useRouter();
 
   const [step,     setStep]     = useState<Step>("activating");
   const [errorMsg, setErrorMsg] = useState("");
 
   useEffect(() => {
-    if (!subscriptionId) {
-      setErrorMsg("Missing subscription ID. Please try again.");
-      setStep("error");
-      return;
-    }
-
-    // Read package details that were stored in sessionStorage before the
-    // PayPal redirect (stored by subscribe-client.tsx)
-    const packageId   = sessionStorage.getItem("wtc_paypal_pkg_id");
-    const billingCycle = sessionStorage.getItem("wtc_paypal_billing_cycle");
-
-    if (!packageId || !billingCycle) {
-      setErrorMsg("Session data missing. Please return to the plans page and try again.");
+    if (!sessionId) {
+      setErrorMsg("Missing checkout session ID. Please try again.");
       setStep("error");
       return;
     }
 
     let cancelled = false;
 
-    async function activate() {
+    async function verify() {
       try {
         const token = localStorage.getItem("wtc_consultant_token");
-        const res   = await fetch(`${API}/consultant/payment/paypal/subscription/activate`, {
-          method : "POST",
+        const res   = await fetch(`${API}/consultant/payment/stripe/verify-session`, {
+          method: "POST",
           headers: {
-            Authorization : `Bearer ${token}`,
+            Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
-            Accept        : "application/json",
+            Accept: "application/json",
           },
-          body: JSON.stringify({
-            subscription_id          : subscriptionId,
-            subscription_package_id  : Number(packageId),
-            billing_cycle            : billingCycle,
-          }),
+          body: JSON.stringify({ session_id: sessionId }),
         });
 
         const json = await res.json();
@@ -62,10 +47,6 @@ export function ReturnClient({ subscriptionId }: Props) {
         }
 
         if (!cancelled) {
-          // Clear session storage
-          sessionStorage.removeItem("wtc_paypal_pkg_id");
-          sessionStorage.removeItem("wtc_paypal_billing_cycle");
-
           setStep("success");
           setTimeout(() => router.replace("/dashboard/default"), 2500);
         }
@@ -77,12 +58,10 @@ export function ReturnClient({ subscriptionId }: Props) {
       }
     }
 
-    void activate();
+    void verify();
     return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  // ─────────────────────────────────────────────────────────────────────────
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-950 to-slate-900 flex items-center justify-center px-4">
@@ -92,7 +71,7 @@ export function ReturnClient({ subscriptionId }: Props) {
           <>
             <Loader2 className="mx-auto h-14 w-14 animate-spin text-blue-500" />
             <h1 className="text-2xl font-bold text-slate-900">Activating your subscription…</h1>
-            <p className="text-slate-500 text-sm">Please wait while we confirm your payment with PayPal.</p>
+            <p className="text-slate-500 text-sm">Please wait while we confirm your payment with Stripe.</p>
           </>
         )}
 

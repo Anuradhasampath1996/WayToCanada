@@ -116,7 +116,7 @@ export function buildClientJourney(
       id: "questionnaire",
       number: 1,
       title: pendingRefills > 0 ? "Fix questionnaire corrections" : "Complete your profile",
-      navLabel: "Questionnaire",
+      navLabel: "Your profile",
       description: pendingRefills > 0
         ? `Your consultant flagged ${pendingRefills} item${pendingRefills === 1 ? "" : "s"} to update.`
         : "Tell us about your background so your consultant can assess eligibility and recommend a pathway.",
@@ -128,7 +128,7 @@ export function buildClientJourney(
       id: "retainer",
       number: 2,
       title: "Sign retainer agreement",
-      navLabel: "Retainer agreement",
+      navLabel: "Sign agreement",
       description: "Review and sign the agreement to officially start working with your consultant.",
       href: "/user-dashboard/retainer-agreement",
       status: retainerStatus,
@@ -143,7 +143,7 @@ export function buildClientJourney(
       id: "forms",
       number: 3,
       title: "Submit application forms",
-      navLabel: "Application forms",
+      navLabel: "Government forms",
       description: hasForms
         ? "Fill in the IRCC forms assigned to your case. We pre-fill answers from your questionnaire when possible."
         : "Your consultant will assign forms if needed for your pathway.",
@@ -156,7 +156,7 @@ export function buildClientJourney(
       id: "documents",
       number: 4,
       title: "Upload documents & message consultant",
-      navLabel: "Case documents",
+      navLabel: "Documents & messages",
       description: "Upload required documents, track review status, and chat with your consultant.",
       href: "/user-dashboard/case-management",
       status: documentsStatus,
@@ -373,8 +373,43 @@ export function clientStatusLabel(status: string): string {
 }
 
 export const JOURNEY_STEP_PAGES: Record<JourneyStepId, { step: number; label: string; title: string }> = {
-  questionnaire: { step: 1, label: "Questionnaire", title: "Immigration questionnaire" },
-  retainer: { step: 2, label: "Retainer agreement", title: "Retainer agreement" },
-  forms: { step: 3, label: "Application forms", title: "Application forms" },
-  documents: { step: 4, label: "Case documents", title: "Case documents" },
+  questionnaire: { step: 1, label: "Your profile", title: "Your profile" },
+  retainer: { step: 2, label: "Sign agreement", title: "Sign agreement" },
+  forms: { step: 3, label: "Government forms", title: "Government forms" },
+  documents: { step: 4, label: "Documents & messages", title: "Documents & messages" },
 };
+
+export function journeyStepBadge(status: JourneyStepStatus): {
+  label: string;
+  className: string;
+} {
+  switch (status) {
+    case "done":
+      return {
+        label: "Complete",
+        className: "bg-emerald-500/10 text-emerald-700 border-emerald-200/80",
+      };
+    case "active":
+      return {
+        label: "Your turn",
+        className: "bg-primary/10 text-primary border-primary/25",
+      };
+    case "waiting":
+      return {
+        label: "With consultant",
+        className: "bg-amber-500/10 text-amber-800 border-amber-200/80",
+      };
+    default:
+      return {
+        label: "Not yet",
+        className: "bg-muted text-muted-foreground border-transparent",
+      };
+  }
+}
+
+export function journeyCurrentStepNumber(
+  steps: JourneyStep[],
+  currentStepId: JourneyStepId,
+): number {
+  return steps.find((s) => s.id === currentStepId)?.number ?? 1;
+}

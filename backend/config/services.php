@@ -68,7 +68,9 @@ return [
      |   - Any hosted API:  https://your-model.example.com/api/v1
      */
     'ocr' => [
-        'url' => env('OCR_SERVICE_URL', 'http://127.0.0.1:8001/api/v1'),
+        'url'     => env('OCR_SERVICE_URL', 'http://127.0.0.1:8001/api/v1'),
+        // EasyOCR on CPU can exceed 60s (cold start + large phone photos).
+        'timeout' => (int) env('OCR_SCAN_TIMEOUT', 300),
     ],
 
     'openai' => [

@@ -1,5 +1,6 @@
 ﻿"use client";
 
+import * as React from "react";
 import Link from "next/link";
 import {
   SidebarGroup,
@@ -8,219 +9,269 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarMenuSub,
-  SidebarMenuSubButton,
-  SidebarMenuSubItem,
 } from "@/components/ui/sidebar";
 import {
-  HomeIcon,
+  LayoutDashboardIcon,
   ClipboardListIcon,
-  ChevronRightIcon,
   FileTextIcon,
   FolderUpIcon,
   FormInputIcon,
+  CheckCircle2Icon,
   LockIcon,
+  MailIcon,
+  Loader2,
 } from "lucide-react";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
-import { useIAQNav } from "@/context/questionnaire-nav-context";
 import { useClientJourneyOptional } from "@/context/client-journey-context";
+import {
+  journeyCurrentStepNumber,
+  journeyStepBadge,
+  type JourneyStep,
+  type JourneyStepId,
+} from "@/lib/client-journey";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 
+/** Static list for header command search (Ctrl+K). */
 export const navItems = [
   {
-    title: "Your Journey",
+    title: "Your journey",
     items: [
-      { title: "Home", href: "/user-dashboard", icon: HomeIcon },
-      { title: "Questionnaire", href: "/user-dashboard/questionnaire", icon: ClipboardListIcon },
-      { title: "Retainer agreement", href: "/user-dashboard/retainer-agreement", icon: FileTextIcon },
-      { title: "Application forms", href: "/user-dashboard/application-forms", icon: FormInputIcon },
-      { title: "Case documents", href: "/user-dashboard/case-management", icon: FolderUpIcon },
+      { title: "Overview", href: "/user-dashboard", icon: LayoutDashboardIcon },
+      { title: "Your profile", href: "/user-dashboard/questionnaire", icon: ClipboardListIcon },
+      { title: "Sign agreement", href: "/user-dashboard/retainer-agreement", icon: FileTextIcon },
+      { title: "Government forms", href: "/user-dashboard/application-forms", icon: FormInputIcon },
+      { title: "Documents & messages", href: "/user-dashboard/case-management", icon: FolderUpIcon },
     ],
   },
 ];
 
+const STEP_ICONS: Record<JourneyStepId, React.ComponentType<{ className?: string }>> = {
+  questionnaire: ClipboardListIcon,
+  retainer: FileTextIcon,
+  forms: FormInputIcon,
+  documents: FolderUpIcon,
+};
+
+/** Light hover/active — avoids dark sidebar-accent hiding nested status colors. */
+const JOURNEY_NAV_BUTTON =
+  "group/step h-auto min-h-10 items-start py-2 transition-colors " +
+  "hover:!bg-primary/10 hover:!text-foreground active:!bg-primary/10 active:!text-foreground " +
+  "data-[active=true]:!bg-primary/15 data-[active=true]:!text-foreground " +
+  "hover:[&_svg]:!text-foreground data-[active=true]:[&_svg]:!text-foreground " +
+  "hover:[&_.journey-step-label]:!text-foreground data-[active=true]:[&_.journey-step-label]:!text-foreground " +
+  "hover:[&_.journey-step-badge]:!border-border hover:[&_.journey-step-badge]:!bg-background " +
+  "data-[active=true]:[&_.journey-step-badge]:!border-border data-[active=true]:[&_.journey-step-badge]:!bg-background " +
+  "hover:[&_.journey-step-badge]:!text-foreground data-[active=true]:[&_.journey-step-badge]:!text-foreground " +
+  "hover:[&_.journey-step-num]:!border-border/60 hover:[&_.journey-step-num]:!bg-background hover:[&_.journey-step-num]:!text-foreground " +
+  "data-[active=true]:[&_.journey-step-num]:!border-border/60 data-[active=true]:[&_.journey-step-num]:!bg-background data-[active=true]:[&_.journey-step-num]:!text-foreground " +
+  "hover:[&_.journey-step-num_svg]:!text-foreground data-[active=true]:[&_.journey-step-num_svg]:!text-foreground";
+
+function JourneyStepNavItem({
+  step,
+  canAccess,
+  isActive,
+}: {
+  step: JourneyStep;
+  canAccess: boolean;
+  isActive: boolean;
+}) {
+  const Icon = STEP_ICONS[step.id];
+  const badge = journeyStepBadge(step.status);
+  const locked = !canAccess || step.status === "locked";
+
+  const content = (
+    <>
+      <Icon
+        className={cn(
+          "size-4 shrink-0 text-muted-foreground group-data-[collapsible=icon]:block",
+          locked && "opacity-40",
+        )}
+      />
+      <div className="min-w-0 flex-1 group-data-[collapsible=icon]:hidden">
+        <div className="flex items-start gap-2">
+          <div
+            className={cn(
+              "journey-step-num flex size-5 shrink-0 items-center justify-center rounded-full border text-[10px] font-bold tabular-nums transition-colors",
+              step.status === "done" && "border-emerald-500/40 bg-emerald-500/10 text-emerald-700",
+              step.status === "active" && "border-primary/40 bg-primary/10 text-primary",
+              step.status === "waiting" && "border-amber-400/50 bg-amber-500/10 text-amber-800",
+              step.status === "locked" && "border-muted-foreground/15 bg-muted text-muted-foreground/50",
+            )}
+          >
+            {step.status === "done" ? (
+              <CheckCircle2Icon className="size-3 text-emerald-600" />
+            ) : step.status === "locked" ? (
+              <LockIcon className="size-2.5 text-muted-foreground/45" />
+            ) : (
+              step.number
+            )}
+          </div>
+          <div className="min-w-0 flex-1">
+            <span
+              className={cn(
+                "journey-step-label block truncate text-sm font-medium text-foreground transition-colors",
+                locked && "text-muted-foreground/70",
+              )}
+            >
+              {step.navLabel}
+            </span>
+            <span
+              className={cn(
+                "journey-step-badge mt-0.5 inline-flex rounded-md border px-1.5 py-px text-[10px] font-semibold leading-tight transition-colors",
+                badge.className,
+              )}
+            >
+              {badge.label}
+            </span>
+            {locked && step.lockedReason && (
+              <p className="mt-1 line-clamp-2 text-[10px] leading-snug text-muted-foreground/70">
+                {step.lockedReason}
+              </p>
+            )}
+          </div>
+        </div>
+      </div>
+    </>
+  );
+
+  if (locked) {
+    return (
+      <SidebarMenuItem>
+        <SidebarMenuButton
+          className="h-auto min-h-10 cursor-not-allowed items-start py-2 opacity-80 hover:!bg-transparent active:!bg-transparent hover:!text-inherit"
+          isActive={false}
+          tooltip={`${step.navLabel} — ${step.lockedReason ?? "Not available yet"}`}
+          onClick={(e) => e.preventDefault()}
+        >
+          {content}
+        </SidebarMenuButton>
+      </SidebarMenuItem>
+    );
+  }
+
+  return (
+    <SidebarMenuItem>
+      <SidebarMenuButton
+        className={cn(
+          JOURNEY_NAV_BUTTON,
+          step.status === "active" && !isActive && "ring-1 ring-primary/15",
+        )}
+        isActive={isActive}
+        tooltip={step.navLabel}
+        asChild
+      >
+        <Link href={step.href}>{content}</Link>
+      </SidebarMenuButton>
+    </SidebarMenuItem>
+  );
+}
+
 export function NavMain() {
   const pathname = usePathname();
   const journey = useClientJourneyOptional();
-  const { persons } = useIAQNav();
-  const [iaqOpen, setIaqOpen] = useState(() =>
-    pathname.startsWith("/user-dashboard/questionnaire"),
-  );
 
-  const isQuestActive = pathname.startsWith("/user-dashboard/questionnaire");
+  const steps = journey?.steps ?? [];
   const progress = journey?.progressPercent ?? 0;
+  const currentStepId = journey?.currentStepId ?? "questionnaire";
+  const currentStepNum = journeyCurrentStepNumber(steps, currentStepId);
+  const nextAction = journey?.nextAction;
+  const consultant = journey?.consultant;
+  const canAccess = journey?.canAccess ?? (() => false);
 
-  const locked = {
-    retainer: journey ? !journey.canAccess("retainer") : false,
-    forms: journey ? !journey.canAccess("forms") : false,
-    documents: journey ? !journey.canAccess("documents") : false,
-  };
-
-  const current = journey?.currentStepId;
+  const isOverviewActive = pathname === "/user-dashboard";
 
   return (
-    <SidebarGroup>
-      <SidebarGroupLabel className="flex items-center justify-between gap-2">
-        <span>Your journey</span>
-        {!journey?.loading && journey?.consultant && (
-          <span className="text-[10px] font-normal text-muted-foreground tabular-nums">{progress}%</span>
+    <SidebarGroup className="px-1">
+      {/* Zone 1 — status card */}
+      <div className="mb-3 space-y-2.5 rounded-xl border border-sidebar-border/60 bg-background/80 p-3 shadow-sm group-data-[collapsible=icon]:hidden">
+        {journey?.loading ? (
+          <div className="flex items-center justify-center py-4">
+            <Loader2 className="size-5 animate-spin text-muted-foreground" />
+          </div>
+        ) : (
+          <>
+            <div className="space-y-1">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                Your status
+              </p>
+              <p className="text-sm font-semibold leading-snug text-foreground">
+                {nextAction?.title ?? "Getting started"}
+              </p>
+              <p className="text-[11px] leading-relaxed text-muted-foreground line-clamp-2">
+                {nextAction?.description}
+              </p>
+            </div>
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between text-[10px] font-medium text-muted-foreground">
+                <span>Step {currentStepNum} of 4</span>
+                <span className="tabular-nums">{progress}%</span>
+              </div>
+              <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+                <div
+                  className="h-full rounded-full bg-primary transition-all duration-500"
+                  style={{ width: `${progress}%` }}
+                />
+              </div>
+            </div>
+            {nextAction?.href && nextAction.buttonLabel && (
+              <Button size="sm" className="h-8 w-full rounded-lg text-xs" asChild>
+                <Link href={nextAction.href}>{nextAction.buttonLabel}</Link>
+              </Button>
+            )}
+          </>
         )}
+      </div>
+
+      <SidebarGroupLabel className="text-[10px] font-semibold uppercase tracking-wider">
+        Your journey
       </SidebarGroupLabel>
+
       <SidebarGroupContent>
         <SidebarMenu>
-          {/* Home */}
+          {/* Overview */}
           <SidebarMenuItem>
             <SidebarMenuButton
-              className="hover:text-foreground active:text-foreground hover:bg-[var(--primary)]/10 active:bg-[var(--primary)]/10"
-              isActive={pathname === "/user-dashboard"}
-              tooltip="Home"
+              className="hover:!bg-primary/10 hover:!text-foreground active:!bg-primary/10 active:!text-foreground data-[active=true]:!bg-primary/15 data-[active=true]:!text-foreground hover:[&_svg]:!text-foreground data-[active=true]:[&_svg]:!text-foreground"
+              isActive={isOverviewActive}
+              tooltip="Overview"
               asChild
             >
               <Link href="/user-dashboard">
-                <HomeIcon />
-                <span>Home</span>
+                <LayoutDashboardIcon className="size-4 shrink-0" />
+                <span>Overview</span>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
 
-          {/* Questionnaire */}
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              className={cn(
-                "hover:text-foreground active:text-foreground hover:bg-[var(--primary)]/10 active:bg-[var(--primary)]/10",
-                iaqOpen && "text-foreground",
-              )}
-              isActive={isQuestActive}
-              tooltip="Questionnaire"
-              onClick={() => setIaqOpen((o) => !o)}
-            >
-              <ClipboardListIcon />
-              <span className="flex-1 truncate">Questionnaire</span>
-              {current === "questionnaire" && (
-                <span className="h-2 w-2 rounded-full bg-primary shrink-0" />
-              )}
-              <ChevronRightIcon
-                className={cn(
-                  "ml-auto h-4 w-4 shrink-0 transition-transform duration-200",
-                  iaqOpen && "rotate-90",
-                )}
-              />
-            </SidebarMenuButton>
-            {iaqOpen && (
-              <SidebarMenuSub>
-                <SidebarMenuSubItem>
-                  <SidebarMenuSubButton asChild isActive={pathname === "/user-dashboard/questionnaire"}>
-                    <Link href="/user-dashboard/questionnaire">Overview</Link>
-                  </SidebarMenuSubButton>
-                </SidebarMenuSubItem>
-                {persons.map((person) => (
-                  <SidebarMenuSubItem key={person.id}>
-                    <SidebarMenuSubButton asChild>
-                      <Link href={`/user-dashboard/questionnaire?tab=${person.tabIndex}`}>
-                        {person.label}
-                      </Link>
-                    </SidebarMenuSubButton>
-                  </SidebarMenuSubItem>
-                ))}
-              </SidebarMenuSub>
-            )}
-          </SidebarMenuItem>
-
-          {/* Retainer */}
-          <SidebarMenuItem>
-            {locked.retainer ? (
-              <SidebarMenuButton
-                className="opacity-60 cursor-not-allowed"
-                isActive={false}
-                tooltip="Complete questionnaire and wait for pathway confirmation"
-                onClick={(e) => e.preventDefault()}
-              >
-                <FileTextIcon />
-                <span className="flex-1 truncate">Retainer agreement</span>
-                <LockIcon className="h-3.5 w-3.5 shrink-0 opacity-60" />
-              </SidebarMenuButton>
-            ) : (
-              <SidebarMenuButton
-                className="hover:text-foreground active:text-foreground hover:bg-[var(--primary)]/10 active:bg-[var(--primary)]/10"
-                isActive={pathname === "/user-dashboard/retainer-agreement"}
-                tooltip="Retainer agreement"
-                asChild
-              >
-                <Link href="/user-dashboard/retainer-agreement">
-                  <FileTextIcon />
-                  <span className="flex-1 truncate">Retainer agreement</span>
-                  {current === "retainer" && (
-                    <span className="h-2 w-2 rounded-full bg-primary shrink-0" />
-                  )}
-                </Link>
-              </SidebarMenuButton>
-            )}
-          </SidebarMenuItem>
-
-          {/* Application forms */}
-          <SidebarMenuItem>
-            {locked.forms ? (
-              <SidebarMenuButton
-                className="opacity-60 cursor-not-allowed"
-                isActive={false}
-                tooltip="Sign your retainer agreement first"
-                onClick={(e) => e.preventDefault()}
-              >
-                <FormInputIcon />
-                <span className="flex-1 truncate">Application forms</span>
-                <LockIcon className="h-3.5 w-3.5 shrink-0 opacity-60" />
-              </SidebarMenuButton>
-            ) : (
-              <SidebarMenuButton
-                className="hover:text-foreground active:text-foreground hover:bg-[var(--primary)]/10 active:bg-[var(--primary)]/10"
-                isActive={pathname === "/user-dashboard/application-forms"}
-                tooltip="Application forms"
-                asChild
-              >
-                <Link href="/user-dashboard/application-forms">
-                  <FormInputIcon />
-                  <span className="flex-1 truncate">Application forms</span>
-                  {current === "forms" && (
-                    <span className="h-2 w-2 rounded-full bg-primary shrink-0" />
-                  )}
-                </Link>
-              </SidebarMenuButton>
-            )}
-          </SidebarMenuItem>
-
-          {/* Case documents */}
-          <SidebarMenuItem>
-            {locked.documents ? (
-              <SidebarMenuButton
-                className="opacity-60 cursor-not-allowed"
-                isActive={false}
-                tooltip="Unlocks after forms are verified by your consultant"
-                onClick={(e) => e.preventDefault()}
-              >
-                <FolderUpIcon />
-                <span className="flex-1 truncate">Case documents</span>
-                <LockIcon className="h-3.5 w-3.5 shrink-0 opacity-60" />
-              </SidebarMenuButton>
-            ) : (
-              <SidebarMenuButton
-                className="hover:text-foreground active:text-foreground hover:bg-[var(--primary)]/10 active:bg-[var(--primary)]/10"
-                isActive={pathname === "/user-dashboard/case-management"}
-                tooltip="Case documents"
-                asChild
-              >
-                <Link href="/user-dashboard/case-management">
-                  <FolderUpIcon />
-                  <span className="flex-1 truncate">Case documents</span>
-                  {current === "documents" && (
-                    <span className="h-2 w-2 rounded-full bg-primary shrink-0" />
-                  )}
-                </Link>
-              </SidebarMenuButton>
-            )}
-          </SidebarMenuItem>
+          {/* 4 journey steps */}
+          {steps.map((step) => (
+            <JourneyStepNavItem
+              key={step.id}
+              step={step}
+              canAccess={canAccess(step.id)}
+              isActive={pathname.startsWith(step.href)}
+            />
+          ))}
         </SidebarMenu>
       </SidebarGroupContent>
+
+      {/* Consultant quick contact */}
+      {consultant && !journey?.loading && (
+        <div className="mt-3 rounded-lg border border-sidebar-border/50 bg-muted/30 px-3 py-2.5 group-data-[collapsible=icon]:hidden">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Your consultant
+          </p>
+          <p className="mt-0.5 truncate text-xs font-medium text-foreground">{consultant.name}</p>
+          <a
+            href={`mailto:${consultant.email}`}
+            className="mt-1.5 inline-flex items-center gap-1 text-[11px] text-primary hover:underline"
+          >
+            <MailIcon className="size-3 shrink-0" />
+            Send email
+          </a>
+        </div>
+      )}
     </SidebarGroup>
   );
 }

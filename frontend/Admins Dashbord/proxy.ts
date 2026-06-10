@@ -5,9 +5,9 @@ const ADMIN_LOGIN_URL = "/dashboard/login/v1";
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Redirect root and /dashboard to /dashboard/default
+  // Redirect root and /dashboard to admin home
   if (pathname === "/" || pathname === "/dashboard") {
-    return NextResponse.redirect(new URL("/dashboard/default", request.url));
+    return NextResponse.redirect(new URL("/admindashboard", request.url));
   }
 
   // Guest pages (login, register, forgot-password, error pages) are always accessible —
@@ -20,7 +20,7 @@ export function proxy(request: NextRequest) {
   ) {
     const token = request.cookies.get("wtc_admin_token")?.value;
     if (token && pathname.startsWith("/dashboard/login")) {
-      return NextResponse.redirect(new URL("/dashboard/default", request.url));
+      return NextResponse.redirect(new URL("/admindashboard", request.url));
     }
     return NextResponse.next();
   }

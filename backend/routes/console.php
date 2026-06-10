@@ -22,5 +22,8 @@ Schedule::command('crs:sync')->dailyAt('04:00')->timezone('America/Toronto');
 // Sync Canadian legislation (IRPA, IRPR) daily
 Schedule::command('legislation:sync')->dailyAt('05:00')->timezone('America/Toronto');
 
+// Sync GST/HST/PST sales tax rates for payments
+Schedule::command('gst-hst:sync')->dailyAt('06:30')->timezone('America/Toronto');
+
 // Unsigned retainer agreement reminders (email + optional Twilio WhatsApp)
 Schedule::command('agreements:send-reminders')->dailyAt('09:00')->timezone('America/Toronto');

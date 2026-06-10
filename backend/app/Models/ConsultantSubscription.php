@@ -20,6 +20,9 @@ class ConsultantSubscription extends Model
         'cancelled_at',
         'paypal_order_id',
         'paypal_subscription_id',
+        'stripe_customer_id',
+        'stripe_subscription_id',
+        'stripe_checkout_session_id',
     ];
 
     protected $casts = [

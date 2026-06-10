@@ -1,0 +1,56 @@
+name: Deploy to AWS EC2
+
+on:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: deploy-aws-ec2
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Deploy to AWS EC2 (lightersmenia.com)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Connect via SSH and deploy
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          command_timeout: 30m
+          script: |
+            set -euo pipefail
+
+            DEPLOY_PATH="/opt/waytocanada"
+            echo ">>> Connected to $(hostname)"
+
+            if [ ! -d "$DEPLOY_PATH/.git" ]; then
+              echo "ERROR: $DEPLOY_PATH is not a git repository. Clone the repo on the server first."
+              exit 1
+            fi
+
+            cd "$DEPLOY_PATH"
+            echo ">>> Pulling latest code from main..."
+            git fetch origin main
+            git reset --hard origin/main
+
+            echo ">>> Building and starting Docker containers..."
+            if [ -f docker-compose.prod.yml ]; then
+              docker compose -f docker-compose.prod.yml pull --ignore-pull-failures || true
+              docker compose -f docker-compose.prod.yml up -d --build --remove-orphans
+            else
+              docker compose pull --ignore-pull-failures || true
+              docker compose up -d --build --remove-orphans
+            fi
+
+            echo ">>> Reloading Nginx..."
+            sudo nginx -t
+            sudo systemctl reload nginx
+
+            echo ">>> Deploy finished successfully."
+            docker compose ps 2>/dev/null || docker compose -f docker-compose.prod.yml ps 2>/dev/null || true
