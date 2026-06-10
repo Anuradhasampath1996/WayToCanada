@@ -34,19 +34,22 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: "8.2"
-          extensions: mbstring, pdo_pgsql, bcmath, zip, gd
+          extensions: mbstring, dom, curl, libxml, zip, pdo, pgsql, pdo_pgsql, bcmath, intl, fileinfo, gd, tokenizer, openssl
+          tools: composer:v2
           coverage: none
 
       - name: Cache Composer dependencies
         uses: actions/cache@v4
         with:
           path: backend/vendor
-          key: composer-${{ hashFiles('backend/composer.lock') }}
-          restore-keys: composer-
+          key: composer-php82-${{ hashFiles('backend/composer.lock') }}
+          restore-keys: |
+            composer-php82-
+            composer-
 
       - name: Install Composer dependencies
         working-directory: backend
-        run: composer install --no-interaction --prefer-dist --optimize-autoloader
+        run: composer install --no-interaction --prefer-dist --optimize-autoloader --no-progress
 
       - name: Create .env for CI
         working-directory: backend
@@ -91,10 +94,14 @@ jobs:
         run: php artisan key:generate
 
       - name: Wait for Postgres
-        working-directory: backend
         run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client
           for i in $(seq 1 30); do
-            php -r "try { new PDO('pgsql:host=127.0.0.1;port=5432;dbname=db_cws_test', 'postgres', 'secret'); echo 'Postgres ready'; exit(0); } catch (Throwable \$e) { exit(1); }" && exit 0
+            if pg_isready -h 127.0.0.1 -p 5432 -U postgres -d db_cws_test; then
+              echo "Postgres ready"
+              exit 0
+            fi
             echo "Waiting for Postgres... ($i/30)"
             sleep 2
           done
@@ -103,11 +110,19 @@ jobs:
 
       - name: Run migrations
         working-directory: backend
-        run: php artisan migrate --force
+        run: php artisan migrate --force --no-ansi
 
       - name: Run tests
         working-directory: backend
-        run: php artisan test
+        run: php artisan test -- --log-junit test-results.xml
+
+      - name: Upload test results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: laravel-test-results
+          path: backend/test-results.xml
+          if-no-files-found: ignore
 
   # ── Frontend builds ───────────────────────────────────────────────────────
   frontend:
