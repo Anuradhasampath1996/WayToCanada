@@ -15,6 +15,21 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Validate deploy secrets
+        run: |
+          if [ -z "${{ secrets.SSH_HOST }}" ]; then
+            echo "::error::Missing GitHub secret SSH_HOST (EC2 IP e.g. 3.96.187.125)"
+            exit 1
+          fi
+          if [ -z "${{ secrets.SSH_USER }}" ]; then
+            echo "::error::Missing GitHub secret SSH_USER (e.g. github-actions or ubuntu)"
+            exit 1
+          fi
+          if [ -z "${{ secrets.SSH_PRIVATE_KEY }}" ]; then
+            echo "::error::Missing GitHub secret SSH_PRIVATE_KEY"
+            exit 1
+          fi
+
       - name: Connect via SSH and deploy
         uses: appleboy/ssh-action@v1.2.0
         with:

@@ -111,10 +111,6 @@ jobs:
             dir: "frontend/Admins Dashbord"
           - name: Public Users Dashboard
             dir: "frontend/Public users Dashbord"
-          - name: Consultant Website
-            dir: "frontend/Consultant Website"
-          - name: Public Website
-            dir: "frontend/Publick website"
           - name: Consultant Dashboard
             dir: "frontend/Consultant Dashbord"
 
