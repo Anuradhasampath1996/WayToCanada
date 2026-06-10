@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\PersonalAccessToken;
 use Laravel\Socialite\Facades\Socialite;
@@ -13,6 +14,16 @@ use Tests\TestCase;
 class AuthTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected bool $seed = true;
+
+    protected string $seeder = RolesAndPermissionsSeeder::class;
+
+    protected function tearDown(): void
+    {
+        Mockery::close();
+        parent::tearDown();
+    }
 
     public function test_google_redirect_returns_url(): void
     {

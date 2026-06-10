@@ -18,6 +18,8 @@ class RolesAndPermissionsSeeder extends Seeder
             Role::firstOrCreate(['name' => $role, 'guard_name' => 'sanctum']);
         }
 
-        $this->command->info('Roles created: ' . implode(', ', $roles));
+        if ($this->command) {
+            $this->command->info('Roles created: ' . implode(', ', $roles));
+        }
     }
 }

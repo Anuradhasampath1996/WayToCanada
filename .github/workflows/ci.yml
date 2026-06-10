@@ -90,13 +90,20 @@ jobs:
         working-directory: backend
         run: php artisan key:generate
 
+      - name: Wait for Postgres
+        working-directory: backend
+        run: |
+          for i in $(seq 1 30); do
+            php -r "try { new PDO('pgsql:host=127.0.0.1;port=5432;dbname=db_cws_test', 'postgres', 'secret'); echo 'Postgres ready'; exit(0); } catch (Throwable \$e) { exit(1); }" && exit 0
+            echo "Waiting for Postgres... ($i/30)"
+            sleep 2
+          done
+          echo "Postgres did not become ready in time"
+          exit 1
+
       - name: Run migrations
         working-directory: backend
         run: php artisan migrate --force
-
-      - name: Seed roles for tests
-        working-directory: backend
-        run: php artisan db:seed --class=RolesAndPermissionsSeeder --force
 
       - name: Run tests
         working-directory: backend
