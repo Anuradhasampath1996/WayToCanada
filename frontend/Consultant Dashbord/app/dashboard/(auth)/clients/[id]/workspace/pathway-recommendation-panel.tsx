@@ -37,6 +37,7 @@ const EXT_DEF: ExtendedPersonInput = {
 export interface PathwayCaseFile {
   id: number;
   immigration_pathway: string | null;
+  agreement_sent_at?: string | null;
   pathway_assessment_notes?: string | null;
   pathway_assessment_crs_score?: number | null;
   pathway_assessment_ircc_crs_score?: number | null;

@@ -83,6 +83,7 @@ const strings = {
 } as const;
 
 type Lang = "en" | "fr";
+type LocaleStrings = (typeof strings)[Lang];
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -167,7 +168,7 @@ const bannerMeta: Record<
 // Trust bar
 // ─────────────────────────────────────────────────────────────────────────────
 
-function TrustBar({ t }: { t: typeof strings.en }) {
+function TrustBar({ t }: { t: LocaleStrings }) {
   return (
     <div className="flex flex-wrap justify-center gap-6 text-sm text-slate-500">
       <span className="flex items-center gap-1.5">
@@ -194,7 +195,7 @@ function PlanCard({
   billing: "monthly" | "yearly";
   trialUsed: boolean;
   lang: Lang;
-  t: typeof strings.en;
+  t: LocaleStrings;
   isPopular: boolean;
   onStartTrial: (id: number) => void;
   onSubscribe: (id: number, cycle: "monthly" | "yearly") => void;
