@@ -50,8 +50,38 @@ jobs:
             fi
 
             cd "$DEPLOY_PATH"
+
+            echo ">>> Configuring GitHub SSH for git fetch..."
+            mkdir -p ~/.ssh
+            chmod 700 ~/.ssh
+            DEPLOY_KEY="$HOME/.ssh/github_deploy"
+            if [ -f "$DEPLOY_KEY" ]; then
+              if [ ! -f ~/.ssh/config ] || ! grep -q "Host github.com" ~/.ssh/config; then
+                cat >> ~/.ssh/config << EOF
+            Host github.com
+              HostName github.com
+              User git
+              IdentityFile ${DEPLOY_KEY}
+              IdentitiesOnly yes
+            EOF
+                chmod 600 ~/.ssh/config
+              fi
+              ssh-keyscan -t ed25519,rsa github.com >> ~/.ssh/known_hosts 2>/dev/null || true
+              chmod 600 ~/.ssh/known_hosts 2>/dev/null || true
+            fi
+
+            git remote set-url origin git@github.com:Anuradhasampath1996/WayToCanada.git
+
             echo ">>> Pulling latest code from main..."
-            git fetch origin main
+            if ! git fetch origin main; then
+              echo ""
+              echo "ERROR: Server cannot read from GitHub (Permission denied publickey)."
+              echo "Fix: GitHub repo -> Settings -> Deploy keys -> Add deploy key"
+              echo "Paste the contents of: cat ${DEPLOY_KEY}.pub"
+              echo "on the server (same public key pair as SSH_PRIVATE_KEY secret)."
+              echo ""
+              exit 1
+            fi
             git reset --hard origin/main
 
             echo ">>> Clearing stale Laravel caches..."

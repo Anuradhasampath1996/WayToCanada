@@ -98,6 +98,26 @@ cat ~/.ssh/github_deploy
 
 Copy **everything** from `-----BEGIN OPENSSH PRIVATE KEY-----` through `-----END OPENSSH PRIVATE KEY-----` (inclusive).
 
+### Step 2 — Register the **same public key** as a GitHub Deploy Key (required for `git pull`)
+
+SSH login working but deploy fails with `git@github.com: Permission denied (publickey)` means this step was skipped.
+
+On the server (as `github-actions`):
+
+```bash
+cat ~/.ssh/github_deploy.pub
+```
+
+In GitHub: **Repository → Settings → Deploy keys → Add deploy key**
+
+| Field | Value |
+|-------|-------|
+| Title | `waytocanada-ec2-deploy` |
+| Key | Paste full output of `github_deploy.pub` |
+| Allow write access | **unchecked** (read-only is enough) |
+
+> Use the **same key pair**: private key → `SSH_PRIVATE_KEY` secret; public key → Deploy keys **and** `authorized_keys` on the server.
+
 ### Option B — Generate the key **on your local machine**
 
 ```bash
@@ -182,7 +202,8 @@ sudo ufw status
 | Issue | Fix |
 |-------|-----|
 | `502 Bad Gateway` | Containers not running or wrong ports — check `docker ps` and `127.0.0.1:3000` / `:8000` |
-| GitHub Actions SSH fails | Verify `authorized_keys` on server, `SSH_PRIVATE_KEY` has correct newlines, security group allows port 22 from GitHub IPs or `0.0.0.0/0` |
+| GitHub Actions SSH fails | Verify `authorized_keys` on server, `SSH_PRIVATE_KEY` has correct newlines, security group allows port 22 |
+| `git fetch` Permission denied (publickey) | Add `~/.ssh/github_deploy.pub` as a **Deploy key** under repo Settings → Deploy keys (see Step 2 above) |
 | Permission denied (docker) | `sudo usermod -aG docker github-actions` then re-login |
 | Domain not resolving | Confirm A records and wait for DNS propagation |
 
