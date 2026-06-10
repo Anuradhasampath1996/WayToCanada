@@ -10,13 +10,25 @@ return new class extends Migration
 
     public function up(): void
     {
-        Schema::connection('cws')->table('case_files', function (Blueprint $table) {
-            $table->dropColumn([
-                'questionnaire_token',
-                'questionnaire_sent_at',
-                'questionnaire_submitted_at',
-                'questionnaire_data',
-            ]);
+        $schema = Schema::connection('cws');
+        $legacy = [
+            'questionnaire_token',
+            'questionnaire_sent_at',
+            'questionnaire_submitted_at',
+            'questionnaire_data',
+        ];
+
+        $toDrop = array_values(array_filter(
+            $legacy,
+            fn (string $col) => $schema->hasColumn('case_files', $col),
+        ));
+
+        if ($toDrop === []) {
+            return;
+        }
+
+        $schema->table('case_files', function (Blueprint $table) use ($toDrop) {
+            $table->dropColumn($toDrop);
         });
     }
 

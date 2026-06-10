@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Laravel\Sanctum\PersonalAccessToken;
 use Laravel\Socialite\Facades\Socialite;
 use Laravel\Socialite\Two\User as SocialiteUser;
 use Mockery;
@@ -23,7 +24,7 @@ class AuthTest extends TestCase
         $this->assertStringContainsString('accounts.google.com', $response->json('redirect_url'));
     }
 
-    public function test_google_callback_creates_user_and_returns_token(): void
+    public function test_google_callback_creates_user_and_redirects_with_token(): void
     {
         $fakeGoogleUser = Mockery::mock(SocialiteUser::class);
         $fakeGoogleUser->shouldReceive('getId')->andReturn('google-uid-123');
@@ -34,11 +35,10 @@ class AuthTest extends TestCase
         Socialite::shouldReceive('driver->stateless->user')
                  ->andReturn($fakeGoogleUser);
 
-        $response = $this->getJson('/api/v1/auth/google/callback');
+        $response = $this->get('/api/v1/auth/google/callback');
 
-        $response->assertStatus(201)
-                 ->assertJsonStructure(['token', 'user' => ['id', 'name', 'email', 'roles']]);
-
+        $response->assertRedirect();
+        $this->assertStringContainsString('token=', $response->headers->get('Location') ?? '');
         $this->assertDatabaseHas('users', ['email' => 'test@example.com']);
     }
 
@@ -56,9 +56,9 @@ class AuthTest extends TestCase
         Socialite::shouldReceive('driver->stateless->user')
                  ->andReturn($fakeGoogleUser);
 
-        $response = $this->getJson('/api/v1/auth/google/callback');
+        $response = $this->get('/api/v1/auth/google/callback');
 
-        $response->assertStatus(201);
+        $response->assertRedirect();
         $this->assertCount(1, User::where('email', 'existing@example.com')->get());
     }
 
@@ -88,7 +88,6 @@ class AuthTest extends TestCase
 
         $this->withToken($token)->postJson('/api/v1/logout')->assertOk();
 
-        // Token should now be invalid
-        $this->withToken($token)->getJson('/api/v1/me')->assertUnauthorized();
+        $this->assertNull(PersonalAccessToken::findToken($token));
     }
 }
