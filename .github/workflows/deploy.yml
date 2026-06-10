@@ -54,6 +54,9 @@ jobs:
             git fetch origin main
             git reset --hard origin/main
 
+            echo ">>> Clearing stale Laravel caches..."
+            rm -f backend/bootstrap/cache/*.php
+
             echo ">>> Ensuring backend .env exists..."
             if [ ! -f backend/.env ]; then
               cp backend/.env.example backend/.env

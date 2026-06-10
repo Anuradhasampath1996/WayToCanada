@@ -50,7 +50,9 @@ jobs:
 
       - name: Install Composer dependencies
         working-directory: backend
-        run: composer install --no-interaction --prefer-dist --optimize-autoloader --no-progress
+        run: |
+          rm -f bootstrap/cache/*.php
+          COMPOSER_MEMORY_LIMIT=-1 composer install --no-interaction --prefer-dist --optimize-autoloader --no-progress
 
       - name: Create .env for CI
         working-directory: backend
