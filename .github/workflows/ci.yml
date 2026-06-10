@@ -19,13 +19,14 @@ jobs:
           POSTGRES_DB: db_cws_test
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: secret
+        # Map to 5433 — ubuntu runners often already use local Postgres on 5432
         ports:
-          - 5432:5432
+          - 5433:5432
         options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
           --health-timeout 5s
-          --health-retries 5
+          --health-retries 10
 
     steps:
       - uses: actions/checkout@v4
@@ -66,7 +67,7 @@ jobs:
 
           DB_CONNECTION=cws
           DB_CWS_HOST=127.0.0.1
-          DB_CWS_PORT=5432
+          DB_CWS_PORT=5433
           DB_CWS_DATABASE=db_cws_test
           DB_CWS_USERNAME=postgres
           DB_CWS_PASSWORD=secret
@@ -94,15 +95,13 @@ jobs:
         run: php artisan key:generate
 
       - name: Wait for Postgres
+        working-directory: backend
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq postgresql-client
-          for i in $(seq 1 30); do
-            if pg_isready -h 127.0.0.1 -p 5432 -U postgres -d db_cws_test; then
-              echo "Postgres ready"
+          for i in $(seq 1 60); do
+            if php -r "try { new PDO('pgsql:host=127.0.0.1;port=5433;dbname=db_cws_test', 'postgres', 'secret'); echo 'Postgres ready'; exit(0); } catch (Throwable \$e) { exit(1); }"; then
               exit 0
             fi
-            echo "Waiting for Postgres... ($i/30)"
+            echo "Waiting for Postgres... ($i/60)"
             sleep 2
           done
           echo "Postgres did not become ready in time"
