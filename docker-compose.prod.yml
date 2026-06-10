@@ -29,7 +29,22 @@ services:
       postgres:
         condition: service_healthy
     volumes:
+      - ./backend/.env:/var/www/.env:ro
       - ./backend/storage:/var/www/storage
+
+  frontend:
+    build:
+      context: "./frontend/Publick website"
+      dockerfile: ../../docker/frontend/Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: http://www.lightersmenia.com
+        NEXT_PUBLIC_APP_URL: http://www.lightersmenia.com
+    container_name: wtc_frontend
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      - api
 
   ocr-service:
     profiles:

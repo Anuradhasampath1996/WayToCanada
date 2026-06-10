@@ -87,8 +87,10 @@ jobs:
             echo ">>> Clearing stale Laravel caches..."
             rm -f backend/bootstrap/cache/*.php
 
-            echo ">>> Ensuring backend .env exists..."
-            if [ ! -f backend/.env ]; then
+            echo ">>> Ensuring production backend .env..."
+            if [ -f deploy/bootstrap-prod-env.sh ]; then
+              bash deploy/bootstrap-prod-env.sh backend/.env
+            elif [ ! -f backend/.env ]; then
               cp backend/.env.example backend/.env
               sed -i "s/^APP_KEY=.*/APP_KEY=base64:$(openssl rand -base64 32)/" backend/.env
               echo "WARNING: Created backend/.env from example — set production DB/OAuth secrets on the server."
@@ -98,16 +100,20 @@ jobs:
             docker builder prune -af || true
             docker system prune -af || true
 
-            echo ">>> Building and starting core Docker containers (postgres + api)..."
+            echo ">>> Building and starting Docker containers..."
             export COMPOSE_PARALLEL_LIMIT=1
             if [ -f docker-compose.prod.yml ]; then
-              docker compose -f docker-compose.prod.yml build postgres api
-              docker compose -f docker-compose.prod.yml up -d --remove-orphans postgres api
-              echo ">>> Building OCR service (optional; needs ~3GB free disk)..."
+              docker compose -f docker-compose.prod.yml build postgres api frontend
+              docker compose -f docker-compose.prod.yml up -d --remove-orphans postgres api frontend
+              docker exec wtc_postgres psql -U postgres -tc "SELECT 1 FROM pg_database WHERE datname='db_lms'" | grep -q 1 || \
+                docker exec wtc_postgres psql -U postgres -c "CREATE DATABASE db_lms;"
+              docker exec wtc_postgres psql -U postgres -tc "SELECT 1 FROM pg_database WHERE datname='db_legal'" | grep -q 1 || \
+                docker exec wtc_postgres psql -U postgres -c "CREATE DATABASE db_legal;"
+              echo ">>> Building OCR service (optional)..."
               if docker compose -f docker-compose.prod.yml --profile ocr build ocr-service; then
                 docker compose -f docker-compose.prod.yml --profile ocr up -d ocr-service
               else
-                echo "WARNING: OCR service build failed — API and Postgres are still running."
+                echo "WARNING: OCR service build failed — core stack is still running."
               fi
             else
               docker compose pull --ignore-pull-failures || true
