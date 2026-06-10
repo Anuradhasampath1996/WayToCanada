@@ -19,6 +19,7 @@ services:
     build:
       context: .
       dockerfile: docker/php/Dockerfile
+    image: waytocanada-api
     container_name: wtc_api
     restart: unless-stopped
     ports:
@@ -33,16 +34,47 @@ services:
       - ./backend/storage:/var/www/storage
 
   frontend:
-    build:
-      context: "./frontend/Publick website"
-      dockerfile: ../../docker/frontend/Dockerfile
-      args:
-        NEXT_PUBLIC_API_URL: http://www.lightersmenia.com
-        NEXT_PUBLIC_APP_URL: http://www.lightersmenia.com
+    image: waytocanada-frontend-public
     container_name: wtc_frontend
     restart: unless-stopped
     ports:
       - "127.0.0.1:3000:3000"
+    depends_on:
+      - api
+
+  frontend-admin:
+    image: waytocanada-frontend-admin
+    container_name: wtc_frontend_admin
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3001:3000"
+    depends_on:
+      - api
+
+  frontend-users:
+    image: waytocanada-frontend-users
+    container_name: wtc_frontend_users
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3002:3000"
+    depends_on:
+      - api
+
+  frontend-consultant-site:
+    image: waytocanada-frontend-consultant-site
+    container_name: wtc_frontend_consultant_site
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3003:3000"
+    depends_on:
+      - api
+
+  frontend-consultant-dash:
+    image: waytocanada-frontend-consultant-dash
+    container_name: wtc_frontend_consultant_dash
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3005:3000"
     depends_on:
       - api
 

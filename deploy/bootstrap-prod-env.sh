@@ -37,4 +37,6 @@ set_var DB_CWS_DATABASE db_cws
 set_var DB_LMS_DATABASE db_lms
 set_var DB_LEGAL_DATABASE db_legal
 
+set_var SANCTUM_STATEFUL_DOMAINS "www.lightersmenia.com,admin.lightersmenia.com,app.lightersmenia.com,consultant.lightersmenia.com,portal.lightersmenia.com,lightersmenia.com"
+
 echo "Production .env patched: Postgres host=postgres, APP_URL=http://www.lightersmenia.com"

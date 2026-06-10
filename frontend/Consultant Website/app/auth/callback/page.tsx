@@ -6,6 +6,7 @@ import { Loader2 } from "lucide-react";
 
 const CONSULTANT_DASHBOARD_URL =
   process.env.NEXT_PUBLIC_CONSULTANT_DASHBOARD_URL ?? "http://localhost:3005";
+const API = `${process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000"}/api/v1`;
 
 export default function AuthCallbackPage() {
   const router = useRouter();
@@ -25,7 +26,7 @@ export default function AuthCallbackPage() {
     const maxAge = 60 * 60 * 24 * 30;
     document.cookie = `wtc_consultant_token=${token}; path=/; max-age=${maxAge}; SameSite=Lax`;
 
-    fetch("http://127.0.0.1:8000/api/v1/me", {
+    fetch(`${API}/me`, {
       headers: {
         Accept: "application/json",
         Authorization: `Bearer ${token}`,

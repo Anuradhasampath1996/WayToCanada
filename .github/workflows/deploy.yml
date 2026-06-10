@@ -37,7 +37,7 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT || 22 }}
-          command_timeout: 30m
+          command_timeout: 90m
           script: |
             set -euo pipefail
 
@@ -76,10 +76,6 @@ jobs:
             if ! git fetch origin main; then
               echo ""
               echo "ERROR: Server cannot read from GitHub (Permission denied publickey)."
-              echo "Fix: GitHub repo -> Settings -> Deploy keys -> Add deploy key"
-              echo "Paste the contents of: cat ${DEPLOY_KEY}.pub"
-              echo "on the server (same public key pair as SSH_PRIVATE_KEY secret)."
-              echo ""
               exit 1
             fi
             git reset --hard origin/main
@@ -87,45 +83,25 @@ jobs:
             echo ">>> Clearing stale Laravel caches..."
             rm -f backend/bootstrap/cache/*.php
 
-            echo ">>> Ensuring production backend .env..."
-            if [ -f deploy/bootstrap-prod-env.sh ]; then
-              bash deploy/bootstrap-prod-env.sh backend/.env
-            elif [ ! -f backend/.env ]; then
-              cp backend/.env.example backend/.env
-              sed -i "s/^APP_KEY=.*/APP_KEY=base64:$(openssl rand -base64 32)/" backend/.env
-              echo "WARNING: Created backend/.env from example — set production DB/OAuth secrets on the server."
-            fi
+            bash deploy/bootstrap-prod-env.sh backend/.env
 
             echo ">>> Freeing Docker disk space before build..."
             docker builder prune -af || true
-            docker system prune -af || true
 
-            echo ">>> Building frontend (direct docker build to save RAM)..."
-            docker build \
-              -f docker/frontend/Dockerfile \
-              --build-arg NEXT_PUBLIC_API_URL=http://www.lightersmenia.com \
-              --build-arg NEXT_PUBLIC_APP_URL=http://www.lightersmenia.com \
-              -t waytocanada-frontend \
-              "./frontend/Publick website"
-            docker compose -f docker-compose.prod.yml up -d --remove-orphans postgres api frontend
-              docker exec wtc_postgres psql -U postgres -tc "SELECT 1 FROM pg_database WHERE datname='db_lms'" | grep -q 1 || \
-                docker exec wtc_postgres psql -U postgres -c "CREATE DATABASE db_lms;"
-              docker exec wtc_postgres psql -U postgres -tc "SELECT 1 FROM pg_database WHERE datname='db_legal'" | grep -q 1 || \
-                docker exec wtc_postgres psql -U postgres -c "CREATE DATABASE db_legal;"
-              echo ">>> Building OCR service (optional)..."
-              if docker compose -f docker-compose.prod.yml --profile ocr build ocr-service; then
-                docker compose -f docker-compose.prod.yml --profile ocr up -d ocr-service
-              else
-                echo "WARNING: OCR service build failed — core stack is still running."
-              fi
-            else
-              docker compose pull --ignore-pull-failures || true
-              docker compose up -d --build --remove-orphans
-            fi
+            bash deploy/build-all-frontends.sh
 
-            echo ">>> Reloading Nginx..."
+            docker compose -f docker-compose.prod.yml up -d --remove-orphans \
+              postgres api frontend frontend-admin frontend-users frontend-consultant-site frontend-consultant-dash
+
+            docker exec wtc_postgres psql -U postgres -tc "SELECT 1 FROM pg_database WHERE datname='db_lms'" | grep -q 1 || \
+              docker exec wtc_postgres psql -U postgres -c "CREATE DATABASE db_lms;"
+            docker exec wtc_postgres psql -U postgres -tc "SELECT 1 FROM pg_database WHERE datname='db_legal'" | grep -q 1 || \
+              docker exec wtc_postgres psql -U postgres -c "CREATE DATABASE db_legal;"
+
+            sudo cp deploy/nginx/lightersmenia.conf /etc/nginx/sites-available/lightersmenia.com
+            sudo ln -sf /etc/nginx/sites-available/lightersmenia.com /etc/nginx/sites-enabled/lightersmenia.com
             sudo nginx -t
             sudo systemctl reload nginx
 
+            docker compose -f docker-compose.prod.yml ps
             echo ">>> Deploy finished successfully."
-            docker compose ps 2>/dev/null || docker compose -f docker-compose.prod.yml ps 2>/dev/null || true
