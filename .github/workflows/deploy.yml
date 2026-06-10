@@ -94,6 +94,10 @@ jobs:
               echo "WARNING: Created backend/.env from example — set production DB/OAuth secrets on the server."
             fi
 
+            echo ">>> Freeing Docker disk space before build..."
+            docker builder prune -af || true
+            docker system prune -af || true
+
             echo ">>> Building and starting Docker containers..."
             if [ -f docker-compose.prod.yml ]; then
               docker compose -f docker-compose.prod.yml up -d --build --remove-orphans
