@@ -61,4 +61,6 @@ jobs:
             git remote set-url origin git@github.com:Anuradhasampath1996/WayToCanada.git
             git fetch origin main
             git reset --hard origin/main
+            export GOOGLE_CLIENT_ID="${{ secrets.GOOGLE_CLIENT_ID }}"
+            export GOOGLE_CLIENT_SECRET="${{ secrets.GOOGLE_CLIENT_SECRET }}"
             bash deploy/deploy-on-server.sh
