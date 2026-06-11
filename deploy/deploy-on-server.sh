@@ -59,10 +59,22 @@ docker exec wtc_postgres psql -U postgres -tc "SELECT 1 FROM pg_database WHERE d
 docker exec wtc_postgres psql -U postgres -tc "SELECT 1 FROM pg_database WHERE datname='db_legal'" | grep -q 1 || \
   docker exec wtc_postgres psql -U postgres -c "CREATE DATABASE db_legal;"
 
-sudo cp deploy/nginx/lightersmenia.conf /etc/nginx/sites-available/lightersmenia.com
-sudo ln -sf /etc/nginx/sites-available/lightersmenia.com /etc/nginx/sites-enabled/lightersmenia.com
-sudo nginx -t
-sudo systemctl reload nginx
+echo ">>> Reloading nginx (if permitted)..."
+if sudo -n cp deploy/nginx/lightersmenia.conf /etc/nginx/sites-available/lightersmenia.com 2>/dev/null; then
+  sudo -n ln -sf /etc/nginx/sites-available/lightersmenia.com /etc/nginx/sites-enabled/lightersmenia.com
+  echo ">>> Nginx config updated"
+else
+  echo ">>> Nginx config copy skipped (github-actions has no sudo for cp) — using existing config"
+fi
+
+if sudo -n /usr/sbin/nginx -t 2>/dev/null; then
+  sudo -n /bin/systemctl reload nginx
+  echo ">>> Nginx reloaded"
+else
+  echo ">>> WARNING: nginx reload skipped — containers are running; reload manually if needed:"
+  echo "    sudo cp /opt/waytocanada/deploy/nginx/lightersmenia.conf /etc/nginx/sites-available/lightersmenia.com"
+  echo "    sudo nginx -t && sudo systemctl reload nginx"
+fi
 
 docker compose -f docker-compose.prod.yml ps
 echo ">>> Disk after deploy:"
