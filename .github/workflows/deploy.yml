@@ -34,41 +34,22 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Build all Docker images on runner
-        run: bash deploy/build-all-images-ci.sh
-
-      - name: Save images to archive
-        run: |
-          docker save -o deploy-images.tar \
-            waytocanada-frontend-public \
-            waytocanada-frontend-admin \
-            waytocanada-frontend-users \
-            waytocanada-frontend-consultant-site \
-            waytocanada-frontend-consultant-dash \
-            waytocanada-api
-          ls -lh deploy-images.tar
-          file deploy-images.tar
-          gzip -1 -f deploy-images.tar
-          ls -lh deploy-images.tar.gz
-          gzip -t deploy-images.tar.gz
-          sha256sum deploy-images.tar.gz > deploy-images.tar.gz.sha256
-          cat deploy-images.tar.gz.sha256
-
-      - name: Prepare SSH for upload
+      - name: Prepare SSH for streaming
         run: |
           mkdir -p ~/.ssh
           printf '%s\n' "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -p "${{ secrets.SSH_PORT || 22 }}" -H "${{ secrets.SSH_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null || true
 
-      - name: Upload image archive to EC2
-        run: |
-          scp -i ~/.ssh/deploy_key -P "${{ secrets.SSH_PORT || 22 }}" \
-            -o StrictHostKeyChecking=no \
-            deploy-images.tar.gz deploy-images.tar.gz.sha256 \
-            "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/tmp/"
+      - name: Build and stream images to EC2
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_PORT: ${{ secrets.SSH_PORT || 22 }}
+          SSH_KEY: ~/.ssh/deploy_key
+        run: bash deploy/build-and-stream-ci.sh
 
-      - name: Load images and start containers on EC2
+      - name: Start containers on EC2
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.SSH_HOST }}
@@ -82,7 +63,6 @@ jobs:
             DEPLOY_PATH="/opt/waytocanada"
             cd "$DEPLOY_PATH"
 
-            # Pull latest deploy scripts first (needed on first run after this workflow change)
             mkdir -p ~/.ssh
             chmod 700 ~/.ssh
             DEPLOY_KEY="$HOME/.ssh/github_deploy"
@@ -103,4 +83,4 @@ jobs:
             git fetch origin main
             git reset --hard origin/main
 
-            bash deploy/remote-load-and-up.sh /tmp/deploy-images.tar.gz
+            SKIP_IMAGE_LOAD=1 bash deploy/remote-load-and-up.sh

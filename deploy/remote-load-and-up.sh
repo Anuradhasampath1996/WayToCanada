@@ -19,12 +19,37 @@ resolve_image_archive() {
       return 0
     fi
   done
-  echo "ERROR: deploy image archive not found under /tmp" >&2
-  find /tmp -maxdepth 3 -type f \( -name 'deploy-images.tar.gz' -o -name 'deploy-images.tar' \) -ls 2>/dev/null || true
-  exit 1
+  return 1
 }
 
-IMAGE_ARCHIVE=$(resolve_image_archive "${1:-}")
+load_images_from_archive() {
+  local image_archive="$1"
+
+  echo ">>> Archive: $image_archive ($(du -h "$image_archive" | cut -f1))"
+  file "$image_archive"
+
+  if [ -f "/tmp/deploy-images.tar.gz.sha256" ]; then
+    echo ">>> Verifying archive checksum..."
+    (cd /tmp && sha256sum -c deploy-images.tar.gz.sha256)
+  fi
+
+  local tar_path="/tmp/deploy-images.tar"
+  rm -f "$tar_path"
+
+  if [[ "$image_archive" == *.gz ]]; then
+    echo ">>> Verifying gzip integrity..."
+    gzip -t "$image_archive"
+    echo ">>> Decompressing archive..."
+    gunzip -c "$image_archive" > "$tar_path"
+  else
+    cp "$image_archive" "$tar_path"
+  fi
+
+  echo ">>> Loading pre-built Docker images..."
+  docker load -i "$tar_path"
+
+  rm -f "$tar_path" "$image_archive" /tmp/deploy-images.tar.gz.sha256
+}
 
 cd "$DEPLOY_PATH"
 
@@ -61,30 +86,15 @@ rm -f backend/bootstrap/cache/*.php
 
 bash deploy/bootstrap-prod-env.sh backend/.env
 
-echo ">>> Archive: $IMAGE_ARCHIVE ($(du -h "$IMAGE_ARCHIVE" | cut -f1))"
-file "$IMAGE_ARCHIVE"
-
-if [ -f "/tmp/deploy-images.tar.gz.sha256" ]; then
-  echo ">>> Verifying archive checksum..."
-  (cd /tmp && sha256sum -c deploy-images.tar.gz.sha256)
-fi
-
-TAR_PATH="/tmp/deploy-images.tar"
-rm -f "$TAR_PATH"
-
-if [[ "$IMAGE_ARCHIVE" == *.gz ]]; then
-  echo ">>> Verifying gzip integrity..."
-  gzip -t "$IMAGE_ARCHIVE"
-  echo ">>> Decompressing archive..."
-  gunzip -c "$IMAGE_ARCHIVE" > "$TAR_PATH"
+if [ "${SKIP_IMAGE_LOAD:-0}" = "1" ]; then
+  echo ">>> Skipping archive load (images already streamed from CI)."
+elif archive="$(resolve_image_archive "${1:-}")"; then
+  load_images_from_archive "$archive"
 else
-  cp "$IMAGE_ARCHIVE" "$TAR_PATH"
+  echo "ERROR: deploy image archive not found and SKIP_IMAGE_LOAD is not set." >&2
+  find /tmp -maxdepth 3 -type f \( -name 'deploy-images.tar.gz' -o -name 'deploy-images.tar' \) -ls 2>/dev/null || true
+  exit 1
 fi
-
-echo ">>> Loading pre-built Docker images..."
-docker load -i "$TAR_PATH"
-
-rm -f "$TAR_PATH" "$IMAGE_ARCHIVE" /tmp/deploy-images.tar.gz.sha256
 
 echo ">>> Pruning dangling images to free disk..."
 docker image prune -f || true
