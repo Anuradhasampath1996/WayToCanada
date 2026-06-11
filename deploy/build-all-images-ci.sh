@@ -1,9 +1,10 @@
 #!/bin/bash
-# Build all production frontends on EC2 (legacy — prefer deploy/build-all-images-ci.sh on GitHub Actions).
-# Demo Dashboard excluded.
+# Build all production Docker images on GitHub Actions (7GB RAM runner).
+# Images are saved and transferred to EC2 — the server never builds.
 set -euo pipefail
 
-cd /opt/waytocanada
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$ROOT"
 export DOCKER_BUILDKIT=1
 
 build_frontend() {
@@ -38,4 +39,7 @@ build_frontend waytocanada-frontend-consultant-dash "./frontend/Consultant Dashb
   --build-arg NEXT_PUBLIC_API_URL=http://portal.lightersmenia.com \
   --build-arg NEXT_PUBLIC_APP_URL=http://portal.lightersmenia.com
 
-echo ">>> All frontend images built."
+echo ">>> Building waytocanada-api ..."
+docker build -f docker/php/Dockerfile -t waytocanada-api .
+
+echo ">>> All images built on CI runner."

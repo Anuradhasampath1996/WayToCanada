@@ -10,9 +10,10 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  deploy:
-    name: Deploy to AWS EC2 (lightersmenia.com)
+  build-and-deploy:
+    name: Build on GH Actions → Deploy to EC2
     runs-on: ubuntu-latest
+    timeout-minutes: 120
 
     steps:
       - name: Validate deploy secrets
@@ -30,28 +31,50 @@ jobs:
             exit 1
           fi
 
-      - name: Connect via SSH and deploy
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build all Docker images on runner
+        run: bash deploy/build-all-images-ci.sh
+
+      - name: Save images to compressed archive
+        run: |
+          docker save \
+            waytocanada-frontend-public \
+            waytocanada-frontend-admin \
+            waytocanada-frontend-users \
+            waytocanada-frontend-consultant-site \
+            waytocanada-frontend-consultant-dash \
+            waytocanada-api \
+            | gzip -1 > deploy-images.tar.gz
+          ls -lh deploy-images.tar.gz
+
+      - name: Copy image archive to EC2
+        uses: appleboy/scp-action@v1.0.0
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          source: deploy-images.tar.gz
+          target: /tmp/
+          overwrite: true
+
+      - name: Load images and start containers on EC2
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT || 22 }}
-          command_timeout: 90m
+          command_timeout: 30m
           script: |
             set -euo pipefail
-
-            DEPLOY_PATH="/opt/waytocanada"
             echo ">>> Connected to $(hostname)"
-
-            if [ ! -d "$DEPLOY_PATH/.git" ]; then
-              echo "ERROR: $DEPLOY_PATH is not a git repository. Clone the repo on the server first."
-              exit 1
-            fi
-
+            DEPLOY_PATH="/opt/waytocanada"
             cd "$DEPLOY_PATH"
 
-            echo ">>> Configuring GitHub SSH for git fetch..."
+            # Pull latest deploy scripts first (needed on first run after this workflow change)
             mkdir -p ~/.ssh
             chmod 700 ~/.ssh
             DEPLOY_KEY="$HOME/.ssh/github_deploy"
@@ -67,41 +90,9 @@ jobs:
                 chmod 600 ~/.ssh/config
               fi
               ssh-keyscan -t ed25519,rsa github.com >> ~/.ssh/known_hosts 2>/dev/null || true
-              chmod 600 ~/.ssh/known_hosts 2>/dev/null || true
             fi
-
             git remote set-url origin git@github.com:Anuradhasampath1996/WayToCanada.git
-
-            echo ">>> Pulling latest code from main..."
-            if ! git fetch origin main; then
-              echo ""
-              echo "ERROR: Server cannot read from GitHub (Permission denied publickey)."
-              exit 1
-            fi
+            git fetch origin main
             git reset --hard origin/main
 
-            echo ">>> Clearing stale Laravel caches..."
-            rm -f backend/bootstrap/cache/*.php
-
-            bash deploy/bootstrap-prod-env.sh backend/.env
-
-            echo ">>> Freeing Docker disk space before build..."
-            docker builder prune -af || true
-
-            bash deploy/build-all-frontends.sh
-
-            docker compose -f docker-compose.prod.yml up -d --remove-orphans \
-              postgres api frontend frontend-admin frontend-users frontend-consultant-site frontend-consultant-dash
-
-            docker exec wtc_postgres psql -U postgres -tc "SELECT 1 FROM pg_database WHERE datname='db_lms'" | grep -q 1 || \
-              docker exec wtc_postgres psql -U postgres -c "CREATE DATABASE db_lms;"
-            docker exec wtc_postgres psql -U postgres -tc "SELECT 1 FROM pg_database WHERE datname='db_legal'" | grep -q 1 || \
-              docker exec wtc_postgres psql -U postgres -c "CREATE DATABASE db_legal;"
-
-            sudo cp deploy/nginx/lightersmenia.conf /etc/nginx/sites-available/lightersmenia.com
-            sudo ln -sf /etc/nginx/sites-available/lightersmenia.com /etc/nginx/sites-enabled/lightersmenia.com
-            sudo nginx -t
-            sudo systemctl reload nginx
-
-            docker compose -f docker-compose.prod.yml ps
-            echo ">>> Deploy finished successfully."
+            bash deploy/remote-load-and-up.sh /tmp/deploy-images.tar.gz
