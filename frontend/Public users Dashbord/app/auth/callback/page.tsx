@@ -2,9 +2,9 @@
 
 import { useEffect } from "react";
 
-const API = "http://127.0.0.1:8000/api/v1";
-const PUBLIC_WEBSITE_URL =
-  process.env.NEXT_PUBLIC_PUBLIC_WEBSITE_URL ?? "http://localhost:3003";
+import { PUBLIC_LOGIN_URL, PUBLIC_WEBSITE_URL } from "@/lib/auth-urls";
+
+const API = (process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000") + "/api/v1";
 
 export default function AuthCallbackPage() {
   useEffect(() => {

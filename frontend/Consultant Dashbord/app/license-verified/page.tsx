@@ -2,6 +2,7 @@
 
 import { CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { CONSULTANT_LOGIN_URL } from "@/lib/auth-urls";
 
 export default function LicenseVerifiedPage() {
   return (
@@ -22,7 +23,7 @@ export default function LicenseVerifiedPage() {
         <Button
           className="w-full"
           onClick={() => {
-            window.location.href = "http://localhost:3002/login";
+            window.location.href = CONSULTANT_LOGIN_URL;
           }}
         >
           Go to Login

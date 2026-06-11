@@ -20,9 +20,9 @@ import {
 } from "@/components/ui/sidebar";
 import { BellIcon, CreditCardIcon, LogOutIcon, UserCircle2Icon } from "lucide-react";
 import { DotsVerticalIcon } from "@radix-ui/react-icons";
+import { CONSULTANT_LOGIN_URL } from "@/lib/auth-urls";
 
 const API = (process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000") + "/api/v1";
-const CONSULTANT_LOGIN = "http://localhost:3002/login";
 
 function initials(name: string) {
   return name
@@ -59,7 +59,7 @@ export function NavUser() {
     localStorage.removeItem("wtc_consultant_token");
     localStorage.removeItem("wtc_consultant_user");
     document.cookie = "wtc_consultant_token=; path=/; max-age=0; SameSite=Lax";
-    window.location.replace(CONSULTANT_LOGIN);
+    window.location.replace(CONSULTANT_LOGIN_URL);
   };
 
   const displayName  = user?.name  ?? "Consultant";

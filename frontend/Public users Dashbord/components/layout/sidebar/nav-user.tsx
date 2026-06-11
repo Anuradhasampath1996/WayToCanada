@@ -20,9 +20,9 @@ import {
 import { BellIcon, CreditCardIcon, LogOutIcon, UserCircle2Icon } from "lucide-react";
 import { DotsVerticalIcon } from "@radix-ui/react-icons";
 
-const API = "http://127.0.0.1:8000/api/v1";
-const PUBLIC_LOGIN =
-  process.env.NEXT_PUBLIC_PUBLIC_WEBSITE_URL ?? "http://localhost:3003";
+import { PUBLIC_LOGIN_URL } from "@/lib/auth-urls";
+
+const API = (process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000") + "/api/v1";
 
 function getInitials(name: string) {
   return name
@@ -60,7 +60,7 @@ export function NavUser() {
     localStorage.removeItem("wtc_token");
     localStorage.removeItem("wtc_user");
     document.cookie = "wtc_token=; path=/; max-age=0; SameSite=Lax";
-    window.location.replace(`${PUBLIC_LOGIN}/login`);
+    window.location.replace(PUBLIC_LOGIN_URL);
   }
 
   const name = user.name ?? "User";

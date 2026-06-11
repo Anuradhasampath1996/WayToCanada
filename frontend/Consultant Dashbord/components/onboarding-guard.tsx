@@ -6,6 +6,7 @@ import { Globe, Loader2, RefreshCw, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { CONSULTANT_LOGIN_URL } from "@/lib/auth-urls";
 
 const API = (process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000") + "/api/v1";
 
@@ -24,7 +25,7 @@ export function OnboardingGuard() {
   const loadUser = (forceRefresh = false) => {
     const token = localStorage.getItem("wtc_consultant_token");
     if (!token) {
-      window.location.replace("http://localhost:3002/login");
+      window.location.replace(CONSULTANT_LOGIN_URL);
       return;
     }
 
@@ -50,7 +51,7 @@ export function OnboardingGuard() {
           localStorage.removeItem("wtc_consultant_token");
           localStorage.removeItem("wtc_consultant_user");
           document.cookie = "wtc_consultant_token=; path=/; max-age=0";
-          window.location.replace("http://localhost:3002/login");
+          window.location.replace(CONSULTANT_LOGIN_URL);
           return;
         }
         return res.json();

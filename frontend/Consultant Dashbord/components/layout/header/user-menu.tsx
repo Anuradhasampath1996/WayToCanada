@@ -14,8 +14,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-const API = "http://127.0.0.1:8000/api/v1";
-const CONSULTANT_LOGIN = "http://localhost:3002/login";
+import { CONSULTANT_LOGIN_URL } from "@/lib/auth-urls";
+
+const API = (process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000") + "/api/v1";
 
 function getInitials(name: string) {
   return name
@@ -56,7 +57,7 @@ export default function UserMenu() {
     localStorage.removeItem("wtc_consultant_token");
     localStorage.removeItem("wtc_consultant_user");
     document.cookie = "wtc_consultant_token=; path=/; max-age=0; SameSite=Lax";
-    window.location.replace(CONSULTANT_LOGIN);
+    window.location.replace(CONSULTANT_LOGIN_URL);
   }
 
   const displayName = user.name || "Consultant";

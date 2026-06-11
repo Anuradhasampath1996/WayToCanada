@@ -40,6 +40,7 @@ build_frontend waytocanada-frontend-admin "./frontend/Admins Dashbord" \
 build_frontend waytocanada-frontend-users "./frontend/Public users Dashbord" \
   --build-arg NEXT_PUBLIC_API_URL=http://app.lightersmenia.com \
   --build-arg NEXT_PUBLIC_APP_URL=http://app.lightersmenia.com \
+  --build-arg NEXT_PUBLIC_PUBLIC_WEBSITE_URL=http://www.lightersmenia.com \
   --build-arg NEXT_PUBLIC_OCR_URL=http://www.lightersmenia.com
 
 build_frontend waytocanada-frontend-consultant-site "./frontend/Consultant Website" \
@@ -49,6 +50,7 @@ build_frontend waytocanada-frontend-consultant-site "./frontend/Consultant Websi
 
 build_frontend waytocanada-frontend-consultant-dash "./frontend/Consultant Dashbord" \
   --build-arg NEXT_PUBLIC_API_URL=http://portal.lightersmenia.com \
-  --build-arg NEXT_PUBLIC_APP_URL=http://portal.lightersmenia.com
+  --build-arg NEXT_PUBLIC_APP_URL=http://portal.lightersmenia.com \
+  --build-arg NEXT_PUBLIC_CONSULTANT_WEBSITE_URL=http://consultant.lightersmenia.com
 
 echo ">>> All production images built on server."

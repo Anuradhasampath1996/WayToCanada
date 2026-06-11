@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { Loader2 } from "lucide-react";
+import { CONSULTANT_LOGIN_URL } from "@/lib/auth-urls";
 
 export default function AuthCallbackPage() {
   useEffect(() => {
@@ -10,7 +11,7 @@ export default function AuthCallbackPage() {
     const token = params.get("token");
 
     if (!token) {
-      window.location.replace("http://localhost:3002/login");
+      window.location.replace(CONSULTANT_LOGIN_URL);
       return;
     }
 
