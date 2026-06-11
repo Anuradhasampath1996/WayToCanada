@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { Suspense, useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Briefcase, Loader2 } from "lucide-react";
@@ -13,8 +13,12 @@ import { Badge } from "@/components/ui/badge";
 const API = `${process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000"}/api/v1`;
 const CONSULTANT_DASHBOARD_URL =
   process.env.NEXT_PUBLIC_CONSULTANT_DASHBOARD_URL ?? "http://localhost:3005";
+const ADMIN_DASHBOARD_URL =
+  process.env.NEXT_PUBLIC_ADMIN_DASHBOARD_URL ?? "http://localhost:3000";
+const PUBLIC_USERS_URL =
+  process.env.NEXT_PUBLIC_USER_DASHBOARD_URL ?? "http://localhost:3001";
 
-export default function LoginPage() {
+function LoginPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
@@ -64,7 +68,7 @@ export default function LoginPage() {
       }
 
       if (roles.includes("super-admin") || roles.includes("admin")) {
-        window.location.href = "http://localhost:3000/dashboard";
+        window.location.href = `${ADMIN_DASHBOARD_URL}/dashboard`;
         return;
       }
 
@@ -222,12 +226,20 @@ export default function LoginPage() {
           </p>
           <p className="text-center text-xs text-muted-foreground">
             Are you an applicant?{" "}
-            <a href="http://localhost:3001/login" className="text-primary hover:underline">
+            <a href={`${PUBLIC_USERS_URL}/login`} className="text-primary hover:underline">
               Go to public portal →
             </a>
           </p>
         </div>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Loading…</div>}>
+      <LoginPageContent />
+    </Suspense>
   );
 }
