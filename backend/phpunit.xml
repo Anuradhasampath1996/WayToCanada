@@ -19,7 +19,9 @@
     </source>
     <php>
         <env name="APP_ENV" value="testing"/>
+        <env name="APP_KEY" value="base64:2fl+KtvkphFdG+14mop84HG3N6MZDOrBZ1VdmW8x4VU="/>
         <env name="APP_MAINTENANCE_DRIVER" value="file"/>
+        <env name="FILESYSTEM_DISK" value="local"/>
         <env name="BCRYPT_ROUNDS" value="4"/>
         <env name="BROADCAST_CONNECTION" value="null"/>
         <env name="CACHE_STORE" value="array"/>
