@@ -18,7 +18,7 @@ jobs:
       - name: Validate deploy secrets
         run: |
           if [ -z "${{ secrets.SSH_HOST }}" ]; then
-            echo "::error::Missing GitHub secret SSH_HOST (EC2 IP e.g. 3.96.187.125)"
+            echo "::error::Missing GitHub secret SSH_HOST (EC2 IP e.g. 3.96.127.94)"
             exit 1
           fi
           if [ -z "${{ secrets.SSH_USER }}" ]; then
