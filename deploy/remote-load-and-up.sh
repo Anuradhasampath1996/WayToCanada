@@ -96,8 +96,10 @@ else
   exit 1
 fi
 
-echo ">>> Pruning dangling images to free disk..."
-docker image prune -f || true
+echo ">>> Pruning unused Docker data to free disk..."
+docker image prune -af 2>/dev/null || true
+docker builder prune -af 2>/dev/null || true
+df -h / | tail -1
 
 echo ">>> Starting containers (--no-build)..."
 docker compose -f docker-compose.prod.yml up -d --remove-orphans --no-build \
