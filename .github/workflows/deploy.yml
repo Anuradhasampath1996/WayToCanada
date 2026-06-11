@@ -10,8 +10,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build-and-deploy:
-    name: Build on GH Actions → Deploy to EC2
+  deploy:
+    name: Deploy to AWS EC2 (git pull + server build)
     runs-on: ubuntu-latest
     timeout-minutes: 120
 
@@ -19,11 +19,11 @@ jobs:
       - name: Validate deploy secrets
         run: |
           if [ -z "${{ secrets.SSH_HOST }}" ]; then
-            echo "::error::Missing GitHub secret SSH_HOST (EC2 IP e.g. 3.96.127.94)"
+            echo "::error::Missing GitHub secret SSH_HOST"
             exit 1
           fi
           if [ -z "${{ secrets.SSH_USER }}" ]; then
-            echo "::error::Missing GitHub secret SSH_USER (e.g. github-actions or ubuntu)"
+            echo "::error::Missing GitHub secret SSH_USER"
             exit 1
           fi
           if [ -z "${{ secrets.SSH_PRIVATE_KEY }}" ]; then
@@ -31,40 +31,19 @@ jobs:
             exit 1
           fi
 
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Prepare SSH for streaming
-        run: |
-          mkdir -p ~/.ssh
-          printf '%s\n' "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -p "${{ secrets.SSH_PORT || 22 }}" -H "${{ secrets.SSH_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null || true
-
-      - name: Build and stream images to EC2
-        env:
-          SSH_HOST: ${{ secrets.SSH_HOST }}
-          SSH_USER: ${{ secrets.SSH_USER }}
-          SSH_PORT: ${{ secrets.SSH_PORT || 22 }}
-          SSH_KEY: ~/.ssh/deploy_key
-        run: bash deploy/build-and-stream-ci.sh
-
-      - name: Start containers on EC2
+      - name: Deploy on EC2 (git pull + build + start)
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT || 22 }}
-          command_timeout: 30m
+          command_timeout: 90m
           script: |
             set -euo pipefail
-            echo ">>> Connected to $(hostname)"
             DEPLOY_PATH="/opt/waytocanada"
             cd "$DEPLOY_PATH"
-
-            mkdir -p ~/.ssh
-            chmod 700 ~/.ssh
+            mkdir -p ~/.ssh && chmod 700 ~/.ssh
             DEPLOY_KEY="$HOME/.ssh/github_deploy"
             if [ -f "$DEPLOY_KEY" ]; then
               if [ ! -f ~/.ssh/config ] || ! grep -q "Host github.com" ~/.ssh/config; then
@@ -82,5 +61,4 @@ jobs:
             git remote set-url origin git@github.com:Anuradhasampath1996/WayToCanada.git
             git fetch origin main
             git reset --hard origin/main
-
-            SKIP_IMAGE_LOAD=1 bash deploy/remote-load-and-up.sh
+            bash deploy/deploy-on-server.sh
