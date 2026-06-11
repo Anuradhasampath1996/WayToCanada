@@ -37,28 +37,36 @@ jobs:
       - name: Build all Docker images on runner
         run: bash deploy/build-all-images-ci.sh
 
-      - name: Save images to compressed archive
+      - name: Save images to archive
         run: |
-          docker save \
+          docker save -o deploy-images.tar \
             waytocanada-frontend-public \
             waytocanada-frontend-admin \
             waytocanada-frontend-users \
             waytocanada-frontend-consultant-site \
             waytocanada-frontend-consultant-dash \
-            waytocanada-api \
-            | gzip -1 > deploy-images.tar.gz
+            waytocanada-api
+          ls -lh deploy-images.tar
+          file deploy-images.tar
+          gzip -1 -f deploy-images.tar
           ls -lh deploy-images.tar.gz
+          gzip -t deploy-images.tar.gz
+          sha256sum deploy-images.tar.gz > deploy-images.tar.gz.sha256
+          cat deploy-images.tar.gz.sha256
 
-      - name: Copy image archive to EC2
-        uses: appleboy/scp-action@v1.0.0
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: ${{ secrets.SSH_PORT || 22 }}
-          source: deploy-images.tar.gz
-          target: /tmp/
-          overwrite: true
+      - name: Prepare SSH for upload
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -p "${{ secrets.SSH_PORT || 22 }}" -H "${{ secrets.SSH_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null || true
+
+      - name: Upload image archive to EC2
+        run: |
+          scp -i ~/.ssh/deploy_key -P "${{ secrets.SSH_PORT || 22 }}" \
+            -o StrictHostKeyChecking=no \
+            deploy-images.tar.gz deploy-images.tar.gz.sha256 \
+            "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/tmp/"
 
       - name: Load images and start containers on EC2
         uses: appleboy/ssh-action@v1.2.0

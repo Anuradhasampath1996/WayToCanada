@@ -3,12 +3,28 @@
 set -euo pipefail
 
 DEPLOY_PATH="/opt/waytocanada"
-IMAGE_ARCHIVE="${1:-/tmp/deploy-images.tar.gz}"
 
-if [ ! -f "$IMAGE_ARCHIVE" ]; then
-  echo "ERROR: Image archive not found: $IMAGE_ARCHIVE"
+resolve_image_archive() {
+  local hint="${1:-}"
+  local candidates=()
+  if [ -n "$hint" ]; then candidates+=("$hint"); fi
+  candidates+=(
+    "/tmp/deploy-images.tar.gz"
+    "/tmp/deploy-images.tar.gz/deploy-images.tar.gz"
+    "/tmp/deploy-images.tar"
+  )
+  for path in "${candidates[@]}"; do
+    if [ -f "$path" ] && [ -s "$path" ]; then
+      echo "$path"
+      return 0
+    fi
+  done
+  echo "ERROR: deploy image archive not found under /tmp" >&2
+  find /tmp -maxdepth 3 -type f \( -name 'deploy-images.tar.gz' -o -name 'deploy-images.tar' \) -ls 2>/dev/null || true
   exit 1
-fi
+}
+
+IMAGE_ARCHIVE=$(resolve_image_archive "${1:-}")
 
 cd "$DEPLOY_PATH"
 
@@ -45,9 +61,30 @@ rm -f backend/bootstrap/cache/*.php
 
 bash deploy/bootstrap-prod-env.sh backend/.env
 
+echo ">>> Archive: $IMAGE_ARCHIVE ($(du -h "$IMAGE_ARCHIVE" | cut -f1))"
+file "$IMAGE_ARCHIVE"
+
+if [ -f "/tmp/deploy-images.tar.gz.sha256" ]; then
+  echo ">>> Verifying archive checksum..."
+  (cd /tmp && sha256sum -c deploy-images.tar.gz.sha256)
+fi
+
+TAR_PATH="/tmp/deploy-images.tar"
+rm -f "$TAR_PATH"
+
+if [[ "$IMAGE_ARCHIVE" == *.gz ]]; then
+  echo ">>> Verifying gzip integrity..."
+  gzip -t "$IMAGE_ARCHIVE"
+  echo ">>> Decompressing archive..."
+  gunzip -c "$IMAGE_ARCHIVE" > "$TAR_PATH"
+else
+  cp "$IMAGE_ARCHIVE" "$TAR_PATH"
+fi
+
 echo ">>> Loading pre-built Docker images..."
-gunzip -c "$IMAGE_ARCHIVE" | docker load
-rm -f "$IMAGE_ARCHIVE"
+docker load -i "$TAR_PATH"
+
+rm -f "$TAR_PATH" "$IMAGE_ARCHIVE" /tmp/deploy-images.tar.gz.sha256
 
 echo ">>> Pruning dangling images to free disk..."
 docker image prune -f || true
