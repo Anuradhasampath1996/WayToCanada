@@ -54,6 +54,10 @@ echo ">>> Starting containers..."
 docker compose -f docker-compose.prod.yml up -d --remove-orphans \
   postgres api frontend frontend-admin frontend-users frontend-consultant-site frontend-consultant-dash
 
+echo ">>> Running database migrations..."
+docker exec wtc_api php artisan config:clear --no-ansi || true
+docker exec wtc_api php artisan migrate --force --no-ansi
+
 docker exec wtc_postgres psql -U postgres -tc "SELECT 1 FROM pg_database WHERE datname='db_lms'" | grep -q 1 || \
   docker exec wtc_postgres psql -U postgres -c "CREATE DATABASE db_lms;"
 docker exec wtc_postgres psql -U postgres -tc "SELECT 1 FROM pg_database WHERE datname='db_legal'" | grep -q 1 || \
