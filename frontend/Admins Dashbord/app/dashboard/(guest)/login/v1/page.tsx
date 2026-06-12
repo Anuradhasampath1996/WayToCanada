@@ -113,7 +113,7 @@ export default function Page() {
                   autoComplete="email"
                   required
                   className="w-full mt-1"
-                  placeholder="admin@waytocanada.ca"
+                  placeholder="admin@rcicmaster.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                 />

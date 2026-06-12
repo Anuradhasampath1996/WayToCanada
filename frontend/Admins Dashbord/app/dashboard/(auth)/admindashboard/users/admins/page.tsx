@@ -380,7 +380,7 @@ export default function AdminUsersPage() {
                     type="email"
                     value={form.email}
                     onChange={(e) => setForm({ ...form, email: e.target.value })}
-                    placeholder="admin@waytocanada.ca"
+                    placeholder="admin@rcicmaster.com"
                   />
                 </div>
                 <div className="space-y-1">
@@ -410,7 +410,7 @@ export default function AdminUsersPage() {
                     type="email"
                     value={form.email}
                     onChange={(e) => setForm({ ...form, email: e.target.value })}
-                    placeholder="admin@waytocanada.ca"
+                    placeholder="admin@rcicmaster.com"
                   />
                 </div>
                 <div className="space-y-1">

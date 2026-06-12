@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # =============================================================================
 # WayToCanada — EC2 production bootstrap (Ubuntu 24.04 LTS)
-# Domain : lightersmenia.com / www.lightersmenia.com
+# Domain : rcicmaster.com / www.rcicmaster.com
 # Stack  : Laravel API (Docker :8000) + React frontend (Docker :3000)
 # Region : AWS Canada Central (ca-central-1)
 #
@@ -16,8 +16,8 @@
 set -euo pipefail
 
 # ── Configurable variables ─────────────────────────────────────────────────────
-DOMAIN="${DOMAIN:-lightersmenia.com}"
-WWW_DOMAIN="${WWW_DOMAIN:-www.lightersmenia.com}"
+DOMAIN="${DOMAIN:-rcicmaster.com}"
+WWW_DOMAIN="${WWW_DOMAIN:-www.rcicmaster.com}"
 API_PORT="${API_PORT:-8000}"           # Laravel container published port
 FRONTEND_PORT="${FRONTEND_PORT:-3000}" # React container published port
 DEPLOY_USER="${DEPLOY_USER:-github-actions}"

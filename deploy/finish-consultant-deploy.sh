@@ -1,6 +1,8 @@
 #!/bin/bash
 set -euo pipefail
 cd /opt/waytocanada
+git fetch origin main
+git reset --hard origin/main
 export DOCKER_BUILDKIT=1
 
 build_one() {
@@ -17,20 +19,20 @@ build_one() {
 docker compose -f docker-compose.prod.yml up -d postgres api frontend frontend-admin frontend-users
 
 build_one waytocanada-frontend-consultant-site "./frontend/Consultant Website" \
-  --build-arg NEXT_PUBLIC_API_URL=http://consultant.lightersmenia.com \
-  --build-arg NEXT_PUBLIC_APP_URL=http://consultant.lightersmenia.com \
-  --build-arg NEXT_PUBLIC_CONSULTANT_DASHBOARD_URL=http://portal.lightersmenia.com \
-  --build-arg NEXT_PUBLIC_ADMIN_DASHBOARD_URL=http://admin.lightersmenia.com \
-  --build-arg NEXT_PUBLIC_USER_DASHBOARD_URL=http://app.lightersmenia.com
+  --build-arg NEXT_PUBLIC_API_URL=http://consultant.rcicmaster.com \
+  --build-arg NEXT_PUBLIC_APP_URL=http://consultant.rcicmaster.com \
+  --build-arg NEXT_PUBLIC_CONSULTANT_DASHBOARD_URL=http://portal.rcicmaster.com \
+  --build-arg NEXT_PUBLIC_ADMIN_DASHBOARD_URL=http://admin.rcicmaster.com \
+  --build-arg NEXT_PUBLIC_USER_DASHBOARD_URL=http://app.rcicmaster.com
 docker compose -f docker-compose.prod.yml up -d frontend-consultant-site
 
 build_one waytocanada-frontend-consultant-dash "./frontend/Consultant Dashbord" \
-  --build-arg NEXT_PUBLIC_API_URL=http://portal.lightersmenia.com \
-  --build-arg NEXT_PUBLIC_APP_URL=http://portal.lightersmenia.com
+  --build-arg NEXT_PUBLIC_API_URL=http://portal.rcicmaster.com \
+  --build-arg NEXT_PUBLIC_APP_URL=http://portal.rcicmaster.com
 docker compose -f docker-compose.prod.yml up -d frontend-consultant-dash
 
-sudo cp deploy/nginx/lightersmenia.conf /etc/nginx/sites-available/lightersmenia.com
-sudo ln -sf /etc/nginx/sites-available/lightersmenia.com /etc/nginx/sites-enabled/lightersmenia.com
+sudo cp deploy/nginx/rcicmaster.conf /etc/nginx/sites-available/rcicmaster.com
+sudo ln -sf /etc/nginx/sites-available/rcicmaster.com /etc/nginx/sites-enabled/rcicmaster.com
 sudo nginx -t
 sudo systemctl reload nginx
 

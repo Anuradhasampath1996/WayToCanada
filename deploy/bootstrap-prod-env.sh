@@ -6,7 +6,7 @@ set -euo pipefail
 
 ENV_FILE="${1:-/opt/waytocanada/backend/.env}"
 POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-secret}"
-APP_URL="${APP_URL:-http://www.lightersmenia.com}"
+APP_URL="${APP_URL:-http://www.rcicmaster.com}"
 
 if [ ! -f "$ENV_FILE" ]; then
   cp "$(dirname "$ENV_FILE")/.env.example" "$ENV_FILE" 2>/dev/null || \
@@ -48,15 +48,16 @@ set_var QUEUE_CONNECTION database
 set_var CACHE_STORE database
 
 # Live frontend URLs (OAuth redirects after login)
-set_var PUBLIC_FRONTEND_URL "http://www.lightersmenia.com"
-set_var CONSULTANT_FRONTEND_URL "http://consultant.lightersmenia.com"
-set_var CONSULTANT_DASHBOARD_URL "http://portal.lightersmenia.com"
-set_var FRONTEND_URL "http://www.lightersmenia.com"
+set_var PUBLIC_FRONTEND_URL "http://www.rcicmaster.com"
+set_var CONSULTANT_FRONTEND_URL "http://consultant.rcicmaster.com"
+set_var CONSULTANT_DASHBOARD_URL "http://portal.rcicmaster.com"
+set_var FRONTEND_URL "http://www.rcicmaster.com"
+set_var PUBLIC_DASHBOARD_URL "http://app.rcicmaster.com"
 
-set_var SANCTUM_STATEFUL_DOMAINS "www.lightersmenia.com,admin.lightersmenia.com,app.lightersmenia.com,consultant.lightersmenia.com,portal.lightersmenia.com,lightersmenia.com"
+set_var SANCTUM_STATEFUL_DOMAINS "www.rcicmaster.com,admin.rcicmaster.com,app.rcicmaster.com,consultant.rcicmaster.com,portal.rcicmaster.com,rcicmaster.com"
 
 # Google OAuth — callback must match Google Cloud Console (add this URI there)
-set_var GOOGLE_REDIRECT_URI "http://www.lightersmenia.com/api/v1/auth/google/callback"
+set_var GOOGLE_REDIRECT_URI "http://www.rcicmaster.com/api/v1/auth/google/callback"
 
 if [ -n "${GOOGLE_CLIENT_ID:-}" ]; then
   set_var GOOGLE_CLIENT_ID "$GOOGLE_CLIENT_ID"
@@ -68,7 +69,7 @@ fi
 echo "Production .env patched (database unchanged):"
 echo "  APP_URL=$APP_URL"
 echo "  DB host=postgres"
-echo "  GOOGLE_REDIRECT_URI=http://www.lightersmenia.com/api/v1/auth/google/callback"
+echo "  GOOGLE_REDIRECT_URI=http://www.rcicmaster.com/api/v1/auth/google/callback"
 if [ -n "${GOOGLE_CLIENT_ID:-}" ]; then
   echo "  GOOGLE_CLIENT_ID=set"
 else

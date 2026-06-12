@@ -60,8 +60,8 @@ docker exec wtc_postgres psql -U postgres -tc "SELECT 1 FROM pg_database WHERE d
   docker exec wtc_postgres psql -U postgres -c "CREATE DATABASE db_legal;"
 
 echo ">>> Reloading nginx (if permitted)..."
-if sudo -n cp deploy/nginx/lightersmenia.conf /etc/nginx/sites-available/lightersmenia.com 2>/dev/null; then
-  sudo -n ln -sf /etc/nginx/sites-available/lightersmenia.com /etc/nginx/sites-enabled/lightersmenia.com
+if sudo -n cp deploy/nginx/rcicmaster.conf /etc/nginx/sites-available/rcicmaster.com 2>/dev/null; then
+  sudo -n ln -sf /etc/nginx/sites-available/rcicmaster.com /etc/nginx/sites-enabled/rcicmaster.com
   echo ">>> Nginx config updated"
 else
   echo ">>> Nginx config copy skipped (github-actions has no sudo for cp) — using existing config"
@@ -72,7 +72,7 @@ if sudo -n /usr/sbin/nginx -t 2>/dev/null; then
   echo ">>> Nginx reloaded"
 else
   echo ">>> WARNING: nginx reload skipped — containers are running; reload manually if needed:"
-  echo "    sudo cp /opt/waytocanada/deploy/nginx/lightersmenia.conf /etc/nginx/sites-available/lightersmenia.com"
+  echo "    sudo cp /opt/waytocanada/deploy/nginx/rcicmaster.conf /etc/nginx/sites-available/rcicmaster.com"
   echo "    sudo nginx -t && sudo systemctl reload nginx"
 fi
 

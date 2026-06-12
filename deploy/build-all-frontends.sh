@@ -28,29 +28,29 @@ docker image prune -f 2>/dev/null || true
 docker builder prune -f 2>/dev/null || true
 
 build_frontend waytocanada-frontend-public "./frontend/Publick website" \
-  --build-arg NEXT_PUBLIC_API_URL=http://www.lightersmenia.com \
-  --build-arg NEXT_PUBLIC_APP_URL=http://www.lightersmenia.com \
-  --build-arg NEXT_PUBLIC_USER_DASHBOARD_URL=http://app.lightersmenia.com \
-  --build-arg NEXT_PUBLIC_CONSULTANT_WEBSITE_URL=http://consultant.lightersmenia.com
+  --build-arg NEXT_PUBLIC_API_URL=http://www.rcicmaster.com \
+  --build-arg NEXT_PUBLIC_APP_URL=http://www.rcicmaster.com \
+  --build-arg NEXT_PUBLIC_USER_DASHBOARD_URL=http://app.rcicmaster.com \
+  --build-arg NEXT_PUBLIC_CONSULTANT_WEBSITE_URL=http://consultant.rcicmaster.com
 
 build_frontend waytocanada-frontend-admin "./frontend/Admins Dashbord" \
-  --build-arg NEXT_PUBLIC_API_URL=http://admin.lightersmenia.com \
-  --build-arg NEXT_PUBLIC_APP_URL=http://admin.lightersmenia.com
+  --build-arg NEXT_PUBLIC_API_URL=http://admin.rcicmaster.com \
+  --build-arg NEXT_PUBLIC_APP_URL=http://admin.rcicmaster.com
 
 build_frontend waytocanada-frontend-users "./frontend/Public users Dashbord" \
-  --build-arg NEXT_PUBLIC_API_URL=http://app.lightersmenia.com \
-  --build-arg NEXT_PUBLIC_APP_URL=http://app.lightersmenia.com \
-  --build-arg NEXT_PUBLIC_PUBLIC_WEBSITE_URL=http://www.lightersmenia.com \
-  --build-arg NEXT_PUBLIC_OCR_URL=http://www.lightersmenia.com
+  --build-arg NEXT_PUBLIC_API_URL=http://app.rcicmaster.com \
+  --build-arg NEXT_PUBLIC_APP_URL=http://app.rcicmaster.com \
+  --build-arg NEXT_PUBLIC_PUBLIC_WEBSITE_URL=http://www.rcicmaster.com \
+  --build-arg NEXT_PUBLIC_OCR_URL=http://www.rcicmaster.com
 
 build_frontend waytocanada-frontend-consultant-site "./frontend/Consultant Website" \
-  --build-arg NEXT_PUBLIC_API_URL=http://consultant.lightersmenia.com \
-  --build-arg NEXT_PUBLIC_APP_URL=http://consultant.lightersmenia.com \
-  --build-arg NEXT_PUBLIC_CONSULTANT_DASHBOARD_URL=http://portal.lightersmenia.com
+  --build-arg NEXT_PUBLIC_API_URL=http://consultant.rcicmaster.com \
+  --build-arg NEXT_PUBLIC_APP_URL=http://consultant.rcicmaster.com \
+  --build-arg NEXT_PUBLIC_CONSULTANT_DASHBOARD_URL=http://portal.rcicmaster.com
 
 build_frontend waytocanada-frontend-consultant-dash "./frontend/Consultant Dashbord" \
-  --build-arg NEXT_PUBLIC_API_URL=http://portal.lightersmenia.com \
-  --build-arg NEXT_PUBLIC_APP_URL=http://portal.lightersmenia.com \
-  --build-arg NEXT_PUBLIC_CONSULTANT_WEBSITE_URL=http://consultant.lightersmenia.com
+  --build-arg NEXT_PUBLIC_API_URL=http://portal.rcicmaster.com \
+  --build-arg NEXT_PUBLIC_APP_URL=http://portal.rcicmaster.com \
+  --build-arg NEXT_PUBLIC_CONSULTANT_WEBSITE_URL=http://consultant.rcicmaster.com
 
 echo ">>> All production images built on server."

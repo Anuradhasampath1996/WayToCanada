@@ -14,15 +14,15 @@ FROM node:20-alpine AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-ARG NEXT_PUBLIC_API_URL=http://www.lightersmenia.com
-ARG NEXT_PUBLIC_APP_URL=http://www.lightersmenia.com
-ARG NEXT_PUBLIC_USER_DASHBOARD_URL=http://app.lightersmenia.com
-ARG NEXT_PUBLIC_CONSULTANT_WEBSITE_URL=http://consultant.lightersmenia.com
-ARG NEXT_PUBLIC_CONSULTANT_DASHBOARD_URL=http://portal.lightersmenia.com
-ARG NEXT_PUBLIC_ADMIN_DASHBOARD_URL=http://admin.lightersmenia.com
-ARG NEXT_PUBLIC_USER_DASHBOARD_URL=http://app.lightersmenia.com
+ARG NEXT_PUBLIC_API_URL=http://www.rcicmaster.com
+ARG NEXT_PUBLIC_APP_URL=http://www.rcicmaster.com
+ARG NEXT_PUBLIC_USER_DASHBOARD_URL=http://app.rcicmaster.com
+ARG NEXT_PUBLIC_CONSULTANT_WEBSITE_URL=http://consultant.rcicmaster.com
+ARG NEXT_PUBLIC_CONSULTANT_DASHBOARD_URL=http://portal.rcicmaster.com
+ARG NEXT_PUBLIC_ADMIN_DASHBOARD_URL=http://admin.rcicmaster.com
+ARG NEXT_PUBLIC_USER_DASHBOARD_URL=http://app.rcicmaster.com
 ARG NEXT_PUBLIC_OCR_URL=
-ARG NEXT_PUBLIC_PUBLIC_WEBSITE_URL=http://www.lightersmenia.com
+ARG NEXT_PUBLIC_PUBLIC_WEBSITE_URL=http://www.rcicmaster.com
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
 ENV NEXT_PUBLIC_USER_DASHBOARD_URL=$NEXT_PUBLIC_USER_DASHBOARD_URL

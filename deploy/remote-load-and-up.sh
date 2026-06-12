@@ -110,8 +110,8 @@ docker exec wtc_postgres psql -U postgres -tc "SELECT 1 FROM pg_database WHERE d
 docker exec wtc_postgres psql -U postgres -tc "SELECT 1 FROM pg_database WHERE datname='db_legal'" | grep -q 1 || \
   docker exec wtc_postgres psql -U postgres -c "CREATE DATABASE db_legal;"
 
-sudo cp deploy/nginx/lightersmenia.conf /etc/nginx/sites-available/lightersmenia.com
-sudo ln -sf /etc/nginx/sites-available/lightersmenia.com /etc/nginx/sites-enabled/lightersmenia.com
+sudo cp deploy/nginx/rcicmaster.conf /etc/nginx/sites-available/rcicmaster.com
+sudo ln -sf /etc/nginx/sites-available/rcicmaster.com /etc/nginx/sites-enabled/rcicmaster.com
 sudo nginx -t
 sudo systemctl reload nginx
 

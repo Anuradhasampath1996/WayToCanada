@@ -11,7 +11,7 @@ class SuperAdminSeeder extends Seeder
 {
     public function run(): void
     {
-        $email = env('SUPER_ADMIN_EMAIL', 'superadmin@waytocanada.ca');
+        $email = env('SUPER_ADMIN_EMAIL', 'superadmin@rcicmaster.com');
 
         $user = User::firstOrCreate(
             ['email' => $email],

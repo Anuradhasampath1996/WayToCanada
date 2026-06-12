@@ -1,7 +1,7 @@
 # WayToCanada — AWS EC2 Production Bootstrap Guide
 
 **Instance:** Ubuntu 24.04 LTS · AWS Canada Central (`ca-central-1`)  
-**Domain:** `lightersmenia.com` · `www.lightersmenia.com`  
+**Domain:** `rcicmaster.com` · `www.rcicmaster.com`  
 **Stack:** Laravel API (Docker `:8000`) + React frontend (Docker `:3000`)
 
 ---
@@ -32,14 +32,27 @@ sudo ./setup.sh
 
 ### 2. DNS configuration
 
-In your domain registrar (or Route 53), create **A records**:
+In your domain registrar (Namecheap or Route 53), create **A records** pointing to your EC2 public IP:
 
-| Host | Type | Value |
-|------|------|-------|
-| `@`  | A    | `<EC2_PUBLIC_IP>` |
-| `www`| A    | `<EC2_PUBLIC_IP>` |
+| Host | Subdomain | Service |
+|------|-----------|---------|
+| `@` | `rcicmaster.com` | Apex → redirects to www |
+| `www` | `www.rcicmaster.com` | Public marketing site |
+| `admin` | `admin.rcicmaster.com` | Admin dashboard |
+| `app` | `app.rcicmaster.com` | Client / user dashboard |
+| `consultant` | `consultant.rcicmaster.com` | Consultant website |
+| `portal` | `portal.rcicmaster.com` | Consultant workspace |
 
 Wait for propagation (5–30 minutes, sometimes longer).
+
+After DNS propagates, apply nginx and TLS:
+
+```bash
+sudo bash /opt/waytocanada/deploy/apply-nginx.sh
+sudo certbot --nginx -d rcicmaster.com -d www.rcicmaster.com \
+  -d admin.rcicmaster.com -d app.rcicmaster.com \
+  -d consultant.rcicmaster.com -d portal.rcicmaster.com
+```
 
 ---
 
@@ -144,7 +157,7 @@ In **GitHub → Repository → Settings → Secrets and variables → Actions �
 | Secret name | Value |
 |-------------|-------|
 | `SSH_PRIVATE_KEY` | Full private key file contents (`github_deploy`), including BEGIN/END lines |
-| `SSH_HOST` | EC2 public IP or `www.lightersmenia.com` (after DNS works) |
+| `SSH_HOST` | EC2 public IP or `www.rcicmaster.com` (after DNS works) |
 | `SSH_USER` | `github-actions` |
 | `SSH_PORT` | `22` (optional; default) |
 
@@ -171,7 +184,7 @@ Example minimal deploy step in a workflow:
 
 ```bash
 sudo apt-get install -y certbot python3-certbot-nginx
-sudo certbot --nginx -d lightersmenia.com -d www.lightersmenia.com
+sudo certbot --nginx -d rcicmaster.com -d www.rcicmaster.com
 ```
 
 Certbot will update the Nginx config for HTTPS and set up auto-renewal.
