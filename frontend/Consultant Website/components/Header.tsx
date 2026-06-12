@@ -9,9 +9,8 @@ export default function Header() {
   const [menuOpen, setMenuOpen] = useState(false);
 
   const navLinks = [
-    { label: "Home", href: "/" },
     { label: "Why Join", href: "/#why-join" },
-    { label: "Features", href: "/#features" },
+    { label: "Platform", href: "/#features" },
     { label: "How It Works", href: "/#how-it-works" },
     { label: "Contact", href: "/#contact" },
   ];
@@ -45,8 +44,8 @@ export default function Header() {
             <Button variant="ghost" asChild>
               <Link href="/login">Consultant Login</Link>
             </Button>
-            <Button asChild>
-              <Link href="/register">Join as Consultant</Link>
+            <Button className="bg-emerald-600 hover:bg-emerald-700" asChild>
+              <Link href="/register">Register free</Link>
             </Button>
           </div>
 
@@ -79,8 +78,8 @@ export default function Header() {
               <Button variant="outline" className="flex-1" asChild>
                 <Link href="/login">Login</Link>
               </Button>
-              <Button className="flex-1" asChild>
-                <Link href="/register">Join Now</Link>
+              <Button className="flex-1 bg-emerald-600 hover:bg-emerald-700" asChild>
+                <Link href="/register">Register free</Link>
               </Button>
             </div>
           </nav>

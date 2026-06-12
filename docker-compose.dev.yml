@@ -1,0 +1,47 @@
+# Local development infrastructure (Postgres + LocalStack S3 + OCR)
+services:
+  postgres:
+    image: postgres:16
+    container_name: wtc_postgres_dev
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:5433:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: secret
+      POSTGRES_DB: db_cws
+    volumes:
+      - wtc_pgdata_dev:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  localstack:
+    container_name: localstack_main
+    image: localstack/localstack:3.8.1
+    ports:
+      - "127.0.0.1:4566:4566"
+    environment:
+      - SERVICES=s3
+      - DEBUG=0
+    volumes:
+      - "${LOCALSTACK_VOLUME_DIR:-./volume}:/var/lib/localstack"
+
+  ocr-service:
+    build:
+      context: ./ai-service
+      dockerfile: Dockerfile
+    container_name: wtc_ocr_service_dev
+    ports:
+      - "127.0.0.1:8001:8001"
+    environment:
+      - EASYOCR_GPU=false
+      - CONFIDENCE_THRESHOLD=0.35
+      - MAX_FILE_SIZE_MB=10
+      - DEBUG=false
+    restart: unless-stopped
+
+volumes:
+  wtc_pgdata_dev:

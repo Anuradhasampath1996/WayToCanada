@@ -19,11 +19,14 @@ import {
   ChevronRight,
   CreditCardIcon,
   LandmarkIcon,
+  GraduationCapIcon,
   FolderDotIcon,
   LayoutDashboardIcon,
   ScaleIcon,
   UsersIcon,
   WalletMinimalIcon,
+  MegaphoneIcon,
+  KeyRoundIcon,
   type LucideIcon,
 } from "lucide-react";
 import Link from "next/link";
@@ -77,6 +80,11 @@ export const navItems: NavGroup[] = [
         icon: CreditCardIcon
       },
       {
+        title: "Integrations",
+        href: "/admindashboard/integrations",
+        icon: KeyRoundIcon,
+      },
+      {
         title: "Subscription Packages",
         href: "/admindashboard/subscription-packages",
         icon: BadgeDollarSignIcon
@@ -90,6 +98,11 @@ export const navItems: NavGroup[] = [
         title: "Application Package Manage",
         href: "/admindashboard/application-packages",
         icon: FolderDotIcon
+      },
+      {
+        title: "LMS Management",
+        href: "/admindashboard/lms",
+        icon: GraduationCapIcon
       },
       {
         title: "CRS Calculator Sync",
@@ -106,6 +119,11 @@ export const navItems: NavGroup[] = [
         href: "/admindashboard/legislations-hub",
         icon: ScaleIcon,
         isNew: true
+      },
+      {
+        title: "Notifications",
+        href: "/admindashboard/notifications",
+        icon: MegaphoneIcon,
       }
     ]
   }

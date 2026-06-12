@@ -12,9 +12,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 
 # CPU-only PyTorch keeps the image small (default pip wheel pulls ~900MB CUDA deps).
-COPY requirements.txt .
-RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu \
-    && pip install --no-cache-dir -r requirements.txt
+COPY requirements.txt constraints.txt ./
+# Install CPU torch first, then everything else with constraints so easyocr cannot upgrade torchvision.
+RUN pip install --no-cache-dir torch==2.2.2 torchvision==0.17.2 \
+    --index-url https://download.pytorch.org/whl/cpu \
+    && pip install --no-cache-dir -r requirements.txt -c constraints.txt
 
 # Copy application source
 COPY . .

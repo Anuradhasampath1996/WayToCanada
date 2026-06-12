@@ -27,3 +27,9 @@ Schedule::command('gst-hst:sync')->dailyAt('06:30')->timezone('America/Toronto')
 
 // Unsigned retainer agreement reminders (email + optional Twilio WhatsApp)
 Schedule::command('agreements:send-reminders')->dailyAt('09:00')->timezone('America/Toronto');
+
+// Video meeting reminders (24h + 1h before)
+Schedule::command('meetings:send-reminders')->everyFifteenMinutes()->timezone('America/Toronto');
+
+// Unpaid client payment request reminders
+Schedule::command('payments:send-reminders')->dailyAt('09:30')->timezone('America/Toronto');

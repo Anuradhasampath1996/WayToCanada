@@ -79,6 +79,16 @@ class User extends Authenticatable implements MustVerifyEmail
         return $this->hasOne(ClientProfile::class);
     }
 
+    public function userNotifications(): HasMany
+    {
+        return $this->hasMany(UserNotification::class);
+    }
+
+    public function notificationPreferences(): HasOne
+    {
+        return $this->hasOne(UserNotificationPreference::class);
+    }
+
     /** Clients created by this consultant. */
     public function clients(): HasMany
     {

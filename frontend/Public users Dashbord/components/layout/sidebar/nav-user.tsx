@@ -20,6 +20,7 @@ import {
 import { BellIcon, CreditCardIcon, LogOutIcon, UserCircle2Icon } from "lucide-react";
 import { DotsVerticalIcon } from "@radix-ui/react-icons";
 
+import Link from "next/link";
 import { PUBLIC_LOGIN_URL } from "@/lib/auth-urls";
 
 const API = (process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000") + "/api/v1";
@@ -114,9 +115,11 @@ export function NavUser() {
                 <CreditCardIcon />
                 Billing
               </DropdownMenuItem>
-              <DropdownMenuItem>
-                <BellIcon />
-                Notifications
+              <DropdownMenuItem asChild>
+                <Link href="/user-dashboard/notifications">
+                  <BellIcon />
+                  Notifications
+                </Link>
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />

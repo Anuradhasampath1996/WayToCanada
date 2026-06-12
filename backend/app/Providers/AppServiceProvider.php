@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Services\IntegrationSettingsService;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 use SocialiteProviders\Manager\SocialiteWasCalled;
@@ -18,5 +19,11 @@ class AppServiceProvider extends ServiceProvider
     {
         // Register the Google Socialite provider
         Event::listen(SocialiteWasCalled::class, GoogleExtendSocialite::class);
+
+        try {
+            app(IntegrationSettingsService::class)->applyRuntimeConfig();
+        } catch (\Throwable) {
+            // DB may be unavailable during initial migrate
+        }
     }
 }

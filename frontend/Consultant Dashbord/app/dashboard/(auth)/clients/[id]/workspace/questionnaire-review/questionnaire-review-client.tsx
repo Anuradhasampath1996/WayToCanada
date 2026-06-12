@@ -60,6 +60,7 @@ const PERSON_FIELDS: FieldDef[] = [
   { key: "dob",                    label: "Date of Birth",                           section: "Identity",           type: "date" },
   { key: "passportFullName",       label: "Full Name (as on Passport)",              section: "Passport" },
   { key: "passportNumber",         label: "Passport Number",                         section: "Passport" },
+  { key: "passportIssueDate",      label: "Date of Issue",                           section: "Passport",           type: "date" },
   { key: "passportExpiry",         label: "Expiry Date",                             section: "Passport",           type: "date" },
   { key: "passportNationality",    label: "Nationality / Country of Citizenship",    section: "Passport" },
   { key: "passportGender",         label: "Sex / Gender",                            section: "Passport" },

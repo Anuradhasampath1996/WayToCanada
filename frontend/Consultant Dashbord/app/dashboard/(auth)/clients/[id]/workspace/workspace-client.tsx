@@ -5,7 +5,7 @@ import Link from "next/link";
 import {
   ArrowLeft, Loader2, AlertCircle, Send, CheckCircle2, Clock, Lock,
   ChevronRight, FileText, ClipboardList, Briefcase, UserCheck,
-  Check, RefreshCw, FormInput, Eye, ExternalLink,
+  Check, RefreshCw, FormInput, Eye, ExternalLink, GraduationCap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -33,6 +33,7 @@ import {
   type QuestionnaireSubmissionSnapshot,
   type QuestionnaireWorkspaceStats,
 } from "@/lib/questionnaire-workspace-stats";
+import { WorkspaceQuickToolsRail } from "./workspace-quick-tools-rail";
 
 const API = (process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000") + "/api/v1";
 
@@ -633,8 +634,8 @@ export function WorkspacePageClient({ paramsPromise }: { paramsPromise: Promise<
         </CardContent>
       </Card>
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
-        <div className="space-y-6 min-w-0">
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_280px]">
+        <div className="space-y-6 min-w-0 pr-0 xl:pr-2">
 
       <WorkflowSection
         step={1}
@@ -876,12 +877,34 @@ export function WorkspacePageClient({ paramsPromise }: { paramsPromise: Promise<
         )}
       </WorkflowSection>
 
+      <WorkflowSection
+        step={5}
+        title="Exam prep courses (LMS)"
+        subtitle="Assign IELTS, PTE, NCLEX, or TEF master courses and track lesson progress and quiz scores."
+        state="current"
+        headerActions={
+          <Button className="gap-2 rounded-xl" variant="outline" asChild>
+            <Link href={`/dashboard/clients/${id}/workspace/lms`}>
+              <GraduationCap className="size-4" />
+              Manage courses
+              <ChevronRight className="size-4" />
+            </Link>
+          </Button>
+        }
+      >
+        <p className="text-sm text-muted-foreground">
+          Assign published courses from the admin catalog, then monitor completion percentage and MCQ quiz pass/fail results here.
+        </p>
+      </WorkflowSection>
+
         </div>
 
-        <aside className="space-y-4 xl:sticky xl:top-4 xl:self-start">
+        <aside className="xl:sticky xl:top-4 xl:self-start">
           <ClientActivityTimeline events={activityEvents} />
         </aside>
       </div>
+
+      <WorkspaceQuickToolsRail clientId={Number(id)} />
     </div>
   );
 }

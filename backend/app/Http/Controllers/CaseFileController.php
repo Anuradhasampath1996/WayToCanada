@@ -11,7 +11,10 @@ use App\Models\IrccCategory;
 use App\Mail\AgreementReminderEmail;
 use App\Services\AgreementReminderService;
 use App\Services\IrccInteractiveFormVerificationService;
+use App\Services\ClientActivity\ClientActivityTriggers;
+use App\Services\Notifications\WorkspaceNotificationTriggers;
 use App\Services\RetainerAgreementPdfService;
+use App\Services\TrustLedger\TrustLedgerService;
 use App\Support\RetainerAgreementConfig;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -25,6 +28,9 @@ class CaseFileController extends Controller
         private IrccInteractiveFormVerificationService $verificationService,
         private RetainerAgreementPdfService $pdfService,
         private AgreementReminderService $reminderService,
+        private WorkspaceNotificationTriggers $notify,
+        private ClientActivityTriggers $activity,
+        private TrustLedgerService $trust,
     ) {}
 
     // ── Private helper ─────────────────────────────────────────────────────────
@@ -134,6 +140,8 @@ class CaseFileController extends Controller
         // Mirror pathway to the client profile
         $profile->update(['immigration_pathway' => $pathway]);
 
+        $this->activity->onPathwayAssigned($profile, $caseFile->fresh(), $request->user(), $pathway, $request);
+
         return response()->json([
             'case_file' => $caseFile->fresh(),
             'message'   => 'Immigration pathway confirmed.',
@@ -195,6 +203,14 @@ class CaseFileController extends Controller
             'assigned_ircc_category_id'       => $category->id,
             'application_package_assigned_at'   => now(),
         ]);
+
+        $this->activity->onApplicationPackageAssigned(
+            $profile,
+            $caseFile->fresh(),
+            $request->user(),
+            $category->label ?? 'Application package',
+            $request,
+        );
 
         return response()->json([
             'case_file'           => $caseFile->fresh(),
@@ -263,6 +279,9 @@ class CaseFileController extends Controller
 
         Mail::to($profile->user->email)
             ->send(new RetainerAgreementEmail($profile, $caseFile->fresh(), $request->user()));
+
+        $this->notify->onAgreementSent($profile, $caseFile->fresh(), $request->user());
+        $this->activity->onAgreementSent($profile, $caseFile->fresh(), $request->user(), $request);
 
         return response()->json([
             'case_file' => $caseFile->fresh(),
@@ -497,7 +516,7 @@ class CaseFileController extends Controller
         ]);
 
         if (! $wasSigned) {
-            $this->notifyConsultantAgreementSigned($caseFile->fresh(), 'digital_signature');
+            $this->notifyConsultantAgreementSigned($caseFile->fresh(), 'digital_signature', $request);
         }
 
         return response()->json(['message' => 'Agreement signed successfully. Your consultant has been notified.']);
@@ -530,7 +549,7 @@ class CaseFileController extends Controller
         ]);
 
         if (! $wasSigned) {
-            $this->notifyConsultantAgreementSigned($caseFile->fresh(), 'uploaded_pdf');
+            $this->notifyConsultantAgreementSigned($caseFile->fresh(), 'uploaded_pdf', $request);
         }
 
         return response()->json([
@@ -539,7 +558,7 @@ class CaseFileController extends Controller
         ]);
     }
 
-    private function notifyConsultantAgreementSigned(CaseFile $caseFile, string $via): void
+    private function notifyConsultantAgreementSigned(CaseFile $caseFile, string $via, Request $request): void
     {
         $caseFile->loadMissing('clientProfile.user', 'consultant');
         $profile    = $caseFile->clientProfile;
@@ -551,6 +570,11 @@ class CaseFileController extends Controller
 
         Mail::to($consultant->email)
             ->send(new AgreementSignedEmail($profile, $caseFile, $consultant, $via));
+
+        $this->notify->onAgreementSigned($caseFile);
+        $this->activity->onAgreementSigned($profile, $caseFile, $request);
+        $this->trust->ensureTrustAccount($caseFile);
+        $this->trust->syncMilestonesFromAgreement($caseFile);
     }
 
     // ── Client: GET /client/dashboard ─────────────────────────────────────────

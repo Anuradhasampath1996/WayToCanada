@@ -15,6 +15,7 @@ import {
   ClipboardListIcon,
   FileTextIcon,
   FolderUpIcon,
+  BookOpenIcon,
   FormInputIcon,
   CheckCircle2Icon,
   LockIcon,
@@ -42,6 +43,7 @@ export const navItems = [
       { title: "Sign agreement", href: "/user-dashboard/retainer-agreement", icon: FileTextIcon },
       { title: "Government forms", href: "/user-dashboard/application-forms", icon: FormInputIcon },
       { title: "Documents & messages", href: "/user-dashboard/case-management", icon: FolderUpIcon },
+      { title: "Learning courses", href: "/user-dashboard/learning", icon: BookOpenIcon },
     ],
   },
 ];
@@ -253,6 +255,20 @@ export function NavMain() {
               isActive={pathname.startsWith(step.href)}
             />
           ))}
+
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              className="hover:!bg-primary/10 hover:!text-foreground active:!bg-primary/10 active:!text-foreground data-[active=true]:!bg-primary/15 data-[active=true]:!text-foreground hover:[&_svg]:!text-foreground data-[active=true]:[&_svg]:!text-foreground"
+              isActive={pathname.startsWith("/user-dashboard/learning")}
+              tooltip="Learning courses"
+              asChild
+            >
+              <Link href="/user-dashboard/learning">
+                <BookOpenIcon className="size-4 shrink-0" />
+                <span>Learning courses</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
         </SidebarMenu>
       </SidebarGroupContent>
 

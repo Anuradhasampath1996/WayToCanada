@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\ClientProfile;
 use App\Models\QuestionnaireSubmission;
+use App\Services\ClientActivity\ClientActivityTriggers;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -11,6 +12,10 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class QuestionnaireReviewController extends Controller
 {
+    public function __construct(
+        private ClientActivityTriggers $activity,
+    ) {}
+
     // ── Private helper ─────────────────────────────────────────────────────────
 
     private function authorizeConsultant(Request $request, ClientProfile $profile): void
@@ -58,6 +63,8 @@ class QuestionnaireReviewController extends Controller
         }
 
         $submission->update(['verified_fields' => $verifiedFields]);
+
+        $this->activity->onFieldVerified($profile, $request->user(), $data['field_key'], $data['verified'], $request);
 
         return response()->json([
             'message'         => 'Field verification updated.',
@@ -181,6 +188,8 @@ class QuestionnaireReviewController extends Controller
             'field_remarks'   => $remarks,
             'verified_fields' => $verifiedFields,
         ]);
+
+        $this->activity->onFieldRemark($profile, $request->user(), $data['field_key'], $data['remark'], $request);
 
         return response()->json([
             'message'         => 'Refill requested. The client will see your remark.',

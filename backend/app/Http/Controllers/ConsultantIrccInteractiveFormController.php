@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\ClientProfile;
 use App\Models\IrccInteractiveForm;
 use App\Models\IrccInteractiveFormResponse;
+use App\Services\ClientActivity\ClientActivityTriggers;
 use App\Services\IrccInteractiveFormVerificationService;
 use App\Support\IrccInteractiveFormSchema;
 use Illuminate\Http\JsonResponse;
@@ -14,6 +15,7 @@ class ConsultantIrccInteractiveFormController extends Controller
 {
     public function __construct(
         private IrccInteractiveFormVerificationService $verificationService,
+        private ClientActivityTriggers $activity,
     ) {}
 
     /** GET /api/v1/consultant/clients/{profile}/interactive-forms */
@@ -108,7 +110,12 @@ class ConsultantIrccInteractiveFormController extends Controller
         $response->update($updates);
 
         if (! empty($data['mark_reviewed'])) {
+            $this->activity->onIrccFormReviewed($profile, $form->title, $request->user(), $request);
             $this->verificationService->syncVerificationComplete($caseFile->fresh());
+            $caseFile = $caseFile->fresh();
+            if ($caseFile->application_forms_verified_at?->greaterThanOrEqualTo(now()->subMinute())) {
+                $this->activity->onFormsVerified($profile, $caseFile, $request->user(), $request);
+            }
         }
 
         return response()->json([

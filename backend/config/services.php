@@ -83,4 +83,23 @@ return [
         'whatsapp_from'  => env('TWILIO_WHATSAPP_FROM'),
     ],
 
+    'google_meet' => [
+        'client_id'     => env('GOOGLE_MEET_CLIENT_ID', env('GOOGLE_CLIENT_ID')),
+        'client_secret' => env('GOOGLE_MEET_CLIENT_SECRET', env('GOOGLE_CLIENT_SECRET')),
+        'redirect_uri'  => env('GOOGLE_MEET_REDIRECT_URI', 'http://localhost:8000/api/v1/consultant/meeting-account/oauth/google/callback'),
+    ],
+
+    'zoom' => [
+        'client_id'     => env('ZOOM_CLIENT_ID'),
+        'client_secret' => env('ZOOM_CLIENT_SECRET'),
+        'redirect_uri'  => env('ZOOM_REDIRECT_URI', 'http://localhost:8000/api/v1/consultant/meeting-account/oauth/zoom/callback'),
+    ],
+
+    'microsoft' => [
+        'client_id'     => env('MICROSOFT_CLIENT_ID'),
+        'client_secret' => env('MICROSOFT_CLIENT_SECRET'),
+        'redirect_uri'  => env('MICROSOFT_REDIRECT_URI', 'http://localhost:8000/api/v1/consultant/meeting-account/oauth/teams/callback'),
+        'tenant'        => env('MICROSOFT_TENANT_ID', 'common'),
+    ],
+
 ];

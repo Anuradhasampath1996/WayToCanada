@@ -1,11 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   Loader2, AlertCircle, RefreshCw, UserCheck, Mail, Phone, Award,
-  MapPin, ChevronRight, CheckCircle2,
+  MapPin, ChevronRight, CheckCircle2, GraduationCap, BookOpen,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -19,6 +19,7 @@ import {
   PathwayAssignedCard,
 } from "@/components/client-workspace-ui";
 import { clientStatusLabel } from "@/lib/client-journey";
+import { ClientTrustPanel } from "@/components/client-trust-panel";
 
 function ConsultantCard({ consultant }: {
   consultant: { name: string; email: string; phone?: string | null; rcic_number?: string | null; avatar?: string | null };
@@ -63,6 +64,56 @@ function ConsultantCard({ consultant }: {
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+const LMS_API = `${process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000"}/api/v1`;
+
+function lmsToken() {
+  if (typeof window === "undefined") return "";
+  return localStorage.getItem("wtc_token") ?? document.cookie.match(/wtc_token=([^;]+)/)?.[1] ?? "";
+}
+
+function LearningCoursesCard() {
+  const [courses, setCourses] = useState<{ assignment_id: number; course: { title: string; category?: string }; progress_percent: number }[]>([]);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    fetch(`${LMS_API}/client/lms/courses`, {
+      headers: { Accept: "application/json", Authorization: `Bearer ${lmsToken()}` },
+    })
+      .then((r) => (r.ok ? r.json() : { data: [] }))
+      .then((d) => setCourses(d.data ?? []))
+      .finally(() => setLoaded(true));
+  }, []);
+
+  if (!loaded || courses.length === 0) return null;
+
+  return (
+    <div className="rounded-xl border border-emerald-200/80 bg-emerald-50/40 dark:bg-emerald-950/20 p-5 space-y-3">
+      <div className="flex items-center gap-2">
+        <GraduationCap className="h-5 w-5 text-emerald-600" />
+        <p className="font-semibold">Exam prep courses</p>
+        <Badge className="bg-emerald-600 ml-auto">{courses.length}</Badge>
+      </div>
+      <p className="text-sm text-muted-foreground">
+        Your consultant assigned {courses.length} learning course{courses.length === 1 ? "" : "s"} for exam preparation.
+      </p>
+      <ul className="space-y-2">
+        {courses.slice(0, 3).map((c) => (
+          <li key={c.assignment_id} className="flex items-center justify-between gap-2 text-sm rounded-lg border bg-background/80 px-3 py-2">
+            <span className="font-medium truncate">{c.course.title}</span>
+            <span className="text-muted-foreground shrink-0">{c.progress_percent}%</span>
+          </li>
+        ))}
+      </ul>
+      <Button className="w-full bg-emerald-600 hover:bg-emerald-700" asChild>
+        <Link href="/user-dashboard/learning">
+          <BookOpen className="h-4 w-4 mr-2" />
+          Open learning portal
+        </Link>
+      </Button>
     </div>
   );
 }
@@ -177,6 +228,8 @@ export function ClientDashboard() {
         )}
       </div>
 
+      <LearningCoursesCard />
+
       {!consultant && <NoConsultantBanner name={firstName} />}
 
       {consultant && (
@@ -214,6 +267,7 @@ export function ClientDashboard() {
 
           <div className="space-y-5 lg:col-span-1 order-1 lg:order-2">
             <ConsultantCard consultant={consultant} />
+            <ClientTrustPanel />
             <ClientActivityTimeline events={activityEvents} />
             <div className="rounded-xl border p-4 text-xs text-muted-foreground space-y-2">
               <p className="font-semibold text-foreground text-sm">How it works</p>

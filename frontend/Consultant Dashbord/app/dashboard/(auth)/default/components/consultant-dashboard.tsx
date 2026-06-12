@@ -5,7 +5,6 @@ import Link from "next/link";
 import {
   AlertCircle,
   ArrowRight,
-  CalendarDays,
   CheckCircle2,
   Clock3,
   FileText,
@@ -17,8 +16,8 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Calendar } from "@/components/ui/calendar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { ConsultantCalendarPanel } from "./consultant-calendar-panel";
 import { DashboardNewsCompact } from "./dashboard-news-compact";
 
 const API = (process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000") + "/api/v1";
@@ -61,14 +60,6 @@ function fmtDate(iso: string | null) {
   return new Date(iso).toLocaleDateString("en-CA", { month: "short", day: "numeric", year: "numeric" });
 }
 
-function sameDay(a: Date, b: Date) {
-  return (
-    a.getFullYear() === b.getFullYear() &&
-    a.getMonth() === b.getMonth() &&
-    a.getDate() === b.getDate()
-  );
-}
-
 export function ConsultantDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -76,8 +67,6 @@ export function ConsultantDashboard() {
   const [pipeline, setPipeline] = useState<PipelineEntry[]>([]);
   const [clientsTotal, setClientsTotal] = useState(0);
   const [recentClients, setRecentClients] = useState<ClientRow[]>([]);
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
-
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
@@ -122,21 +111,16 @@ export function ConsultantDashboard() {
     return { pendingDocs, activeCases, ready, review };
   }, [pipeline]);
 
-  const eventDates = useMemo(
+  const retainerSignings = useMemo(
     () =>
       pipeline
         .filter((p) => p.agreement_signed_at)
-        .map((p) => new Date(p.agreement_signed_at!)),
-    [pipeline],
-  );
-
-  const selectedDayItems = useMemo(() => {
-    if (!selectedDate) return [];
-    return pipeline.filter((p) => p.agreement_signed_at && sameDay(new Date(p.agreement_signed_at), selectedDate));
-  }, [pipeline, selectedDate]);
-
-  const actionItems = useMemo(
-    () => pipeline.filter((p) => p.pending_docs > 0).slice(0, 5),
+        .map((p) => ({
+          profile_id: p.profile_id,
+          client_name: p.client_name,
+          status: p.status,
+          agreement_signed_at: p.agreement_signed_at!,
+        })),
     [pipeline],
   );
 
@@ -198,7 +182,10 @@ export function ConsultantDashboard() {
         </div>
       </section>
 
-      {/* Stats */}
+      {/* Calendar — full-width priority */}
+      <ConsultantCalendarPanel retainerSignings={retainerSignings} />
+
+      {/* Stats row — compact below calendar */}
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {[
           { label: "Total clients", value: clientsTotal, icon: Users, href: "/dashboard/clients" },
@@ -222,141 +209,62 @@ export function ConsultantDashboard() {
         ))}
       </section>
 
-      {/* Main grid */}
-      <section className="grid gap-4 xl:grid-cols-12">
-        {/* Calendar */}
-        <Card className="border-border/70 shadow-sm xl:col-span-5">
+      {/* Secondary widgets */}
+      <section className="grid gap-4 lg:grid-cols-3">
+        <Card className="border-border/70 shadow-sm">
           <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <CalendarDays className="size-4 text-primary" />
-              Calendar
-            </CardTitle>
-            <CardDescription>Retainer sign dates and daily case activity</CardDescription>
+            <CardTitle className="text-base">Quick actions</CardTitle>
           </CardHeader>
-          <CardContent className="grid gap-4 md:grid-cols-[auto_1fr]">
-            <Calendar
-              mode="single"
-              selected={selectedDate}
-              onSelect={setSelectedDate}
-              className="rounded-xl border bg-muted/20 p-2"
-              modifiers={{ event: eventDates }}
-              modifiersClassNames={{ event: "bg-primary/15 font-semibold text-primary" }}
-            />
-            <div className="space-y-3">
-              <div>
-                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  {selectedDate
-                    ? selectedDate.toLocaleDateString("en-CA", { weekday: "short", month: "short", day: "numeric" })
-                    : "Selected day"}
-                </p>
-                {selectedDayItems.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No retainer signings on this date.</p>
-                ) : (
-                  <ul className="space-y-2">
-                    {selectedDayItems.map((item) => (
-                      <li key={item.profile_id}>
-                        <Link
-                          href={`/dashboard/clients/${item.profile_id}/workspace`}
-                          className="block rounded-lg border px-3 py-2 text-sm transition-colors hover:bg-muted/50"
-                        >
-                          <span className="font-medium">{item.client_name}</span>
-                          <span className="mt-0.5 block text-xs text-muted-foreground">
-                            Retainer signed · {PIPELINE_LABELS[item.status] ?? item.status}
-                          </span>
-                        </Link>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-              <div>
-                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Needs attention
-                </p>
-                {actionItems.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No pending document reviews.</p>
-                ) : (
-                  <ul className="space-y-2">
-                    {actionItems.map((item) => (
-                      <li key={item.profile_id}>
-                        <Link
-                          href={`/dashboard/clients/${item.profile_id}/workspace/case-management`}
-                          className="flex items-center justify-between rounded-lg border px-3 py-2 text-sm hover:bg-muted/50"
-                        >
-                          <span className="truncate font-medium">{item.client_name}</span>
-                          <Badge variant="secondary" className="ml-2 shrink-0">
-                            {item.pending_docs} docs
-                          </Badge>
-                        </Link>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            </div>
+          <CardContent className="grid gap-2">
+            {[
+              { title: "All clients", href: "/dashboard/clients", icon: Users },
+              { title: "Add new client", href: "/dashboard/clients/new", icon: UserPlus },
+              { title: "Legislations hub", href: "/dashboard/legislations", icon: Scale },
+              { title: "Application progress board", href: "/dashboard/case-pipeline", icon: SquareKanban },
+            ].map((action) => (
+              <Link
+                key={action.href}
+                href={action.href}
+                className="flex items-center justify-between rounded-xl border px-3 py-2.5 text-sm transition-colors hover:border-primary/25 hover:bg-primary/5"
+              >
+                <span className="flex items-center gap-2 font-medium">
+                  <action.icon className="size-4 text-primary" />
+                  {action.title}
+                </span>
+                <ArrowRight className="size-3.5 text-muted-foreground" />
+              </Link>
+            ))}
           </CardContent>
         </Card>
 
-        {/* Quick actions + pipeline */}
-        <div className="space-y-4 xl:col-span-3">
-          <Card className="border-border/70 shadow-sm">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">Quick actions</CardTitle>
-            </CardHeader>
-            <CardContent className="grid gap-2">
-              {[
-                { title: "All clients", href: "/dashboard/clients", icon: Users },
-                { title: "Add new client", href: "/dashboard/clients/new", icon: UserPlus },
-                { title: "Legislations hub", href: "/dashboard/legislations", icon: Scale },
-                { title: "Application progress board", href: "/dashboard/case-pipeline", icon: SquareKanban },
-              ].map((action) => (
-                <Link
-                  key={action.href}
-                  href={action.href}
-                  className="flex items-center justify-between rounded-xl border px-3 py-2.5 text-sm transition-colors hover:border-primary/25 hover:bg-primary/5"
-                >
-                  <span className="flex items-center gap-2 font-medium">
-                    <action.icon className="size-4 text-primary" />
-                    {action.title}
-                  </span>
-                  <ArrowRight className="size-3.5 text-muted-foreground" />
-                </Link>
-              ))}
-            </CardContent>
-          </Card>
-
-          <Card className="border-border/70 shadow-sm">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">Pipeline snapshot</CardTitle>
-              <CardDescription>Cases by current stage</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-2.5">
-              {Object.entries(PIPELINE_LABELS).map(([status, label]) => {
-                const count = pipeline.filter((p) => p.status === status).length;
-                const pct = pipeline.length ? Math.round((count / pipeline.length) * 100) : 0;
-                return (
-                  <div key={status} className="space-y-1">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-muted-foreground">{label}</span>
-                      <span className="font-semibold tabular-nums">{count}</span>
-                    </div>
-                    <div className="h-1.5 overflow-hidden rounded-full bg-muted">
-                      <div
-                        className="h-full rounded-full bg-primary transition-all"
-                        style={{ width: `${pct}%` }}
-                      />
-                    </div>
+        <Card className="border-border/70 shadow-sm">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Pipeline snapshot</CardTitle>
+            <CardDescription>Cases by current stage</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2.5">
+            {Object.entries(PIPELINE_LABELS).map(([status, label]) => {
+              const count = pipeline.filter((p) => p.status === status).length;
+              const pct = pipeline.length ? Math.round((count / pipeline.length) * 100) : 0;
+              return (
+                <div key={status} className="space-y-1">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground">{label}</span>
+                    <span className="font-semibold tabular-nums">{count}</span>
                   </div>
-                );
-              })}
-            </CardContent>
-          </Card>
-        </div>
+                  <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+                    <div
+                      className="h-full rounded-full bg-primary transition-all"
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </CardContent>
+        </Card>
 
-        {/* News compact */}
-        <div className="xl:col-span-4">
-          <DashboardNewsCompact />
-        </div>
+        <DashboardNewsCompact />
       </section>
 
       {/* Recent clients */}

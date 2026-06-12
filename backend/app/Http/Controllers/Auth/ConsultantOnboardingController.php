@@ -108,7 +108,7 @@ class ConsultantOnboardingController extends Controller
             ]);
         }
 
-        $dashboardUrl = rtrim(env('CONSULTANT_DASHBOARD_URL', 'http://localhost:3004'), '/');
+        $dashboardUrl = rtrim(env('CONSULTANT_DASHBOARD_URL', 'http://localhost:3005'), '/');
 
         return redirect()->away("{$dashboardUrl}/license-verified");
     }

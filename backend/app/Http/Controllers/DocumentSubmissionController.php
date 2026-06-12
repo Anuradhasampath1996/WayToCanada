@@ -8,6 +8,8 @@ use App\Models\DocumentSubmission;
 use App\Models\CaseMessage;
 use App\Services\CaseManagementHubService;
 use App\Services\IrccInteractiveFormVerificationService;
+use App\Services\ClientActivity\ClientActivityTriggers;
+use App\Services\Notifications\WorkspaceNotificationTriggers;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
@@ -19,6 +21,8 @@ class DocumentSubmissionController extends Controller
     public function __construct(
         private IrccInteractiveFormVerificationService $verificationService,
         private CaseManagementHubService $hubService,
+        private WorkspaceNotificationTriggers $notify,
+        private ClientActivityTriggers $activity,
     ) {}
     // ─────────────────────────────────────────────────────────────────────────
     // CLIENT ENDPOINTS
@@ -108,6 +112,12 @@ class DocumentSubmissionController extends Controller
         // Trigger async AI verification (non-blocking — log failure, don't break upload)
         $this->triggerAiVerification($submission, $caseFile, $file);
 
+        $this->notify->onDocumentUploaded($submission, $caseFile);
+        $profile = $caseFile->clientProfile;
+        if ($profile) {
+            $this->activity->onDocumentUploaded($profile, $submission, $user, $request);
+        }
+
         return response()->json([
             'message'  => 'Document uploaded successfully.',
             'document' => $this->formatDoc($submission->fresh()),
@@ -185,6 +195,9 @@ class DocumentSubmissionController extends Controller
             $this->hubService->syncPipelineStatus($caseFile->fresh());
         }
 
+        $this->notify->onDocumentReviewed($submission->fresh(), $profile, $action);
+        $this->activity->onDocumentReviewed($profile, $submission->fresh(), $request->user(), $action, $request);
+
         return response()->json([
             'message'  => $action === 'approve' ? 'Document approved.' : 'Document rejected.',
             'document' => $this->formatDoc($submission->fresh()),
@@ -209,7 +222,14 @@ class DocumentSubmissionController extends Controller
             return response()->json(['message' => 'No case file found.'], 404);
         }
 
-        $caseFile->update(['status' => $request->input('status')]);
+        $previous = $caseFile->status;
+        $newStatus  = $request->input('status');
+        $caseFile->update(['status' => $newStatus]);
+
+        if ($previous !== $newStatus) {
+            $this->notify->onCaseStatusChanged($profile, $caseFile->fresh(), $newStatus);
+            $this->activity->onCaseStatusChanged($profile, $caseFile->fresh(), $request->user(), $newStatus, $request);
+        }
 
         return response()->json([
             'message'   => 'Pipeline status updated.',

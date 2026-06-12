@@ -170,10 +170,24 @@ function applyPassportOcrFields(
   if (d.dob) onField("dob", d.dob);
   if (d.fullName) onField("passportFullName", d.fullName);
   if (d.passportNumber) onField("passportNumber", d.passportNumber);
+  if (d.issueDate) onField("passportIssueDate", d.issueDate);
   if (d.expiryDate) onField("passportExpiry", d.expiryDate);
   if (d.nationality) onField("passportNationality", d.nationality);
   const gender = mapPassportGender(d.gender);
   if (gender) onField("passportGender", gender);
+}
+
+function inferStoredDocumentMediaType(path: string, blobMime: string): "image" | "pdf" | "other" {
+  if (blobMime.startsWith("image/")) return "image";
+  if (blobMime === "application/pdf") return "pdf";
+  const lower = path.toLowerCase();
+  if (/\.(jpe?g|png|webp|gif)$/i.test(lower)) return "image";
+  if (/\.pdf$/i.test(lower)) return "pdf";
+  return "other";
+}
+
+function isStoredDocumentPath(path: string): boolean {
+  return path.startsWith("client-document/");
 }
 
 function scanKindMismatch(kind: ScanKind, documentType: OcrResult["document_type"]): string | null {
@@ -222,7 +236,7 @@ interface MainData {
   passportName: string; governmentIdName: string; governmentIdBackName: string;
   drivingLicenseName: string; drivingLicenseBackName: string;
   // Passport details
-  passportFullName: string; passportNumber: string; passportExpiry: string;
+  passportFullName: string; passportNumber: string; passportIssueDate: string; passportExpiry: string;
   passportNationality: string; passportGender: string;
   // NIC / ID details
   nicFullName: string; nicNumber: string; nicDob: string; nicAddress: string;
@@ -250,7 +264,7 @@ interface SpouseData {
   passportName: string; governmentIdName: string; governmentIdBackName: string;
   drivingLicenseName: string; drivingLicenseBackName: string;
   // Passport details
-  passportFullName: string; passportNumber: string; passportExpiry: string;
+  passportFullName: string; passportNumber: string; passportIssueDate: string; passportExpiry: string;
   passportNationality: string; passportGender: string;
   // NIC / ID details
   nicFullName: string; nicNumber: string; nicDob: string; nicAddress: string;
@@ -267,7 +281,7 @@ interface ChildData {
   passportName: string; governmentIdName: string; governmentIdBackName: string;
   drivingLicenseName: string; drivingLicenseBackName: string;
   // Passport details
-  passportFullName: string; passportNumber: string; passportExpiry: string;
+  passportFullName: string; passportNumber: string; passportIssueDate: string; passportExpiry: string;
   passportNationality: string; passportGender: string;
   // NIC / ID details
   nicFullName: string; nicNumber: string; nicDob: string; nicAddress: string;
@@ -280,7 +294,7 @@ interface AccompanyingPerson {
   passportName: string; governmentIdName: string; governmentIdBackName: string;
   drivingLicenseName: string; drivingLicenseBackName: string;
   // Passport details
-  passportFullName: string; passportNumber: string; passportExpiry: string;
+  passportFullName: string; passportNumber: string; passportIssueDate: string; passportExpiry: string;
   passportNationality: string; passportGender: string;
   // NIC / ID details
   nicFullName: string; nicNumber: string; nicDob: string; nicAddress: string;
@@ -333,7 +347,7 @@ const INITIAL: FormData = {
     settlementFunds: "", canadianRelatives: "",
     passportName: "", governmentIdName: "", governmentIdBackName: "",
     drivingLicenseName: "", drivingLicenseBackName: "",
-    passportFullName: "", passportNumber: "", passportExpiry: "",
+    passportFullName: "", passportNumber: "", passportIssueDate: "", passportExpiry: "",
   passportNationality: "", passportGender: "",
   nicFullName: "", nicNumber: "", nicDob: "", nicAddress: "",
   nicBirthPlace: "", nicIssueDate: "",
@@ -353,7 +367,7 @@ const INITIAL: FormData = {
     scores: { ...EMPTY_SCORES }, canadianWork: "",
     passportName: "", governmentIdName: "", governmentIdBackName: "",
     drivingLicenseName: "", drivingLicenseBackName: "",
-    passportFullName: "", passportNumber: "", passportExpiry: "",
+    passportFullName: "", passportNumber: "", passportIssueDate: "", passportExpiry: "",
   passportNationality: "", passportGender: "",
   nicFullName: "", nicNumber: "", nicDob: "", nicAddress: "",
   nicBirthPlace: "", nicIssueDate: "",
@@ -717,6 +731,7 @@ function MainApplicantTab({
             onChange("passportFullName", "");
             onChange("passportNumber", "");
             onChange("dob", "");
+            onChange("passportIssueDate", "");
             onChange("passportExpiry", "");
             onChange("passportNationality", "");
             onChange("passportGender", "");
@@ -740,6 +755,10 @@ function MainApplicantTab({
           <Field label="Date of Birth" required
             refillRemark={remarkFor(fieldRemarks, "main", "dob")}>
             <Input type="date" value={data.dob} onChange={(e) => onChange("dob", e.target.value)} />
+          </Field>
+          <Field label="Date of Issue"
+            refillRemark={remarkFor(fieldRemarks, "main", "passportIssueDate")}>
+            <Input type="date" value={data.passportIssueDate} onChange={(e) => onChange("passportIssueDate", e.target.value)} />
           </Field>
           <Field label="Expiry Date"
             refillRemark={remarkFor(fieldRemarks, "main", "passportExpiry")}>
@@ -1247,6 +1266,7 @@ function SpouseTab({
             onChange("passportFullName", "");
             onChange("passportNumber", "");
             onChange("dob", "");
+            onChange("passportIssueDate", "");
             onChange("passportExpiry", "");
             onChange("passportNationality", "");
             onChange("passportGender", "");
@@ -1270,6 +1290,10 @@ function SpouseTab({
           <Field label="Date of Birth" required
             refillRemark={remarkFor(fieldRemarks, "spouse", "dob")}>
             <Input type="date" value={data.dob} onChange={(e) => onChange("dob", e.target.value)} />
+          </Field>
+          <Field label="Date of Issue"
+            refillRemark={remarkFor(fieldRemarks, "spouse", "passportIssueDate")}>
+            <Input type="date" value={data.passportIssueDate} onChange={(e) => onChange("passportIssueDate", e.target.value)} />
           </Field>
           <Field label="Expiry Date"
             refillRemark={remarkFor(fieldRemarks, "spouse", "passportExpiry")}>
@@ -1591,6 +1615,7 @@ function ChildrenTab({
                   onChange(i, "passportFullName", "");
                   onChange(i, "passportNumber", "");
                   onChange(i, "dob", "");
+                  onChange(i, "passportIssueDate", "");
                   onChange(i, "passportExpiry", "");
                   onChange(i, "passportNationality", "");
                   onChange(i, "passportGender", "");
@@ -1611,6 +1636,9 @@ function ChildrenTab({
                 </Field>
                 <Field label="Date of Birth">
                   <Input type="date" value={child.dob} onChange={(e) => onChange(i, "dob", e.target.value)} />
+                </Field>
+                <Field label="Date of Issue">
+                  <Input type="date" value={child.passportIssueDate} onChange={(e) => onChange(i, "passportIssueDate", e.target.value)} />
                 </Field>
                 <Field label="Expiry Date">
                   <Input type="date" value={child.passportExpiry} onChange={(e) => onChange(i, "passportExpiry", e.target.value)} />
@@ -1766,6 +1794,7 @@ function AccompanyingPersonsTab({
                   onChange(i, "passportFullName", "");
                   onChange(i, "passportNumber", "");
                   onChange(i, "dob", "");
+                  onChange(i, "passportIssueDate", "");
                   onChange(i, "passportExpiry", "");
                   onChange(i, "passportNationality", "");
                   onChange(i, "passportGender", "");
@@ -1786,6 +1815,9 @@ function AccompanyingPersonsTab({
                 </Field>
                 <Field label="Date of Birth" required>
                   <Input type="date" value={person.dob} onChange={(e) => onChange(i, "dob", e.target.value)} />
+                </Field>
+                <Field label="Date of Issue">
+                  <Input type="date" value={person.passportIssueDate} onChange={(e) => onChange(i, "passportIssueDate", e.target.value)} />
                 </Field>
                 <Field label="Expiry Date">
                   <Input type="date" value={person.passportExpiry} onChange={(e) => onChange(i, "passportExpiry", e.target.value)} />
@@ -1952,7 +1984,7 @@ function ChildSingleTab({
           onUpload={onDocUpload}
           onNewFile={() => {
             onChange("passportFullName", ""); onChange("passportNumber", "");
-            onChange("dob", ""); onChange("passportExpiry", "");
+            onChange("dob", ""); onChange("passportIssueDate", ""); onChange("passportExpiry", "");
             onChange("passportNationality", ""); onChange("passportGender", "");
           }}
           onScanComplete={(result) => {
@@ -1974,6 +2006,10 @@ function ChildSingleTab({
           <Field label="Date of Birth"
             refillRemark={remarkFor(fieldRemarks, "child", "dob", childIndex)}>
             <Input type="date" value={data.dob} onChange={(e) => onChange("dob", e.target.value)} />
+          </Field>
+          <Field label="Date of Issue"
+            refillRemark={remarkFor(fieldRemarks, "child", "passportIssueDate", childIndex)}>
+            <Input type="date" value={data.passportIssueDate} onChange={(e) => onChange("passportIssueDate", e.target.value)} />
           </Field>
           <Field label="Expiry Date"
             refillRemark={remarkFor(fieldRemarks, "child", "passportExpiry", childIndex)}>
@@ -2107,7 +2143,7 @@ function AccompanyingPersonSingleTab({
           onUpload={onDocUpload}
           onNewFile={() => {
             onChange("passportFullName", ""); onChange("passportNumber", "");
-            onChange("dob", ""); onChange("passportExpiry", "");
+            onChange("dob", ""); onChange("passportIssueDate", ""); onChange("passportExpiry", "");
             onChange("passportNationality", ""); onChange("passportGender", "");
           }}
           onScanComplete={(result) => {
@@ -2126,9 +2162,13 @@ function AccompanyingPersonSingleTab({
             refillRemark={remarkFor(fieldRemarks, "accompanying", "passportNumber", personIndex)}>
             <Input value={data.passportNumber} onChange={(e) => onChange("passportNumber", e.target.value)} placeholder="e.g. AB1234567" />
           </Field>
-          <Field label="Date of Birth"
+          <Field label="Date of Birth" required
             refillRemark={remarkFor(fieldRemarks, "accompanying", "dob", personIndex)}>
             <Input type="date" value={data.dob} onChange={(e) => onChange("dob", e.target.value)} />
+          </Field>
+          <Field label="Date of Issue"
+            refillRemark={remarkFor(fieldRemarks, "accompanying", "passportIssueDate", personIndex)}>
+            <Input type="date" value={data.passportIssueDate} onChange={(e) => onChange("passportIssueDate", e.target.value)} />
           </Field>
           <Field label="Expiry Date"
             refillRemark={remarkFor(fieldRemarks, "accompanying", "passportExpiry", personIndex)}>
@@ -2331,13 +2371,14 @@ function DocumentUploadCard({
   const inputRef                      = useRef<HTMLInputElement>(null);
   const [uploading, setUploading]     = useState(false);
   const [previewUrl, setPreviewUrl]   = useState<string | null>(null);
+  const [previewType, setPreviewType] = useState<"image" | "pdf" | "other">("other");
   const [previewOpen, setPreviewOpen] = useState(false);
-  const previewTypeRef                = useRef<"image" | "pdf" | "other">("other");
   const [scanResult, setScanResult]   = useState<OcrResult | null>(null);
   const [scanError, setScanError]     = useState<string | null>(null);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [scanning, setScanning]         = useState(false);
   const [loadingStored, setLoadingStored] = useState(false);
+  const loadedStoredPathRef             = useRef<string | null>(null);
   const refillRemark = remarkKey ? getPendingRemark(fieldRemarks ?? {}, remarkKey) : undefined;
 
   function processScanResult(result: OcrResult) {
@@ -2361,7 +2402,13 @@ function DocumentUploadCard({
 
   // Load preview for previously uploaded S3 documents on page reload
   useEffect(() => {
-    if (!fileName?.startsWith("client-document/") || uploadedFile) return;
+    if (!isStoredDocumentPath(fileName)) {
+      loadedStoredPathRef.current = null;
+      return;
+    }
+    if (uploadedFile) return;
+    if (loadedStoredPathRef.current === fileName && previewUrl) return;
+
     let objectUrl: string | null = null;
     let cancelled = false;
 
@@ -2377,23 +2424,25 @@ function DocumentUploadCard({
         if (!res.ok || cancelled) return;
         const blob = await res.blob();
         if (cancelled) return;
+        const mediaType = inferStoredDocumentMediaType(fileName, blob.type);
         objectUrl = URL.createObjectURL(blob);
-        setPreviewUrl(objectUrl);
-        previewTypeRef.current = blob.type.startsWith("image/")
-          ? "image"
-          : blob.type === "application/pdf"
-          ? "pdf"
-          : "other";
+        loadedStoredPathRef.current = fileName;
+        setPreviewUrl((prev) => {
+          if (prev) URL.revokeObjectURL(prev);
+          return objectUrl;
+        });
+        setPreviewType(mediaType);
       } finally {
         if (!cancelled) setLoadingStored(false);
       }
     }
 
-    loadStoredPreview();
+    void loadStoredPreview();
     return () => {
       cancelled = true;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fileName, uploadedFile]);
 
   async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
@@ -2405,13 +2454,16 @@ function DocumentUploadCard({
 
     // Build local preview URL
     if (previewUrl) URL.revokeObjectURL(previewUrl);
+    loadedStoredPathRef.current = null;
     const url = URL.createObjectURL(file);
     setPreviewUrl(url);
-    previewTypeRef.current = file.type.startsWith("image/")
-      ? "image"
-      : file.type === "application/pdf"
-      ? "pdf"
-      : "other";
+    setPreviewType(
+      file.type.startsWith("image/")
+        ? "image"
+        : file.type === "application/pdf"
+        ? "pdf"
+        : inferStoredDocumentMediaType(file.name, file.type),
+    );
 
     setUploadedFile(file);
     onFileChange(file.name); // instant UI feedback
@@ -2445,7 +2497,9 @@ function DocumentUploadCard({
   function handleRemove() {
     if (inputRef.current) inputRef.current.value = "";
     if (previewUrl) URL.revokeObjectURL(previewUrl);
+    loadedStoredPathRef.current = null;
     setPreviewUrl(null);
+    setPreviewType("other");
     setPreviewOpen(false);
     setScanResult(null);
     setScanError(null);
@@ -2514,13 +2568,13 @@ function DocumentUploadCard({
                 className="w-full h-44 overflow-hidden rounded-lg bg-gray-100 flex items-center justify-center cursor-pointer"
                 onClick={(e) => { e.stopPropagation(); setPreviewOpen(true); }}
               >
-                {previewUrl && previewTypeRef.current === "image" ? (
+                {previewUrl && previewType === "image" ? (
                   <img
                     src={previewUrl}
                     alt="preview"
                     className="h-full w-full object-cover"
                   />
-                ) : previewUrl && previewTypeRef.current === "pdf" ? (
+                ) : previewUrl && previewType === "pdf" ? (
                   <div className="flex flex-col items-center gap-2 select-none">
                     <FileText className="h-16 w-16 text-red-400" />
                     <span className="text-xs font-medium text-red-400">PDF Document</span>
@@ -2611,6 +2665,7 @@ function DocumentUploadCard({
           const fields: Array<[string, string | undefined]> = [
             ["Name",       d.fullName || undefined],
             ["DOB",        d.dob || undefined],
+            ["Issue",      d.issueDate || undefined],
             ["ID / No.",   d.passportNumber || d.idNumber || undefined],
             ["Expiry",     d.expiryDate || undefined],
             ["Nationality",d.nationality || undefined],
@@ -2704,13 +2759,13 @@ function DocumentUploadCard({
 
             {/* Body */}
             <div className="flex-1 overflow-auto bg-gray-50 flex items-center justify-center p-4">
-              {previewTypeRef.current === "image" ? (
+              {previewType === "image" ? (
                 <img
                   src={previewUrl}
                   alt={displayName}
                   className="max-w-full max-h-[70vh] object-contain rounded-lg shadow"
                 />
-              ) : previewTypeRef.current === "pdf" ? (
+              ) : previewType === "pdf" ? (
                 <iframe
                   src={previewUrl}
                   title={displayName}
@@ -3053,6 +3108,7 @@ function ReviewStep({
         {data.main.studiedInCanada === "yes" && <RR label="Institution" v={data.main.canadaStudyInstitution} />}
         <RR label="Passport Name"     v={data.main.passportFullName} />
         <RR label="Passport No."      v={data.main.passportNumber} />
+        <RR label="Passport Issue"    v={data.main.passportIssueDate} />
         <RR label="Passport Expiry"   v={data.main.passportExpiry} />
         <RR label="Nationality"       v={data.main.passportNationality} />
         <RR label="NIC Number"        v={data.main.nicNumber} />
@@ -3409,7 +3465,7 @@ export function QuestionnaireForm() {
           name: "", dob: "", educationLevel: "",
           passportName: "", governmentIdName: "", governmentIdBackName: "",
           drivingLicenseName: "", drivingLicenseBackName: "",
-          passportFullName: "", passportNumber: "", passportExpiry: "",
+          passportFullName: "", passportNumber: "", passportIssueDate: "", passportExpiry: "",
           passportNationality: "", passportGender: "",
           nicFullName: "", nicNumber: "", nicDob: "", nicAddress: "",
           nicBirthPlace: "", nicIssueDate: "",
@@ -3449,7 +3505,7 @@ export function QuestionnaireForm() {
           fullName: "", dob: "", relationship: "", otherRelationship: "",
           passportName: "", governmentIdName: "", governmentIdBackName: "",
           drivingLicenseName: "", drivingLicenseBackName: "",
-          passportFullName: "", passportNumber: "", passportExpiry: "",
+          passportFullName: "", passportNumber: "", passportIssueDate: "", passportExpiry: "",
           passportNationality: "", passportGender: "",
           nicFullName: "", nicNumber: "", nicDob: "", nicAddress: "",
           nicBirthPlace: "", nicIssueDate: "",

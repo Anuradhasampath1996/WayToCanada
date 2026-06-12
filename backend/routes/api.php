@@ -18,6 +18,20 @@ use App\Http\Controllers\Admin\AdminPaymentGatewayController;
 use App\Http\Controllers\Admin\AdminStripeTestController;
 use App\Http\Controllers\Admin\AdminSubscriptionPackageController;
 use App\Http\Controllers\Admin\AdminSubscriptionPaymentsController;
+use App\Http\Controllers\Admin\AdminLmsController;
+use App\Http\Controllers\Consultant\ConsultantLmsController;
+use App\Http\Controllers\Consultant\ConsultantPaymentAccountController;
+use App\Http\Controllers\Consultant\ConsultantClientPaymentRequestController;
+use App\Http\Controllers\Consultant\ConsultantMeetingAccountController;
+use App\Http\Controllers\Consultant\ConsultantMeetingOAuthController;
+use App\Http\Controllers\Consultant\ConsultantCalendarController;
+use App\Http\Controllers\Consultant\ConsultantClientMeetingController;
+use App\Http\Controllers\Consultant\ConsultantClientActivityController;
+use App\Http\Controllers\Consultant\ConsultantClientTrustController;
+use App\Http\Controllers\Client\ClientTrustController;
+use App\Http\Controllers\Client\ClientLmsController;
+use App\Http\Controllers\PublicPaymentRequestController;
+use App\Http\Controllers\PublicClientMeetingController;
 use App\Http\Controllers\ApplicationPackageController;
 use App\Http\Controllers\SecurePdfController;
 use App\Http\Controllers\AgreementTemplateController;
@@ -29,6 +43,7 @@ use App\Http\Controllers\ClientIrccInteractiveFormController;
 use App\Http\Controllers\ConsultantIrccInteractiveFormController;
 use App\Http\Controllers\ConsultantProfileController;
 use App\Http\Controllers\ConsultantSubscriptionController;
+use App\Http\Controllers\Consultant\ConsultantBillingController;
 use App\Http\Controllers\GstHstController;
 use App\Http\Controllers\CrsController;
 use App\Http\Controllers\DocumentOcrController;
@@ -41,6 +56,10 @@ use App\Http\Controllers\StripePaymentController;
 use App\Http\Controllers\StripeWebhookController;
 use App\Http\Controllers\QuestionnaireController;
 use App\Http\Controllers\QuestionnaireReviewController;
+use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\NotificationPreferenceController;
+use App\Http\Controllers\Admin\AdminBroadcastController;
+use App\Http\Controllers\Admin\AdminIntegrationSettingsController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -74,6 +93,22 @@ Route::prefix('crs')->name('crs.')->group(function () {
     Route::post('calculate', [CrsController::class, 'calculate'])->name('calculate');
     Route::get('draws',  [CrsController::class, 'draws'])->name('draws');
 });
+
+// ── Public: Client payment requests (token-secured, no auth) ─────────────────
+Route::prefix('payment-request')->name('payment-request.public.')->group(function () {
+    Route::get('{token}',                [PublicPaymentRequestController::class, 'show'])->name('show');
+    Route::post('{token}/checkout',      [PublicPaymentRequestController::class, 'checkout'])->name('checkout');
+    Route::post('{token}/confirm-sent', [PublicPaymentRequestController::class, 'confirmSent'])->name('confirm-sent');
+    Route::post('{token}/verify',        [PublicPaymentRequestController::class, 'verify'])->name('verify');
+});
+
+// ── Public: Client meetings (token-secured, no auth) ───────────────────────────
+Route::get('meeting/{token}', [PublicClientMeetingController::class, 'show'])->name('meeting.public.show');
+
+// ── Consultant meeting OAuth callbacks (public — state-validated) ───────────────
+Route::get('consultant/meeting-account/oauth/{provider}/callback', [ConsultantMeetingOAuthController::class, 'callback'])
+    ->where('provider', 'google|zoom|teams')
+    ->name('consultant.meeting-account.oauth.callback');
 
 // ── Public: Case File — agreement (token-secured, no auth) ───────────────────
 Route::prefix('case-file')->name('case-file.public.')->group(function () {
@@ -137,6 +172,16 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('me',      [AuthController::class, 'me'])->name('auth.me');
     Route::post('logout', [AuthController::class, 'logout'])->name('auth.logout');
 
+    // ── In-app notifications (all authenticated users) ────────────────────────
+    Route::prefix('notifications')->name('notifications.')->group(function () {
+        Route::get('/',                    [NotificationController::class, 'index'])->name('index');
+        Route::get('unread-count',         [NotificationController::class, 'unreadCount'])->name('unread-count');
+        Route::post('read-all',            [NotificationController::class, 'markAllRead'])->name('read-all');
+        Route::post('{notification}/read', [NotificationController::class, 'markRead'])->name('read');
+    });
+    Route::get('notification-preferences',  [NotificationPreferenceController::class, 'show'])->name('notification-preferences.show');
+    Route::put('notification-preferences',  [NotificationPreferenceController::class, 'update'])->name('notification-preferences.update');
+
     Route::post('crs/sync', [CrsController::class, 'sync'])->name('crs.sync');
 
     // ── Consultant profile ────────────────────────────────────────────────────
@@ -144,7 +189,24 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('consultant/profile',        [ConsultantProfileController::class, 'update'])->name('consultant.profile.update');
     Route::post('consultant/profile/logo',      [ConsultantProfileController::class, 'uploadLogo'])->name('consultant.profile.logo');
     Route::post('consultant/profile/signature', [ConsultantProfileController::class, 'saveSignature'])->name('consultant.profile.signature');
+
+    // ── Consultant: client payment collection (Stripe Connect / PayPal / Interac) ─
+    Route::prefix('consultant/payment-account')->name('consultant.payment-account.')->group(function () {
+        Route::get('/',                    [ConsultantPaymentAccountController::class, 'show'])->name('show');
+        Route::put('/',                    [ConsultantPaymentAccountController::class, 'update'])->name('update');
+        Route::post('stripe/connect',     [ConsultantPaymentAccountController::class, 'stripeConnect'])->name('stripe.connect');
+        Route::post('stripe/sync',         [ConsultantPaymentAccountController::class, 'stripeSync'])->name('stripe.sync');
+        Route::post('stripe/dashboard',    [ConsultantPaymentAccountController::class, 'stripeDashboard'])->name('stripe.dashboard');
+    });
+
+    Route::prefix('consultant/meeting-account')->name('consultant.meeting-account.')->group(function () {
+        Route::get('/',  [ConsultantMeetingAccountController::class, 'show'])->name('show');
+        Route::put('/',  [ConsultantMeetingAccountController::class, 'update'])->name('update');
+        Route::post('{provider}/connect',    [ConsultantMeetingOAuthController::class, 'connect'])->where('provider', 'google|zoom|teams');
+        Route::post('{provider}/disconnect', [ConsultantMeetingOAuthController::class, 'disconnect'])->where('provider', 'google|zoom|teams');
+    });
     Route::get('consultant/rcic-registry',      [ConsultantProfileController::class, 'rcicRegistry'])->name('consultant.rcic-registry');
+    Route::get('consultant/calendar',           [ConsultantCalendarController::class, 'index'])->name('consultant.calendar');
 
     // ── Consultant agreement template library ─────────────────────────────────
     Route::prefix('consultant/agreement-templates')->name('consultant.agreement-templates.')->group(function () {
@@ -163,6 +225,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('consultant/subscription/start-trial', [ConsultantSubscriptionController::class, 'startTrial'])->name('consultant.subscription.start-trial');
     Route::post('consultant/subscription/subscribe',   [ConsultantSubscriptionController::class, 'subscribe'])->name('consultant.subscription.subscribe');
 
+    Route::prefix('consultant/billing')->name('consultant.billing.')->group(function () {
+        Route::get('/',           [ConsultantBillingController::class, 'show'])->name('show');
+        Route::get('invoices',    [ConsultantBillingController::class, 'invoices'])->name('invoices');
+        Route::post('cancel',     [ConsultantBillingController::class, 'cancel'])->name('cancel');
+    });
+
     // ── Consultant Stripe payment ─────────────────────────────────────────────
     Route::prefix('consultant/payment/stripe')->name('consultant.payment.stripe.')->group(function () {
         Route::get('config',              [StripePaymentController::class, 'config'])->name('config');
@@ -173,6 +241,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // ── Client: own journey dashboard ─────────────────────────────────────────
     Route::get('client/dashboard', [CaseFileController::class, 'clientDashboard'])->name('client.dashboard');
+    Route::get('client/trust', [ClientTrustController::class, 'show'])->name('client.trust.show');
+    Route::post('client/trust/invoices/{invoice}/approve', [ClientTrustController::class, 'approveInvoice'])->name('client.trust.invoices.approve');
     Route::get('client/case-management-hub', [CaseManagementHubController::class, 'clientShow'])->name('client.case-management-hub');
     Route::get('client/package-documents/{document}/stream', [SecurePdfController::class, 'clientPackageDocument'])->name('client.package-documents.stream');
     Route::post('client/package-documents/{document}/submit', [PackageDocumentSubmissionController::class, 'clientSubmit'])->name('client.package-documents.submit');
@@ -183,6 +253,17 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('{form}', [ClientIrccInteractiveFormController::class, 'show'])->name('show');
         Route::put('{form}', [ClientIrccInteractiveFormController::class, 'upsert'])->name('upsert');
         Route::post('{form}/submit', [ClientIrccInteractiveFormController::class, 'submit'])->name('submit');
+    });
+
+    // ── Client: LMS learning portal ─────────────────────────────────────────────
+    Route::prefix('client/lms')->name('client.lms.')->group(function () {
+        Route::get('courses', [ClientLmsController::class, 'myCourses'])->name('courses');
+        Route::get('assignments/{assignment}', [ClientLmsController::class, 'showAssignment'])->name('assignments.show');
+        Route::post('assignments/{assignment}/lessons/{lesson}/complete', [ClientLmsController::class, 'completeLesson'])->name('lessons.complete');
+        Route::get('assignments/{assignment}/quizzes/{quiz}', [ClientLmsController::class, 'showQuiz'])->name('quizzes.show');
+        Route::post('assignments/{assignment}/quizzes/{quiz}/submit', [ClientLmsController::class, 'submitQuiz'])->name('quizzes.submit');
+        Route::get('assignments/{assignment}/exam-attempts/{attempt}', [ClientLmsController::class, 'showExamAttempt'])->name('exam-attempts.show');
+        Route::post('assignments/{assignment}/homework/{homework}/submit', [ClientLmsController::class, 'submitHomework'])->name('homework.submit');
     });
 
     // ── Client: Document uploads ───────────────────────────────────────────────
@@ -234,6 +315,19 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('{profile}/case-file/send-agreement-reminder', [CaseFileController::class, 'sendAgreementReminder'])->name('case-file.send-agreement-reminder');
         Route::get('{profile}/case-file/agreement-pdf',            [CaseFileController::class, 'downloadAgreementPdf'])->name('case-file.agreement-pdf');
         Route::patch('{profile}/case-file/agreement-milestones',  [CaseFileController::class, 'updateAgreementMilestones'])->name('case-file.agreement-milestones');
+
+        // ── Client payment requests ─────────────────────────────────────────────
+        Route::get('{profile}/payment-requests',                              [ConsultantClientPaymentRequestController::class, 'index'])->name('payment-requests.index');
+        Route::post('{profile}/payment-requests',                             [ConsultantClientPaymentRequestController::class, 'store'])->name('payment-requests.store');
+        Route::post('{profile}/payment-requests/{paymentRequest}/cancel',     [ConsultantClientPaymentRequestController::class, 'cancel'])->name('payment-requests.cancel');
+        Route::post('{profile}/payment-requests/{paymentRequest}/mark-paid',  [ConsultantClientPaymentRequestController::class, 'markPaid'])->name('payment-requests.mark-paid');
+        Route::post('{profile}/payment-requests/{paymentRequest}/resend',     [ConsultantClientPaymentRequestController::class, 'resend'])->name('payment-requests.resend');
+
+        Route::get('{profile}/meetings',                          [ConsultantClientMeetingController::class, 'index'])->name('meetings.index');
+        Route::get('{profile}/meetings/availability',             [ConsultantClientMeetingController::class, 'availability'])->name('meetings.availability');
+        Route::post('{profile}/meetings',                         [ConsultantClientMeetingController::class, 'store'])->name('meetings.store');
+        Route::post('{profile}/meetings/{meeting}/cancel',        [ConsultantClientMeetingController::class, 'cancel'])->name('meetings.cancel');
+        Route::post('{profile}/meetings/{meeting}/resend',        [ConsultantClientMeetingController::class, 'resend'])->name('meetings.resend');
         Route::patch('{profile}/case-file/checklist',              [CaseFileController::class, 'updateChecklist'])->name('case-file.checklist');
 
         // ── Document submissions (per-client) ─────────────────────────────────
@@ -260,7 +354,26 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('{profile}/interactive-forms/{form}', [ConsultantIrccInteractiveFormController::class, 'show'])->name('interactive-forms.show');
         Route::patch('{profile}/interactive-forms/{form}/review', [ConsultantIrccInteractiveFormController::class, 'review'])->name('interactive-forms.review');
         Route::patch('{profile}/interactive-forms/{form}/verify-field', [ConsultantIrccInteractiveFormController::class, 'verifyField'])->name('interactive-forms.verify-field');
+
+        // ── LMS: assign courses & track client progress ───────────────────────────
+        Route::get('{profile}/lms', [ConsultantLmsController::class, 'index'])->name('lms.index');
+        Route::post('{profile}/lms/assign', [ConsultantLmsController::class, 'assign'])->name('lms.assign');
+        Route::delete('{profile}/lms/assignments/{assignment}', [ConsultantLmsController::class, 'unassign'])->name('lms.unassign');
+
+        // ── Client Trust Account ledger (CICC-aligned) ───────────────────────────
+        Route::get('{profile}/trust', [ConsultantClientTrustController::class, 'show'])->name('trust.show');
+        Route::post('{profile}/trust/deposit', [ConsultantClientTrustController::class, 'recordDeposit'])->name('trust.deposit');
+        Route::post('{profile}/trust/refund', [ConsultantClientTrustController::class, 'recordRefund'])->name('trust.refund');
+        Route::post('{profile}/trust/milestones/{milestone}/complete', [ConsultantClientTrustController::class, 'completeMilestone'])->name('trust.milestones.complete');
+        Route::post('{profile}/trust/milestones/{milestone}/invoice', [ConsultantClientTrustController::class, 'issueInvoice'])->name('trust.milestones.invoice');
+        Route::post('{profile}/trust/invoices/{invoice}/release', [ConsultantClientTrustController::class, 'releaseInvoice'])->name('trust.invoices.release');
+
+        // ── Activity & compliance audit log ─────────────────────────────────────
+        Route::get('{profile}/activity-log', [ConsultantClientActivityController::class, 'index'])->name('activity-log');
+        Route::get('{profile}/activity-log/pdf', [ConsultantClientActivityController::class, 'downloadPdf'])->name('activity-log.pdf');
     });
+
+    Route::get('consultant/lms/courses', [ConsultantLmsController::class, 'availableCourses'])->name('consultant.lms.courses');
 
     // ── Super Admin Dashboard ────────────────────────────────────────────────
     // Accessible by super-admin only.
@@ -268,6 +381,13 @@ Route::middleware('auth:sanctum')->group(function () {
 
         // Overview stats
         Route::get('stats', [AdminStatsController::class, 'index'])->name('stats');
+
+        // Consultant broadcasts (in-app + email + WhatsApp)
+        Route::prefix('notifications/broadcasts')->name('notifications.broadcasts.')->group(function () {
+            Route::get('/',              [AdminBroadcastController::class, 'index'])->name('index');
+            Route::post('/',             [AdminBroadcastController::class, 'store'])->name('store');
+            Route::post('{broadcast}/send', [AdminBroadcastController::class, 'send'])->name('send');
+        });
 
         // User management
         Route::prefix('users')->name('users.')->group(function () {
@@ -307,6 +427,14 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::put('{gateway}',                  [AdminPaymentGatewayController::class, 'update'])->name('update');
             Route::post('{gateway}/test',           [AdminPaymentGatewayController::class, 'testConnection'])->name('test');
             Route::delete('{gateway}/keys',          [AdminPaymentGatewayController::class, 'clearKeys'])->name('clearKeys');
+        });
+
+        // Integration credentials (Google OAuth, SMTP, Twilio, Zoom, Teams, AWS, OpenAI)
+        Route::prefix('integration-settings')->name('integration-settings.')->group(function () {
+            Route::get('/',                    [AdminIntegrationSettingsController::class, 'index'])->name('index');
+            Route::put('{group}',              [AdminIntegrationSettingsController::class, 'update'])->name('update');
+            Route::delete('{group}',           [AdminIntegrationSettingsController::class, 'clear'])->name('clear');
+            Route::post('mail/test',           [AdminIntegrationSettingsController::class, 'testMail'])->name('mail.test');
         });
 
         // Subscription packages
@@ -395,6 +523,44 @@ Route::middleware('auth:sanctum')->group(function () {
 
         // IRCC news cache — force refresh
         Route::post('ircc-news/refresh', [IrccNewsController::class, 'refresh'])->name('ircc-news.refresh');
+
+        // LMS — categories, courses, modules, lessons, quizzes
+        Route::prefix('lms')->name('lms.')->group(function () {
+            Route::get('categories', [AdminLmsController::class, 'categoriesIndex'])->name('categories.index');
+            Route::post('categories', [AdminLmsController::class, 'categoriesStore'])->name('categories.store');
+            Route::put('categories/{category}', [AdminLmsController::class, 'categoriesUpdate'])->name('categories.update');
+            Route::delete('categories/{category}', [AdminLmsController::class, 'categoriesDestroy'])->name('categories.destroy');
+
+            Route::get('courses', [AdminLmsController::class, 'coursesIndex'])->name('courses.index');
+            Route::post('courses', [AdminLmsController::class, 'coursesStore'])->name('courses.store');
+            Route::get('courses/{course}', [AdminLmsController::class, 'coursesShow'])->name('courses.show');
+            Route::put('courses/{course}', [AdminLmsController::class, 'coursesUpdate'])->name('courses.update');
+            Route::post('courses/{course}/thumbnail', [AdminLmsController::class, 'uploadThumbnail'])->name('courses.thumbnail');
+            Route::delete('courses/{course}', [AdminLmsController::class, 'coursesDestroy'])->name('courses.destroy');
+
+            Route::post('courses/{course}/modules', [AdminLmsController::class, 'modulesStore'])->name('modules.store');
+            Route::put('modules/{module}', [AdminLmsController::class, 'modulesUpdate'])->name('modules.update');
+            Route::delete('modules/{module}', [AdminLmsController::class, 'modulesDestroy'])->name('modules.destroy');
+
+            Route::post('modules/{module}/lessons', [AdminLmsController::class, 'lessonsStore'])->name('lessons.store');
+            Route::put('lessons/{lesson}', [AdminLmsController::class, 'lessonsUpdate'])->name('lessons.update');
+            Route::delete('lessons/{lesson}', [AdminLmsController::class, 'lessonsDestroy'])->name('lessons.destroy');
+
+            Route::post('courses/{course}/quizzes', [AdminLmsController::class, 'quizzesStore'])->name('quizzes.store');
+            Route::put('quizzes/{quiz}', [AdminLmsController::class, 'quizzesUpdate'])->name('quizzes.update');
+            Route::delete('quizzes/{quiz}', [AdminLmsController::class, 'quizzesDestroy'])->name('quizzes.destroy');
+
+            Route::get('courses/{course}/question-bank', [AdminLmsController::class, 'questionBankIndex'])->name('question-bank.index');
+            Route::post('courses/{course}/question-bank', [AdminLmsController::class, 'questionBankStore'])->name('question-bank.store');
+            Route::put('question-bank/{question}', [AdminLmsController::class, 'questionBankUpdate'])->name('question-bank.update');
+            Route::delete('question-bank/{question}', [AdminLmsController::class, 'questionBankDestroy'])->name('question-bank.destroy');
+            Route::post('courses/{course}/question-bank/import', [AdminLmsController::class, 'questionBankImport'])->name('question-bank.import');
+            Route::get('courses/{course}/question-bank/export', [AdminLmsController::class, 'questionBankExport'])->name('question-bank.export');
+
+            Route::get('courses/{course}/homework', [AdminLmsController::class, 'homeworkIndex'])->name('homework.index');
+            Route::post('courses/{course}/homework', [AdminLmsController::class, 'homeworkStore'])->name('homework.store');
+            Route::delete('homework/{homework}', [AdminLmsController::class, 'homeworkDestroy'])->name('homework.destroy');
+        });
     });
 });
 

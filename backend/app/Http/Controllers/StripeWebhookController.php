@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ClientPaymentRequest;
 use App\Models\ConsultantSubscription;
 use App\Models\PaymentGatewaySetting;
+use App\Services\ClientPaymentRequestService;
 use App\Services\StripeService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -57,6 +59,12 @@ class StripeWebhookController extends Controller
 
     private function handleCheckoutCompleted(object $session): void
     {
+        if (($session->mode ?? '') === 'payment') {
+            $this->handleClientPaymentCheckout($session);
+
+            return;
+        }
+
         if (($session->mode ?? '') !== 'subscription') {
             return;
         }
@@ -70,6 +78,30 @@ class StripeWebhookController extends Controller
         // This handler is a backup if the user closes the browser before return.
         Log::info('[Stripe] checkout.session.completed — awaiting verify-session or manual sync', [
             'session_id' => $session->id,
+        ]);
+    }
+
+    private function handleClientPaymentCheckout(object $session): void
+    {
+        $requestId = $session->metadata->payment_request_id ?? null;
+        if (! $requestId) {
+            return;
+        }
+
+        $paymentRequest = ClientPaymentRequest::find($requestId);
+        if (! $paymentRequest || $paymentRequest->status === 'paid') {
+            return;
+        }
+
+        if (($session->payment_status ?? '') !== 'paid') {
+            return;
+        }
+
+        app(ClientPaymentRequestService::class)->markPaid($paymentRequest);
+
+        Log::info('[Stripe] Client payment request marked paid', [
+            'payment_request_id' => $paymentRequest->id,
+            'session_id'         => $session->id,
         ]);
     }
 

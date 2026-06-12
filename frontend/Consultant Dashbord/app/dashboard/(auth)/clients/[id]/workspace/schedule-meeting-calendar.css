@@ -1,0 +1,92 @@
+.schedule-meeting-calendar {
+  --fc-small-font-size: 0.75rem;
+  --fc-page-bg-color: transparent;
+  --fc-neutral-bg-color: color-mix(in oklch, var(--muted) 35%, transparent);
+  --fc-neutral-text-color: var(--muted-foreground);
+  --fc-border-color: var(--border);
+  --fc-button-text-color: var(--primary-foreground);
+  --fc-button-bg-color: var(--primary);
+  --fc-button-border-color: var(--primary);
+  --fc-button-hover-bg-color: color-mix(in oklch, var(--primary) 90%, black);
+  --fc-button-hover-border-color: color-mix(in oklch, var(--primary) 90%, black);
+  --fc-button-active-bg-color: color-mix(in oklch, var(--primary) 82%, black);
+  --fc-button-active-border-color: color-mix(in oklch, var(--primary) 82%, black);
+  --fc-today-bg-color: color-mix(in oklch, var(--primary) 6%, transparent);
+  --fc-now-indicator-color: var(--primary);
+  --fc-highlight-color: color-mix(in oklch, var(--primary) 14%, transparent);
+  --fc-bg-event-opacity: 0.55;
+}
+
+.schedule-meeting-calendar .fc {
+  height: 100%;
+  font-size: 0.8125rem;
+}
+
+.schedule-meeting-calendar .fc .fc-toolbar {
+  gap: 0.5rem;
+  margin-bottom: 0.75rem !important;
+}
+
+.schedule-meeting-calendar .fc .fc-toolbar-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+.schedule-meeting-calendar .fc .fc-button {
+  border-radius: 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  padding: 0.35rem 0.65rem;
+  box-shadow: none;
+  text-transform: capitalize;
+}
+
+.schedule-meeting-calendar .fc .fc-button:focus {
+  box-shadow: 0 0 0 2px color-mix(in oklch, var(--ring) 35%, transparent);
+}
+
+.schedule-meeting-calendar .fc .fc-col-header-cell-cushion,
+.schedule-meeting-calendar .fc .fc-timegrid-axis-cushion {
+  color: var(--muted-foreground);
+  font-size: 0.7rem;
+  font-weight: 500;
+}
+
+.schedule-meeting-calendar .fc .fc-timegrid-slot {
+  height: 2.25rem;
+}
+
+.schedule-meeting-calendar .fc .fc-timegrid-slot-label-cushion {
+  color: var(--muted-foreground);
+  font-size: 0.68rem;
+}
+
+.schedule-meeting-calendar .fc .fc-scrollgrid {
+  border-radius: 0.65rem;
+  overflow: hidden;
+}
+
+.schedule-meeting-calendar .fc .fc-scrollgrid-section > * {
+  border-color: color-mix(in oklch, var(--border) 80%, transparent);
+}
+
+.schedule-meeting-calendar .fc-busy-client {
+  background: repeating-linear-gradient(
+    -45deg,
+    rgb(251 191 36 / 0.35),
+    rgb(251 191 36 / 0.35) 6px,
+    rgb(251 191 36 / 0.2) 6px,
+    rgb(251 191 36 / 0.2) 12px
+  ) !important;
+}
+
+.schedule-meeting-calendar .fc-busy-google {
+  background: repeating-linear-gradient(
+    -45deg,
+    rgb(148 163 184 / 0.28),
+    rgb(148 163 184 / 0.28) 6px,
+    rgb(148 163 184 / 0.14) 6px,
+    rgb(148 163 184 / 0.14) 12px
+  ) !important;
+}

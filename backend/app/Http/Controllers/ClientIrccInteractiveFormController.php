@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\CaseFile;
 use App\Models\IrccInteractiveForm;
 use App\Models\IrccInteractiveFormResponse;
+use App\Services\ClientActivity\ClientActivityTriggers;
 use App\Services\QuestionnaireFormPrefillService;
 use App\Support\IrccInteractiveFormSchema;
 use Illuminate\Http\JsonResponse;
@@ -12,6 +13,10 @@ use Illuminate\Http\Request;
 
 class ClientIrccInteractiveFormController extends Controller
 {
+    public function __construct(
+        private ClientActivityTriggers $activity,
+    ) {}
+
     /** GET /api/v1/client/interactive-forms */
     public function index(Request $request): JsonResponse
     {
@@ -142,6 +147,11 @@ class ClientIrccInteractiveFormController extends Controller
             'status'        => IrccInteractiveFormResponse::STATUS_SUBMITTED,
             'submitted_at'  => now(),
         ]);
+
+        $profile = $request->user()->clientProfile;
+        if ($profile) {
+            $this->activity->onIrccFormSubmitted($profile, $form->title, $request->user(), $request);
+        }
 
         return response()->json([
             'message' => 'Form submitted successfully.',

@@ -6,6 +6,8 @@ use App\Models\CaseFile;
 use App\Models\CaseMessage;
 use App\Models\ClientProfile;
 use App\Services\IrccInteractiveFormVerificationService;
+use App\Services\ClientActivity\ClientActivityTriggers;
+use App\Services\Notifications\WorkspaceNotificationTriggers;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -13,6 +15,8 @@ class CaseMessagingController extends Controller
 {
     public function __construct(
         private IrccInteractiveFormVerificationService $verificationService,
+        private WorkspaceNotificationTriggers $notify,
+        private ClientActivityTriggers $activity,
     ) {}
     /**
      * GET /api/v1/consultant/clients/{profile}/messages
@@ -69,6 +73,9 @@ class CaseMessagingController extends Controller
             'message'      => $request->input('message'),
         ]);
 
+        $this->notify->onNewMessage($msg, $caseFile);
+        $this->activity->onMessage($msg, $caseFile, $request);
+
         return response()->json([
             'message' => $this->formatMessage($msg->fresh()->load('sender:id,name')),
         ], 201);
@@ -97,6 +104,9 @@ class CaseMessagingController extends Controller
             'sender_type'  => 'client',
             'message'      => $request->input('message'),
         ]);
+
+        $this->notify->onNewMessage($msg, $caseFile);
+        $this->activity->onMessage($msg, $caseFile, $request);
 
         return response()->json([
             'message' => $this->formatMessage($msg->fresh()->load('sender:id,name')),

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\ClientProfile;
 use App\Models\User;
+use App\Services\ClientActivity\ClientActivityTriggers;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -15,6 +16,10 @@ use Illuminate\Validation\Rule;
 
 class ClientController extends Controller
 {
+    public function __construct(
+        private ClientActivityTriggers $activity,
+    ) {}
+
     // ── List clients ───────────────────────────────────────────────────────────
 
     /**
@@ -109,6 +114,7 @@ class ClientController extends Controller
             // 4. Send invitation email (outside the transaction so a mail failure doesn't roll back)
         if ($shouldSendInvite) {
             $this->sendInvitationEmail($result['user'], $plainPassword, $consultant);
+            $this->activity->onClientInvited($result['profile'], $consultant, $request);
         }
         } catch (\Illuminate\Database\UniqueConstraintViolationException $e) {
             return response()->json([
@@ -220,6 +226,7 @@ class ClientController extends Controller
         $profile->update(['invited_at' => now()]);
 
         $this->sendInvitationEmail($profile->user, $plainPassword, $request->user());
+        $this->activity->onClientInvited($profile, $request->user(), $request);
 
         return response()->json(['message' => 'Invitation resent.']);
     }

@@ -91,11 +91,11 @@ export default function UserMenu() {
             <BadgeCheck />
             Account
           </DropdownMenuItem>
-          <DropdownMenuItem>
+          <DropdownMenuItem onClick={() => router.push("/dashboard/billing")} className="cursor-pointer">
             <CreditCard />
             Billing
           </DropdownMenuItem>
-          <DropdownMenuItem>
+          <DropdownMenuItem onClick={() => router.push("/dashboard/account#notifications")} className="cursor-pointer">
             <Bell />
             Notifications
           </DropdownMenuItem>

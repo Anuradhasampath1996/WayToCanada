@@ -107,11 +107,11 @@ export function NavUser() {
                 <UserCircle2Icon />
                 Account
               </DropdownMenuItem>
-              <DropdownMenuItem>
+              <DropdownMenuItem onClick={() => router.push("/dashboard/billing")} className="cursor-pointer">
                 <CreditCardIcon />
                 Billing
               </DropdownMenuItem>
-              <DropdownMenuItem>
+              <DropdownMenuItem onClick={() => router.push("/dashboard/account#notifications")} className="cursor-pointer">
                 <BellIcon />
                 Notifications
               </DropdownMenuItem>

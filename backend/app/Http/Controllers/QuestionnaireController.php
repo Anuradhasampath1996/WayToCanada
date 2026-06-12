@@ -2,7 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ClientProfile;
 use App\Models\QuestionnaireSubmission;
+use App\Services\ClientActivity\ClientActivityTriggers;
+use App\Services\Notifications\WorkspaceNotificationTriggers;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -10,6 +13,10 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class QuestionnaireController extends Controller
 {
+    public function __construct(
+        private WorkspaceNotificationTriggers $notify,
+        private ClientActivityTriggers $activity,
+    ) {}
     // ── GET /questionnaire ─────────────────────────────────────────────────────
     // Load the authenticated user's saved draft (or null if none yet).
 
@@ -59,11 +66,24 @@ class QuestionnaireController extends Controller
             return response()->json(['message' => 'No questionnaire found. Please save first.'], 422);
         }
 
+        $wasSubmitted = $submission->is_submitted;
+
         if (! $submission->is_submitted) {
             $submission->update([
                 'is_submitted' => true,
                 'submitted_at' => now(),
             ]);
+        }
+
+        if (! $wasSubmitted) {
+            $profile = ClientProfile::where('user_id', $request->user()->id)->first();
+            if ($profile?->consultant_id) {
+                $consultant = $profile->consultant;
+                if ($consultant) {
+                    $this->notify->onQuestionnaireSubmitted($request->user(), $consultant, $profile->id);
+                    $this->activity->onQuestionnaireSubmitted($profile, $request->user(), $request);
+                }
+            }
         }
 
         return response()->json(['message' => 'Questionnaire submitted successfully.']);

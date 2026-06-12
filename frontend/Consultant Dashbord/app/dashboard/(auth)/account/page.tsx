@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { generateMeta } from "@/lib/utils";
 import { AccountClient } from "./account-client";
 
@@ -10,5 +11,9 @@ export async function generateMetadata() {
 }
 
 export default function AccountPage() {
-  return <AccountClient />;
+  return (
+    <Suspense fallback={<div className="p-6 text-sm text-muted-foreground">Loading account…</div>}>
+      <AccountClient />
+    </Suspense>
+  );
 }

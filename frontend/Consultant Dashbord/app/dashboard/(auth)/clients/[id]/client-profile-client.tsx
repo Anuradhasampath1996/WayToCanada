@@ -39,6 +39,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
+import { ClientActivityReport } from "./client-activity-report";
+import { ClientTrustLedgerPanel } from "./client-trust-ledger-panel";
 
 const API = (process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000") + "/api/v1";
 
@@ -692,6 +694,10 @@ export function ClientProfilePageClient({ paramsPromise }: { paramsPromise: Prom
           </Card>
         </aside>
       </div>
+
+      <ClientTrustLedgerPanel clientId={client.id} />
+
+      <ClientActivityReport clientId={client.id} />
 
       <AlertDialog open={deleting} onOpenChange={setDeleting}>
         <AlertDialogContent>

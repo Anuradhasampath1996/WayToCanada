@@ -83,6 +83,24 @@ class PassportParser(BaseParser):
     _GENDER       = re.compile(r"(?:SEX|GENDER)"      + r"(?:[^\n]{0,80}\n(?:[^\x00-\x7F][^\n]*\n)*[ \t]*|[:\-]?[ \t]+)" + r"(MALE|FEMALE|M|F)\b", re.I)
     _EXPIRY_DATE  = re.compile(r"(?:DATE[ \t]+OF[ \t]+EXPIRY|DATE[ \t]+OF[ \t]+EXPIRATION|EXPIRY[ \t]*DATE|EXPIRY)" + _SEP + r"([0-9][^\n]{4,11})", re.I)
     _DOB_LABEL    = re.compile(r"(?:DATE[ \t]+OF[ \t]+BIRTH|BIRTH[ \t]*DATE|DOB)"                    + _SEP + r"([0-9][^\n]{4,11})", re.I)
+    _ISSUE_DATE   = re.compile(r"(?:DATE[ \t]+OF[ \t]+ISSUE|DATE[ \t]+OF[ \t]+ISSUANCE|ISSUE[ \t]*DATE|ISSUED[ \t]*ON)" + _SEP + r"([0-9][^\n]{4,11})", re.I)
+    # Same-line: "Date of Issue 27/05/2021" (no newline before value)
+    _ISSUE_SAME_LINE = re.compile(
+        r"DATE[ \t]+OF[ \t]+ISSUE[ \t:/\-]*(\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4})",
+        re.I,
+    )
+    # LKA-style paired row: Issue + Expiry labels on one line, two dates on the next
+    _ISSUE_EXPIRY_ROW = re.compile(
+        r"DATE[ \t]+OF[ \t]+ISSUE"
+        r"(?:[^\n]*)"
+        r"DATE[ \t]+OF[ \t]+EXPIR"
+        r"[^\n]*\n"
+        r"[^\d]*"
+        r"(\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4})"
+        r"\s+"
+        r"(\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4})",
+        re.I,
+    )
 
     # Flexible MRZ line-2: handles OCR output where '<' fillers are dropped/spaced.
     # Captures: (passport_num)(nationality)(dob_yymmdd)(sex)(expiry_yymmdd)
@@ -124,6 +142,7 @@ class PassportParser(BaseParser):
                 m_nat = self._NATIONALITY.search(text)
                 if m_nat:
                     mrz_result.nationality = m_nat.group(1).strip().title()
+            self._supplement_issue_date(text, mrz_result)
             return mrz_result
 
         # Strategy 2: printed-field extraction
@@ -147,7 +166,67 @@ class PassportParser(BaseParser):
                 if remaining:
                     data.expiryDate = remaining[-1]
 
+        self._supplement_issue_date(text, data)
         return data
+
+    # ── Issue-date supplement ───────────────────────────────────────────────────
+
+    @staticmethod
+    def _is_valid_iso_date(value: str) -> bool:
+        return bool(re.fullmatch(r"\d{4}-\d{2}-\d{2}", value))
+
+    def _collect_normalized_dates(self, text: str) -> list[str]:
+        seen: list[str] = []
+        for raw in self._DATE_PAT.findall(text):
+            norm = self.normalize_date(raw)
+            if self._is_valid_iso_date(norm) and norm not in seen:
+                seen.append(norm)
+        return seen
+
+    def _supplement_issue_date(self, text: str, data: ExtractedData) -> None:
+        """Fill issueDate from printed labels or by inferring from extra dates on the page."""
+        if data.issueDate:
+            return
+
+        pair = self._ISSUE_EXPIRY_ROW.search(text)
+        if pair:
+            issue = self.normalize_date(pair.group(1).strip())
+            expiry = self.normalize_date(pair.group(2).strip())
+            if self._is_valid_iso_date(issue):
+                data.issueDate = issue
+            if not data.expiryDate and self._is_valid_iso_date(expiry):
+                data.expiryDate = expiry
+            if data.issueDate:
+                return
+
+        for pattern in (self._ISSUE_DATE, self._ISSUE_SAME_LINE):
+            m = pattern.search(text)
+            if m:
+                norm = self.normalize_date(m.group(1).strip())
+                if self._is_valid_iso_date(norm):
+                    data.issueDate = norm
+                    return
+
+        known = {d for d in (data.dob, data.expiryDate) if d}
+        if len(known) < 2:
+            return
+
+        candidates = [d for d in self._collect_normalized_dates(text) if d not in known]
+        if not candidates:
+            return
+        if len(candidates) == 1:
+            data.issueDate = candidates[0]
+            return
+
+        dob, exp = data.dob, data.expiryDate
+        between = sorted(d for d in candidates if dob < d < exp)
+        if between:
+            data.issueDate = between[0]
+            return
+
+        after_dob = sorted(d for d in candidates if d > dob and d != exp)
+        if after_dob:
+            data.issueDate = after_dob[0]
 
     # ── MRZ extraction ────────────────────────────────────────────────────────
 
@@ -314,5 +393,9 @@ class PassportParser(BaseParser):
         me = self._EXPIRY_DATE.search(text)
         if me:
             data.expiryDate = self.normalize_date(me.group(1).strip())
+
+        mi = self._ISSUE_DATE.search(text)
+        if mi:
+            data.issueDate = self.normalize_date(mi.group(1).strip())
 
         return data
