@@ -65,10 +65,12 @@ docker exec wtc_postgres psql -U postgres -tc "SELECT 1 FROM pg_database WHERE d
 
 echo ">>> Reloading nginx (if permitted)..."
 if sudo -n cp deploy/nginx/rcicmaster.conf /etc/nginx/sites-available/rcicmaster.com 2>/dev/null; then
+  sudo -n rm -f /etc/nginx/sites-enabled/lightersmenia.com /etc/nginx/sites-available/lightersmenia.com
   sudo -n ln -sf /etc/nginx/sites-available/rcicmaster.com /etc/nginx/sites-enabled/rcicmaster.com
-  echo ">>> Nginx config updated"
+  echo ">>> Nginx config updated (rcicmaster.com; old lightersmenia site removed)"
 else
-  echo ">>> Nginx config copy skipped (github-actions has no sudo for cp) — using existing config"
+  echo ">>> Nginx config copy skipped (github-actions has no sudo for cp) — run manually:"
+  echo "    sudo bash /opt/waytocanada/deploy/fix-domain-nginx.sh"
 fi
 
 if sudo -n /usr/sbin/nginx -t 2>/dev/null; then
