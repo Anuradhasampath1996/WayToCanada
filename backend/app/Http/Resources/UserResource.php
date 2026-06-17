@@ -20,6 +20,8 @@ class UserResource extends JsonResource
             'is_license_verified' => $this->is_license_verified,
             'locale'              => $this->locale,
             'roles'               => $this->getRoleNames(),
+            'has_password'        => $this->hasPassword(),
+            'auth_providers'      => $this->authProviders(),
             'created_at'          => $this->created_at?->toIso8601String(),
         ];
     }

@@ -39,14 +39,21 @@ function Start-Frontend {
     Start-DevWindow -Title "WTC: $Title" -Command $cmd
 }
 
-Write-Host ">>> Starting Docker (Postgres, LocalStack, OCR)..." -ForegroundColor Yellow
+Write-Host ">>> Checking Windows PostgreSQL (db_cws on :5432)..." -ForegroundColor Yellow
+& powershell -ExecutionPolicy Bypass -File (Join-Path $Root "scripts\verify-local-database.ps1")
+if ($LASTEXITCODE -ne 0) {
+    Write-Host ">>> Fix backend/.env — see scripts/LOCAL-DEV-DATABASE.md" -ForegroundColor Red
+    exit 1
+}
+
+Write-Host ">>> Starting Docker (OCR, LocalStack — not app database)..." -ForegroundColor Yellow
 Push-Location $Root
 docker compose -f docker-compose.dev.yml up -d
 Pop-Location
 
-Write-Host ">>> Waiting for Postgres..." -ForegroundColor Yellow
-for ($i = 1; $i -le 30; $i++) {
-    docker exec wtc_postgres_dev pg_isready -U postgres 2>$null | Out-Null
+Write-Host ">>> Waiting for Docker OCR stack..." -ForegroundColor Yellow
+for ($i = 1; $i -le 15; $i++) {
+    docker info 2>$null | Out-Null
     if ($LASTEXITCODE -eq 0) { break }
     Start-Sleep -Seconds 2
 }
@@ -61,27 +68,13 @@ Push-Location $backend
 if (-not (Select-String -Path ".env" -Pattern "^APP_KEY=base64:" -Quiet)) {
     php artisan key:generate --force | Out-Null
 }
-$env:DB_CWS_PORT = "5433"
-$env:DB_LMS_PORT = "5433"
-$env:DB_LEGAL_PORT = "5433"
-$env:DB_CWS_HOST = "127.0.0.1"
-$env:DB_LMS_HOST = "127.0.0.1"
-$env:DB_LEGAL_HOST = "127.0.0.1"
-$env:DB_CWS_PASSWORD = "secret"
-$env:DB_LMS_PASSWORD = "secret"
-$env:DB_LEGAL_PASSWORD = "secret"
-$env:DB_CWS_USERNAME = "postgres"
-$env:DB_LMS_USERNAME = "postgres"
-$env:DB_LEGAL_USERNAME = "postgres"
+# Uses backend/.env — do NOT override DB to Docker 5433 / db_cws_test
 php artisan migrate --force 2>$null
 php artisan db:seed --class=RolesAndPermissionsSeeder --force 2>$null
 Pop-Location
 
-Write-Host ">>> Starting Laravel API + queue..." -ForegroundColor Yellow
+Write-Host ">>> Starting Laravel API + queue (database from backend/.env)..." -ForegroundColor Yellow
 $apiEnv = @"
-`$env:DB_CWS_PORT='5433'; `$env:DB_LMS_PORT='5433'; `$env:DB_LEGAL_PORT='5433';
-`$env:DB_CWS_HOST='127.0.0.1'; `$env:DB_LMS_HOST='127.0.0.1'; `$env:DB_LEGAL_HOST='127.0.0.1';
-`$env:DB_CWS_PASSWORD='secret'; `$env:DB_CWS_USERNAME='postgres';
 cd '$backend'; php artisan serve --host=127.0.0.1 --port=8000
 "@
 Start-DevWindow -Title "WTC: API :8000" -Command $apiEnv
@@ -134,5 +127,6 @@ Write-Host "  Consultant website:   http://localhost:3003"
 Write-Host "  Consultant dashboard:   http://localhost:3005"
 Write-Host "  OCR service:          http://127.0.0.1:8001"
 Write-Host ""
+Write-Host "Database: Windows PostgreSQL db_cws @ 127.0.0.1:5432 (see scripts/LOCAL-DEV-DATABASE.md)" -ForegroundColor Cyan
 Write-Host "Each service runs in its own PowerShell window." -ForegroundColor Cyan
 Write-Host "Stop Docker: docker compose -f docker-compose.dev.yml down" -ForegroundColor DarkGray

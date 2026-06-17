@@ -10,28 +10,31 @@ import {
 export function DashboardMockup() {
   return (
     <div className="relative mx-auto w-full max-w-lg">
-      <div className="absolute -inset-4 rounded-3xl bg-gradient-to-br from-emerald-500/20 via-teal-500/10 to-transparent blur-2xl" />
-      <div className="relative overflow-hidden rounded-2xl border border-border/80 bg-card shadow-2xl shadow-emerald-500/10">
-        <div className="flex items-center gap-2 border-b border-border bg-muted/50 px-4 py-3">
+      <div className="landing-shimmer-border absolute -inset-[1px] rounded-[1.6rem] opacity-50" />
+      <div className="relative overflow-hidden rounded-3xl border border-white/70 bg-card landing-card-glow">
+        <div className="flex items-center gap-2 border-b border-border/60 bg-gradient-to-r from-muted/90 to-muted/50 px-4 py-3">
           <div className="flex gap-1.5">
-            <span className="h-2.5 w-2.5 rounded-full bg-red-400" />
-            <span className="h-2.5 w-2.5 rounded-full bg-amber-400" />
-            <span className="h-2.5 w-2.5 rounded-full bg-emerald-400" />
+            <span className="h-2.5 w-2.5 rounded-full bg-red-400/90" />
+            <span className="h-2.5 w-2.5 rounded-full bg-amber-400/90" />
+            <span className="h-2.5 w-2.5 rounded-full bg-emerald-400/90" />
           </div>
-          <span className="ml-2 text-xs text-muted-foreground">portal.rcicmaster.com</span>
+          <span className="ml-2 rounded-md bg-background/80 px-2 py-0.5 text-xs text-muted-foreground">
+            dashboard.waytocanada.ca
+          </span>
         </div>
 
-        <div className="flex min-h-[320px]">
-          <aside className="hidden w-14 shrink-0 border-r border-border bg-muted/30 p-2 sm:block">
-            <div className="mb-4 flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-600 text-white">
+        <div className="flex min-h-[340px] bg-gradient-to-br from-background via-background to-emerald-50/30">
+          <aside className="hidden w-14 shrink-0 border-r border-border/60 bg-muted/20 p-2 sm:block">
+            <div className="mb-4 flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-600 to-teal-600 text-white shadow-md">
               <Briefcase className="h-4 w-4" />
             </div>
             {[LayoutDashboard, Users, FileText, MessageSquare, Bell].map((Icon, i) => (
               <div
                 key={i}
-                className={`mb-2 flex h-8 w-8 items-center justify-center rounded-lg ${
+                className={`mb-2 flex h-8 w-8 items-center justify-center rounded-lg transition-colors ${
                   i === 0 ? "bg-emerald-600/15 text-emerald-700" : "text-muted-foreground"
-                }`}>
+                }`}
+              >
                 <Icon className="h-4 w-4" />
               </div>
             ))}
@@ -39,40 +42,44 @@ export function DashboardMockup() {
 
           <div className="flex-1 p-4 sm:p-5">
             <p className="text-xs font-medium text-muted-foreground">Good morning, RCIC</p>
-            <h3 className="mt-1 text-lg font-bold">Your practice at a glance</h3>
+            <h3 className="mt-1 text-xl font-bold tracking-tight">Your practice at a glance</h3>
 
-            <div className="mt-4 grid grid-cols-2 gap-2">
+            <div className="mt-4 grid grid-cols-2 gap-2.5">
               {[
-                { label: "Active clients", value: "24", color: "text-emerald-600" },
-                { label: "Due this week", value: "6", color: "text-amber-600" },
-                { label: "Cases in review", value: "11", color: "text-sky-600" },
-                { label: "New leads", value: "3", color: "text-violet-600" },
+                { label: "Active clients", value: "24", color: "text-emerald-600", bg: "bg-emerald-500/5" },
+                { label: "Due this week", value: "6", color: "text-amber-600", bg: "bg-amber-500/5" },
+                { label: "In review", value: "11", color: "text-sky-600", bg: "bg-sky-500/5" },
+                { label: "New leads", value: "3", color: "text-violet-600", bg: "bg-violet-500/5" },
               ].map((s) => (
-                <div key={s.label} className="rounded-xl border border-border/80 bg-background p-3">
-                  <p className={`text-xl font-bold ${s.color}`}>{s.value}</p>
+                <div key={s.label} className={`rounded-xl border border-border/60 ${s.bg} p-3`}>
+                  <p className={`text-2xl font-extrabold ${s.color}`}>{s.value}</p>
                   <p className="text-[10px] text-muted-foreground sm:text-xs">{s.label}</p>
                 </div>
               ))}
             </div>
 
-            <div className="mt-3 space-y-2">
+            <div className="mt-4 space-y-2">
               {["Express Entry — Document review", "Study permit — Client message", "PR application — Deadline Fri"].map(
                 (item, i) => (
                   <div
                     key={item}
-                    className="flex items-center gap-2 rounded-lg border border-border/60 bg-muted/20 px-3 py-2 text-xs">
-                    <span
-                      className={`h-1.5 w-1.5 shrink-0 rounded-full ${
-                        i === 0 ? "bg-emerald-500" : i === 1 ? "bg-sky-500" : "bg-amber-500"
-                      }`}
-                    />
-                    <span className="truncate text-foreground/90">{item}</span>
+                    className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-xs ${
+                      i === 0 ? "border-emerald-500/30 bg-emerald-500/10" : "border-border/70 bg-background/80"
+                    }`}
+                  >
+                    <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${i === 0 ? "bg-emerald-500" : "bg-muted-foreground/40"}`} />
+                    <span className="truncate font-medium">{item}</span>
                   </div>
-                )
+                ),
               )}
             </div>
           </div>
         </div>
+      </div>
+
+      <div className="landing-float-delayed absolute -bottom-4 -left-4 hidden rounded-2xl border border-emerald-500/20 bg-white/90 px-4 py-3 shadow-xl backdrop-blur sm:block">
+        <p className="text-xs text-muted-foreground">New client invite</p>
+        <p className="text-sm font-semibold text-emerald-700">Accepted ✓</p>
       </div>
     </div>
   );

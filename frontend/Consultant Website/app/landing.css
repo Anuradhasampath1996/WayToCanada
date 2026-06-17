@@ -1,0 +1,95 @@
+/* Consultant marketing site — premium landing utilities */
+
+@keyframes landing-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-12px); }
+}
+
+@keyframes landing-shimmer {
+  0% { background-position: 200% center; }
+  100% { background-position: -200% center; }
+}
+
+@keyframes landing-fade-up {
+  from { opacity: 0; transform: translateY(24px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes landing-pulse-ring {
+  0%, 100% { opacity: 0.4; transform: scale(1); }
+  50% { opacity: 0.15; transform: scale(1.05); }
+}
+
+.landing-mesh {
+  background-color: #fafdfb;
+  background-image:
+    radial-gradient(ellipse 90% 60% at 10% -10%, rgba(16, 185, 129, 0.22), transparent 55%),
+    radial-gradient(ellipse 70% 50% at 90% 0%, rgba(20, 184, 166, 0.14), transparent 50%),
+    radial-gradient(ellipse 50% 40% at 50% 100%, rgba(16, 185, 129, 0.08), transparent 60%);
+}
+
+.landing-grid-pattern {
+  background-image:
+    linear-gradient(rgba(16, 185, 129, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(16, 185, 129, 0.04) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(ellipse 80% 70% at 50% 30%, black 20%, transparent 75%);
+}
+
+.landing-gradient-text {
+  background: linear-gradient(135deg, #047857 0%, #0d9488 45%, #059669 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.landing-shimmer-border {
+  background: linear-gradient(90deg, #10b981, #14b8a6, #34d399, #10b981);
+  background-size: 200% auto;
+  animation: landing-shimmer 4s linear infinite;
+}
+
+.landing-float {
+  animation: landing-float 6s ease-in-out infinite;
+}
+
+.landing-float-delayed {
+  animation: landing-float 6s ease-in-out 2s infinite;
+}
+
+.landing-fade-up {
+  animation: landing-fade-up 0.7s ease-out both;
+}
+
+.landing-glass {
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+}
+
+.landing-card-glow {
+  box-shadow:
+    0 0 0 1px rgba(16, 185, 129, 0.08),
+    0 4px 24px -4px rgba(16, 185, 129, 0.12),
+    0 24px 48px -24px rgba(0, 0, 0, 0.08);
+}
+
+.landing-section-alt {
+  background: linear-gradient(180deg, rgba(240, 253, 250, 0.5) 0%, rgba(255, 255, 255, 0) 100%);
+}
+
+.landing-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(60px);
+  pointer-events: none;
+  animation: landing-pulse-ring 8s ease-in-out infinite;
+}
+
+.feature-scroll-nav-active {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.12), rgba(20, 184, 166, 0.08));
+  border-color: rgba(16, 185, 129, 0.35);
+  color: #047857;
+  font-weight: 600;
+}

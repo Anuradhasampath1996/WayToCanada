@@ -219,6 +219,37 @@ sudo ufw status
 | `git fetch` Permission denied (publickey) | Add `~/.ssh/github_deploy.pub` as a **Deploy key** under repo Settings → Deploy keys (see Step 2 above) |
 | Permission denied (docker) | `sudo usermod -aG docker github-actions` then re-login |
 | Domain not resolving | Confirm A records and wait for DNS propagation |
+| `rcicmaster.com` redirects to `lightersmenia.com` | Old nginx config on EC2 — run `sudo bash /opt/waytocanada/deploy/fix-domain-nginx.sh` |
+| `www.rcicmaster.com` does not resolve | Add **A record** `www` → EC2 public IP in Namecheap DNS |
+
+### Fix: rcicmaster.com → lightersmenia.com redirect
+
+EC2 nginx still has the old `lightersmenia` site enabled. On the server:
+
+```bash
+ssh ubuntu@<EC2_IP>
+cd /opt/waytocanada && git pull origin main
+sudo bash deploy/fix-domain-nginx.sh
+```
+
+Or trigger GitHub Actions workflow **Fix nginx domain (rcicmaster)** (`fix-nginx-domain.yml`) after pushing this repo.
+
+Verify:
+
+```bash
+curl -sI -H 'Host: rcicmaster.com' http://127.0.0.1/ | grep -i location
+# Expected: Location: http://www.rcicmaster.com/
+```
+
+Also add DNS **A records** in Namecheap (all → EC2 IP `3.96.127.94`):
+
+| Host | Points to |
+|------|-----------|
+| `@` | EC2 IP |
+| `www` | EC2 IP |
+| `admin`, `app`, `consultant`, `portal` | EC2 IP |
+
+Without `www`, apex redirect will fail after nginx is fixed.
 
 ---
 

@@ -20,3 +20,12 @@ frontend/dist/
 ai-service/__pycache__/
 ai-service/.venv/
 ai-service/*.pyc
+**/__pycache__/
+*.pyc
+
+# Flutter mobile app — local only, not deployed to AWS
+mobileapp/
+
+# Deploy secrets and local logs — never commit
+deploy/.ec2-key.pem
+deploy/*.log

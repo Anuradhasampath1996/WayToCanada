@@ -5,9 +5,14 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\UserResource;
 use App\Models\User;
+use App\Services\Auth\MobileOAuthStateService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Password;
+use Illuminate\Auth\Events\PasswordReset;
+use Illuminate\Support\Str;
+use Illuminate\Validation\Rules\Password as PasswordRule;
 use Illuminate\Validation\ValidationException;
 use Laravel\Socialite\Facades\Socialite;
 
@@ -25,6 +30,20 @@ class AuthController extends Controller
         ]);
 
         $user = User::where('email', $data['email'])->first();
+
+        if ($user && ! $user->hasPassword()) {
+            $providers = $user->authProviders();
+            $hint = in_array('google', $providers, true)
+                ? 'This account was created with Google. Sign in with Google, or use “Forgot password” to create a password for email login.'
+                : 'This account has no password yet. Sign in with your linked provider or use “Forgot password” to set one.';
+
+            return response()->json([
+                'message' => $hint,
+                'code' => 'oauth_only',
+                'auth_providers' => $providers,
+                'errors' => ['email' => [$hint]],
+            ], 422);
+        }
 
         if (! $user || ! Hash::check($data['password'], $user->password)) {
             throw ValidationException::withMessages([
@@ -49,6 +68,46 @@ class AuthController extends Controller
     }
 
     /**
+     * GET /api/v1/auth/google/mobile/redirect?return_to=...&intent=client|consultant
+     * Starts Google OAuth for Flutter / mobile clients; callback returns to return_to with ?token=
+     */
+    public function redirectToGoogleMobile(Request $request, MobileOAuthStateService $mobileOAuth): JsonResponse
+    {
+        return response()->json([
+            'redirect_url' => $this->googleMobileRedirectUrl($request, $mobileOAuth),
+        ]);
+    }
+
+    /**
+     * GET /api/v1/auth/google/mobile/start?return_to=...&intent=client|consultant
+     * Browser redirect (Flutter web) — avoids CORS preflight on the OAuth start step.
+     */
+    public function redirectToGoogleMobileStart(Request $request, MobileOAuthStateService $mobileOAuth)
+    {
+        return redirect()->away($this->googleMobileRedirectUrl($request, $mobileOAuth));
+    }
+
+    private function googleMobileRedirectUrl(Request $request, MobileOAuthStateService $mobileOAuth): string
+    {
+        $data = $request->validate([
+            'return_to' => ['required', 'string', 'max:2048'],
+            'intent'    => ['sometimes', 'in:client,consultant'],
+        ]);
+
+        if (! $mobileOAuth->isAllowedReturnTo($data['return_to'])) {
+            abort(422, 'Invalid return URL for mobile OAuth.');
+        }
+
+        $state = $mobileOAuth->issue($data['return_to'], $data['intent'] ?? 'client');
+
+        return Socialite::driver('google')
+            ->stateless()
+            ->with(['state' => $state])
+            ->redirect()
+            ->getTargetUrl();
+    }
+
+    /**
      * Redirect the user to Google's OAuth page.
      */
     public function redirectToGoogle(): JsonResponse
@@ -69,10 +128,11 @@ class AuthController extends Controller
     {
         $googleUser = Socialite::driver('google')->stateless()->user();
 
-        // Detect state
         $state = $request->query('state');
+        $mobileOAuth = app(MobileOAuthStateService::class);
+        $mobile = is_string($state) ? $mobileOAuth->consume($state) : null;
         $isConsultantRegister = $state === 'consultant';
-        $isConsultantLogin    = $state === 'consultant-login';
+        $isConsultantLogin    = $state === 'consultant-login' || ($mobile && $mobile['intent'] === 'consultant');
 
         // Try to find by google_id first, then fall back to email (handles
         // users who registered manually and are now linking their Google account).
@@ -106,6 +166,10 @@ class AuthController extends Controller
 
         $user->tokens()->where('name', 'google-auth')->delete();
         $token = $user->createToken('google-auth')->plainTextToken;
+
+        if ($mobile) {
+            return $this->redirectMobileWithToken($mobile['return_to'], $token);
+        }
 
         // consultant login → go straight to consultant dashboard via auth/callback
         if ($isConsultantLogin) {
@@ -235,5 +299,109 @@ class AuthController extends Controller
         $request->user()->currentAccessToken()->delete();
 
         return response()->json(['message' => 'Logged out successfully.']);
+    }
+
+    /**
+     * POST /api/v1/auth/set-password
+     * Set or change password while authenticated (e.g. after Google sign-in).
+     */
+    public function setPassword(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        $rules = [
+            'password' => ['required', 'confirmed', PasswordRule::min(8)->max(255)],
+        ];
+
+        if ($user->hasPassword()) {
+            $rules['current_password'] = ['required', 'string'];
+        }
+
+        $data = $request->validate($rules);
+
+        if ($user->hasPassword() && ! Hash::check($data['current_password'], $user->password)) {
+            throw ValidationException::withMessages([
+                'current_password' => ['Current password is incorrect.'],
+            ]);
+        }
+
+        $hadPassword = $user->hasPassword();
+        $user->update(['password' => $data['password']]);
+
+        return response()->json([
+            'message' => $hadPassword
+                ? 'Password updated.'
+                : 'Password saved. You can now sign in with email and password.',
+            'user' => new UserResource($user->load('roles')),
+        ]);
+    }
+
+    /**
+     * POST /api/v1/auth/forgot-password
+     * Send a password reset link (works for Google-only accounts too).
+     */
+    public function forgotPassword(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'email' => ['required', 'email', 'max:255'],
+        ]);
+
+        Password::sendResetLink(['email' => $data['email']]);
+
+        return response()->json([
+            'message' => 'If that email is registered, we sent password reset instructions.',
+        ]);
+    }
+
+    /**
+     * POST /api/v1/auth/reset-password
+     * Complete password reset from email link.
+     */
+    public function resetPassword(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'token'                 => ['required', 'string'],
+            'email'                 => ['required', 'email', 'max:255'],
+            'password'              => ['required', 'confirmed', PasswordRule::min(8)->max(255)],
+        ]);
+
+        $status = Password::reset(
+            $data,
+            function (User $user, string $password) {
+                $user->forceFill([
+                    'password' => $password,
+                    'remember_token' => Str::random(60),
+                ])->save();
+
+                event(new PasswordReset($user));
+            }
+        );
+
+        if ($status !== Password::PASSWORD_RESET) {
+            throw ValidationException::withMessages([
+                'email' => [__($status)],
+            ]);
+        }
+
+        return response()->json([
+            'message' => 'Password reset successfully. You can now sign in with your email and password.',
+        ]);
+    }
+
+    private function redirectMobileWithToken(string $returnTo, string $token)
+    {
+        $encoded = urlencode($token);
+
+        // Hash-route apps (Flutter web): keep token inside the fragment.
+        if (str_contains($returnTo, '#')) {
+            [$base, $fragment] = explode('#', $returnTo, 2);
+            $separator = str_contains($fragment, '?') ? '&' : '?';
+
+            return redirect()->away($base . '#' . $fragment . $separator . 'token=' . $encoded);
+        }
+
+        $separator = str_contains($returnTo, '?') ? '&' : '?';
+
+        return redirect()->away($returnTo . $separator . 'token=' . $encoded);
     }
 }

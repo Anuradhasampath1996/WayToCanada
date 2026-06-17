@@ -31,7 +31,11 @@ return [
         'http://portal.rcicmaster.com',
     ],
 
-    'allowed_origins_patterns' => [],
+    'allowed_origins_patterns' => [
+        '#^https?://localhost:\d+$#',
+        '#^https?://127\.0\.0\.1:\d+$#',
+        '#^https?://10\.0\.2\.2:\d+$#',
+    ],
 
     'allowed_headers' => ['*'],
 

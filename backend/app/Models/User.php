@@ -94,4 +94,32 @@ class User extends Authenticatable implements MustVerifyEmail
     {
         return $this->hasMany(ClientProfile::class, 'consultant_id');
     }
+
+    public function consultantStorageAddons(): HasMany
+    {
+        return $this->hasMany(ConsultantStorageAddon::class);
+    }
+
+    /** True when the user can sign in with email + password. */
+    public function hasPassword(): bool
+    {
+        return filled($this->password);
+    }
+
+    /** Linked sign-in methods for API / UI hints. */
+    public function authProviders(): array
+    {
+        $providers = [];
+        if ($this->hasPassword()) {
+            $providers[] = 'password';
+        }
+        if (filled($this->google_id)) {
+            $providers[] = 'google';
+        }
+        if (filled($this->github_id)) {
+            $providers[] = 'github';
+        }
+
+        return $providers;
+    }
 }

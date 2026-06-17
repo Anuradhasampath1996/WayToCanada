@@ -13,6 +13,7 @@ import {
   SquareKanbanIcon,
   UserPlusIcon,
   UsersIcon,
+  HardDriveIcon,
   type LucideIcon,
 } from "lucide-react";
 import Link from "next/link";
@@ -78,6 +79,13 @@ export const navItems: NavGroup[] = [
         description: "Retainer to submission stages",
         icon: SquareKanbanIcon,
         match: (p) => p.startsWith("/dashboard/case-pipeline"),
+      },
+      {
+        title: "My Document Storage",
+        href: "/dashboard/storage",
+        description: "Personal folders & files (3 GB free)",
+        icon: HardDriveIcon,
+        match: (p) => p.startsWith("/dashboard/storage"),
       },
     ],
   },

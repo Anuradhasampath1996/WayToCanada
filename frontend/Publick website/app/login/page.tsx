@@ -123,7 +123,11 @@ export default function LoginPage() {
           )}
           {banner === "registered_google" && (
             <div className="rounded-md bg-green-50 border border-green-300 px-4 py-3 text-sm text-green-800">
-              Account created successfully with Google! You can now sign in below.
+              Account created with Google! Use <strong>Continue with Google</strong> to sign in, or set a password via{" "}
+              <Link href="/forgot-password" className="font-medium underline">
+                Forgot password
+              </Link>
+              .
             </div>
           )}
           {banner === "verified" && (

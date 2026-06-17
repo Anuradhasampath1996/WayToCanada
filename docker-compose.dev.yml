@@ -1,23 +1,7 @@
-# Local development infrastructure (Postgres + LocalStack S3 + OCR)
+# Local development infrastructure (LocalStack S3 + OCR).
+# Database: use Windows PostgreSQL on port 5432 (db_cws) — see scripts/LOCAL-DEV-DATABASE.md
+# Docker Postgres was removed to avoid connecting to the wrong empty database.
 services:
-  postgres:
-    image: postgres:16
-    container_name: wtc_postgres_dev
-    restart: unless-stopped
-    ports:
-      - "127.0.0.1:5433:5432"
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: secret
-      POSTGRES_DB: db_cws
-    volumes:
-      - wtc_pgdata_dev:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-
   localstack:
     container_name: localstack_main
     image: localstack/localstack:3.8.1
@@ -43,5 +27,3 @@ services:
       - DEBUG=false
     restart: unless-stopped
 
-volumes:
-  wtc_pgdata_dev:

@@ -219,8 +219,8 @@ setup_deploy_user() {
 
   # Allow github-actions to reload nginx after deploy (optional but common)
   cat > "/etc/sudoers.d/${DEPLOY_USER}-deploy" <<EOF
-# Allow ${DEPLOY_USER} to reload nginx without a password (for zero-downtime deploy hooks)
-${DEPLOY_USER} ALL=(ALL) NOPASSWD: /usr/bin/cp, /bin/ln, /usr/sbin/nginx, /usr/sbin/nginx -t, /bin/systemctl reload nginx, /bin/systemctl restart nginx
+# Allow ${DEPLOY_USER} to manage nginx during deploys
+${DEPLOY_USER} ALL=(ALL) NOPASSWD: /usr/bin/cp, /bin/cp, /bin/ln, /bin/rm, /usr/sbin/nginx, /usr/sbin/nginx -t, /bin/systemctl reload nginx, /bin/systemctl restart nginx, ${APP_DIR}/deploy/fix-domain-nginx.sh, /bin/bash ${APP_DIR}/deploy/fix-domain-nginx.sh
 EOF
   chmod 440 "/etc/sudoers.d/${DEPLOY_USER}-deploy"
 }

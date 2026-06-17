@@ -58,28 +58,25 @@ echo ">>> Running database migrations..."
 docker exec wtc_api php artisan config:clear --no-ansi || true
 docker exec wtc_api php artisan migrate --force --no-ansi
 
+echo ">>> Seeding consultant website features (idempotent)..."
+docker exec wtc_api php artisan db:seed --class=ConsultantWebsiteFeatureSeeder --force --no-ansi || true
+
 docker exec wtc_postgres psql -U postgres -tc "SELECT 1 FROM pg_database WHERE datname='db_lms'" | grep -q 1 || \
   docker exec wtc_postgres psql -U postgres -c "CREATE DATABASE db_lms;"
 docker exec wtc_postgres psql -U postgres -tc "SELECT 1 FROM pg_database WHERE datname='db_legal'" | grep -q 1 || \
   docker exec wtc_postgres psql -U postgres -c "CREATE DATABASE db_legal;"
 
-echo ">>> Reloading nginx (if permitted)..."
-if sudo -n cp deploy/nginx/rcicmaster.conf /etc/nginx/sites-available/rcicmaster.com 2>/dev/null; then
-  sudo -n rm -f /etc/nginx/sites-enabled/lightersmenia.com /etc/nginx/sites-available/lightersmenia.com
+echo ">>> Applying nginx (rcicmaster.com, remove lightersmenia)..."
+if sudo -n bash deploy/fix-domain-nginx.sh 2>/dev/null; then
+  echo ">>> Nginx updated via fix-domain-nginx.sh"
+elif sudo -n cp deploy/nginx/rcicmaster.conf /etc/nginx/sites-available/rcicmaster.com 2>/dev/null; then
+  sudo -n rm -f /etc/nginx/sites-enabled/lightersmenia.com /etc/nginx/sites-available/lightersmenia.com /etc/nginx/sites-enabled/default
   sudo -n ln -sf /etc/nginx/sites-available/rcicmaster.com /etc/nginx/sites-enabled/rcicmaster.com
-  echo ">>> Nginx config updated (rcicmaster.com; old lightersmenia site removed)"
+  sudo -n /usr/sbin/nginx -t && sudo -n /bin/systemctl reload nginx
+  echo ">>> Nginx config updated (fallback path)"
 else
-  echo ">>> Nginx config copy skipped (github-actions has no sudo for cp) — run manually:"
-  echo "    sudo bash /opt/waytocanada/deploy/fix-domain-nginx.sh"
-fi
-
-if sudo -n /usr/sbin/nginx -t 2>/dev/null; then
-  sudo -n /bin/systemctl reload nginx
-  echo ">>> Nginx reloaded"
-else
-  echo ">>> WARNING: nginx reload skipped — containers are running; reload manually if needed:"
-  echo "    sudo cp /opt/waytocanada/deploy/nginx/rcicmaster.conf /etc/nginx/sites-available/rcicmaster.com"
-  echo "    sudo nginx -t && sudo systemctl reload nginx"
+  echo ">>> WARNING: Could not update nginx automatically."
+  echo "    SSH to EC2 and run: sudo bash /opt/waytocanada/deploy/fix-domain-nginx.sh"
 fi
 
 docker compose -f docker-compose.prod.yml ps

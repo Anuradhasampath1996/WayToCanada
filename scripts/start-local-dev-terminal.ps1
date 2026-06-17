@@ -17,16 +17,17 @@ if (-not (Test-Path $Concurrently)) {
 
 Write-Host ">>> WayToCanada - single terminal mode" -ForegroundColor Cyan
 
+& powershell -ExecutionPolicy Bypass -File (Join-Path $Root "scripts\verify-local-database.ps1")
+if ($LASTEXITCODE -ne 0) {
+    Write-Host ">>> Fix backend/.env — see scripts/LOCAL-DEV-DATABASE.md" -ForegroundColor Red
+    exit 1
+}
+
 Push-Location $Root
 docker compose -f docker-compose.dev.yml up -d
 Pop-Location
 
-Write-Host ">>> Waiting for Postgres on :5433..." -ForegroundColor Yellow
-for ($i = 1; $i -le 30; $i++) {
-    docker exec wtc_postgres_dev pg_isready -U postgres 2>$null | Out-Null
-    if ($LASTEXITCODE -eq 0) { break }
-    Start-Sleep -Seconds 2
-}
+Write-Host ">>> Docker OCR/LocalStack starting..." -ForegroundColor Yellow
 
 if (-not (Test-Path (Join-Path $Backend ".env"))) {
     Copy-Item (Join-Path $Backend ".env.example") (Join-Path $Backend ".env")
@@ -36,18 +37,7 @@ Push-Location $Backend
 if (-not (Select-String -Path ".env" -Pattern "^APP_KEY=base64:" -Quiet)) {
     php artisan key:generate --force | Out-Null
 }
-$env:DB_CWS_PORT = "5433"
-$env:DB_LMS_PORT = "5433"
-$env:DB_LEGAL_PORT = "5433"
-$env:DB_CWS_HOST = "127.0.0.1"
-$env:DB_LMS_HOST = "127.0.0.1"
-$env:DB_LEGAL_HOST = "127.0.0.1"
-$env:DB_CWS_PASSWORD = "secret"
-$env:DB_LMS_PASSWORD = "secret"
-$env:DB_LEGAL_PASSWORD = "secret"
-$env:DB_CWS_USERNAME = "postgres"
-$env:DB_LMS_USERNAME = "postgres"
-$env:DB_LEGAL_USERNAME = "postgres"
+# Uses backend/.env — do NOT override DB to Docker 5433 / db_cws_test
 php artisan migrate --force 2>$null
 php artisan db:seed --class=RolesAndPermissionsSeeder --force 2>$null
 Pop-Location
@@ -93,16 +83,9 @@ Write-Host "  Consultant website: http://localhost:3003"
 Write-Host "  Consultant dash:    http://localhost:3005"
 Write-Host ""
 Write-Host ">>> Starting all services (Ctrl+C to stop)..." -ForegroundColor Yellow
+Write-Host ">>> DB: Windows PostgreSQL db_cws :5432 — scripts/LOCAL-DEV-DATABASE.md" -ForegroundColor DarkGray
 
 $apiBat = New-WtcBat "api" $Backend @(
-    "set DB_CWS_PORT=5433",
-    "set DB_LMS_PORT=5433",
-    "set DB_LEGAL_PORT=5433",
-    "set DB_CWS_HOST=127.0.0.1",
-    "set DB_LMS_HOST=127.0.0.1",
-    "set DB_LEGAL_HOST=127.0.0.1",
-    "set DB_CWS_PASSWORD=secret",
-    "set DB_CWS_USERNAME=postgres",
     "php artisan serve --host=127.0.0.1 --port=8000"
 )
 $queueBat = New-WtcBat "queue" $Backend @("php artisan queue:listen --tries=1")

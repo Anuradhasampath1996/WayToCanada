@@ -53,6 +53,11 @@ use App\Http\Controllers\PackageDocumentSubmissionController;
 use App\Http\Controllers\IrccFormController;
 use App\Http\Controllers\IrccNewsController;
 use App\Http\Controllers\StripePaymentController;
+use App\Http\Controllers\ConsultantStorageController;
+use App\Http\Controllers\ConsultantStoragePaymentController;
+use App\Http\Controllers\ConsultantWebsiteFeatureController;
+use App\Http\Controllers\Admin\AdminStorageAddonPackageController;
+use App\Http\Controllers\Admin\AdminConsultantWebsiteFeatureController;
 use App\Http\Controllers\StripeWebhookController;
 use App\Http\Controllers\QuestionnaireController;
 use App\Http\Controllers\QuestionnaireReviewController;
@@ -74,6 +79,12 @@ use Illuminate\Support\Facades\Route;
 // ── Public: active subscription packages (for consultant subscription gate) ──
 Route::get('subscription-packages', [AdminSubscriptionPackageController::class, 'publicIndex'])
     ->name('subscription-packages.public');
+
+Route::get('storage-addon-packages', [AdminStorageAddonPackageController::class, 'publicIndex'])
+    ->name('storage-addon-packages.public');
+
+Route::get('consultant-website/features', [ConsultantWebsiteFeatureController::class, 'index'])
+    ->name('consultant-website.features');
 
 // ── Public: IRCC news feed (no auth required — consultants & guests) ──────────
 Route::get('ircc-news', [IrccNewsController::class, 'index'])->name('ircc-news.index');
@@ -125,6 +136,8 @@ Route::post('webhooks/stripe', [StripeWebhookController::class, 'handle'])
 // ── Authentication (Google OAuth + email/password) ───────────────────────────
 Route::prefix('auth')->group(function () {
     Route::get('google/redirect',              [AuthController::class, 'redirectToGoogle'])->name('auth.google.redirect');
+    Route::get('google/mobile/redirect',       [AuthController::class, 'redirectToGoogleMobile'])->name('auth.google.mobile.redirect');
+    Route::get('google/mobile/start',          [AuthController::class, 'redirectToGoogleMobileStart'])->name('auth.google.mobile.start');
     Route::get('google/callback',              [AuthController::class, 'handleGoogleCallback'])->name('auth.google.callback');
     Route::get('google/consultant/redirect',   [ConsultantRegisterController::class, 'googleRedirect'])->name('auth.google.consultant.redirect');
     Route::get('google/consultant/login',      [AuthController::class, 'redirectToGoogleConsultantLogin'])->name('auth.google.consultant.login');
@@ -132,6 +145,8 @@ Route::prefix('auth')->group(function () {
     Route::get('github/consultant/login',      [AuthController::class, 'redirectToGithubConsultantLogin'])->name('auth.github.consultant.login');
     Route::get('github/callback',              [AuthController::class, 'handleGithubCallback'])->name('auth.github.callback');
     Route::post('login',                       [AuthController::class, 'login'])->name('auth.login');
+    Route::post('forgot-password',             [AuthController::class, 'forgotPassword'])->name('auth.forgot-password');
+    Route::post('reset-password',              [AuthController::class, 'resetPassword'])->name('auth.reset-password');
 
     // Public (client) registration
     Route::post('register',                    [PublicRegisterController::class, 'register'])->name('auth.register');
@@ -171,6 +186,7 @@ Route::middleware('auth:sanctum')->prefix('documents')->name('documents.')->grou
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('me',      [AuthController::class, 'me'])->name('auth.me');
     Route::post('logout', [AuthController::class, 'logout'])->name('auth.logout');
+    Route::post('set-password', [AuthController::class, 'setPassword'])->name('auth.set-password');
 
     // ── In-app notifications (all authenticated users) ────────────────────────
     Route::prefix('notifications')->name('notifications.')->group(function () {
@@ -237,6 +253,25 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('tax-quote',           [StripePaymentController::class, 'taxQuote'])->name('tax-quote');
         Route::post('checkout-session',   [StripePaymentController::class, 'createCheckoutSession'])->name('checkout-session');
         Route::post('verify-session',     [StripePaymentController::class, 'verifySession'])->name('verify-session');
+    });
+
+    // ── Consultant personal document storage ─────────────────────────────────
+    Route::prefix('consultant/storage')->name('consultant.storage.')->group(function () {
+        Route::get('/',                              [ConsultantStorageController::class, 'summary'])->name('summary');
+        Route::get('browse',                         [ConsultantStorageController::class, 'browse'])->name('browse');
+        Route::post('folders',                       [ConsultantStorageController::class, 'createFolder'])->name('folders.store');
+        Route::patch('folders/{folder}',             [ConsultantStorageController::class, 'renameFolder'])->name('folders.update');
+        Route::delete('folders/{folder}',            [ConsultantStorageController::class, 'deleteFolder'])->name('folders.destroy');
+        Route::post('files',                         [ConsultantStorageController::class, 'uploadFile'])->name('files.store');
+        Route::get('files/{file}/view',              [ConsultantStorageController::class, 'viewFile'])->name('files.view');
+        Route::get('files/{file}/download',          [ConsultantStorageController::class, 'downloadFile'])->name('files.download');
+        Route::patch('files/{file}',                 [ConsultantStorageController::class, 'renameFile'])->name('files.update');
+        Route::delete('files/{file}',                [ConsultantStorageController::class, 'deleteFile'])->name('files.destroy');
+        Route::prefix('payment')->name('payment.')->group(function () {
+            Route::get('tax-quote',                  [ConsultantStoragePaymentController::class, 'taxQuote'])->name('tax-quote');
+            Route::post('checkout-session',           [ConsultantStoragePaymentController::class, 'createCheckoutSession'])->name('checkout-session');
+            Route::post('verify-session',             [ConsultantStoragePaymentController::class, 'verifySession'])->name('verify-session');
+        });
     });
 
     // ── Client: own journey dashboard ─────────────────────────────────────────
@@ -445,6 +480,23 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::put('{package}',                      [AdminSubscriptionPackageController::class, 'update'])->name('update');
             Route::patch('{package}/toggle',             [AdminSubscriptionPackageController::class, 'toggle'])->name('toggle');
             Route::delete('{package}',                   [AdminSubscriptionPackageController::class, 'destroy'])->name('destroy');
+        });
+
+        Route::prefix('storage-addon-packages')->name('storage-addon-packages.')->group(function () {
+            Route::get('/',                              [AdminStorageAddonPackageController::class, 'index'])->name('index');
+            Route::post('/',                             [AdminStorageAddonPackageController::class, 'store'])->name('store');
+            Route::get('{storageAddonPackage}',          [AdminStorageAddonPackageController::class, 'show'])->name('show');
+            Route::put('{storageAddonPackage}',          [AdminStorageAddonPackageController::class, 'update'])->name('update');
+            Route::patch('{storageAddonPackage}/toggle', [AdminStorageAddonPackageController::class, 'toggle'])->name('toggle');
+            Route::delete('{storageAddonPackage}',       [AdminStorageAddonPackageController::class, 'destroy'])->name('destroy');
+        });
+
+        Route::prefix('consultant-website-features')->name('consultant-website-features.')->group(function () {
+            Route::get('/',                    [AdminConsultantWebsiteFeatureController::class, 'index'])->name('index');
+            Route::post('/',                   [AdminConsultantWebsiteFeatureController::class, 'store'])->name('store');
+            Route::put('{featureSection}',     [AdminConsultantWebsiteFeatureController::class, 'update'])->name('update');
+            Route::patch('{featureSection}/toggle', [AdminConsultantWebsiteFeatureController::class, 'toggle'])->name('toggle');
+            Route::delete('{featureSection}',  [AdminConsultantWebsiteFeatureController::class, 'destroy'])->name('destroy');
         });
 
         // Subscription payments

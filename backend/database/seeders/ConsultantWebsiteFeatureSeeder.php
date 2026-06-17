@@ -1,0 +1,182 @@
+<?php
+
+namespace Database\Seeders;
+
+use App\Models\ConsultantWebsiteFeatureSection;
+use Illuminate\Database\Seeder;
+
+class ConsultantWebsiteFeatureSeeder extends Seeder
+{
+    public function run(): void
+    {
+        $sections = [
+            [
+                'slug' => 'client-workspace',
+                'tag' => 'Core',
+                'title' => 'Client workspace & onboarding',
+                'subtitle' => 'Add clients in minutes',
+                'description' => 'Invite applicants with one click, auto-generate secure credentials, and open a dedicated workspace for every case — whether they are overseas or already in Canada.',
+                'bullet_points' => ['Add client with email invite', 'Per-client profile & private notes', '4-step guided workspace flow', 'Resend invite & status controls'],
+                'icon' => 'Users',
+                'mock_variant' => 'workspace',
+                'layout' => 'right',
+                'sort_order' => 10,
+            ],
+            [
+                'slug' => 'pathway-crs',
+                'tag' => 'Assessment',
+                'title' => 'Pathway & CRS assessment',
+                'subtitle' => 'Data-driven recommendations',
+                'description' => 'Run Express Entry CRS calculations, compare eligible pathways, and save professional assessments your client can understand.',
+                'bullet_points' => ['CRS score calculator', 'Pathway eligibility insights', 'IRCC form explorer', 'Assign & document recommended route'],
+                'icon' => 'Calculator',
+                'mock_variant' => 'pathway',
+                'layout' => 'left',
+                'sort_order' => 20,
+            ],
+            [
+                'slug' => 'retainer-agreements',
+                'tag' => 'Compliance',
+                'title' => 'Retainer agreements',
+                'subtitle' => 'Sign digitally, stay compliant',
+                'description' => 'Generate retainer PDFs from templates, send for e-signature, track milestones, and store signed agreements on the case file.',
+                'bullet_points' => ['Custom agreement templates', 'Client e-sign portal', 'Milestone tracking', 'Signed PDF archive'],
+                'icon' => 'FileCheck',
+                'mock_variant' => 'retainer',
+                'layout' => 'right',
+                'sort_order' => 30,
+            ],
+            [
+                'slug' => 'questionnaire-forms',
+                'tag' => 'Applications',
+                'title' => 'Questionnaire & IRCC forms',
+                'subtitle' => 'Collect once, review everywhere',
+                'description' => 'Clients complete a rich immigration questionnaire with autosave. You verify answers, request refills, and review interactive government forms.',
+                'bullet_points' => ['Autosave questionnaire', 'Document uploads per section', 'Field-level consultant verification', 'IRCC interactive forms review'],
+                'icon' => 'ClipboardList',
+                'mock_variant' => 'forms',
+                'layout' => 'left',
+                'sort_order' => 40,
+            ],
+            [
+                'slug' => 'case-management',
+                'tag' => 'Documents',
+                'title' => 'Case management hub',
+                'subtitle' => 'Documents & messages together',
+                'description' => 'Upload, review, and approve client documents. Message in context with full case history — no more lost email threads.',
+                'bullet_points' => ['Secure document upload & review', 'Application package documents', 'In-case messaging', 'Pipeline status updates'],
+                'icon' => 'FolderOpen',
+                'mock_variant' => 'documents',
+                'layout' => 'right',
+                'sort_order' => 50,
+            ],
+            [
+                'slug' => 'case-pipeline',
+                'tag' => 'Workflow',
+                'title' => 'Application progress board',
+                'subtitle' => 'Kanban for your practice',
+                'description' => 'See every signed client on a visual board from retainer to submission. Drag stages, spot bottlenecks, and never lose track of deadlines.',
+                'bullet_points' => ['Kanban pipeline view', 'Retainer → submission stages', 'Pending document counts', 'Practice-wide visibility'],
+                'icon' => 'Kanban',
+                'mock_variant' => 'pipeline',
+                'layout' => 'left',
+                'sort_order' => 60,
+            ],
+            [
+                'slug' => 'meetings-payments',
+                'tag' => 'Revenue',
+                'title' => 'Meetings & payment requests',
+                'subtitle' => 'Get paid, stay connected',
+                'description' => 'Schedule Google Meet, Zoom, or Teams calls. Send Stripe, PayPal, or Interac payment links — clients pay from a branded page.',
+                'bullet_points' => ['Video meeting scheduling', 'Calendar integration', 'Payment request links', 'Mark paid & resend reminders'],
+                'icon' => 'Video',
+                'mock_variant' => 'meetings',
+                'layout' => 'right',
+                'sort_order' => 70,
+            ],
+            [
+                'slug' => 'trust-account',
+                'tag' => 'CICC',
+                'title' => 'Trust account ledger',
+                'subtitle' => 'CICC-aligned trust tracking',
+                'description' => 'Record deposits, issue milestone invoices, and release funds with a clear audit trail. Clients approve invoices from their portal.',
+                'bullet_points' => ['Trust deposits & refunds', 'Milestone invoicing', 'Client invoice approval', 'Compliance activity log PDF'],
+                'icon' => 'Landmark',
+                'mock_variant' => 'trust',
+                'layout' => 'left',
+                'sort_order' => 80,
+            ],
+            [
+                'slug' => 'legislation-hub',
+                'tag' => 'Legal AI',
+                'title' => 'Legislation hub',
+                'subtitle' => 'IRPA, IRPR & federal law',
+                'description' => 'Search Canadian immigration legislation, browse acts and regulations, and download authoritative documents without leaving your dashboard.',
+                'bullet_points' => ['Federal acts & regulations', 'Full-text search', 'Cross-reference linking', 'Download official sources'],
+                'icon' => 'Scale',
+                'mock_variant' => 'legislation',
+                'layout' => 'right',
+                'sort_order' => 90,
+            ],
+            [
+                'slug' => 'document-storage',
+                'tag' => 'Storage',
+                'title' => 'Personal document storage',
+                'subtitle' => '3 GB free, your private cloud',
+                'description' => 'Store practice files in a tree-view folder system with preview, zoom, and rename. Upgrade storage via subscription when you need more.',
+                'bullet_points' => ['Folders & subfolders', 'Image/PDF/Word preview', '3 GB free per consultant', 'Paid storage upgrades'],
+                'icon' => 'HardDrive',
+                'mock_variant' => 'storage',
+                'layout' => 'left',
+                'sort_order' => 100,
+            ],
+            [
+                'slug' => 'lms-learning',
+                'tag' => 'Education',
+                'title' => 'LMS learning portal',
+                'subtitle' => 'Train clients on pathways',
+                'description' => 'Assign courses from the admin library. Clients complete lessons, quizzes, and homework — you track progress from their workspace.',
+                'bullet_points' => ['Course assignments', 'Lessons & quizzes', 'Homework submissions', 'Progress tracking'],
+                'icon' => 'GraduationCap',
+                'mock_variant' => 'lms',
+                'layout' => 'right',
+                'sort_order' => 110,
+            ],
+            [
+                'slug' => 'ocr-automation',
+                'tag' => 'Automation',
+                'title' => 'OCR document scan',
+                'subtitle' => 'Passport data in seconds',
+                'description' => 'Upload passports and IDs — OCR extracts key fields to speed up questionnaire and form prefill.',
+                'bullet_points' => ['Passport & ID scanning', 'Auto field extraction', 'Faster client onboarding', 'Fewer manual errors'],
+                'icon' => 'ScanLine',
+                'mock_variant' => 'ocr',
+                'layout' => 'left',
+                'sort_order' => 120,
+            ],
+            [
+                'slug' => 'rcic-verification',
+                'tag' => 'Trust',
+                'title' => 'RCIC verification & billing',
+                'subtitle' => 'Professional from day one',
+                'description' => 'Verify your CICC license against the public register, manage subscriptions with Stripe, and present a credible branded portal to clients.',
+                'bullet_points' => ['CICC registry lookup', 'Subscription & trial', 'GST/HST billing', 'Branded company profile'],
+                'icon' => 'Shield',
+                'mock_variant' => 'profile',
+                'layout' => 'right',
+                'sort_order' => 130,
+            ],
+        ];
+
+        foreach ($sections as $section) {
+            ConsultantWebsiteFeatureSection::updateOrCreate(
+                ['slug' => $section['slug']],
+                array_merge($section, [
+                    'media_type' => 'mock',
+                    'media_url'  => null,
+                    'is_active'  => true,
+                ])
+            );
+        }
+    }
+}

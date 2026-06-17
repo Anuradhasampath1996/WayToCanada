@@ -101,4 +101,48 @@ class AuthTest extends TestCase
 
         $this->assertNull(PersonalAccessToken::findToken($token));
     }
+
+    public function test_login_rejects_google_only_account_with_helpful_message(): void
+    {
+        User::factory()->create([
+            'email' => 'google-only@example.com',
+            'password' => null,
+            'google_id' => 'gid-999',
+        ]);
+
+        $response = $this->postJson('/api/v1/auth/login', [
+            'email' => 'google-only@example.com',
+            'password' => 'password123',
+        ]);
+
+        $response->assertStatus(422)
+            ->assertJsonPath('code', 'oauth_only')
+            ->assertJsonFragment(['google']);
+    }
+
+    public function test_set_password_for_google_only_user(): void
+    {
+        $user = User::factory()->create([
+            'password' => null,
+            'google_id' => 'gid-100',
+        ]);
+        $user->assignRole('client');
+        $token = $user->createToken('test')->plainTextToken;
+
+        $response = $this->withToken($token)->postJson('/api/v1/auth/set-password', [
+            'password' => 'newpassword123',
+            'password_confirmation' => 'newpassword123',
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('user.has_password', true);
+
+        $user->refresh();
+        $this->assertTrue($user->hasPassword());
+
+        $this->postJson('/api/v1/auth/login', [
+            'email' => $user->email,
+            'password' => 'newpassword123',
+        ])->assertOk();
+    }
 }

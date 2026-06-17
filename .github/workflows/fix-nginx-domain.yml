@@ -1,0 +1,32 @@
+name: Fix nginx domain (rcicmaster)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  fix-nginx:
+    name: Remove lightersmenia redirect on EC2
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Fix nginx on EC2
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          command_timeout: 10m
+          script: |
+            set -euo pipefail
+            cd /opt/waytocanada
+            git fetch origin main
+            git reset --hard origin/main
+            if sudo -n bash deploy/fix-domain-nginx.sh; then
+              echo "Nginx fixed successfully"
+            else
+              echo "Trying with explicit sudo (may prompt if NOPASSWD not configured)..."
+              sudo bash deploy/fix-domain-nginx.sh
+            fi
+            curl -sI -H 'Host: rcicmaster.com' http://127.0.0.1/ | grep -i '^location:' || true

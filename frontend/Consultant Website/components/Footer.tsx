@@ -4,7 +4,7 @@ import { Separator } from "@/components/ui/separator";
 
 export default function Footer() {
   return (
-    <footer className="bg-muted/40 border-t border-border">
+    <footer className="border-t border-emerald-500/10 bg-gradient-to-b from-muted/30 to-muted/50">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-12">
         <div className="grid grid-cols-1 gap-10 sm:grid-cols-2 lg:grid-cols-4">
           {/* Brand */}
@@ -28,10 +28,10 @@ export default function Footer() {
             <h4 className="font-semibold text-sm tracking-wider uppercase text-foreground">For Consultants</h4>
             <ul className="space-y-2 text-sm text-muted-foreground">
               {[
-                { label: "Why Join", href: "/#why-join" },
-                { label: "Platform Features", href: "/#features" },
-                { label: "How It Works", href: "/#how-it-works" },
+                { label: "Platform", href: "/#features" },
+                { label: "Mobile App", href: "/#mobile-app" },
                 { label: "Pricing", href: "/#pricing" },
+                { label: "How It Works", href: "/#how-it-works" },
               ].map((link) => (
                 <li key={link.href}>
                   <Link href={link.href} className="hover:text-primary transition-colors">{link.label}</Link>

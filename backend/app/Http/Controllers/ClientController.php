@@ -47,7 +47,7 @@ class ClientController extends Controller
             $query->where('immigration_pathway', $pathway);
         }
 
-        $clients = $query->paginate(20);
+        $clients = $query->paginate(min((int) $request->query('per_page', 20), 200));
 
         return response()->json($clients);
     }

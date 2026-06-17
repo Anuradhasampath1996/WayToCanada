@@ -21,6 +21,7 @@ import {
   LandmarkIcon,
   GraduationCapIcon,
   FolderDotIcon,
+  HardDriveIcon,
   LayoutDashboardIcon,
   ScaleIcon,
   UsersIcon,
@@ -88,6 +89,11 @@ export const navItems: NavGroup[] = [
         title: "Subscription Packages",
         href: "/admindashboard/subscription-packages",
         icon: BadgeDollarSignIcon
+      },
+      {
+        title: "Storage Packages",
+        href: "/admindashboard/storage-packages",
+        icon: HardDriveIcon
       },
       {
         title: "Subscription Payments",
