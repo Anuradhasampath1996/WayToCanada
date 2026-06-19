@@ -29,6 +29,8 @@ use App\Http\Controllers\Consultant\ConsultantClientMeetingController;
 use App\Http\Controllers\Consultant\ConsultantWorkspaceAiAdvisorController;
 use App\Http\Controllers\Consultant\ConsultantRcicCommunityController;
 use App\Http\Controllers\Consultant\ConsultantSupportTicketController;
+use App\Http\Controllers\Consultant\ConsultantClientRequestController;
+use App\Http\Controllers\Client\ClientConsultantRequestController;
 use App\Http\Controllers\Consultant\ConsultantClientActivityController;
 use App\Http\Controllers\Consultant\ConsultantClientTrustController;
 use App\Http\Controllers\Client\ClientTrustController;
@@ -298,6 +300,10 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // ── Client: own journey dashboard ─────────────────────────────────────────
     Route::get('client/dashboard', [CaseFileController::class, 'clientDashboard'])->name('client.dashboard');
+    Route::get('client/available-consultants', [ClientConsultantRequestController::class, 'availableConsultants'])->name('client.available-consultants');
+    Route::get('client/consultant-request', [ClientConsultantRequestController::class, 'current'])->name('client.consultant-request.current');
+    Route::post('client/consultant-request', [ClientConsultantRequestController::class, 'store'])->name('client.consultant-request.store');
+    Route::post('client/consultant-request/{consultantClientRequest}/cancel', [ClientConsultantRequestController::class, 'cancel'])->name('client.consultant-request.cancel');
     Route::get('client/trust', [ClientTrustController::class, 'show'])->name('client.trust.show');
     Route::post('client/trust/invoices/{invoice}/approve', [ClientTrustController::class, 'approveInvoice'])->name('client.trust.invoices.approve');
     Route::get('client/case-management-hub', [CaseManagementHubController::class, 'clientShow'])->name('client.case-management-hub');
@@ -351,6 +357,14 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // ── Consultant: Case Pipeline (Kanban — all signed clients) ──────────────
     Route::get('consultant/case-pipeline', [DocumentSubmissionController::class, 'pipeline'])->name('consultant.case-pipeline');
+
+    // ── Consultant: Incoming client requests (public site self-registration) ───
+    Route::prefix('consultant/client-requests')->name('consultant.client-requests.')->group(function () {
+        Route::get('pending-count', [ConsultantClientRequestController::class, 'pendingCount'])->name('pending-count');
+        Route::get('/', [ConsultantClientRequestController::class, 'index'])->name('index');
+        Route::post('{consultantClientRequest}/accept', [ConsultantClientRequestController::class, 'accept'])->name('accept');
+        Route::post('{consultantClientRequest}/decline', [ConsultantClientRequestController::class, 'decline'])->name('decline');
+    });
 
     // ── Consultant: Client Management ─────────────────────────────────────────
     Route::prefix('consultant/clients')->name('consultant.clients.')->group(function () {        Route::get('/',                              [ClientController::class, 'index'])->name('index');

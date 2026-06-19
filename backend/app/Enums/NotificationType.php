@@ -29,6 +29,9 @@ enum NotificationType: string
     case SUPPORT_TICKET_CREATED = 'support_ticket_created';
     case SUPPORT_TICKET_REPLY = 'support_ticket_reply';
     case SUPPORT_TICKET_CLOSED = 'support_ticket_closed';
+    case CLIENT_CONSULTANT_REQUEST = 'client_consultant_request';
+    case CLIENT_CONSULTANT_REQUEST_ACCEPTED = 'client_consultant_request_accepted';
+    case CLIENT_CONSULTANT_REQUEST_DECLINED = 'client_consultant_request_declined';
 
     /** @return list<string> */
     public function defaultChannels(): array
@@ -51,6 +54,7 @@ enum NotificationType: string
             self::SYSTEM_ALERT => ['in_app', 'email'],
             self::RCIC_COMMUNITY_NEW_POST, self::RCIC_COMMUNITY_REPLY, self::RCIC_COMMUNITY_REACTION, self::RCIC_COMMUNITY_REPORT => ['in_app'],
             self::SUPPORT_TICKET_CREATED, self::SUPPORT_TICKET_REPLY, self::SUPPORT_TICKET_CLOSED => ['in_app'],
+            self::CLIENT_CONSULTANT_REQUEST, self::CLIENT_CONSULTANT_REQUEST_ACCEPTED, self::CLIENT_CONSULTANT_REQUEST_DECLINED => ['in_app', 'email'],
         };
     }
 
@@ -68,6 +72,7 @@ enum NotificationType: string
             self::ADMIN_BROADCAST, self::SYSTEM_ALERT => 'system',
             self::RCIC_COMMUNITY_NEW_POST, self::RCIC_COMMUNITY_REPLY, self::RCIC_COMMUNITY_REACTION, self::RCIC_COMMUNITY_REPORT => 'community',
             self::SUPPORT_TICKET_CREATED, self::SUPPORT_TICKET_REPLY, self::SUPPORT_TICKET_CLOSED => 'support',
+            self::CLIENT_CONSULTANT_REQUEST, self::CLIENT_CONSULTANT_REQUEST_ACCEPTED, self::CLIENT_CONSULTANT_REQUEST_DECLINED => 'onboarding',
         };
     }
 }

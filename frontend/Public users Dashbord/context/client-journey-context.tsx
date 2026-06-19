@@ -48,6 +48,14 @@ interface Consultant {
   company_name?: string | null;
 }
 
+interface PendingConsultantRequest {
+  id: number;
+  status: string;
+  message?: string | null;
+  created_at?: string;
+  consultant: Consultant | null;
+}
+
 interface ClientInfo {
   name: string;
   email: string;
@@ -66,6 +74,7 @@ type ClientJourneyContextValue = {
   caseFile: ClientCaseFile | null;
   verification: ClientFormsVerification | null;
   consultant: Consultant | null;
+  pendingRequest: PendingConsultantRequest | null;
   client: ClientInfo | null;
   applicationPackage: ApplicationPackage | null;
   qStats: ClientQuestionnaireStats;
@@ -87,6 +96,7 @@ export function ClientJourneyProvider({ children }: { children: React.ReactNode 
   const [caseFile, setCaseFile] = React.useState<ClientCaseFile | null>(null);
   const [verification, setVerification] = React.useState<ClientFormsVerification | null>(null);
   const [consultant, setConsultant] = React.useState<Consultant | null>(null);
+  const [pendingRequest, setPendingRequest] = React.useState<PendingConsultantRequest | null>(null);
   const [client, setClient] = React.useState<ClientInfo | null>(null);
   const [applicationPackage, setApplicationPackage] = React.useState<ApplicationPackage | null>(null);
   const [qStats, setQStats] = React.useState<ClientQuestionnaireStats>(buildClientQuestionnaireStats(null));
@@ -111,6 +121,7 @@ export function ClientJourneyProvider({ children }: { children: React.ReactNode 
       setCaseFile(json.case_file ?? null);
       setVerification(json.application_forms_verification ?? null);
       setConsultant(json.consultant ?? null);
+      setPendingRequest(json.pending_request ?? null);
       setClient(json.client ?? null);
       setApplicationPackage(json.application_package ?? null);
 
@@ -150,6 +161,7 @@ export function ClientJourneyProvider({ children }: { children: React.ReactNode 
     caseFile,
     verification,
     consultant,
+    pendingRequest,
     client,
     applicationPackage,
     qStats,

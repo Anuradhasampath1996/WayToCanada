@@ -90,6 +90,26 @@ class NotificationUrlBuilder
         return $ticketId ? $base . '?support=' . $ticketId : $base . '?support=1';
     }
 
+    public static function consultantClientRequests(?int $requestId = null): string
+    {
+        $base = rtrim((string) env('CONSULTANT_DASHBOARD_URL', 'http://localhost:3005'), '/')
+            . '/dashboard/client-requests';
+
+        return $requestId ? $base . '?request=' . $requestId : $base;
+    }
+
+    public static function clientDashboard(): string
+    {
+        return rtrim((string) env('PUBLIC_DASHBOARD_URL', 'http://localhost:3002'), '/')
+            . '/user-dashboard';
+    }
+
+    public static function clientChooseConsultant(): string
+    {
+        return rtrim((string) env('PUBLIC_DASHBOARD_URL', 'http://localhost:3002'), '/')
+            . '/user-dashboard/choose-consultant';
+    }
+
     public static function adminSupportTickets(?int $ticketId = null): string
     {
         $base = rtrim((string) env('ADMIN_DASHBOARD_URL', 'http://localhost:3001'), '/')

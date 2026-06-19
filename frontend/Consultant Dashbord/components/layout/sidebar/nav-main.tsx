@@ -14,6 +14,7 @@ import {
   SquareKanbanIcon,
   UserPlusIcon,
   UsersIcon,
+  InboxIcon,
   HardDriveIcon,
   MessagesSquareIcon,
   MegaphoneIcon,
@@ -83,6 +84,13 @@ export const navItems: NavGroup[] = [
         icon: UsersIcon,
         match: (p) =>
           p.startsWith("/dashboard/clients") && !p.startsWith("/dashboard/clients/new"),
+      },
+      {
+        title: "Client Requests",
+        href: "/dashboard/client-requests",
+        description: "Applicants who chose you",
+        icon: InboxIcon,
+        match: (p) => p.startsWith("/dashboard/client-requests"),
       },
       {
         title: "Add New Client",
@@ -246,7 +254,9 @@ export function NavMain() {
   const mainGroups = navItems.slice(0, -1);
   const bottomGroup = navItems[navItems.length - 1];
   const [rcicUnread, setRcicUnread] = useState(0);
+  const [clientRequestCount, setClientRequestCount] = useState(0);
   const onCommunityPage = pathname.startsWith("/dashboard/rcic-community");
+  const onClientRequestsPage = pathname.startsWith("/dashboard/client-requests");
 
   const loadRcicUnread = useCallback(async () => {
     if (onCommunityPage) {
@@ -263,11 +273,30 @@ export function NavMain() {
     }
   }, [onCommunityPage]);
 
+  const loadClientRequestCount = useCallback(async () => {
+    if (onClientRequestsPage) {
+      setClientRequestCount(0);
+      return;
+    }
+    try {
+      const res = await fetch(`${API}/consultant/client-requests/pending-count`, { headers: authHeaders() });
+      if (!res.ok) return;
+      const data = await res.json();
+      setClientRequestCount(data.count ?? 0);
+    } catch {
+      /* ignore */
+    }
+  }, [onClientRequestsPage]);
+
   useEffect(() => {
     void loadRcicUnread();
-    const id = setInterval(() => void loadRcicUnread(), 30000);
+    void loadClientRequestCount();
+    const id = setInterval(() => {
+      void loadRcicUnread();
+      void loadClientRequestCount();
+    }, 30000);
     return () => clearInterval(id);
-  }, [loadRcicUnread]);
+  }, [loadRcicUnread, loadClientRequestCount]);
 
   useEffect(() => {
     const onSeen = () => setRcicUnread(0);
@@ -277,6 +306,7 @@ export function NavMain() {
 
   const unreadByHref: Record<string, number> = {
     "/dashboard/rcic-community": rcicUnread,
+    "/dashboard/client-requests": clientRequestCount,
   };
 
   return (
@@ -288,6 +318,7 @@ export function NavMain() {
             group={group}
             pathname={pathname}
             showDivider={i < mainGroups.length - 1}
+            unreadByHref={unreadByHref}
           />
         ))}
       </div>

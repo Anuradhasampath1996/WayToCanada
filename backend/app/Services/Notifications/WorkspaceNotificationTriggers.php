@@ -356,4 +356,67 @@ class WorkspaceNotificationTriggers
             $assignment,
         );
     }
+
+    public function onClientConsultantRequest(\App\Models\ConsultantClientRequest $request): void
+    {
+        $request->loadMissing('clientUser', 'consultant');
+        $client     = $request->clientUser;
+        $consultant = $request->consultant;
+
+        if (! $client || ! $consultant) {
+            return;
+        }
+
+        $this->notifications->dispatch(
+            $consultant,
+            NotificationType::CLIENT_CONSULTANT_REQUEST,
+            'New client request',
+            "{$client->name} would like you to be their immigration consultant.",
+            NotificationUrlBuilder::consultantClientRequests($request->id),
+            'client_request:' . $request->id,
+            $request,
+        );
+    }
+
+    public function onClientConsultantRequestAccepted(\App\Models\ConsultantClientRequest $request, ClientProfile $profile): void
+    {
+        $request->loadMissing('clientUser', 'consultant');
+        $client     = $request->clientUser;
+        $consultant = $request->consultant;
+
+        if (! $client || ! $consultant) {
+            return;
+        }
+
+        $this->notifications->dispatch(
+            $client,
+            NotificationType::CLIENT_CONSULTANT_REQUEST_ACCEPTED,
+            'Consultant accepted your request',
+            "{$consultant->name} accepted your request. Your immigration workspace is now active.",
+            NotificationUrlBuilder::clientDashboard(),
+            'client_request_accepted:' . $request->id,
+            $profile,
+        );
+    }
+
+    public function onClientConsultantRequestDeclined(\App\Models\ConsultantClientRequest $request): void
+    {
+        $request->loadMissing('clientUser', 'consultant');
+        $client     = $request->clientUser;
+        $consultant = $request->consultant;
+
+        if (! $client || ! $consultant) {
+            return;
+        }
+
+        $this->notifications->dispatch(
+            $client,
+            NotificationType::CLIENT_CONSULTANT_REQUEST_DECLINED,
+            'Consultant declined your request',
+            "{$consultant->name} is unable to take your case right now. You can choose another consultant.",
+            NotificationUrlBuilder::clientChooseConsultant(),
+            'client_request_declined:' . $request->id,
+            $request,
+        );
+    }
 }

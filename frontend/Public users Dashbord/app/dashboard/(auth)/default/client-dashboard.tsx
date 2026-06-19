@@ -4,8 +4,8 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
-  Loader2, AlertCircle, RefreshCw, UserCheck, Mail, Phone, Award,
-  MapPin, ChevronRight, CheckCircle2, GraduationCap, BookOpen,
+  Loader2, AlertCircle, RefreshCw, Mail, Phone, Award,
+  ChevronRight, CheckCircle2, GraduationCap, BookOpen,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -20,6 +20,7 @@ import {
 } from "@/components/client-workspace-ui";
 import { clientStatusLabel } from "@/lib/client-journey";
 import { ClientTrustPanel } from "@/components/client-trust-panel";
+import { ConsultantPicker } from "@/components/consultant-picker";
 
 function ConsultantCard({ consultant }: {
   consultant: { name: string; email: string; phone?: string | null; rcic_number?: string | null; avatar?: string | null };
@@ -118,32 +119,13 @@ function LearningCoursesCard() {
   );
 }
 
-function NoConsultantBanner({ name }: { name: string }) {
-  return (
-    <div className="rounded-xl border border-dashed p-8 text-center space-y-3 max-w-lg mx-auto">
-      <div className="flex justify-center">
-        <div className="h-14 w-14 rounded-full bg-muted flex items-center justify-center">
-          <UserCheck className="h-7 w-7 text-muted-foreground" />
-        </div>
-      </div>
-      <h3 className="font-semibold text-lg">Welcome, {name}!</h3>
-      <p className="text-muted-foreground text-sm">
-        You&apos;re registered but not assigned to a consultant yet. Someone from RCICMASTER will contact you soon.
-      </p>
-      <div className="flex items-center justify-center gap-2 pt-1 text-sm text-primary font-medium">
-        <MapPin className="h-4 w-4" /> RCICMASTER Immigration Services
-      </div>
-    </div>
-  );
-}
-
 export function ClientDashboard() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const showSubmittedBanner = searchParams.get("questionnaire") === "submitted";
 
   const {
-    loading, error, refresh, consultant, client, caseFile, steps, currentStepId,
+    loading, error, refresh, consultant, pendingRequest, client, caseFile, steps, currentStepId,
     progressPercent, meta, nextAction, activityEvents, verification, qStats,
   } = useClientJourney();
 
@@ -230,7 +212,13 @@ export function ClientDashboard() {
 
       <LearningCoursesCard />
 
-      {!consultant && <NoConsultantBanner name={firstName} />}
+      {!consultant && (
+        <ConsultantPicker
+          clientName={firstName}
+          pendingRequest={pendingRequest}
+          onUpdated={refresh}
+        />
+      )}
 
       {consultant && (
         <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">

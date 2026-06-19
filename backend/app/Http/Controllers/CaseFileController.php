@@ -7,6 +7,7 @@ use App\Mail\AgreementSignedEmail;
 use App\Mail\RetainerAgreementEmail;
 use App\Models\CaseFile;
 use App\Models\ClientProfile;
+use App\Models\ConsultantClientRequest;
 use App\Models\IrccCategory;
 use App\Mail\AgreementReminderEmail;
 use App\Services\AgreementReminderService;
@@ -589,10 +590,34 @@ class CaseFileController extends Controller
             ->first();
 
         if (! $profile) {
+            $pendingRequest = ConsultantClientRequest::query()
+                ->where('client_user_id', $user->id)
+                ->where('status', ConsultantClientRequest::STATUS_PENDING)
+                ->with('consultant:id,name,rcic_number,company_name,company_logo,avatar,company_city,company_province,company_bio')
+                ->latest()
+                ->first();
+
             return response()->json([
-                'case_file'  => null,
-                'consultant' => null,
-                'client'     => ['name' => $user->name, 'email' => $user->email],
+                'case_file'        => null,
+                'consultant'       => null,
+                'client'           => ['name' => $user->name, 'email' => $user->email],
+                'pending_request'  => $pendingRequest ? [
+                    'id'         => $pendingRequest->id,
+                    'status'     => $pendingRequest->status,
+                    'message'    => $pendingRequest->message,
+                    'created_at' => $pendingRequest->created_at?->toIso8601String(),
+                    'consultant' => $pendingRequest->consultant ? [
+                        'id'               => $pendingRequest->consultant->id,
+                        'name'             => $pendingRequest->consultant->name,
+                        'rcic_number'      => $pendingRequest->consultant->rcic_number,
+                        'company_name'     => $pendingRequest->consultant->company_name,
+                        'company_logo'     => $pendingRequest->consultant->company_logo,
+                        'avatar'           => $pendingRequest->consultant->avatar,
+                        'company_city'     => $pendingRequest->consultant->company_city,
+                        'company_province' => $pendingRequest->consultant->company_province,
+                        'company_bio'      => $pendingRequest->consultant->company_bio,
+                    ] : null,
+                ] : null,
             ]);
         }
 
