@@ -86,7 +86,7 @@ class PayPalSubscriptionService
         $token = $this->getAccessToken();
 
         $response = Http::withToken($token)->post("{$this->baseUrl}/v1/catalogs/products", [
-            'name'        => 'WayToCanada — ' . $package->name,
+            'name'        => 'RCICMASTER — ' . $package->name,
             'description' => $package->description ?? $package->name,
             'type'        => 'SERVICE',
             'category'    => 'SOFTWARE',
@@ -185,7 +185,7 @@ class PayPalSubscriptionService
         $response = Http::withToken($token)->post("{$this->baseUrl}/v1/billing/subscriptions", [
             'plan_id'             => $planId,
             'application_context' => [
-                'brand_name'          => 'Way To Canada',
+                'brand_name'          => 'RCICMASTER',
                 'locale'              => 'en-CA',
                 'shipping_preference' => 'NO_SHIPPING',
                 'user_action'         => 'SUBSCRIBE_NOW',

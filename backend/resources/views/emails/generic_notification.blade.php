@@ -19,6 +19,6 @@
         </p>
     @endif
     <hr style="border: none; border-top: 1px solid #e5e5e5; margin: 32px 0;">
-    <p style="font-size: 12px; color: #888;">WayToCanada — Immigration case management</p>
+    <p style="font-size: 12px; color: #888;">RCICMASTER — Immigration case management</p>
 </body>
 </html>

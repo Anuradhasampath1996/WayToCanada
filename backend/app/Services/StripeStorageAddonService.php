@@ -16,7 +16,7 @@ class StripeStorageAddonService extends StripeService
         }
 
         $product = Product::create([
-            'name'        => 'Way To Canada — Storage +' . $package->extra_gb . ' GB',
+            'name'        => 'RCICMASTER — Storage +' . $package->extra_gb . ' GB',
             'description' => $package->description ?? $package->name,
             'metadata'    => ['storage_addon_package_id' => (string) $package->id],
         ]);

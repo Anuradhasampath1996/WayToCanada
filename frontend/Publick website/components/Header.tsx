@@ -21,7 +21,7 @@ export default function Header() {
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2 font-bold text-xl text-primary">
             <MapPin className="h-6 w-6 text-primary" />
-            <span>WayToCanada</span>
+            <span>RCICMASTER</span>
           </Link>
 
           {/* Desktop Nav */}

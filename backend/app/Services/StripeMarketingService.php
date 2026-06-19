@@ -16,7 +16,7 @@ class StripeMarketingService extends StripeService
         }
 
         $product = Product::create([
-            'name'        => 'Way To Canada — ' . $service->name,
+            'name'        => 'RCICMASTER — ' . $service->name,
             'description' => $service->tagline ?? $service->summary,
             'metadata'    => ['marketing_service_id' => (string) $service->id],
         ]);

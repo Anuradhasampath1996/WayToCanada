@@ -72,8 +72,8 @@ class AdminIntegrationSettingsController extends Controller
 
         try {
             Mail::raw(
-                'This is a test email from WayToCanada admin integration settings.',
-                fn ($m) => $m->to($data['to'])->subject('WayToCanada — test email'),
+                'This is a test email from RCICMASTER admin integration settings.',
+                fn ($m) => $m->to($data['to'])->subject('RCICMASTER — test email'),
             );
 
             return response()->json(['message' => 'Test email sent to ' . $data['to']]);

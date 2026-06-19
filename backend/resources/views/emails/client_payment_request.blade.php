@@ -8,7 +8,7 @@
     <h2 style="color: #047857;">Payment request</h2>
     <p>Hi {{ $clientName }},</p>
     <p>
-        <strong>{{ $companyName ?: $consultantName }}</strong> has sent you a payment request through Way To Canada.
+        <strong>{{ $companyName ?: $consultantName }}</strong> has sent you a payment request through RCICMASTER.
     </p>
     <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; margin: 24px 0;">
         <p style="margin: 0 0 8px; font-size: 14px; color: #64748b;">Amount due</p>
@@ -27,6 +27,6 @@
     <p style="font-size: 13px; color: #64748b;">
         Or copy this link: <a href="{{ $payUrl }}">{{ $payUrl }}</a>
     </p>
-    <p style="font-size: 13px; color: #94a3b8; margin-top: 32px;">Way To Canada — Immigration consultant workspace</p>
+    <p style="font-size: 13px; color: #94a3b8; margin-top: 32px;">RCICMASTER — Immigration consultant workspace</p>
 </body>
 </html>

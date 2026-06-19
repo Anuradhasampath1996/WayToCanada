@@ -126,7 +126,7 @@ function LoginPageContent() {
         <div className="relative z-10">
           <Link href="/" className="inline-flex items-center gap-2 font-bold text-xl">
             <Briefcase className="h-6 w-6" />
-            <span>WayToCanada</span>
+            <span>RCICMASTER</span>
             <Badge className="border-white/30 bg-white/15 text-white hover:bg-white/15">Consultants</Badge>
           </Link>
         </div>
@@ -168,7 +168,7 @@ function LoginPageContent() {
 
         <p className="relative z-10 flex items-center gap-2 text-xs text-emerald-100/70">
           <Shield className="h-3.5 w-3.5" />
-          © {new Date().getFullYear()} WayToCanada · Secure consultant portal
+          © {new Date().getFullYear()} RCICMASTER · Secure consultant portal
         </p>
       </div>
 
@@ -180,7 +180,7 @@ function LoginPageContent() {
               href="/"
               className="mb-8 flex lg:hidden items-center justify-center gap-2 font-bold text-xl text-emerald-700">
               <Briefcase className="h-6 w-6" />
-              <span>WayToCanada</span>
+              <span>RCICMASTER</span>
             </Link>
 
             <div className="mb-8">

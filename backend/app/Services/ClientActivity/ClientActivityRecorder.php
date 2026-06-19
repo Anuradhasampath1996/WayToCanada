@@ -70,7 +70,7 @@ class ClientActivityRecorder
                 $profile,
                 ClientActivityType::CLIENT_INVITED,
                 'Client invited to portal',
-                'Invitation email sent to join WayToCanada client portal.',
+                'Invitation email sent to join RCICMASTER client portal.',
                 $profile->consultant ? User::find($profile->consultant_id) : null,
                 'consultant',
                 dedupeKey: 'hist:invited',

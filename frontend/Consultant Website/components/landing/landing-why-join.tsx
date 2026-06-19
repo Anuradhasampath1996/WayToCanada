@@ -60,7 +60,7 @@ export function LandingWhyJoin() {
             <span className="landing-gradient-text">outdated workflows</span>
           </h2>
           <p className="mt-4 text-lg text-muted-foreground">
-            Applicants compare consultants online first. WayToCanada makes you look as
+            Applicants compare consultants online first. RCICMASTER makes you look as
             professional as the largest firms — at a fraction of the cost.
           </p>
         </div>

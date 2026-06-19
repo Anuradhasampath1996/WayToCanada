@@ -25,7 +25,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const isTablet = useIsTablet();
   const journey = useClientJourneyOptional();
   const consultant = journey?.consultant;
-  const brandLabel = consultant?.company_name || consultant?.name || "Way To Canada";
+  const brandLabel = consultant?.company_name || consultant?.name || "RCICMASTER";
   const brandLogo = consultant?.company_logo ?? null;
 
   useEffect(() => {

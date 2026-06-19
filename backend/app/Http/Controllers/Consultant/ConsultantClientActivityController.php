@@ -73,7 +73,7 @@ class ConsultantClientActivityController extends Controller
                 'client_actions'  => ClientActivityLog::where('client_profile_id', $profile->id)->where('actor_type', 'client')->count(),
                 'consultant_actions' => ClientActivityLog::where('client_profile_id', $profile->id)->where('actor_type', 'consultant')->count(),
             ],
-            'compliance_note' => 'This report documents all recorded interactions between consultant and client on the WayToCanada portal, supporting transparency obligations under the CICC Code of Professional Conduct.',
+            'compliance_note' => 'This report documents all recorded interactions between consultant and client on the RCICMASTER portal, supporting transparency obligations under the CICC Code of Professional Conduct.',
             'data' => $paginated,
         ]);
     }

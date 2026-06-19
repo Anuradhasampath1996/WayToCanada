@@ -165,7 +165,7 @@ export function BillingClient() {
             <p className="text-emerald-300/90 text-xs font-medium uppercase tracking-wider mb-1">Billing & subscription</p>
             <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">Manage your plan</h1>
             <p className="text-white/70 text-sm mt-2 max-w-lg">
-              View invoices, track payments, and manage your WayToCanada consultant subscription.
+              View invoices, track payments, and manage your RCICMASTER consultant subscription.
             </p>
           </div>
           <CreditCard className="h-12 w-12 text-emerald-400/80 hidden md:block" />

@@ -61,7 +61,7 @@ export function LandingHero() {
 
           <div className="rcx-fade-up rcx-card rounded-2xl p-6 sm:p-8 lg:-mb-4 lg:shadow-xl" style={{ animationDelay: "0.15s" }}>
             <h2 className="text-xl font-bold text-black">The RCIC Advantage</h2>
-            <p className="mt-1 text-sm text-neutral-500">Traditional practice vs. WayToCanada</p>
+            <p className="mt-1 text-sm text-neutral-500">Traditional practice vs. RCICMASTER</p>
             <div className="mt-6 grid gap-6 sm:grid-cols-2">
               <div>
                 <p className="mb-3 text-xs font-bold uppercase tracking-wider text-neutral-400">Without us</p>
@@ -75,7 +75,7 @@ export function LandingHero() {
                 </ul>
               </div>
               <div>
-                <p className="mb-3 text-xs font-bold uppercase tracking-wider text-[#c8102e]">With WayToCanada</p>
+                <p className="mb-3 text-xs font-bold uppercase tracking-wider text-[#c8102e]">With RCICMASTER</p>
                 <ul className="space-y-2.5">
                   {withPlatform.map((item) => (
                     <li key={item} className="flex gap-2 text-sm font-medium text-black">

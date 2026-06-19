@@ -19,7 +19,7 @@ class StripeSubscriptionService extends StripeService
         }
 
         $product = Product::create([
-            'name'        => 'Way To Canada — ' . $package->name,
+            'name'        => 'RCICMASTER — ' . $package->name,
             'description' => $package->description ?? $package->name,
             'metadata'    => ['package_id' => (string) $package->id],
         ]);

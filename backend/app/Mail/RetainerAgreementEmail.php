@@ -24,7 +24,7 @@ class RetainerAgreementEmail extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Your Retainer Agreement — Way To Canada',
+            subject: 'Your Retainer Agreement — RCICMASTER',
         );
     }
 

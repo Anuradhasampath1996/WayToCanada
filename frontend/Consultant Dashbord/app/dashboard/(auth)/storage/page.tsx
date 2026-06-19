@@ -4,7 +4,7 @@ import { StorageClient } from "./storage-client";
 
 export async function generateMetadata() {
   return generateMeta({
-    title: "My Document Storage — WayToCanada",
+    title: "My Document Storage — RCICMASTER",
     description: "Personal folders and files for your practice.",
     canonical: "/dashboard/storage",
   });

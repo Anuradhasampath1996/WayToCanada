@@ -4,7 +4,7 @@ import { BillingClient } from "./billing-client";
 
 export async function generateMetadata() {
   return generateMeta({
-    title: "Billing — WayToCanada",
+    title: "Billing — RCICMASTER",
     description: "Manage your subscription, invoices, and billing.",
     canonical: "/dashboard/billing",
   });

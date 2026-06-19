@@ -15,7 +15,7 @@ export default function Footer() {
               <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#c8102e]">
                 <MapPin className="h-4 w-4" />
               </span>
-              WayToCanada
+              RCICMASTER
             </Link>
             <p className="max-w-sm text-sm leading-relaxed text-neutral-400">
               Empowering Regulated Canadian Immigration Consultants with compliance tools,
@@ -71,7 +71,7 @@ export default function Footer() {
 
         <div className="mt-12 flex flex-col gap-4 border-t border-white/10 pt-8 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-neutral-500">
-            © {new Date().getFullYear()} WayToCanada. All rights reserved.
+            © {new Date().getFullYear()} RCICMASTER. All rights reserved.
           </p>
           <div className="flex w-full max-w-md gap-2 sm:w-auto">
             <Input

@@ -48,7 +48,7 @@ const strings = {
     errorNetwork:     "Network error. Please check your connection.",
     banners: {
       none:             { title: "Unlock Your Dashboard",                  sub: "Choose the plan that fits your practice and get started today." },
-      trial_expired:    { title: "Your Free Trial Has Ended",              sub: "Thank you for trying Way To Canada. Subscribe now to keep your dashboard running." },
+      trial_expired:    { title: "Your Free Trial Has Ended",              sub: "Thank you for trying RCICMASTER. Subscribe now to keep your dashboard running." },
       expired:          { title: "Your Subscription Has Expired",          sub: "Renew your plan to restore full access to your consultant dashboard." },
       payment_declined: { title: "Payment Could Not Be Processed",         sub: "We weren't able to charge your payment method. Please select a plan and update your billing details." },
       cancelled:        { title: "Your Subscription Is Inactive",          sub: "Select a plan below to reactivate your account and continue serving your clients." },
@@ -75,7 +75,7 @@ const strings = {
     errorNetwork:     "Erreur réseau. Veuillez vérifier votre connexion.",
     banners: {
       none:             { title: "Activez votre tableau de bord",          sub: "Choisissez le forfait adapté à votre pratique et commencez dès aujourd'hui." },
-      trial_expired:    { title: "Votre essai gratuit est terminé",        sub: "Merci d'avoir essayé Way To Canada. Abonnez-vous maintenant pour continuer." },
+      trial_expired:    { title: "Votre essai gratuit est terminé",        sub: "Merci d'avoir essayé RCICMASTER. Abonnez-vous maintenant pour continuer." },
       expired:          { title: "Votre abonnement a expiré",              sub: "Renouvelez votre forfait pour rétablir l'accès complet à votre tableau de bord." },
       payment_declined: { title: "Le paiement n'a pas pu être traité",     sub: "Nous n'avons pas pu débiter votre moyen de paiement. Veuillez sélectionner un forfait et mettre à jour vos informations de facturation." },
       cancelled:        { title: "Votre abonnement est inactif",           sub: "Sélectionnez un forfait ci-dessous pour réactiver votre compte." },

@@ -251,7 +251,7 @@ export function AdminDashboardClient() {
               Welcome back, {adminName}
             </h1>
             <p className="max-w-xl text-sm text-muted-foreground">
-              Platform overview for Way To Canada — users, consultants, subscriptions, and compliance tools.
+              Platform overview for RCICMASTER — users, consultants, subscriptions, and compliance tools.
             </p>
             <p className="text-xs text-muted-foreground">{today}</p>
           </div>

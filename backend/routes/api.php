@@ -76,7 +76,7 @@ use Illuminate\Support\Facades\Route;
 
 /*
 |--------------------------------------------------------------------------
-| API Routes — WayToCanada v1
+| API Routes — RCICMASTER v1
 |--------------------------------------------------------------------------
 | All routes are prefixed with /api/v1 (set in bootstrap/app.php).
 | Protected routes require a valid Sanctum token via the 'auth:sanctum' middleware.

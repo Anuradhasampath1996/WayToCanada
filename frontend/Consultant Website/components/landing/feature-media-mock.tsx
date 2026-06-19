@@ -29,7 +29,7 @@ function BrowserFrame({ children, className }: { children: ReactNode; className?
             <span className="h-2.5 w-2.5 rounded-full bg-emerald-400/90 shadow-sm" />
           </div>
           <span className="ml-2 truncate rounded-md bg-background/80 px-2 py-0.5 text-[10px] text-muted-foreground sm:text-xs">
-            consultant.waytocanada.ca
+            consultant.rcicmaster.com
           </span>
         </div>
         <div className="bg-gradient-to-b from-background to-red-50/20 p-4 sm:p-5">{children}</div>

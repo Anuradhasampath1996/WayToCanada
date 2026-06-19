@@ -40,7 +40,7 @@ class AgreementReminderService
     {
         $url = $this->buildSigningUrl($caseFile);
 
-        return "Hi {$clientName}, this is {$consultantName} from WayToCanada. "
+        return "Hi {$clientName}, this is {$consultantName} from RCICMASTER. "
             . "Your retainer agreement is ready for signature. Please review and sign here: {$url} "
             . "Thank you!";
     }

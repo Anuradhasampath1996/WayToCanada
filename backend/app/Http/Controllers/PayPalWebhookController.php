@@ -15,7 +15,7 @@ use Illuminate\Support\Facades\Log;
  * Route: POST /api/v1/webhooks/paypal  (public, no auth)
  *
  * Set PAYPAL_WEBHOOK_ID in .env (from PayPal Developer Dashboard
- * → Apps → WayToCanada_Testing → Webhooks → Webhook ID).
+ * → Apps → RCICMASTER_Testing → Webhooks → Webhook ID).
  */
 class PayPalWebhookController extends Controller
 {

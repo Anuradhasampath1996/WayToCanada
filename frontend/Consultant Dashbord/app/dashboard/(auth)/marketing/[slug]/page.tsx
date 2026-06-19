@@ -12,7 +12,7 @@ export async function generateMetadata({ params }: Props) {
     "google-ads": "Google Ads Campaigns",
   };
   return generateMeta({
-    title: `${titles[slug] ?? "Marketing Service"} — WayToCanada`,
+    title: `${titles[slug] ?? "Marketing Service"} — RCICMASTER`,
     description: "Marketing services for RCIC consultants.",
     canonical: `/dashboard/marketing/${slug}`,
   });

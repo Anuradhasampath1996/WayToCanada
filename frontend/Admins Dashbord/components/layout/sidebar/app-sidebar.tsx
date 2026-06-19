@@ -46,7 +46,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               <Link href="/admindashboard">
                 <Logo />
                 <span className="font-semibold text-foreground group-data-[collapsible=icon]:hidden">
-                  Way To Canada
+                  RCICMASTER
                 </span>
               </Link>
             </SidebarMenuButton>

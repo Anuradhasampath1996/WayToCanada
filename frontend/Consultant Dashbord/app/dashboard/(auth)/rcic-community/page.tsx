@@ -4,7 +4,7 @@ import { RcicCommunityClient } from "./rcic-community-client";
 
 export async function generateMetadata() {
   return generateMeta({
-    title: "RCIC Community — WayToCanada",
+    title: "RCIC Community — RCICMASTER",
     description: "Peer forum for registered immigration consultants.",
     canonical: "/dashboard/rcic-community",
   });

@@ -12,7 +12,7 @@ export function LandingCta() {
           Ready to transform your practice?
         </h2>
         <p className="mt-5 text-lg leading-relaxed text-white/90">
-          Join WayToCanada today — register free and start managing clients with the platform
+          Join RCICMASTER today — register free and start managing clients with the platform
           built for modern RCICs across Canada.
         </p>
         <div className="mt-10 flex flex-wrap justify-center gap-4">

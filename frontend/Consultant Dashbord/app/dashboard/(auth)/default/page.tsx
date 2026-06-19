@@ -3,7 +3,7 @@ import { ConsultantDashboard } from "./components/consultant-dashboard";
 
 export async function generateMetadata() {
   return generateMeta({
-    title: "Consultant Dashboard — WayToCanada",
+    title: "Consultant Dashboard — RCICMASTER",
     description: "Manage your immigration consulting practice with clients, cases, calendar, and IRCC updates.",
     canonical: "/consultantdashboard",
   });

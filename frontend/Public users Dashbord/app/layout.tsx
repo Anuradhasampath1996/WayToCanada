@@ -13,6 +13,11 @@ import { ActiveThemeProvider } from "@/components/active-theme";
 import { DEFAULT_THEME } from "@/lib/themes";
 import { Toaster } from "@/components/ui/sonner";
 
+export const metadata = {
+  title: "RCICMASTER — Client Portal",
+  description: "Your RCICMASTER client dashboard for immigration applications and case updates.",
+};
+
 export default async function RootLayout({
   children
 }: Readonly<{

@@ -270,7 +270,7 @@ class ClientController extends Controller
             Mail::send([], [], function ($message) use ($client, $plainPassword, $consultant) {
                 $message
                     ->to($client->email, $client->name)
-                    ->subject('Your WayToCanada Client Portal Invitation')
+                    ->subject('Your RCICMASTER Client Portal Invitation')
                     ->html(
                         view('emails.client-invitation', [
                             'client'        => $client,

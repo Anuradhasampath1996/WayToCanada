@@ -19,7 +19,7 @@ export function DashboardMockup() {
             <span className="h-2.5 w-2.5 rounded-full bg-emerald-400/90" />
           </div>
           <span className="ml-2 rounded-md bg-background/80 px-2 py-0.5 text-xs text-muted-foreground">
-            dashboard.waytocanada.ca
+            portal.rcicmaster.com
           </span>
         </div>
 

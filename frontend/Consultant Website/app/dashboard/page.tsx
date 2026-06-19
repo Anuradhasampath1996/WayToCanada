@@ -50,7 +50,7 @@ export default function ConsultantDashboard() {
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2 font-bold text-lg text-primary">
             <Briefcase className="h-5 w-5" />
-            <span>WayToCanada</span>
+            <span>RCICMASTER</span>
             <Badge variant="outline" className="text-xs ml-1">Consultant</Badge>
           </Link>
           <div className="flex items-center gap-4">

@@ -79,7 +79,7 @@ export default function Page() {
           width={1000}
           height={1000}
           src={`/images/extra/image4.jpg`}
-          alt="WayToCanada Admin Login"
+          alt="RCICMASTER Admin Login"
           className="h-full w-full object-cover"
           unoptimized
         />
@@ -93,7 +93,7 @@ export default function Page() {
             </div>
             <h2 className="text-3xl font-bold">Admin Portal</h2>
             <p className="text-muted-foreground mt-2 text-sm">
-              WayToCanada — Super Admin &amp; Admin access only
+              RCICMASTER — Super Admin &amp; Admin access only
             </p>
           </div>
 

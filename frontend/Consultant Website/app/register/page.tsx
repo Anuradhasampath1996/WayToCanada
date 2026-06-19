@@ -145,7 +145,7 @@ export default function RegisterPage() {
       <div className="hidden lg:flex lg:w-1/2 bg-primary flex-col justify-between p-12 text-primary-foreground">
         <Link href="/" className="flex items-center gap-2 font-bold text-xl">
           <Briefcase className="h-6 w-6" />
-          <span>WayToCanada</span>
+          <span>RCICMASTER</span>
           <Badge variant="secondary" className="text-xs text-primary ml-1">Consultants</Badge>
         </Link>
         <div className="space-y-6">
@@ -153,7 +153,7 @@ export default function RegisterPage() {
             Join Canada&apos;s Fastest-Growing Consultant Platform
           </h2>
           <p className="text-sm text-primary-foreground/80">
-            Thousands of RCICs are already growing their practices on WayToCanada.
+            Thousands of RCICs are already growing their practices on RCICMASTER.
           </p>
           <ul className="space-y-3 text-sm text-primary-foreground/90">
             {BENEFITS.map((item) => (
@@ -165,7 +165,7 @@ export default function RegisterPage() {
           </ul>
         </div>
         <p className="text-xs text-primary-foreground/60">
-          © {new Date().getFullYear()} WayToCanada Consultant Portal.
+          © {new Date().getFullYear()} RCICMASTER Consultant Portal.
         </p>
       </div>
 
@@ -176,7 +176,7 @@ export default function RegisterPage() {
           {/* Mobile logo */}
           <Link href="/" className="flex lg:hidden items-center gap-2 font-bold text-xl text-primary justify-center">
             <Briefcase className="h-6 w-6" />
-            <span>WayToCanada</span>
+            <span>RCICMASTER</span>
           </Link>
 
           <div>

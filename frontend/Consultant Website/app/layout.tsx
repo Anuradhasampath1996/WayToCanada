@@ -7,9 +7,9 @@ import "./landing.css";
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
 export const metadata = {
-  title: "WayToCanada – Consultant Portal",
+  title: "RCICMASTER – Consultant Portal",
   description:
-    "Join the WayToCanada consultant network. Grow your immigration practice with our platform, tools, and client management system."
+    "Join the RCICMASTER consultant network. Grow your immigration practice with our platform, tools, and client management system."
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

@@ -22,7 +22,7 @@ class RcicLicenseVerificationMail extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'WayToCanada – RCIC Licence Verification Request',
+            subject: 'RCICMASTER – RCIC Licence Verification Request',
         );
     }
 

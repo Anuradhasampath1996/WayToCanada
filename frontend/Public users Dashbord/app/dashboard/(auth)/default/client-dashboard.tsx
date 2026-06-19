@@ -128,10 +128,10 @@ function NoConsultantBanner({ name }: { name: string }) {
       </div>
       <h3 className="font-semibold text-lg">Welcome, {name}!</h3>
       <p className="text-muted-foreground text-sm">
-        You&apos;re registered but not assigned to a consultant yet. Someone from Way To Canada will contact you soon.
+        You&apos;re registered but not assigned to a consultant yet. Someone from RCICMASTER will contact you soon.
       </p>
       <div className="flex items-center justify-center gap-2 pt-1 text-sm text-primary font-medium">
-        <MapPin className="h-4 w-4" /> Way To Canada Immigration Services
+        <MapPin className="h-4 w-4" /> RCICMASTER Immigration Services
       </div>
     </div>
   );

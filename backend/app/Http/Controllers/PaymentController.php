@@ -60,7 +60,7 @@ class PaymentController extends Controller
         try {
             $service     = new PayPalService();
             $cycle       = ucfirst($data['billing_cycle']);
-            $description = "{$package->name} — {$cycle} Subscription (Way To Canada)";
+            $description = "{$package->name} — {$cycle} Subscription (RCICMASTER)";
             $order       = $service->createOrder($price, 'CAD', $description);
 
             return response()->json(['order_id' => $order['id']]);

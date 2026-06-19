@@ -82,7 +82,7 @@ export default function RegisterPage() {
       <div className="hidden lg:flex lg:w-1/2 bg-primary flex-col justify-between p-12 text-primary-foreground">
         <Link href="/" className="flex items-center gap-2 font-bold text-xl">
           <MapPin className="h-6 w-6" />
-          <span>WayToCanada</span>
+          <span>RCICMASTER</span>
         </Link>
         <div className="space-y-6">
           <h2 className="text-3xl font-extrabold leading-snug">
@@ -103,7 +103,7 @@ export default function RegisterPage() {
           </ul>
         </div>
         <p className="text-xs text-primary-foreground/60">
-          © {new Date().getFullYear()} WayToCanada. Trusted by 10,000+ applicants worldwide.
+          © {new Date().getFullYear()} RCICMASTER. Trusted by 10,000+ applicants worldwide.
         </p>
       </div>
 
@@ -113,7 +113,7 @@ export default function RegisterPage() {
           {/* Mobile logo */}
           <Link href="/" className="flex lg:hidden items-center gap-2 font-bold text-xl text-primary justify-center">
             <MapPin className="h-6 w-6" />
-            <span>WayToCanada</span>
+            <span>RCICMASTER</span>
           </Link>
 
           <div>

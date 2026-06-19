@@ -4,7 +4,7 @@ import { ClientDashboard } from "./client-dashboard";
 export async function generateMetadata() {
   return generateMeta({
     title: "User Dashboard",
-    description: "Your personal immigration journey dashboard — Way To Canada.",
+    description: "Your personal immigration journey dashboard — RCICMASTER.",
     canonical: "/default",
   });
 }

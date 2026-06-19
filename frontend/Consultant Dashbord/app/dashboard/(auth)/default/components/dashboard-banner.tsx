@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 
 const SLIDES = [
   {
-    title: "Welcome to WayToCanada",
+    title: "Welcome to RCICMASTER",
     subtitle: "Your all-in-one platform for Canadian immigration consulting",
     gradient: "from-blue-700 via-blue-600 to-cyan-500",
     image: "/banners/banner1.jpg", // drop images in /public/banners/ if desired
@@ -96,7 +96,7 @@ export function DashboardBanner() {
       {/* Content */}
       <div className="relative z-10 flex h-full flex-col justify-center px-8 gap-2">
         <span className="text-xs font-semibold uppercase tracking-widest text-white/70">
-          WayToCanada — Consultant Portal
+          RCICMASTER — Consultant Portal
         </span>
         <h2 className="text-2xl font-extrabold text-white leading-tight max-w-lg">
           {slide.title}

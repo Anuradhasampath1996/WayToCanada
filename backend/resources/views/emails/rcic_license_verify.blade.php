@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>RCIC Licence Verification – WayToCanada</title>
+  <title>RCIC Licence Verification – RCICMASTER</title>
   <style>
     body { font-family: Arial, sans-serif; background: #f5f5f5; margin: 0; padding: 30px 0; }
     .container { max-width: 580px; margin: 0 auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,.08); }
@@ -21,12 +21,12 @@
 <body>
   <div class="container">
     <div class="header">
-      <h1>WayToCanada – RCIC Verification</h1>
+      <h1>RCICMASTER – RCIC Verification</h1>
     </div>
     <div class="body">
       <p>Hello,</p>
       <p>
-        A consultant has registered on <strong>WayToCanada</strong> and claimed the following RCIC registration number.
+        A consultant has registered on <strong>RCICMASTER</strong> and claimed the following RCIC registration number.
         If you authorised this account, please click the button below to verify their licence.
       </p>
 
@@ -46,7 +46,7 @@
       </p>
     </div>
     <div class="footer">
-      <p>© {{ date('Y') }} WayToCanada &nbsp;|&nbsp; This is an automated message, please do not reply.</p>
+      <p>© {{ date('Y') }} RCICMASTER &nbsp;|&nbsp; This is an automated message, please do not reply.</p>
     </div>
   </div>
 </body>

@@ -22,7 +22,7 @@
   <div class="wrapper">
     <div class="header">
       <h1>Agreement Signed</h1>
-      <p>Way To Canada — Consultant Notification</p>
+      <p>RCICMASTER — Consultant Notification</p>
     </div>
     <div class="body">
       <p>Hello <strong>{{ $consultantName }}</strong>,</p>
@@ -42,7 +42,7 @@
       </div>
     </div>
     <div class="footer">
-      <p>Way To Canada — automated consultant notification</p>
+      <p>RCICMASTER — automated consultant notification</p>
     </div>
   </div>
 </body>

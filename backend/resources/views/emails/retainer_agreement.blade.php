@@ -25,7 +25,7 @@
 <body>
   <div class="wrapper">
     <div class="header">
-      <h1>Way To Canada</h1>
+      <h1>RCICMASTER</h1>
       <p>Retainer Agreement</p>
     </div>
     <div class="body">
@@ -51,7 +51,7 @@
     </div>
     <div class="footer">
       <p>
-        This email was sent by <strong>Way To Canada</strong> on behalf of your immigration consultant.<br />
+        This email was sent by <strong>RCICMASTER</strong> on behalf of your immigration consultant.<br />
         If you did not expect this email, please contact your consultant directly.
       </p>
     </div>

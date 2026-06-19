@@ -33,6 +33,6 @@
     <p style="font-size: 13px; color: #64748b;">
         Meeting link: <a href="{{ $meetingUrl }}">{{ $meetingUrl }}</a>
     </p>
-    <p style="font-size: 13px; color: #94a3b8; margin-top: 32px;">Way To Canada — Immigration consultant workspace</p>
+    <p style="font-size: 13px; color: #94a3b8; margin-top: 32px;">RCICMASTER — Immigration consultant workspace</p>
 </body>
 </html>

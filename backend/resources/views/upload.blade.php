@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Upload Document — WayToCanada</title>
+    <title>Upload Document — RCICMASTER</title>
     <style>
         body { font-family: sans-serif; max-width: 520px; margin: 60px auto; padding: 0 16px; }
         h2   { margin-bottom: 24px; }

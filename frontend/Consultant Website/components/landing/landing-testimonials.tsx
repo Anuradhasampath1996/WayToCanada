@@ -2,7 +2,7 @@ const testimonials = [
   {
     name: "Priya Sharma",
     role: "RCIC · Toronto, ON",
-    quote: "WayToCanada replaced three different tools I was juggling. My clients love the portal and I finally have time to focus on cases instead of admin.",
+    quote: "RCICMASTER replaced three different tools I was juggling. My clients love the portal and I finally have time to focus on cases instead of admin.",
     initials: "PS",
   },
   {

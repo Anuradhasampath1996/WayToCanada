@@ -11,6 +11,11 @@ import { ActiveThemeProvider } from "@/components/active-theme";
 import { DEFAULT_THEME } from "@/lib/themes";
 import { Toaster } from "@/components/ui/sonner";
 
+export const metadata = {
+  title: "RCICMASTER — Admin Portal",
+  description: "RCICMASTER administration dashboard for super admins and platform managers.",
+};
+
 export default async function RootLayout({
   children
 }: Readonly<{

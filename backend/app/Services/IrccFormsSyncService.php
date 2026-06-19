@@ -21,7 +21,7 @@ class IrccFormsSyncService
 
         try {
             $response = Http::timeout(60)
-                ->withHeaders(['User-Agent' => 'WayToCanada/1.0 (+https://www.rcicmaster.com)'])
+                ->withHeaders(['User-Agent' => 'RCICMASTER/1.0 (+https://www.rcicmaster.com)'])
                 ->get(self::INDEX_URL);
 
             if ($response->failed()) {
@@ -217,7 +217,7 @@ class IrccFormsSyncService
     private function resolvePdfFromFormPage(string $pageUrl): ?array
     {
         $response = Http::timeout(45)
-            ->withHeaders(['User-Agent' => 'WayToCanada/1.0 (+https://www.rcicmaster.com)'])
+            ->withHeaders(['User-Agent' => 'RCICMASTER/1.0 (+https://www.rcicmaster.com)'])
             ->get($pageUrl);
 
         if ($response->failed()) {
@@ -247,7 +247,7 @@ class IrccFormsSyncService
     private function downloadToPackage(IrccCategory $package, IrccFormCatalog $catalog, ?IrccCategoryDocument $existing): IrccCategoryDocument
     {
         $response = Http::timeout(90)
-            ->withHeaders(['User-Agent' => 'WayToCanada/1.0 (+https://www.rcicmaster.com)'])
+            ->withHeaders(['User-Agent' => 'RCICMASTER/1.0 (+https://www.rcicmaster.com)'])
             ->get($catalog->pdf_url);
 
         if ($response->failed()) {

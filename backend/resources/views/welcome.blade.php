@@ -1,9 +1,9 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>WayToCanada — Backend Status</title>
+    <title>RCICMASTER — Backend Status</title>
     <style>
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
         :root {
@@ -69,7 +69,7 @@
     <div class="header">
         <div class="logo">
             <div class="logo-icon">&#x1F341;</div>
-            WayToCanada
+            RCICMASTER
         </div>
         <div class="timestamp">Backend Status &nbsp;&middot;&nbsp; {{ now()->format('D, d M Y H:i:s') }} UTC</div>
     </div>
@@ -120,7 +120,7 @@
     </div>
 
     <div class="footer">
-        <strong>WayToCanada</strong> &nbsp;&middot;&nbsp;
+        <strong>RCICMASTER</strong> &nbsp;&middot;&nbsp;
         Laravel {{ app()->version() }} &nbsp;&middot;&nbsp;
         PHP {{ $phpVersion }} &nbsp;&middot;&nbsp;
         ENV: {{ strtoupper($env) }}

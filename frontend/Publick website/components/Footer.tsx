@@ -11,7 +11,7 @@ export default function Footer() {
           <div className="space-y-4">
             <Link href="/" className="flex items-center gap-2 font-bold text-xl text-primary">
               <MapPin className="h-5 w-5" />
-              <span>WayToCanada</span>
+              <span>RCICMASTER</span>
             </Link>
             <p className="text-sm text-muted-foreground leading-relaxed">
               Your trusted partner for navigating the Canadian immigration journey — from visa applications to permanent residency.
@@ -83,7 +83,7 @@ export default function Footer() {
         <Separator className="my-8" />
 
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-muted-foreground">
-          <p>© {new Date().getFullYear()} WayToCanada. All rights reserved.</p>
+          <p>© {new Date().getFullYear()} RCICMASTER. All rights reserved.</p>
           <div className="flex gap-4">
             <Link href="#" className="hover:text-primary transition-colors">Privacy Policy</Link>
             <Link href="#" className="hover:text-primary transition-colors">Terms of Service</Link>

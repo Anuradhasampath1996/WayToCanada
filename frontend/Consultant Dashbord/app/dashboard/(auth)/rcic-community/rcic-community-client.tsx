@@ -514,7 +514,7 @@ export function RcicCommunityClient() {
               RCIC Community
             </h1>
             <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-              A private peer space for WayToCanada consultants — ask questions, share experience, and learn from colleagues.
+              A private peer space for RCICMASTER consultants — ask questions, share experience, and learn from colleagues.
             </p>
           </div>
           <Button className="rounded-xl" onClick={() => setComposeOpen(true)}>

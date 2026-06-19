@@ -41,7 +41,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             <Logo />
           </div>
           <div className="min-w-0 flex-1 group-data-[collapsible=icon]:hidden">
-            <p className="truncate text-sm font-bold tracking-tight text-foreground">WayToCanada</p>
+            <p className="truncate text-sm font-bold tracking-tight text-foreground">RCICMASTER</p>
             <p className="truncate text-[11px] text-muted-foreground">Consultant Portal</p>
           </div>
         </Link>

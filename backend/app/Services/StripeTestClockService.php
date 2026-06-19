@@ -68,7 +68,7 @@ class StripeTestClockService extends StripeService
         if (! $setting->stripe_test_clock_id) {
             $clock = TestClock::create([
                 'frozen_time' => time(),
-                'name'        => 'WayToCanada — recurring test',
+                'name'        => 'RCICMASTER — recurring test',
             ]);
             $setting->stripe_test_clock_id = $clock->id;
         }

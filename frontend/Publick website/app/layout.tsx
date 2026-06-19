@@ -6,9 +6,9 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
 export const metadata = {
-  title: "WayToCanada – Your Immigration Journey Starts Here",
+  title: "RCICMASTER – Your Immigration Journey Starts Here",
   description:
-    "WayToCanada helps you navigate the Canadian immigration process with expert consultants, tools, and resources."
+    "RCICMASTER helps you navigate the Canadian immigration process with expert consultants, tools, and resources."
 };
 
 export default function RootLayout({

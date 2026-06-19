@@ -108,7 +108,7 @@ export default function HomePage() {
                 Starts Here
               </h1>
               <p className="mt-6 text-lg text-muted-foreground max-w-2xl leading-relaxed">
-                WayToCanada is your all-in-one immigration platform — connecting you with certified
+                RCICMASTER is your all-in-one immigration platform — connecting you with certified
                 consultants, streamlining your application, and guiding you every step of the way to
                 your Canadian dream.
               </p>
@@ -215,12 +215,12 @@ export default function HomePage() {
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
             <div className="grid gap-12 lg:grid-cols-2 items-center">
               <div className="space-y-6">
-                <Badge variant="outline">About WayToCanada</Badge>
+                <Badge variant="outline">About RCICMASTER</Badge>
                 <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
                   We Make Canadian Immigration Accessible
                 </h2>
                 <p className="text-muted-foreground leading-relaxed">
-                  WayToCanada is a technology-driven immigration platform that connects applicants
+                  RCICMASTER is a technology-driven immigration platform that connects applicants
                   with Regulated Canadian Immigration Consultants (RCICs). Our platform simplifies
                   complex immigration processes, making Canada reachable for people around the world.
                 </p>

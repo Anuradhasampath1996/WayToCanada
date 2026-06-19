@@ -35,7 +35,7 @@ export function LandingMobileApp() {
 
           <div className="space-y-4 lg:pl-4">
             <p className="text-neutral-600">
-              WayToCanada includes a dedicated mobile app for consultants. Stay connected
+              RCICMASTER includes a dedicated mobile app for consultants. Stay connected
               with clients whether you are in the office or on the move.
             </p>
             <ul className="space-y-3">

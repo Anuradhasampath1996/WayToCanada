@@ -88,7 +88,7 @@ export function MarketingClient() {
           Marketing Services
         </h1>
         <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-          Grow your RCIC practice with websites, social media, and Google Ads — managed through WayToCanada.
+          Grow your RCIC practice with websites, social media, and Google Ads — managed through RCICMASTER.
           Pay online and our team will get you started.
         </p>
       </section>

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Your WayToCanada Portal Invitation</title>
+    <title>Your RCICMASTER Portal Invitation</title>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f4f4f5; margin: 0; padding: 24px; color: #18181b; }
         .card { background: #ffffff; border-radius: 12px; max-width: 560px; margin: 0 auto; padding: 40px; box-shadow: 0 1px 3px rgba(0,0,0,.1); }
@@ -20,12 +20,12 @@
 </head>
 <body>
     <div class="card">
-        <div class="logo">WayToCanada</div>
+        <div class="logo">RCICMASTER</div>
 
         <h1>You've been invited!</h1>
         <p>Hi <strong>{{ $client->name }}</strong>,</p>
         <p>
-            <strong>{{ $consultant->name }}</strong> has created a WayToCanada client portal account for you.
+            <strong>{{ $consultant->name }}</strong> has created a RCICMASTER client portal account for you.
             You can use the portal to track your immigration case, share documents, and stay updated on your application.
         </p>
 
@@ -45,7 +45,7 @@
 
         <div class="footer">
             <p>If you did not expect this invitation, you can safely ignore this email.</p>
-            <p>&copy; {{ date('Y') }} WayToCanada. All rights reserved.</p>
+            <p>&copy; {{ date('Y') }} RCICMASTER. All rights reserved.</p>
         </div>
     </div>
 </body>

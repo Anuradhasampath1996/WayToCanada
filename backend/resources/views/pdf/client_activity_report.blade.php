@@ -161,7 +161,7 @@
     </div>
 
     <div class="meta-box">
-        <div class="meta-row"><span class="meta-label">Document purpose:</span> Official record of client–consultant interactions on the WayToCanada secure portal, suitable for compliance review, dispute resolution, and professional conduct documentation.</div>
+        <div class="meta-row"><span class="meta-label">Document purpose:</span> Official record of client–consultant interactions on the RCICMASTER secure portal, suitable for compliance review, dispute resolution, and professional conduct documentation.</div>
         <div class="meta-row"><span class="meta-label">Report scope:</span> {{ implode(' · ', $filterLabels) }}</div>
     </div>
 
@@ -273,7 +273,7 @@
 
     <div class="footer-note">
         <strong>CICC Code of Professional Conduct — record-keeping reference</strong><br>
-        This report documents portal interactions between the consultant and client as recorded by the WayToCanada
+        This report documents portal interactions between the consultant and client as recorded by the RCICMASTER
         system. It supports transparency, accountability, and professional conduct obligations under the College of
         Immigration and Citizenship Consultants (CICC). Reference:
         college-ic.ca/protecting-the-public/code-of-professional-conduct
@@ -281,14 +281,14 @@
 
     <div class="certification">
         <strong>Certification statement:</strong> This document was electronically generated from immutable audit logs
-        maintained on the WayToCanada platform (Report {{ $reportRef }}). Each entry reflects the date, time, actor,
+        maintained on the RCICMASTER platform (Report {{ $reportRef }}). Each entry reflects the date, time, actor,
         and action as recorded at the time of the event. This report is intended for professional, compliance, and
         dispute-resolution purposes.
     </div>
 
     <script type="text/php">
         if (isset($pdf)) {
-            $pdf->page_text(32, 820, "WayToCanada Client Activity Report · {{ $reportRef }}", null, 7, [0.4, 0.4, 0.4]);
+            $pdf->page_text(32, 820, "RCICMASTER Client Activity Report · {{ $reportRef }}", null, 7, [0.4, 0.4, 0.4]);
             $pdf->page_text(480, 820, "Page {PAGE_NUM} of {PAGE_COUNT}", null, 7, [0.4, 0.4, 0.4]);
         }
     </script>

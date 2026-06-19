@@ -10,7 +10,7 @@ export function MobileAppMockup() {
           <div className="bg-[#c8102e] px-4 pb-4 pt-8 text-white">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-[10px] opacity-80">WayToCanada</p>
+                <p className="text-[10px] opacity-80">RCICMASTER</p>
                 <p className="text-sm font-bold">Consultant App</p>
               </div>
               <Bell className="h-4 w-4 opacity-90" />

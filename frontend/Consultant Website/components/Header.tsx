@@ -39,7 +39,7 @@ export default function Header() {
               <MapPin className="h-4 w-4" />
             </span>
             <span className="text-lg font-bold tracking-tight text-black">
-              WayToCanada
+              RCICMASTER
               <span className="ml-1 text-sm font-semibold text-neutral-500">Consultants</span>
             </span>
           </Link>
