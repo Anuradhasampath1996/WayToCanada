@@ -30,6 +30,12 @@ import { cn } from "@/lib/utils";
 
 const API = (process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000") + "/api/v1";
 
+function isTruthySetting(value: string | null | undefined): boolean {
+  if (value == null) return false;
+  const normalized = String(value).trim().toLowerCase();
+  return normalized === "true" || normalized === "1" || normalized === "yes";
+}
+
 type IntegrationGroup = {
   key: string;
   label: string;
@@ -139,7 +145,7 @@ function GroupForm({
       }
       if (f === "enabled" || f === "workspace_enabled") {
         const v = group.values[f];
-        init[f] = v === true || v === "true" || v === "1" || v === 1 ? "true" : "false";
+        init[f] = isTruthySetting(v) ? "true" : "false";
         return;
       }
       init[f] = String(group.values[f] ?? "");
