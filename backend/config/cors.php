@@ -36,6 +36,7 @@ return [
         '#^https?://localhost:\d+$#',
         '#^https?://127\.0\.0\.1:\d+$#',
         '#^https?://10\.0\.2\.2:\d+$#',
+        '#^https?://([a-z0-9-]+\.)?rcicmaster\.com$#',
     ],
 
     'allowed_headers' => ['*'],

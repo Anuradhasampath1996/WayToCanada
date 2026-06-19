@@ -8,14 +8,13 @@ const nextConfig: NextConfig = {
     return [
       { source: "/admindashboard", destination: "/dashboard/admindashboard" },
       { source: "/admindashboard/:path*", destination: "/dashboard/admindashboard/:path*" },
-      { source: "/dashboard/login", destination: "/dashboard/login/v1" },
     ];
   },
   async redirects() {
     return [
       {
-        source: "/dashboard/login/v1",
-        destination: "/dashboard/login",
+        source: "/dashboard/login",
+        destination: "/dashboard/login/v1",
         permanent: false,
       },
     ];

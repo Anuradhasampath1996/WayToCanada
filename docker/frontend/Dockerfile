@@ -14,15 +14,14 @@ FROM node:20-alpine AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-ARG NEXT_PUBLIC_API_URL=http://www.rcicmaster.com
-ARG NEXT_PUBLIC_APP_URL=http://www.rcicmaster.com
-ARG NEXT_PUBLIC_USER_DASHBOARD_URL=http://app.rcicmaster.com
-ARG NEXT_PUBLIC_CONSULTANT_WEBSITE_URL=http://www.rcicmaster.com
-ARG NEXT_PUBLIC_CONSULTANT_DASHBOARD_URL=http://portal.rcicmaster.com
-ARG NEXT_PUBLIC_ADMIN_DASHBOARD_URL=http://admin.rcicmaster.com
-ARG NEXT_PUBLIC_USER_DASHBOARD_URL=http://app.rcicmaster.com
+ARG NEXT_PUBLIC_API_URL=https://www.rcicmaster.com
+ARG NEXT_PUBLIC_APP_URL=https://www.rcicmaster.com
+ARG NEXT_PUBLIC_USER_DASHBOARD_URL=https://app.rcicmaster.com
+ARG NEXT_PUBLIC_CONSULTANT_WEBSITE_URL=https://www.rcicmaster.com
+ARG NEXT_PUBLIC_CONSULTANT_DASHBOARD_URL=https://portal.rcicmaster.com
+ARG NEXT_PUBLIC_ADMIN_DASHBOARD_URL=https://admin.rcicmaster.com
 ARG NEXT_PUBLIC_OCR_URL=
-ARG NEXT_PUBLIC_PUBLIC_WEBSITE_URL=http://apply.rcicmaster.com
+ARG NEXT_PUBLIC_PUBLIC_WEBSITE_URL=https://apply.rcicmaster.com
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
 ENV NEXT_PUBLIC_USER_DASHBOARD_URL=$NEXT_PUBLIC_USER_DASHBOARD_URL
