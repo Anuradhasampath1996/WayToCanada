@@ -28,6 +28,7 @@ use App\Http\Controllers\Consultant\ConsultantCalendarController;
 use App\Http\Controllers\Consultant\ConsultantClientMeetingController;
 use App\Http\Controllers\Consultant\ConsultantWorkspaceAiAdvisorController;
 use App\Http\Controllers\Consultant\ConsultantRcicCommunityController;
+use App\Http\Controllers\Consultant\ConsultantSupportTicketController;
 use App\Http\Controllers\Consultant\ConsultantClientActivityController;
 use App\Http\Controllers\Consultant\ConsultantClientTrustController;
 use App\Http\Controllers\Client\ClientTrustController;
@@ -68,6 +69,7 @@ use App\Http\Controllers\QuestionnaireReviewController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\NotificationPreferenceController;
 use App\Http\Controllers\Admin\AdminRcicCommunityController;
+use App\Http\Controllers\Admin\AdminSupportTicketController;
 use App\Http\Controllers\Admin\AdminBroadcastController;
 use App\Http\Controllers\Admin\AdminIntegrationSettingsController;
 use Illuminate\Support\Facades\Route;
@@ -446,6 +448,15 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('report', [ConsultantRcicCommunityController::class, 'report'])->name('report');
     });
 
+    // ── Consultant support tickets ───────────────────────────────────────────
+    Route::prefix('consultant/support-tickets')->name('consultant.support-tickets.')->group(function () {
+        Route::get('unread-count', [ConsultantSupportTicketController::class, 'unreadCount'])->name('unread-count');
+        Route::get('/', [ConsultantSupportTicketController::class, 'index'])->name('index');
+        Route::post('/', [ConsultantSupportTicketController::class, 'store'])->name('store');
+        Route::get('{ticket}', [ConsultantSupportTicketController::class, 'show'])->name('show');
+        Route::post('{ticket}/messages', [ConsultantSupportTicketController::class, 'storeMessage'])->name('messages.store');
+    });
+
     // ── Super Admin Dashboard ────────────────────────────────────────────────
     // Accessible by super-admin only.
     Route::middleware('role:super-admin')->prefix('admin')->name('admin.')->group(function () {
@@ -469,6 +480,13 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::patch('replies/{reply}/hide', [AdminRcicCommunityController::class, 'hideReply'])->name('replies.hide');
             Route::get('reports', [AdminRcicCommunityController::class, 'reports'])->name('reports.index');
             Route::patch('reports/{report}', [AdminRcicCommunityController::class, 'updateReport'])->name('reports.update');
+        });
+
+        Route::prefix('support-tickets')->name('support-tickets.')->group(function () {
+            Route::get('/', [AdminSupportTicketController::class, 'index'])->name('index');
+            Route::get('{ticket}', [AdminSupportTicketController::class, 'show'])->name('show');
+            Route::post('{ticket}/messages', [AdminSupportTicketController::class, 'storeMessage'])->name('messages.store');
+            Route::patch('{ticket}', [AdminSupportTicketController::class, 'update'])->name('update');
         });
 
         // User management

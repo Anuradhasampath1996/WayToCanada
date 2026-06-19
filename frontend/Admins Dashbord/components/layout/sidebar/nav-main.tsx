@@ -29,6 +29,7 @@ import {
   MegaphoneIcon,
   KeyRoundIcon,
   MessageCircle,
+  Headphones,
   type LucideIcon,
 } from "lucide-react";
 import Link from "next/link";
@@ -142,6 +143,12 @@ export const navItems: NavGroup[] = [
         title: "RCIC Community",
         href: "/admindashboard/rcic-community",
         icon: MessageCircle,
+        isNew: true,
+      },
+      {
+        title: "Consultant Support",
+        href: "/admindashboard/support-tickets",
+        icon: Headphones,
         isNew: true,
       }
     ]

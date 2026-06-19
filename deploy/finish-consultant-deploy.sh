@@ -19,8 +19,8 @@ build_one() {
 docker compose -f docker-compose.prod.yml up -d postgres api frontend frontend-admin frontend-users
 
 build_one waytocanada-frontend-consultant-site "./frontend/Consultant Website" \
-  --build-arg NEXT_PUBLIC_API_URL=http://consultant.rcicmaster.com \
-  --build-arg NEXT_PUBLIC_APP_URL=http://consultant.rcicmaster.com \
+  --build-arg NEXT_PUBLIC_API_URL=http://www.rcicmaster.com \
+  --build-arg NEXT_PUBLIC_APP_URL=http://www.rcicmaster.com \
   --build-arg NEXT_PUBLIC_CONSULTANT_DASHBOARD_URL=http://portal.rcicmaster.com \
   --build-arg NEXT_PUBLIC_ADMIN_DASHBOARD_URL=http://admin.rcicmaster.com \
   --build-arg NEXT_PUBLIC_USER_DASHBOARD_URL=http://app.rcicmaster.com

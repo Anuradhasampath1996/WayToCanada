@@ -24,6 +24,7 @@ return [
         'http://127.0.0.1:3003',
         'http://127.0.0.1:3005',
         'http://www.rcicmaster.com',
+        'http://apply.rcicmaster.com',
         'http://rcicmaster.com',
         'http://admin.rcicmaster.com',
         'http://app.rcicmaster.com',

@@ -81,4 +81,20 @@ class NotificationUrlBuilder
 
         return $tab ? $base . '?tab=' . $tab : $base;
     }
+
+    public static function consultantSupportTickets(?int $ticketId = null): string
+    {
+        $base = rtrim((string) env('CONSULTANT_DASHBOARD_URL', 'http://localhost:3005'), '/')
+            . '/dashboard';
+
+        return $ticketId ? $base . '?support=' . $ticketId : $base . '?support=1';
+    }
+
+    public static function adminSupportTickets(?int $ticketId = null): string
+    {
+        $base = rtrim((string) env('ADMIN_DASHBOARD_URL', 'http://localhost:3001'), '/')
+            . '/admindashboard/support-tickets';
+
+        return $ticketId ? $base . '?ticket=' . $ticketId : $base;
+    }
 }

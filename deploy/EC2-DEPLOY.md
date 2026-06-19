@@ -37,10 +37,11 @@ In your domain registrar (Namecheap or Route 53), create **A records** pointing 
 | Host | Subdomain | Service |
 |------|-----------|---------|
 | `@` | `rcicmaster.com` | Apex → redirects to www |
-| `www` | `www.rcicmaster.com` | Public marketing site |
+| `www` | `www.rcicmaster.com` | **Consultant marketing site** (RCICMaster) |
+| `apply` | `apply.rcicmaster.com` | Public immigration applicant site |
 | `admin` | `admin.rcicmaster.com` | Admin dashboard |
 | `app` | `app.rcicmaster.com` | Client / user dashboard |
-| `consultant` | `consultant.rcicmaster.com` | Consultant website |
+| `consultant` | `consultant.rcicmaster.com` | Redirects to www (legacy) |
 | `portal` | `portal.rcicmaster.com` | Consultant workspace |
 
 Wait for propagation (5–30 minutes, sometimes longer).
@@ -50,6 +51,7 @@ After DNS propagates, apply nginx and TLS:
 ```bash
 sudo bash /opt/waytocanada/deploy/apply-nginx.sh
 sudo certbot --nginx -d rcicmaster.com -d www.rcicmaster.com \
+  -d apply.rcicmaster.com \
   -d admin.rcicmaster.com -d app.rcicmaster.com \
   -d consultant.rcicmaster.com -d portal.rcicmaster.com
 ```

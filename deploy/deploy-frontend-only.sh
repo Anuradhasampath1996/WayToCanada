@@ -6,8 +6,8 @@ git reset --hard origin/main
 export DOCKER_BUILDKIT=1
 docker build \
   -f docker/frontend/Dockerfile \
-  --build-arg NEXT_PUBLIC_API_URL=http://www.rcicmaster.com \
-  --build-arg NEXT_PUBLIC_APP_URL=http://www.rcicmaster.com \
+  --build-arg NEXT_PUBLIC_API_URL=http://apply.rcicmaster.com \
+  --build-arg NEXT_PUBLIC_APP_URL=http://apply.rcicmaster.com \
   -t waytocanada-frontend \
   "./frontend/Publick website"
 docker compose -f docker-compose.prod.yml up -d frontend

@@ -48,13 +48,13 @@ set_var QUEUE_CONNECTION database
 set_var CACHE_STORE database
 
 # Live frontend URLs (OAuth redirects after login)
-set_var PUBLIC_FRONTEND_URL "http://www.rcicmaster.com"
-set_var CONSULTANT_FRONTEND_URL "http://consultant.rcicmaster.com"
+set_var PUBLIC_FRONTEND_URL "http://apply.rcicmaster.com"
+set_var CONSULTANT_FRONTEND_URL "http://www.rcicmaster.com"
 set_var CONSULTANT_DASHBOARD_URL "http://portal.rcicmaster.com"
 set_var FRONTEND_URL "http://www.rcicmaster.com"
 set_var PUBLIC_DASHBOARD_URL "http://app.rcicmaster.com"
 
-set_var SANCTUM_STATEFUL_DOMAINS "www.rcicmaster.com,admin.rcicmaster.com,app.rcicmaster.com,consultant.rcicmaster.com,portal.rcicmaster.com,rcicmaster.com"
+set_var SANCTUM_STATEFUL_DOMAINS "www.rcicmaster.com,apply.rcicmaster.com,admin.rcicmaster.com,app.rcicmaster.com,consultant.rcicmaster.com,portal.rcicmaster.com,rcicmaster.com"
 
 # Google OAuth — callback must match Google Cloud Console (add this URI there)
 set_var GOOGLE_REDIRECT_URI "http://www.rcicmaster.com/api/v1/auth/google/callback"

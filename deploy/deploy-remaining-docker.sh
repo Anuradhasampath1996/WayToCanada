@@ -25,18 +25,20 @@ fi
 build_and_start waytocanada-frontend-users "./frontend/Public users Dashbord" \
   --build-arg NEXT_PUBLIC_API_URL=http://app.rcicmaster.com \
   --build-arg NEXT_PUBLIC_APP_URL=http://app.rcicmaster.com \
-  --build-arg NEXT_PUBLIC_OCR_URL=http://www.rcicmaster.com
+  --build-arg NEXT_PUBLIC_PUBLIC_WEBSITE_URL=http://apply.rcicmaster.com \
+  --build-arg NEXT_PUBLIC_OCR_URL=http://apply.rcicmaster.com
 docker compose -f docker-compose.prod.yml up -d frontend-users
 
 build_and_start waytocanada-frontend-consultant-site "./frontend/Consultant Website" \
-  --build-arg NEXT_PUBLIC_API_URL=http://consultant.rcicmaster.com \
-  --build-arg NEXT_PUBLIC_APP_URL=http://consultant.rcicmaster.com \
+  --build-arg NEXT_PUBLIC_API_URL=http://www.rcicmaster.com \
+  --build-arg NEXT_PUBLIC_APP_URL=http://www.rcicmaster.com \
   --build-arg NEXT_PUBLIC_CONSULTANT_DASHBOARD_URL=http://portal.rcicmaster.com
 docker compose -f docker-compose.prod.yml up -d frontend-consultant-site
 
 build_and_start waytocanada-frontend-consultant-dash "./frontend/Consultant Dashbord" \
   --build-arg NEXT_PUBLIC_API_URL=http://portal.rcicmaster.com \
-  --build-arg NEXT_PUBLIC_APP_URL=http://portal.rcicmaster.com
+  --build-arg NEXT_PUBLIC_APP_URL=http://portal.rcicmaster.com \
+  --build-arg NEXT_PUBLIC_CONSULTANT_WEBSITE_URL=http://www.rcicmaster.com
 docker compose -f docker-compose.prod.yml up -d frontend-consultant-dash
 
 docker compose -f docker-compose.prod.yml ps
