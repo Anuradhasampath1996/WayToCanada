@@ -1,95 +1,78 @@
-/* Consultant marketing site — premium landing utilities */
+/* WayToCanada Consultant landing — red, black & white */
 
-@keyframes landing-float {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-12px); }
+:root {
+  --rcx-red: #c8102e;
+  --rcx-red-dark: #a00d24;
+  --rcx-black: #0a0a0a;
+  --rcx-gray: #f5f5f5;
 }
 
-@keyframes landing-shimmer {
-  0% { background-position: 200% center; }
-  100% { background-position: -200% center; }
-}
-
-@keyframes landing-fade-up {
-  from { opacity: 0; transform: translateY(24px); }
+@keyframes rcx-fade-up {
+  from { opacity: 0; transform: translateY(20px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
-@keyframes landing-pulse-ring {
-  0%, 100% { opacity: 0.4; transform: scale(1); }
-  50% { opacity: 0.15; transform: scale(1.05); }
+.rcx-fade-up {
+  animation: rcx-fade-up 0.65s ease-out both;
 }
 
-.landing-mesh {
-  background-color: #fafdfb;
-  background-image:
-    radial-gradient(ellipse 90% 60% at 10% -10%, rgba(16, 185, 129, 0.22), transparent 55%),
-    radial-gradient(ellipse 70% 50% at 90% 0%, rgba(20, 184, 166, 0.14), transparent 50%),
-    radial-gradient(ellipse 50% 40% at 50% 100%, rgba(16, 185, 129, 0.08), transparent 60%);
+.rcx-section {
+  scroll-margin-top: 5rem;
 }
 
-.landing-grid-pattern {
-  background-image:
-    linear-gradient(rgba(16, 185, 129, 0.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(16, 185, 129, 0.04) 1px, transparent 1px);
-  background-size: 48px 48px;
-  mask-image: radial-gradient(ellipse 80% 70% at 50% 30%, black 20%, transparent 75%);
+.rcx-btn-primary {
+  background-color: var(--rcx-red);
+  color: white;
+}
+.rcx-btn-primary:hover {
+  background-color: var(--rcx-red-dark);
 }
 
-.landing-gradient-text {
-  background: linear-gradient(135deg, #047857 0%, #0d9488 45%, #059669 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+.rcx-text-red {
+  color: var(--rcx-red);
 }
 
-.landing-shimmer-border {
-  background: linear-gradient(90deg, #10b981, #14b8a6, #34d399, #10b981);
-  background-size: 200% auto;
-  animation: landing-shimmer 4s linear infinite;
+.rcx-bg-red {
+  background-color: var(--rcx-red);
 }
 
-.landing-float {
-  animation: landing-float 6s ease-in-out infinite;
+.rcx-border-red {
+  border-color: var(--rcx-red);
 }
 
-.landing-float-delayed {
-  animation: landing-float 6s ease-in-out 2s infinite;
+.rcx-icon-box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 0.75rem;
+  background: rgba(200, 16, 46, 0.08);
+  color: var(--rcx-red);
 }
 
-.landing-fade-up {
-  animation: landing-fade-up 0.7s ease-out both;
+.rcx-card {
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  background: white;
+  box-shadow: 0 4px 24px -8px rgba(0, 0, 0, 0.1);
 }
 
-.landing-glass {
-  background: rgba(255, 255, 255, 0.72);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.8);
+.rcx-card-hover:hover {
+  border-color: rgba(200, 16, 46, 0.25);
+  box-shadow: 0 12px 40px -12px rgba(200, 16, 46, 0.15);
 }
 
-.landing-card-glow {
-  box-shadow:
-    0 0 0 1px rgba(16, 185, 129, 0.08),
-    0 4px 24px -4px rgba(16, 185, 129, 0.12),
-    0 24px 48px -24px rgba(0, 0, 0, 0.08);
+.rcx-pricing-popular {
+  border: 2px solid var(--rcx-red);
+  box-shadow: 0 8px 32px -8px rgba(200, 16, 46, 0.2);
 }
 
-.landing-section-alt {
-  background: linear-gradient(180deg, rgba(240, 253, 250, 0.5) 0%, rgba(255, 255, 255, 0) 100%);
+.rcx-hero-overlay {
+  background: linear-gradient(105deg, rgba(255, 255, 255, 0.97) 0%, rgba(255, 255, 255, 0.92) 42%, rgba(255, 255, 255, 0.55) 68%, transparent 100%);
 }
 
-.landing-orb {
-  position: absolute;
-  border-radius: 50%;
-  filter: blur(60px);
-  pointer-events: none;
-  animation: landing-pulse-ring 8s ease-in-out infinite;
-}
-
-.feature-scroll-nav-active {
-  background: linear-gradient(135deg, rgba(16, 185, 129, 0.12), rgba(20, 184, 166, 0.08));
-  border-color: rgba(16, 185, 129, 0.35);
-  color: #047857;
-  font-weight: 600;
+@media (max-width: 1023px) {
+  .rcx-hero-overlay {
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.96) 0%, rgba(255, 255, 255, 0.88) 100%);
+  }
 }

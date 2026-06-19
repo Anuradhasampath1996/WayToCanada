@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { Video, DollarSign, ChevronRight } from "lucide-react";
+import { MAPLE_ASSISTANT } from "@/lib/workspace-ai-character";
+import { MapleAvatar } from "@/components/workspace/maple-avatar";
 import { cn } from "@/lib/utils";
 import {
   Sheet,
@@ -12,17 +14,25 @@ import {
 } from "@/components/ui/sheet";
 import { ClientMeetingsPanel } from "./client-meetings-panel";
 import { ClientPaymentRequestsPanel } from "./client-payment-requests-panel";
+import { WorkspaceAiAdvisorPanel } from "./workspace-ai-advisor-panel";
 
-type QuickTool = "meetings" | "payments";
+type QuickTool = "meetings" | "payments" | "ai-advisor";
 
 const TOOLS: Array<{
   id: QuickTool;
   label: string;
   shortLabel: string;
-  icon: typeof Video;
+  icon?: typeof Video;
+  maple?: boolean;
 }> = [
   { id: "meetings", label: "Video meetings", shortLabel: "Meet", icon: Video },
   { id: "payments", label: "Payment requests", shortLabel: "Pay", icon: DollarSign },
+  {
+    id: "ai-advisor",
+    label: `${MAPLE_ASSISTANT.name} — ${MAPLE_ASSISTANT.role}`,
+    shortLabel: MAPLE_ASSISTANT.name,
+    maple: true,
+  },
 ];
 
 export function WorkspaceQuickToolsRail({ clientId }: { clientId: number }) {
@@ -83,7 +93,13 @@ export function WorkspaceQuickToolsRail({ clientId }: { clientId: number }) {
                       isActive && "bg-primary-foreground/20",
                     )}
                   >
-                    <Icon className="size-5 shrink-0" strokeWidth={2} />
+                    {tool.maple ? (
+                      <span className="text-base leading-none" aria-hidden>
+                        {MAPLE_ASSISTANT.emoji}
+                      </span>
+                    ) : Icon ? (
+                      <Icon className="size-5 shrink-0" strokeWidth={2} />
+                    ) : null}
                     <span className="text-[9px] font-semibold uppercase tracking-wide opacity-90">
                       {tool.shortLabel}
                     </span>
@@ -117,11 +133,24 @@ export function WorkspaceQuickToolsRail({ clientId }: { clientId: number }) {
                   Payment requests
                 </>
               )}
+              {activeTool === "ai-advisor" && (
+                <>
+                  <MapleAvatar size="sm" className="h-7 w-7 rounded-lg text-sm shadow-none ring-0" />
+                  <span>
+                    {MAPLE_ASSISTANT.name}
+                    <span className="ml-1 text-xs font-normal text-muted-foreground">
+                      · always here for you
+                    </span>
+                  </span>
+                </>
+              )}
             </SheetTitle>
             <SheetDescription className="text-left text-xs">
               {activeTool === "meetings"
                 ? "Schedule Google Meet, Zoom, or Teams with your client."
-                : "Send secure payment links at any stage of the case."}
+                : activeTool === "payments"
+                  ? "Send secure payment links at any stage of the case."
+                  : `${MAPLE_ASSISTANT.name} is your friendly co-pilot in this workspace — click when you need case or pathway help.`}
             </SheetDescription>
           </SheetHeader>
 
@@ -131,6 +160,9 @@ export function WorkspaceQuickToolsRail({ clientId }: { clientId: number }) {
             )}
             {activeTool === "payments" && (
               <ClientPaymentRequestsPanel clientId={clientId} embedded />
+            )}
+            {activeTool === "ai-advisor" && (
+              <WorkspaceAiAdvisorPanel clientId={clientId} />
             )}
           </div>
         </SheetContent>

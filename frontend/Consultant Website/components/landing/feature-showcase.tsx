@@ -35,14 +35,14 @@ function LeanSection({
     <section
       id={section.slug}
       className={cn(
-        "scroll-mt-24 border-y border-emerald-500/5 py-14 lg:py-20",
-        altBg ? "bg-emerald-50/40" : "bg-white",
+        "scroll-mt-24 border-y border-black/5 py-14 lg:py-20",
+        altBg ? "bg-[#f5f5f5]" : "bg-white",
       )}
     >
       <div className="mx-auto grid max-w-7xl items-center gap-10 px-4 sm:px-6 lg:grid-cols-2 lg:gap-16 lg:px-8">
         <div className={cn(mediaRight ? "lg:order-1" : "lg:order-2")}>
           {section.subtitle && (
-            <p className="text-xs font-bold uppercase tracking-[0.2em] text-emerald-600">{section.subtitle}</p>
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#c8102e]">{section.subtitle}</p>
           )}
           <h2 className="mt-2 text-2xl font-bold tracking-tight sm:text-3xl lg:text-4xl">{section.title}</h2>
           <p className="mt-4 text-base leading-relaxed text-muted-foreground lg:text-lg">{section.description}</p>
@@ -50,13 +50,13 @@ function LeanSection({
             <ul className="mt-6 space-y-2.5">
               {bullets.map((b) => (
                 <li key={b} className="flex items-start gap-2.5 text-sm text-foreground/90">
-                  <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+                  <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[#c8102e]" />
                   {b}
                 </li>
               ))}
             </ul>
           )}
-          <Button className="mt-8 rounded-xl bg-emerald-600 hover:bg-emerald-700" asChild>
+          <Button className="mt-8 rounded-md bg-[#c8102e] hover:bg-[#a00d24]" asChild>
             <Link href="/register">
               Get started free <ArrowRight className="ml-2 h-4 w-4" />
             </Link>
@@ -64,7 +64,7 @@ function LeanSection({
         </div>
 
         <div className={cn("relative", mediaRight ? "lg:order-2" : "lg:order-1")}>
-          <div className="absolute -left-2 -top-2 z-10 flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-600 text-white shadow-lg">
+          <div className="absolute -left-2 -top-2 z-10 flex h-10 w-10 items-center justify-center rounded-xl bg-[#c8102e] text-white shadow-lg">
             <Icon className="h-5 w-5" />
           </div>
           <FeatureMedia
@@ -92,7 +92,7 @@ export function FeatureShowcase() {
   if (loading) {
     return (
       <div id="features" className="flex justify-center py-24">
-        <Loader2 className="h-10 w-10 animate-spin text-emerald-600" />
+        <Loader2 className="h-10 w-10 animate-spin text-[#c8102e]" />
       </div>
     );
   }
@@ -107,8 +107,8 @@ export function FeatureShowcase() {
 
   return (
     <div id="features">
-      <div className="border-b border-emerald-500/10 bg-white py-12 text-center">
-        <p className="text-xs font-bold uppercase tracking-widest text-emerald-600">Our platform</p>
+      <div className="border-b border-black/5 bg-white py-12 text-center">
+        <p className="text-xs font-bold uppercase tracking-widest text-[#c8102e]">Our platform</p>
         <h2 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">Everything in one system</h2>
         <p className="mx-auto mt-3 max-w-2xl text-muted-foreground">
           Scroll through each module — built for modern RCIC workflows from first invite to final submission.

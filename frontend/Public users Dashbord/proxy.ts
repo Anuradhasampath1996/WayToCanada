@@ -14,9 +14,18 @@ export function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // All /dashboard/* routes require the token cookie
+  const token = request.cookies.get("wtc_token")?.value;
+
+  // Client dashboard routes require the token cookie
+  if (pathname.startsWith("/user-dashboard")) {
+    if (!token) {
+      return NextResponse.redirect(PUBLIC_LOGIN_URL);
+    }
+    return NextResponse.next();
+  }
+
+  // Legacy /dashboard/* routes
   if (pathname.startsWith("/dashboard/")) {
-    const token = request.cookies.get("wtc_token")?.value;
     if (!token) {
       return NextResponse.redirect(PUBLIC_LOGIN_URL);
     }
@@ -26,5 +35,5 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/", "/dashboard", "/dashboard/:path*", "/auth/callback"]
+  matcher: ["/", "/dashboard", "/dashboard/:path*", "/user-dashboard", "/user-dashboard/:path*", "/auth/callback"],
 };

@@ -23,16 +23,16 @@ export function DashboardMockup() {
           </span>
         </div>
 
-        <div className="flex min-h-[340px] bg-gradient-to-br from-background via-background to-emerald-50/30">
+        <div className="flex min-h-[340px] bg-gradient-to-br from-background via-background to-red-50/30">
           <aside className="hidden w-14 shrink-0 border-r border-border/60 bg-muted/20 p-2 sm:block">
-            <div className="mb-4 flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-600 to-teal-600 text-white shadow-md">
+            <div className="mb-4 flex h-9 w-9 items-center justify-center rounded-xl bg-[#c8102e] text-white shadow-md">
               <Briefcase className="h-4 w-4" />
             </div>
             {[LayoutDashboard, Users, FileText, MessageSquare, Bell].map((Icon, i) => (
               <div
                 key={i}
                 className={`mb-2 flex h-8 w-8 items-center justify-center rounded-lg transition-colors ${
-                  i === 0 ? "bg-emerald-600/15 text-emerald-700" : "text-muted-foreground"
+                  i === 0 ? "bg-red-600/15 text-[#a00d24]" : "text-muted-foreground"
                 }`}
               >
                 <Icon className="h-4 w-4" />
@@ -46,10 +46,10 @@ export function DashboardMockup() {
 
             <div className="mt-4 grid grid-cols-2 gap-2.5">
               {[
-                { label: "Active clients", value: "24", color: "text-emerald-600", bg: "bg-emerald-500/5" },
+                { label: "Active clients", value: "24", color: "text-[#c8102e]", bg: "bg-red-500/5" },
                 { label: "Due this week", value: "6", color: "text-amber-600", bg: "bg-amber-500/5" },
-                { label: "In review", value: "11", color: "text-sky-600", bg: "bg-sky-500/5" },
-                { label: "New leads", value: "3", color: "text-violet-600", bg: "bg-violet-500/5" },
+                { label: "In review", value: "11", color: "text-neutral-700", bg: "bg-neutral-500/5" },
+                { label: "New leads", value: "3", color: "text-neutral-900", bg: "bg-neutral-500/5" },
               ].map((s) => (
                 <div key={s.label} className={`rounded-xl border border-border/60 ${s.bg} p-3`}>
                   <p className={`text-2xl font-extrabold ${s.color}`}>{s.value}</p>
@@ -64,10 +64,10 @@ export function DashboardMockup() {
                   <div
                     key={item}
                     className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-xs ${
-                      i === 0 ? "border-emerald-500/30 bg-emerald-500/10" : "border-border/70 bg-background/80"
+                      i === 0 ? "border-red-500/30 bg-red-500/10" : "border-border/70 bg-background/80"
                     }`}
                   >
-                    <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${i === 0 ? "bg-emerald-500" : "bg-muted-foreground/40"}`} />
+                    <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${i === 0 ? "bg-[#c8102e]" : "bg-muted-foreground/40"}`} />
                     <span className="truncate font-medium">{item}</span>
                   </div>
                 ),
@@ -77,9 +77,9 @@ export function DashboardMockup() {
         </div>
       </div>
 
-      <div className="landing-float-delayed absolute -bottom-4 -left-4 hidden rounded-2xl border border-emerald-500/20 bg-white/90 px-4 py-3 shadow-xl backdrop-blur sm:block">
+      <div className="landing-float-delayed absolute -bottom-4 -left-4 hidden rounded-2xl border border-red-200 bg-white/90 px-4 py-3 shadow-xl backdrop-blur sm:block">
         <p className="text-xs text-muted-foreground">New client invite</p>
-        <p className="text-sm font-semibold text-emerald-700">Accepted ✓</p>
+        <p className="text-sm font-semibold text-[#a00d24]">Accepted ✓</p>
       </div>
     </div>
   );

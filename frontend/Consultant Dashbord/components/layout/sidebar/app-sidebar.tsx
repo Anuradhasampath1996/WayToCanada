@@ -47,7 +47,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         </Link>
       </SidebarHeader>
       <SidebarContent className="bg-sidebar/50">
-        <ScrollArea className="h-full">
+        <ScrollArea className="h-full [&>[data-radix-scroll-area-viewport]>div]:!flex [&>[data-radix-scroll-area-viewport]>div]:min-h-full">
           <NavMain />
         </ScrollArea>
       </SidebarContent>

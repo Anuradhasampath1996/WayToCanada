@@ -65,4 +65,20 @@ class NotificationUrlBuilder
     {
         return self::consultantClientWorkspace($profileId, 'case-management');
     }
+
+    public static function consultantRcicCommunity(?int $postId = null): string
+    {
+        $base = rtrim((string) env('CONSULTANT_DASHBOARD_URL', 'http://localhost:3005'), '/')
+            . '/dashboard/rcic-community';
+
+        return $postId ? $base . '?post=' . $postId : $base;
+    }
+
+    public static function adminRcicCommunity(?string $tab = null): string
+    {
+        $base = rtrim((string) env('ADMIN_DASHBOARD_URL', 'http://localhost:3001'), '/')
+            . '/admindashboard/rcic-community';
+
+        return $tab ? $base . '?tab=' . $tab : $base;
+    }
 }

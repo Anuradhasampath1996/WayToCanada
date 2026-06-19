@@ -51,6 +51,7 @@ class User extends Authenticatable implements MustVerifyEmail
         'company_postal_code',
         'company_country',
         'digital_signature',
+        'rcic_community_last_seen_at',
     ];
 
     protected $hidden = [
@@ -68,6 +69,7 @@ class User extends Authenticatable implements MustVerifyEmail
             'is_verified'         => 'boolean',
             'is_license_verified' => 'boolean',
             'license_verified_at' => 'datetime',
+            'rcic_community_last_seen_at' => 'datetime',
         ];
     }
 

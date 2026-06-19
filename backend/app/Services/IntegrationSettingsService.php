@@ -103,13 +103,15 @@ class IntegrationSettingsService
         ],
         'openai' => [
             'label'       => 'OpenAI',
-            'description' => 'Legislation Hub AI analysis.',
+            'description' => 'Shared API key for Legislation Hub analysis and Maple (consultant workspace AI chat & case advisor).',
             'secrets'     => ['api_key'],
-            'fields'      => ['api_key', 'enabled', 'model'],
+            'fields'      => ['api_key', 'enabled', 'model', 'workspace_enabled', 'workspace_model'],
             'env'         => [
-                'api_key' => 'OPENAI_API_KEY',
-                'enabled' => 'LEGISLATION_OPENAI_ENABLED',
-                'model'   => 'LEGISLATION_OPENAI_MODEL',
+                'api_key'           => 'OPENAI_API_KEY',
+                'enabled'           => 'LEGISLATION_OPENAI_ENABLED',
+                'model'             => 'LEGISLATION_OPENAI_MODEL',
+                'workspace_enabled' => 'WORKSPACE_AI_ENABLED',
+                'workspace_model'   => 'WORKSPACE_AI_MODEL',
             ],
         ],
     ];
@@ -173,7 +175,10 @@ class IntegrationSettingsService
                 }
                 $next[$field] = (string) $value;
             } else {
-                $next[$field] = $value === '' ? null : $value;
+                if ($value === null || $value === '') {
+                    continue;
+                }
+                $next[$field] = $value;
             }
         }
 
@@ -229,7 +234,12 @@ class IntegrationSettingsService
             $fromEnv[$field] = env($envKey);
         }
 
-        return array_merge($fromEnv, $this->stored($groupKey));
+        $stored = array_filter(
+            $this->stored($groupKey),
+            static fn ($v) => $v !== null && $v !== '',
+        );
+
+        return array_merge($fromEnv, $stored);
     }
 
     /** @return array<string, mixed> */
@@ -384,12 +394,34 @@ class IntegrationSettingsService
     /** @param array<string, mixed> $v */
     private function applyOpenAi(array $v): void
     {
-        if (empty($v['api_key'])) {
-            return;
+        if (! empty($v['api_key'])) {
+            config(['services.openai.key' => $v['api_key']]);
         }
 
-        config([
-            'services.openai.key' => $v['api_key'],
-        ]);
+        if (array_key_exists('enabled', $v)) {
+            config(['legislation_sources.openai.enabled' => $this->envBool($v['enabled'])]);
+        }
+
+        if (! empty($v['model'])) {
+            config(['legislation_sources.openai.model' => $v['model']]);
+        }
+
+        if (array_key_exists('workspace_enabled', $v)) {
+            config(['workspace_ai.enabled' => $this->envBool($v['workspace_enabled'])]);
+        }
+
+        $workspaceModel = $v['workspace_model'] ?? $v['model'] ?? null;
+        if (! empty($workspaceModel)) {
+            config(['workspace_ai.model' => $workspaceModel]);
+        }
+    }
+
+    private function envBool(mixed $value): bool
+    {
+        if (is_bool($value)) {
+            return $value;
+        }
+
+        return filter_var($value, FILTER_VALIDATE_BOOLEAN);
     }
 }

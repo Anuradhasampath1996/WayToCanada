@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import {
   Activity, Loader2, User, Briefcase, Filter, Shield, ExternalLink, Download,
   FileText, MessageSquare, Calendar, CreditCard, GraduationCap, ClipboardList,
+  ChevronLeft, ChevronRight,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -14,6 +15,8 @@ import {
 import { cn } from "@/lib/utils";
 
 const API = (process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000") + "/api/v1";
+const PER_PAGE_OPTIONS = [8, 15, 25] as const;
+const DEFAULT_PER_PAGE = PER_PAGE_OPTIONS[0];
 
 type ActivityLogEntry = {
   id: number;
@@ -36,6 +39,7 @@ type ActivityResponse = {
     current_page: number;
     last_page: number;
     total: number;
+    per_page: number;
   };
 };
 
@@ -60,10 +64,10 @@ const ACTOR_LABELS: Record<string, string> = {
   consultant: "Consultant only",
 };
 
-function authHeaders() {
+function authHeaders(accept = "application/json") {
   const token = typeof window !== "undefined" ? localStorage.getItem("wtc_consultant_token") : null;
   return {
-    Accept: "application/json",
+    Accept: accept,
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
   };
 }
@@ -95,6 +99,14 @@ function fmtDateTime(iso: string) {
   });
 }
 
+function pageWindow(current: number, last: number): number[] {
+  if (last <= 5) {
+    return Array.from({ length: last }, (_, i) => i + 1);
+  }
+  const start = Math.max(1, Math.min(current - 2, last - 4));
+  return Array.from({ length: Math.min(5, last) }, (_, i) => start + i);
+}
+
 export function ClientActivityReport({ clientId }: { clientId: number }) {
   const [entries, setEntries] = useState<ActivityLogEntry[]>([]);
   const [summary, setSummary] = useState<ActivityResponse["summary"] | null>(null);
@@ -102,6 +114,8 @@ export function ClientActivityReport({ clientId }: { clientId: number }) {
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [lastPage, setLastPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [perPage, setPerPage] = useState<number>(DEFAULT_PER_PAGE);
   const [actorFilter, setActorFilter] = useState("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [downloading, setDownloading] = useState(false);
@@ -121,12 +135,23 @@ export function ClientActivityReport({ clientId }: { clientId: number }) {
       const params = filterParams();
       const res = await fetch(
         `${API}/consultant/clients/${clientId}/activity-log/pdf?${params}`,
-        { headers: authHeaders() },
+        { headers: authHeaders("application/pdf") },
       );
+      const contentType = res.headers.get("Content-Type") ?? "";
       if (!res.ok) {
-        throw new Error("Failed to generate PDF.");
+        let message = "Failed to generate PDF.";
+        if (contentType.includes("application/json")) {
+          const json = await res.json().catch(() => null);
+          if (json?.message) message = String(json.message);
+        }
+        throw new Error(message);
       }
       const blob = await res.blob();
+      const header = new Uint8Array(await blob.slice(0, 4).arrayBuffer());
+      const isPdf = header[0] === 0x25 && header[1] === 0x50 && header[2] === 0x44 && header[3] === 0x46;
+      if (!blob.size || (!contentType.includes("pdf") && !isPdf)) {
+        throw new Error("Server did not return a valid PDF file.");
+      }
       const disposition = res.headers.get("Content-Disposition");
       const match = disposition?.match(/filename="?([^";\n]+)"?/);
       const filename = match?.[1] ?? `client-activity-report-${clientId}.pdf`;
@@ -138,8 +163,8 @@ export function ClientActivityReport({ clientId }: { clientId: number }) {
       link.click();
       link.remove();
       URL.revokeObjectURL(url);
-    } catch {
-      setDownloadError("Could not download PDF. Please try again.");
+    } catch (e: unknown) {
+      setDownloadError(e instanceof Error ? e.message : "Could not download PDF. Please try again.");
     } finally {
       setDownloading(false);
     }
@@ -147,7 +172,7 @@ export function ClientActivityReport({ clientId }: { clientId: number }) {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const params = new URLSearchParams({ page: String(page), per_page: "30" });
+    const params = new URLSearchParams({ page: String(page), per_page: String(perPage) });
     if (actorFilter !== "all") params.set("actor", actorFilter);
     if (categoryFilter !== "all") params.set("category", categoryFilter);
 
@@ -163,8 +188,9 @@ export function ClientActivityReport({ clientId }: { clientId: number }) {
     setSummary(json.summary ?? null);
     setComplianceNote(json.compliance_note ?? "");
     setLastPage(json.data?.last_page ?? 1);
+    setTotal(json.data?.total ?? 0);
     setLoading(false);
-  }, [clientId, page, actorFilter, categoryFilter]);
+  }, [clientId, page, perPage, actorFilter, categoryFilter]);
 
   useEffect(() => {
     load();
@@ -172,7 +198,16 @@ export function ClientActivityReport({ clientId }: { clientId: number }) {
 
   useEffect(() => {
     setPage(1);
-  }, [actorFilter, categoryFilter]);
+  }, [actorFilter, categoryFilter, perPage]);
+
+  function goToPage(next: number) {
+    setPage(next);
+    document.getElementById("client-activity-report")?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
+
+  const rangeStart = total === 0 ? 0 : (page - 1) * perPage + 1;
+  const rangeEnd = total === 0 ? 0 : Math.min(page * perPage, total);
+  const pages = pageWindow(page, lastPage);
 
   return (
     <Card className="border-border/70 shadow-sm" id="client-activity-report">
@@ -243,6 +278,19 @@ export function ClientActivityReport({ clientId }: { clientId: number }) {
           <Button variant="ghost" size="sm" className="h-8" onClick={() => load()}>
             Refresh
           </Button>
+          <Select
+            value={String(perPage)}
+            onValueChange={(v) => setPerPage(Number(v))}
+          >
+            <SelectTrigger className="h-8 w-[120px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {PER_PAGE_OPTIONS.map((n) => (
+                <SelectItem key={n} value={String(n)}>{n} per page</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           {!summary && (
             <Button
               size="sm"
@@ -261,64 +309,101 @@ export function ClientActivityReport({ clientId }: { clientId: number }) {
         )}
       </CardHeader>
 
-      <CardContent className="pt-4">
-        {loading ? (
-          <div className="flex items-center justify-center py-12 text-muted-foreground">
-            <Loader2 className="mr-2 size-5 animate-spin" />
-            Loading activity log…
-          </div>
-        ) : entries.length === 0 ? (
-          <p className="py-8 text-center text-sm text-muted-foreground">
-            No activity recorded yet. Events will appear here as the client and consultant use the portal.
-          </p>
-        ) : (
-          <ul className="space-y-0">
-            {entries.map((entry, i) => {
-              const Icon = categoryIcon(entry.event_type);
-              const badge = actorBadge(entry.actor_type);
-              return (
-                <li key={entry.id} className="relative flex gap-3 pb-5 last:pb-0">
-                  {i < entries.length - 1 && (
-                    <span className="absolute left-[15px] top-8 bottom-0 w-px bg-border" />
-                  )}
-                  <div className="relative z-10 flex size-8 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
-                    <Icon className="size-3.5" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="text-sm font-medium">{entry.title}</p>
-                      <span className={cn("rounded-md border px-1.5 py-0.5 text-[10px] font-medium", badge.className)}>
-                        {badge.label}
-                      </span>
+      <CardContent className="space-y-4 pt-4">
+        <div className="overflow-hidden rounded-xl border border-border/60 bg-muted/15">
+          {loading ? (
+            <div className="flex items-center justify-center py-14 text-muted-foreground">
+              <Loader2 className="mr-2 size-5 animate-spin" />
+              Loading activity log…
+            </div>
+          ) : entries.length === 0 ? (
+            <p className="py-12 text-center text-sm text-muted-foreground">
+              No activity recorded yet. Events will appear here as the client and consultant use the portal.
+            </p>
+          ) : (
+            <ul className="divide-y divide-border/50">
+              {entries.map((entry) => {
+                const Icon = categoryIcon(entry.event_type);
+                const badge = actorBadge(entry.actor_type);
+                return (
+                  <li
+                    key={entry.id}
+                    className="flex gap-3 px-4 py-3 transition-colors hover:bg-background/80"
+                  >
+                    <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-background text-muted-foreground shadow-sm ring-1 ring-border/50">
+                      <Icon className="size-3.5" />
                     </div>
-                    {entry.description && (
-                      <p className="mt-0.5 text-sm text-muted-foreground">{entry.description}</p>
-                    )}
-                    <p className="mt-1 text-[11px] text-muted-foreground">
-                      {fmtDateTime(entry.occurred_at)}
-                      {entry.actor_name ? ` · ${entry.actor_name}` : ""}
-                      {entry.ip_address ? ` · IP ${entry.ip_address}` : ""}
-                    </p>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        )}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-sm font-medium leading-snug">{entry.title}</p>
+                        <span className={cn("rounded-md border px-1.5 py-0.5 text-[10px] font-medium", badge.className)}>
+                          {badge.label}
+                        </span>
+                      </div>
+                      {entry.description && (
+                        <p className="mt-0.5 line-clamp-2 text-sm text-muted-foreground">{entry.description}</p>
+                      )}
+                      <p className="mt-1 text-[11px] text-muted-foreground">
+                        {fmtDateTime(entry.occurred_at)}
+                        {entry.actor_name ? ` · ${entry.actor_name}` : ""}
+                        {entry.ip_address ? ` · IP ${entry.ip_address}` : ""}
+                      </p>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
 
-        {lastPage > 1 && (
-          <div className="mt-4 flex items-center justify-between border-t border-border/50 pt-4">
-            <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
-              Previous
-            </Button>
-            <span className="text-xs text-muted-foreground">Page {page} of {lastPage}</span>
-            <Button variant="outline" size="sm" disabled={page >= lastPage} onClick={() => setPage((p) => p + 1)}>
-              Next
-            </Button>
+        {!loading && total > 0 && (
+          <div className="flex flex-col gap-3 rounded-xl border border-border/50 bg-background px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-xs text-muted-foreground">
+              Showing <span className="font-medium text-foreground">{rangeStart}–{rangeEnd}</span> of{" "}
+              <span className="font-medium text-foreground">{total}</span> events
+            </p>
+
+            <div className="flex items-center justify-center gap-1">
+              <Button
+                variant="outline"
+                size="icon"
+                className="size-8 shrink-0"
+                disabled={page <= 1}
+                onClick={() => goToPage(page - 1)}
+                aria-label="Previous page"
+              >
+                <ChevronLeft className="size-4" />
+              </Button>
+
+              {pages.map((p) => (
+                <Button
+                  key={p}
+                  variant={p === page ? "default" : "outline"}
+                  size="icon"
+                  className={cn("size-8 shrink-0 text-xs", p === page && "pointer-events-none")}
+                  onClick={() => goToPage(p)}
+                  aria-label={`Page ${p}`}
+                  aria-current={p === page ? "page" : undefined}
+                >
+                  {p}
+                </Button>
+              ))}
+
+              <Button
+                variant="outline"
+                size="icon"
+                className="size-8 shrink-0"
+                disabled={page >= lastPage}
+                onClick={() => goToPage(page + 1)}
+                aria-label="Next page"
+              >
+                <ChevronRight className="size-4" />
+              </Button>
+            </div>
           </div>
         )}
 
-        <div className="mt-6 rounded-lg border border-emerald-200/60 bg-emerald-50/50 p-4 text-xs text-emerald-900">
+        <div className="rounded-lg border border-emerald-200/60 bg-emerald-50/50 p-4 text-xs text-emerald-900">
           <p className="font-medium">CICC professional conduct reference</p>
           <p className="mt-1 text-emerald-800/90">
             {complianceNote || "This report supports transparency and record-keeping obligations for regulated immigration consultants."}

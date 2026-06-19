@@ -33,7 +33,6 @@ import {
   type QuestionnaireSubmissionSnapshot,
   type QuestionnaireWorkspaceStats,
 } from "@/lib/questionnaire-workspace-stats";
-import { WorkspaceQuickToolsRail } from "./workspace-quick-tools-rail";
 
 const API = (process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000") + "/api/v1";
 
@@ -903,8 +902,6 @@ export function WorkspacePageClient({ paramsPromise }: { paramsPromise: Promise<
           <ClientActivityTimeline events={activityEvents} />
         </aside>
       </div>
-
-      <WorkspaceQuickToolsRail clientId={Number(id)} />
     </div>
   );
 }

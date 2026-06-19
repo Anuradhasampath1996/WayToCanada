@@ -32,7 +32,7 @@ function BrowserFrame({ children, className }: { children: ReactNode; className?
             consultant.waytocanada.ca
           </span>
         </div>
-        <div className="bg-gradient-to-b from-background to-emerald-50/20 p-4 sm:p-5">{children}</div>
+        <div className="bg-gradient-to-b from-background to-red-50/20 p-4 sm:p-5">{children}</div>
       </div>
     </div>
   );
@@ -48,11 +48,11 @@ function MockWorkspace() {
             key={s}
             className={cn(
               "flex items-center justify-between rounded-xl border px-3 py-2.5 text-sm",
-              i === 1 ? "border-emerald-500/40 bg-emerald-500/10" : "border-border/70",
+              i === 1 ? "border-red-500/40 bg-red-500/10" : "border-border/70",
             )}
           >
             <span className="font-medium">{s}</span>
-            {i < 1 ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+            {i < 1 ? <CheckCircle2 className="h-4 w-4 text-[#c8102e]" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
           </div>
         ))}
       </div>
@@ -65,10 +65,10 @@ function MockPathway() {
     <BrowserFrame>
       <div className="flex items-center justify-between">
         <p className="text-sm font-semibold">CRS Score</p>
-        <span className="text-2xl font-bold text-emerald-600">467</span>
+        <span className="text-2xl font-bold text-[#c8102e]">467</span>
       </div>
       <div className="mt-4 h-2 overflow-hidden rounded-full bg-muted">
-        <div className="h-full w-[72%] rounded-full bg-gradient-to-r from-emerald-500 to-teal-500" />
+        <div className="h-full w-[72%] rounded-full bg-[#c8102e]" />
       </div>
       <div className="mt-4 space-y-2">
         {["Express Entry — Eligible", "PNP Ontario — Achievable", "Study → PR — Review"].map((p) => (
@@ -84,7 +84,7 @@ function MockPipeline() {
   return (
     <BrowserFrame>
       <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
-        <Kanban className="h-4 w-4 text-emerald-600" /> Application board
+        <Kanban className="h-4 w-4 text-[#c8102e]" /> Application board
       </div>
       <div className="grid grid-cols-4 gap-1.5">
         {cols.map((c, ci) => (
@@ -106,7 +106,7 @@ function MockStorage() {
   return (
     <BrowserFrame>
       <div className="flex items-center gap-2 text-sm font-semibold">
-        <HardDrive className="h-4 w-4 text-emerald-600" /> My storage
+        <HardDrive className="h-4 w-4 text-[#c8102e]" /> My storage
       </div>
       <div className="mt-3 space-y-1 text-xs">
         {["Contracts", "Client scans", "invoice_march.pdf"].map((item, i) => (
@@ -124,12 +124,12 @@ function MockGeneric({ icon: Icon, label, rows }: { icon: typeof Users; label: s
   return (
     <BrowserFrame>
       <div className="mb-3 flex items-center gap-2 text-sm font-semibold">
-        <Icon className="h-4 w-4 text-emerald-600" /> {label}
+        <Icon className="h-4 w-4 text-[#c8102e]" /> {label}
       </div>
       <div className="space-y-2">
         {rows.map((r) => (
           <div key={r} className="flex items-center gap-2 rounded-lg border border-border/70 px-3 py-2 text-xs">
-            <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
+            <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-[#c8102e]" />
             {r}
           </div>
         ))}
@@ -174,7 +174,7 @@ export function FeatureMedia({
     if (!mediaUrl) return <FeatureMediaMock variant={mockVariant} />;
     return (
       <div className="relative mx-auto w-full max-w-xl">
-        <div className="absolute -inset-3 rounded-3xl bg-gradient-to-br from-emerald-500/20 to-transparent blur-2xl" />
+        <div className="absolute -inset-3 rounded-3xl bg-gradient-to-br from-red-500/20 to-transparent blur-2xl" />
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={mediaUrl}

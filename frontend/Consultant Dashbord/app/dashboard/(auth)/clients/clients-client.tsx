@@ -57,6 +57,7 @@ import {
 import { cn } from "@/lib/utils";
 
 const API = (process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000") + "/api/v1";
+const FETCH_TIMEOUT_MS = 20_000;
 
 interface ClientUser {
   id: number;
@@ -248,29 +249,48 @@ export function ClientsPageClient() {
     setTimeout(() => setToast(null), 3500);
   };
 
-  const load = useCallback(
-    async (p = page) => {
-      setLoading(true);
-      setError("");
-      try {
-        const params = new URLSearchParams({ page: String(p), per_page: "200" });
-        const res = await fetch(`${API}/consultant/clients?${params}`, { headers: authHeaders() });
-        const json = await res.json();
-        if (!res.ok) throw new Error(json?.message ?? "Failed to load clients.");
-        setPagination(json);
-        setAllClients(json.data ?? []);
-      } catch (e: unknown) {
-        setError(e instanceof Error ? e.message : "Failed to load clients.");
-      } finally {
-        setLoading(false);
+  const load = useCallback(async (p: number) => {
+    setLoading(true);
+    setError("");
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+
+    try {
+      const token = typeof window !== "undefined" ? localStorage.getItem("wtc_consultant_token") : null;
+      if (!token) {
+        throw new Error("You are not signed in. Please log in again.");
       }
-    },
-    [page],
-  );
+
+      const params = new URLSearchParams({ page: String(p), per_page: "50" });
+      const res = await fetch(`${API}/consultant/clients?${params}`, {
+        headers: authHeaders(),
+        signal: controller.signal,
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error((json as { message?: string })?.message ?? `Failed to load clients (${res.status}).`);
+      }
+      setPagination(json as Pagination);
+      setAllClients((json as Pagination).data ?? []);
+    } catch (e: unknown) {
+      if (e instanceof DOMException && e.name === "AbortError") {
+        setError(
+          "The server is not responding. Make sure the API is running (php artisan serve on port 8000), then click Retry.",
+        );
+      } else {
+        setError(e instanceof Error ? e.message : "Failed to load clients.");
+      }
+      setPagination(null);
+      setAllClients([]);
+    } finally {
+      window.clearTimeout(timer);
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    load(page);
-  }, [page]);
+    void load(page);
+  }, [load, page]);
 
   const clearFilters = () => {
     setFilterName("");
@@ -463,7 +483,7 @@ export function ClientsPageClient() {
               </button>
             </div>
 
-            <Button variant="ghost" size="icon" className="rounded-xl" onClick={() => load(page)} disabled={loading}>
+            <Button variant="ghost" size="icon" className="rounded-xl" onClick={() => void load(page)} disabled={loading}>
               <RefreshCw className={cn("size-4", loading && "animate-spin")} />
             </Button>
           </div>
@@ -496,9 +516,10 @@ export function ClientsPageClient() {
       {error && (
         <div className="flex items-center gap-2 rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
           <AlertCircle className="size-4 shrink-0" />
-          {error}
-          <Button variant="ghost" size="sm" className="ml-auto" onClick={() => load(page)}>
-            <RefreshCw className="size-4" />
+          <span className="flex-1">{error}</span>
+          <Button variant="outline" size="sm" className="shrink-0" onClick={() => void load(page)}>
+            <RefreshCw className="mr-1.5 size-4" />
+            Retry
           </Button>
         </div>
       )}

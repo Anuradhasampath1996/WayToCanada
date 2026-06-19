@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   Save, Loader2, Trash2, CheckCircle2, AlertCircle, Mail, KeyRound,
   MessageCircle, Cloud, Video, Brain, Shield,
@@ -77,8 +78,10 @@ const FIELD_LABELS: Record<string, string> = {
   region: "Region",
   bucket: "S3 bucket",
   api_key: "API key",
-  enabled: "Enabled",
-  model: "Model",
+  enabled: "Legislation Hub AI enabled",
+  model: "Legislation model",
+  workspace_enabled: "Maple workspace AI (chat & analyze)",
+  workspace_model: "Maple model",
 };
 
 function SecretField({
@@ -130,11 +133,16 @@ function GroupForm({
   useEffect(() => {
     const init: Record<string, string> = {};
     group.fields.forEach((f) => {
-      if (!group.secrets.includes(f)) {
-        init[f] = String(group.values[f] ?? "");
-      } else {
+      if (group.secrets.includes(f)) {
         init[f] = "";
+        return;
       }
+      if (f === "enabled" || f === "workspace_enabled") {
+        const v = group.values[f];
+        init[f] = v === true || v === "true" || v === "1" || v === 1 ? "true" : "false";
+        return;
+      }
+      init[f] = String(group.values[f] ?? "");
     });
     setForm(init);
   }, [group]);
@@ -206,6 +214,17 @@ function GroupForm({
 
       <p className="text-sm text-muted-foreground">{group.description}</p>
 
+      {group.key === "openai" && (
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+          <p className="font-medium">Maple AI setup</p>
+          <ol className="mt-2 list-decimal space-y-1 pl-4 text-emerald-800">
+            <li>Paste your OpenAI API key (<code className="text-xs">sk-...</code>).</li>
+            <li>Turn on <strong>Maple workspace AI</strong> for consultant chat.</li>
+            <li>Click <strong>Save</strong> — no server restart needed.</li>
+          </ol>
+        </div>
+      )}
+
       <div className="grid gap-4 sm:grid-cols-2">
         {group.fields.map((field) => {
           if (field === "mailer") {
@@ -225,13 +244,13 @@ function GroupForm({
             );
           }
 
-          if (field === "enabled") {
+          if (field === "enabled" || field === "workspace_enabled") {
             return (
               <div key={field} className="flex items-center justify-between rounded-lg border p-4 sm:col-span-2">
-                <Label>OpenAI enabled</Label>
+                <Label>{FIELD_LABELS[field] ?? field}</Label>
                 <Switch
-                  checked={form.enabled === "true" || form.enabled === "1"}
-                  onCheckedChange={(v) => setForm({ ...form, enabled: v ? "true" : "false" })}
+                  checked={form[field] === "true" || form[field] === "1"}
+                  onCheckedChange={(v) => setForm({ ...form, [field]: v ? "true" : "false" })}
                 />
               </div>
             );
@@ -321,9 +340,10 @@ function GroupForm({
 }
 
 export default function IntegrationsPage() {
+  const searchParams = useSearchParams();
   const [groups, setGroups] = useState<IntegrationGroup[]>([]);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState("mail");
+  const [tab, setTab] = useState(() => searchParams.get("tab") ?? "mail");
 
   const load = useCallback(async () => {
     try {

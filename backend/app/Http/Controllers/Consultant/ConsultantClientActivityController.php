@@ -9,6 +9,7 @@ use App\Services\ClientActivity\ClientActivityRecorder;
 use App\Services\ClientActivity\ClientActivityReportPdfService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 class ConsultantClientActivityController extends Controller
 {
@@ -85,11 +86,22 @@ class ConsultantClientActivityController extends Controller
     {
         $this->authorizeConsultant($request, $profile);
 
-        $this->recorder->syncHistorical($profile);
+        try {
+            $this->recorder->syncHistorical($profile);
 
-        $pdf = $this->pdfService->generate($profile, $request->user(), $request);
+            $pdf = $this->pdfService->generate($profile, $request->user(), $request);
 
-        return $pdf->download($this->pdfService->filename($profile));
+            return $pdf->download($this->pdfService->filename($profile));
+        } catch (\Throwable $e) {
+            Log::error('Client activity PDF failed', [
+                'profile_id' => $profile->id,
+                'error'      => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'message' => 'Could not generate the activity report PDF. Please try again.',
+            ], 500);
+        }
     }
 
     private function authorizeConsultant(Request $request, ClientProfile $profile): void

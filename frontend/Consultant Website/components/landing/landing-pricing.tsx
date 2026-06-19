@@ -2,8 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Check, Loader2, ShieldCheck, Sparkles } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { Check, Loader2, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { SubscriptionPackage } from "@/lib/subscription-packages";
@@ -37,15 +36,12 @@ export function LandingPricing() {
   const popularId = packages.length > 1 ? packages[1]?.id ?? packages[0]?.id : packages[0]?.id;
 
   return (
-    <section id="pricing" className="scroll-mt-24 bg-gradient-to-b from-emerald-50/60 via-white to-white py-20 lg:py-28">
+    <section id="pricing" className="scroll-mt-24 bg-white py-20 lg:py-28">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-2xl text-center">
-          <Badge variant="outline" className="mb-4 border-emerald-500/20 bg-white">
-            <Sparkles className="mr-1.5 h-3.5 w-3.5" />
-            Simple pricing
-          </Badge>
-          <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
-            Subscription packages for every practice
+          <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#c8102e]">Pricing</p>
+          <h2 className="mt-3 text-3xl font-bold tracking-tight text-black sm:text-4xl">
+            Plans for every practice size
           </h2>
           <p className="mt-4 text-muted-foreground">
             Transparent monthly or yearly plans. All packages include the consultant dashboard,
@@ -61,12 +57,12 @@ export function LandingPricing() {
               onClick={() => setBilling(cycle)}
               className={cn(
                 "rounded-lg px-5 py-2 text-sm font-semibold capitalize transition-colors",
-                billing === cycle ? "bg-white text-emerald-800 shadow-sm" : "text-muted-foreground hover:text-foreground",
+                billing === cycle ? "bg-[#c8102e] text-white shadow-sm" : "text-neutral-600 hover:text-black",
               )}
             >
               {cycle}
               {cycle === "yearly" && (
-                <span className="ml-1.5 text-xs font-medium text-emerald-600">Save more</span>
+                <span className="ml-1.5 text-xs font-medium text-[#c8102e]">Save more</span>
               )}
             </button>
           ))}
@@ -74,12 +70,12 @@ export function LandingPricing() {
 
         {loading ? (
           <div className="flex justify-center py-20">
-            <Loader2 className="h-10 w-10 animate-spin text-emerald-600" />
+            <Loader2 className="h-10 w-10 animate-spin text-[#c8102e]" />
           </div>
         ) : packages.length === 0 ? (
           <p className="py-16 text-center text-muted-foreground">
             Pricing plans coming soon.{" "}
-            <Link href="/register" className="font-medium text-emerald-700 underline-offset-4 hover:underline">
+            <Link href="/register" className="font-medium text-[#c8102e] underline-offset-4 hover:underline">
               Register free
             </Link>{" "}
             to get started.
@@ -97,11 +93,11 @@ export function LandingPricing() {
                   key={pkg.id}
                   className={cn(
                     "relative flex flex-col rounded-2xl border bg-white p-7 shadow-sm transition-shadow hover:shadow-lg",
-                    isPopular ? "border-emerald-500 ring-2 ring-emerald-500/15" : "border-border/80",
+                    isPopular ? "rcx-pricing-popular" : "border-neutral-200",
                   )}
                 >
                   {isPopular && (
-                    <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-emerald-600 px-3 py-1 text-xs font-semibold text-white shadow">
+                    <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-[#c8102e] px-3 py-1 text-xs font-semibold text-white shadow">
                       Most popular
                     </span>
                   )}
@@ -121,11 +117,11 @@ export function LandingPricing() {
                   </div>
 
                   {savings != null && savings > 0 && (
-                    <p className="mt-1 text-xs font-medium text-emerald-700">Save {savings}% vs monthly</p>
+                    <p className="mt-1 text-xs font-medium text-[#c8102e]">Save {savings}% vs monthly</p>
                   )}
 
                   {pkg.free_trial_days != null && pkg.free_trial_days > 0 && (
-                    <div className="mt-4 inline-flex w-fit items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-800">
+                    <div className="mt-4 inline-flex w-fit items-center gap-1.5 rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs font-semibold text-[#c8102e]">
                       <ShieldCheck className="h-3.5 w-3.5" />
                       {pkg.free_trial_days}-day free trial
                     </div>
@@ -135,7 +131,7 @@ export function LandingPricing() {
                     <ul className="mt-6 flex-1 space-y-2.5 border-t border-border/60 pt-6">
                       {features.map((f) => (
                         <li key={f} className="flex items-start gap-2.5 text-sm">
-                          <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+                          <Check className="mt-0.5 h-4 w-4 shrink-0 text-[#c8102e]" />
                           {f}
                         </li>
                       ))}
@@ -143,7 +139,7 @@ export function LandingPricing() {
                   )}
 
                   <Button
-                    className={cn("mt-6 w-full rounded-xl", isPopular && "bg-emerald-600 hover:bg-emerald-700")}
+                    className={cn("mt-6 w-full rounded-md", isPopular && "bg-[#c8102e] hover:bg-[#a00d24]")}
                     variant={isPopular ? "default" : "outline"}
                     asChild
                   >

@@ -184,7 +184,7 @@ class AuthController extends Controller
         }
 
         // Default: public/client portal
-        $frontendUrl = rtrim(env('PUBLIC_FRONTEND_URL', 'http://localhost:3003'), '/');
+        $frontendUrl = rtrim(env('PUBLIC_FRONTEND_URL', 'http://localhost:3000'), '/');
         return redirect()->away("{$frontendUrl}/auth/callback#token={$token}");
     }
 
@@ -279,7 +279,7 @@ class AuthController extends Controller
             return redirect()->away("{$dashboardUrl}/dashboard/login?sso=" . urlencode($token));
         }
 
-        $frontendUrl = rtrim(env('PUBLIC_FRONTEND_URL', 'http://localhost:3003'), '/');
+        $frontendUrl = rtrim(env('PUBLIC_FRONTEND_URL', 'http://localhost:3000'), '/');
         return redirect()->away("{$frontendUrl}/auth/callback#token={$token}");
     }
 

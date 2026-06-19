@@ -6,6 +6,7 @@ use App\Enums\ClientActivityType;
 use App\Models\ClientActivityLog;
 use App\Models\ClientProfile;
 use App\Models\User;
+use App\Support\PdfImageEmbedder;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
@@ -82,7 +83,7 @@ class ClientActivityReportPdfService
             'companyAddress'    => $companyAddress,
             'companyPhone'      => $consultant->company_phone ?: $consultant->phone,
             'companyWeb'        => $consultant->company_website,
-            'companyLogo'       => $consultant->company_logo,
+            'companyLogo'       => PdfImageEmbedder::logoDataUri($consultant->company_logo),
             'rcicNo'            => $consultant->rcic_number,
             'client'            => $profile,
             'clientUser'        => $profile->user,
@@ -95,7 +96,7 @@ class ClientActivityReportPdfService
             'filterLabels'      => $filterLabels,
         ])
             ->setPaper('a4', 'portrait')
-            ->setOption('isRemoteEnabled', true)
+            ->setOption('isRemoteEnabled', false)
             ->setOption('isHtml5ParserEnabled', true);
     }
 

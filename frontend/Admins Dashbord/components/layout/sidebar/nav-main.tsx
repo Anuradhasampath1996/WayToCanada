@@ -28,6 +28,7 @@ import {
   WalletMinimalIcon,
   MegaphoneIcon,
   KeyRoundIcon,
+  MessageCircle,
   type LucideIcon,
 } from "lucide-react";
 import Link from "next/link";
@@ -96,6 +97,12 @@ export const navItems: NavGroup[] = [
         icon: HardDriveIcon
       },
       {
+        title: "Marketing Services",
+        href: "/admindashboard/marketing-services",
+        icon: MegaphoneIcon,
+        isNew: true,
+      },
+      {
         title: "Subscription Payments",
         href: "/admindashboard/subscription-payments",
         icon: WalletMinimalIcon
@@ -130,6 +137,12 @@ export const navItems: NavGroup[] = [
         title: "Notifications",
         href: "/admindashboard/notifications",
         icon: MegaphoneIcon,
+      },
+      {
+        title: "RCIC Community",
+        href: "/admindashboard/rcic-community",
+        icon: MessageCircle,
+        isNew: true,
       }
     ]
   }

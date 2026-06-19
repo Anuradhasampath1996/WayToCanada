@@ -4,9 +4,9 @@ import { CONSULTANT_LOGIN_URL } from "@/lib/auth-urls";
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Redirect root and /dashboard to /dashboard/default
-  if (pathname === "/" || pathname === "/dashboard") {
-    return NextResponse.redirect(new URL("/dashboard/default", request.url));
+  // Redirect root and /dashboard to the consultant home URL
+  if (pathname === "/" || pathname === "/dashboard" || pathname === "/dashboard/default") {
+    return NextResponse.redirect(new URL("/consultantdashboard", request.url));
   }
 
   // Auth callback page is always accessible

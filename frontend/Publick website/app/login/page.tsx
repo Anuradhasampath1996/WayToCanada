@@ -7,12 +7,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+import { CONSULTANT_WEBSITE_URL, USER_DASHBOARD_URL } from "@/lib/dashboard-urls";
 
 const API = `${process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000"}/api/v1`;
-const USER_DASHBOARD_URL =
-  process.env.NEXT_PUBLIC_USER_DASHBOARD_URL ?? "http://localhost:3001";
-const CONSULTANT_WEBSITE_URL =
-  process.env.NEXT_PUBLIC_CONSULTANT_WEBSITE_URL ?? "http://localhost:3002";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");

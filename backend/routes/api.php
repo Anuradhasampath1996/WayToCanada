@@ -26,6 +26,8 @@ use App\Http\Controllers\Consultant\ConsultantMeetingAccountController;
 use App\Http\Controllers\Consultant\ConsultantMeetingOAuthController;
 use App\Http\Controllers\Consultant\ConsultantCalendarController;
 use App\Http\Controllers\Consultant\ConsultantClientMeetingController;
+use App\Http\Controllers\Consultant\ConsultantWorkspaceAiAdvisorController;
+use App\Http\Controllers\Consultant\ConsultantRcicCommunityController;
 use App\Http\Controllers\Consultant\ConsultantClientActivityController;
 use App\Http\Controllers\Consultant\ConsultantClientTrustController;
 use App\Http\Controllers\Client\ClientTrustController;
@@ -57,12 +59,15 @@ use App\Http\Controllers\ConsultantStorageController;
 use App\Http\Controllers\ConsultantStoragePaymentController;
 use App\Http\Controllers\ConsultantWebsiteFeatureController;
 use App\Http\Controllers\Admin\AdminStorageAddonPackageController;
+use App\Http\Controllers\Admin\AdminMarketingServiceController;
 use App\Http\Controllers\Admin\AdminConsultantWebsiteFeatureController;
+use App\Http\Controllers\ConsultantMarketingPaymentController;
 use App\Http\Controllers\StripeWebhookController;
 use App\Http\Controllers\QuestionnaireController;
 use App\Http\Controllers\QuestionnaireReviewController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\NotificationPreferenceController;
+use App\Http\Controllers\Admin\AdminRcicCommunityController;
 use App\Http\Controllers\Admin\AdminBroadcastController;
 use App\Http\Controllers\Admin\AdminIntegrationSettingsController;
 use Illuminate\Support\Facades\Route;
@@ -82,6 +87,11 @@ Route::get('subscription-packages', [AdminSubscriptionPackageController::class, 
 
 Route::get('storage-addon-packages', [AdminStorageAddonPackageController::class, 'publicIndex'])
     ->name('storage-addon-packages.public');
+
+Route::get('marketing-services', [AdminMarketingServiceController::class, 'publicIndex'])
+    ->name('marketing-services.public');
+Route::get('marketing-services/{slug}', [AdminMarketingServiceController::class, 'publicShow'])
+    ->name('marketing-services.show');
 
 Route::get('consultant-website/features', [ConsultantWebsiteFeatureController::class, 'index'])
     ->name('consultant-website.features');
@@ -274,6 +284,16 @@ Route::middleware('auth:sanctum')->group(function () {
         });
     });
 
+    // ── Marketing services (consultant purchases) ───────────────────────────
+    Route::prefix('consultant/marketing')->name('consultant.marketing.')->group(function () {
+        Route::get('orders', [ConsultantMarketingPaymentController::class, 'myOrders'])->name('orders');
+        Route::prefix('payment')->name('payment.')->group(function () {
+            Route::get('tax-quote',        [ConsultantMarketingPaymentController::class, 'taxQuote'])->name('tax-quote');
+            Route::post('checkout-session', [ConsultantMarketingPaymentController::class, 'createCheckoutSession'])->name('checkout-session');
+            Route::post('verify-session',   [ConsultantMarketingPaymentController::class, 'verifySession'])->name('verify-session');
+        });
+    });
+
     // ── Client: own journey dashboard ─────────────────────────────────────────
     Route::get('client/dashboard', [CaseFileController::class, 'clientDashboard'])->name('client.dashboard');
     Route::get('client/trust', [ClientTrustController::class, 'show'])->name('client.trust.show');
@@ -378,6 +398,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
         // ── Questionnaire Review (consultant verifies client answers) ──────────
         Route::get('{profile}/questionnaire',                         [QuestionnaireReviewController::class, 'show'])->name('questionnaire.show');
+        Route::post('{profile}/ai-advisor/analyze',                   [ConsultantWorkspaceAiAdvisorController::class, 'analyze'])->name('ai-advisor.analyze');
+        Route::post('{profile}/ai-advisor/chat',                     [ConsultantWorkspaceAiAdvisorController::class, 'chat'])->name('ai-advisor.chat');
         Route::get('{profile}/questionnaire/document/stream',         [QuestionnaireReviewController::class, 'streamDocument'])->name('questionnaire.document-stream');
         Route::patch('{profile}/questionnaire/verify',               [QuestionnaireReviewController::class, 'verify'])->name('questionnaire.verify');
         Route::patch('{profile}/questionnaire/field',                [QuestionnaireReviewController::class, 'updateField'])->name('questionnaire.update-field');
@@ -410,6 +432,20 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('consultant/lms/courses', [ConsultantLmsController::class, 'availableCourses'])->name('consultant.lms.courses');
 
+    // ── RCIC Community (consultant peer forum) ───────────────────────────────
+    Route::prefix('consultant/rcic-community')->name('consultant.rcic-community.')->group(function () {
+        Route::get('unread-count', [ConsultantRcicCommunityController::class, 'unreadCount'])->name('unread-count');
+        Route::post('mark-seen', [ConsultantRcicCommunityController::class, 'markSeen'])->name('mark-seen');
+        Route::get('posts', [ConsultantRcicCommunityController::class, 'index'])->name('posts.index');
+        Route::post('posts', [ConsultantRcicCommunityController::class, 'store'])->name('posts.store');
+        Route::get('posts/{post}', [ConsultantRcicCommunityController::class, 'show'])->name('posts.show');
+        Route::delete('posts/{post}', [ConsultantRcicCommunityController::class, 'destroyPost'])->name('posts.destroy');
+        Route::post('posts/{post}/replies', [ConsultantRcicCommunityController::class, 'storeReply'])->name('posts.replies.store');
+        Route::post('posts/{post}/react', [ConsultantRcicCommunityController::class, 'toggleReaction'])->name('posts.react');
+        Route::get('posts/{post}/attachment', [ConsultantRcicCommunityController::class, 'downloadAttachment'])->name('posts.attachment');
+        Route::post('report', [ConsultantRcicCommunityController::class, 'report'])->name('report');
+    });
+
     // ── Super Admin Dashboard ────────────────────────────────────────────────
     // Accessible by super-admin only.
     Route::middleware('role:super-admin')->prefix('admin')->name('admin.')->group(function () {
@@ -422,6 +458,17 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('/',              [AdminBroadcastController::class, 'index'])->name('index');
             Route::post('/',             [AdminBroadcastController::class, 'store'])->name('store');
             Route::post('{broadcast}/send', [AdminBroadcastController::class, 'send'])->name('send');
+        });
+
+        Route::prefix('rcic-community')->name('rcic-community.')->group(function () {
+            Route::get('posts', [AdminRcicCommunityController::class, 'posts'])->name('posts.index');
+            Route::post('posts', [AdminRcicCommunityController::class, 'store'])->name('posts.store');
+            Route::delete('posts/{post}', [AdminRcicCommunityController::class, 'destroyPost'])->name('posts.destroy');
+            Route::patch('posts/{post}/hide', [AdminRcicCommunityController::class, 'hidePost'])->name('posts.hide');
+            Route::delete('replies/{reply}', [AdminRcicCommunityController::class, 'destroyReply'])->name('replies.destroy');
+            Route::patch('replies/{reply}/hide', [AdminRcicCommunityController::class, 'hideReply'])->name('replies.hide');
+            Route::get('reports', [AdminRcicCommunityController::class, 'reports'])->name('reports.index');
+            Route::patch('reports/{report}', [AdminRcicCommunityController::class, 'updateReport'])->name('reports.update');
         });
 
         // User management
@@ -489,6 +536,15 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::put('{storageAddonPackage}',          [AdminStorageAddonPackageController::class, 'update'])->name('update');
             Route::patch('{storageAddonPackage}/toggle', [AdminStorageAddonPackageController::class, 'toggle'])->name('toggle');
             Route::delete('{storageAddonPackage}',       [AdminStorageAddonPackageController::class, 'destroy'])->name('destroy');
+        });
+
+        Route::prefix('marketing-services')->name('marketing-services.')->group(function () {
+            Route::get('/',                              [AdminMarketingServiceController::class, 'index'])->name('index');
+            Route::post('/',                             [AdminMarketingServiceController::class, 'store'])->name('store');
+            Route::get('{marketingService}',             [AdminMarketingServiceController::class, 'show'])->name('show');
+            Route::put('{marketingService}',             [AdminMarketingServiceController::class, 'update'])->name('update');
+            Route::patch('{marketingService}/toggle',    [AdminMarketingServiceController::class, 'toggle'])->name('toggle');
+            Route::delete('{marketingService}',          [AdminMarketingServiceController::class, 'destroy'])->name('destroy');
         });
 
         Route::prefix('consultant-website-features')->name('consultant-website-features.')->group(function () {

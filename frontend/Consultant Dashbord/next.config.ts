@@ -4,18 +4,12 @@ import { config } from "dotenv";
 
 config();
 
-const isProduction = process.env.NODE_ENV === "production";
-
 const nextConfig: NextConfig = {
   turbopack: {
     root: path.resolve(__dirname),
   },
-  assetPrefix: isProduction ? undefined : undefined,
   async rewrites() {
-    return [
-      { source: "/consultantdashboard", destination: "/dashboard/default" },
-      { source: "/dashboard/login", destination: "/dashboard/login/v1" },
-    ];
+    return [{ source: "/dashboard/login", destination: "/dashboard/login/v1" }];
   },
   async redirects() {
     return [
@@ -30,15 +24,14 @@ const nextConfig: NextConfig = {
     remotePatterns: [
       {
         protocol: "http",
-        hostname: "localhost"
+        hostname: "localhost",
       },
       {
         protocol: "https",
-        hostname: "**"
-      }
-    ]
-  }
+        hostname: "**",
+      },
+    ],
+  },
 };
 
 export default nextConfig;
-

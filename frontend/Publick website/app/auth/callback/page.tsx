@@ -2,10 +2,9 @@
 
 import { useEffect } from "react";
 import { MapPin } from "lucide-react";
+import { USER_DASHBOARD_URL } from "@/lib/dashboard-urls";
 
 const API = `${process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000"}/api/v1`;
-const USER_DASHBOARD_URL =
-  process.env.NEXT_PUBLIC_USER_DASHBOARD_URL ?? "http://localhost:3001";
 
 export default function AuthCallbackPage() {
   useEffect(() => {
@@ -31,7 +30,7 @@ export default function AuthCallbackPage() {
 
     localStorage.setItem("wtc_token", token);
 
-    // Set token as cookie for the user dashboard app (port 3001)
+    // Cookie for the user dashboard app (port 3002)
     const maxAge = 60 * 60 * 24 * 30;
     document.cookie = `wtc_token=${token}; path=/; domain=localhost; max-age=${maxAge}; SameSite=Lax`;
 
