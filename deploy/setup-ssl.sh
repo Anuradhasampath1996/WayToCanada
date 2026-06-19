@@ -3,6 +3,7 @@
 set -euo pipefail
 
 DOMAINS="-d rcicmaster.com -d www.rcicmaster.com \
+  -d apply.rcicmaster.com \
   -d admin.rcicmaster.com -d app.rcicmaster.com \
   -d consultant.rcicmaster.com -d portal.rcicmaster.com"
 
