@@ -576,7 +576,7 @@ function TextFieldRow({
                 </p>
               )}
             </div>
-            <div className="mt-0.5 flex shrink-0 flex-wrap items-center justify-end gap-1.5">
+            <div className="mt-0.5 flex shrink-0 flex-wrap items-center gap-1.5 sm:justify-end">
               {!verified && (
                 <button
                   type="button"
@@ -939,11 +939,11 @@ export function QuestionnaireReviewClient({ paramsPromise }: { paramsPromise: Pr
   const totalVerified = Object.keys(vf).length;
 
   return (
-    <div className="w-full pb-16">
+    <div className="min-w-0 w-full overflow-x-hidden pb-4">
       {/* Toast */}
       {toast && (
         <div className={cn(
-          "fixed top-4 right-4 z-50 flex items-center gap-2 rounded-lg border px-4 py-3 text-sm shadow-lg max-w-sm",
+          "fixed top-4 right-3 left-3 z-50 flex items-center gap-2 rounded-lg border px-4 py-3 text-sm shadow-lg sm:left-auto sm:max-w-sm",
           toast.type === "success" ? "bg-white border-green-200 text-green-800" : "bg-white border-red-200 text-red-700"
         )}>
           {toast.type === "success" ? <CheckCircle2 className="h-4 w-4 shrink-0" /> : <AlertCircle className="h-4 w-4 shrink-0" />}
@@ -962,11 +962,11 @@ export function QuestionnaireReviewClient({ paramsPromise }: { paramsPromise: Pr
 
       <WorkspaceBreadcrumb profileId={id} workspaceStep={1} pageLabel="Questionnaire review" />
 
-      <div className="mb-6 overflow-hidden rounded-2xl border border-violet-200/50 bg-gradient-to-r from-violet-600/[0.07] via-background to-background px-6 py-6 shadow-sm">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="space-y-1">
-            <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight">
-              <ClipboardList className="size-6 text-violet-600" />
+      <div className="mb-4 overflow-hidden rounded-2xl border border-violet-200/50 bg-gradient-to-r from-violet-600/[0.07] via-background to-background px-4 py-4 shadow-sm sm:mb-6 sm:px-6 sm:py-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
+          <div className="min-w-0 space-y-1">
+            <h1 className="flex items-center gap-2 text-xl font-bold tracking-tight sm:text-2xl">
+              <ClipboardList className="size-5 shrink-0 text-violet-600 sm:size-6" />
               Questionnaire review
             </h1>
             <p className="max-w-3xl text-sm text-muted-foreground">

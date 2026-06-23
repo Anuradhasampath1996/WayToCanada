@@ -74,18 +74,18 @@ export function CaseHubProgressHeader({
   pipelineLabel: string;
 }) {
   return (
-    <div className="rounded-xl border bg-gradient-to-br from-primary/5 via-background to-background p-5 mb-6">
-      <div className="flex flex-wrap items-center gap-5">
+    <div className="mb-4 rounded-xl border bg-gradient-to-br from-primary/5 via-background to-background p-4 sm:mb-6 sm:p-5">
+      <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-center sm:gap-5">
         <ProgressRing percent={progress.overall_percent} />
-        <div className="flex-1 min-w-[200px]">
+        <div className="min-w-0 flex-1">
           <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Case Progress</p>
-          <h2 className="text-lg font-bold mt-0.5">{pathway ?? "Immigration Case"}</h2>
+          <h2 className="mt-0.5 text-lg font-bold break-words">{pathway ?? "Immigration Case"}</h2>
           {packageLabel && (
-            <p className="text-xs text-muted-foreground mt-1">Package: {packageLabel}</p>
+            <p className="mt-1 text-xs text-muted-foreground">Package: {packageLabel}</p>
           )}
           <Badge variant="outline" className="mt-2 text-xs">{pipelineLabel}</Badge>
         </div>
-        <div className="grid grid-cols-3 gap-3 flex-1 min-w-[240px]">
+        <div className="grid w-full grid-cols-1 gap-2 sm:min-w-[240px] sm:flex-1 sm:grid-cols-3">
           <StatPill label="Docs approved" value={`${progress.documents.approved}/${progress.documents.total}`} tone={progress.documents.percent >= 80 ? "green" : "amber"} />
           <StatPill label="Forms reviewed" value={progress.forms.total === 0 ? "N/A" : `${progress.forms.reviewed}/${progress.forms.total}`} tone={progress.forms.complete ? "green" : "blue"} />
           <StatPill label="Pending docs" value={String(progress.documents.pending + progress.documents.missing)} tone={progress.documents.pending + progress.documents.missing > 0 ? "amber" : "green"} />

@@ -16,18 +16,22 @@ export function SiteHeader() {
 
   return (
     <header className="bg-background sticky top-0 z-50 flex h-(--header-height) shrink-0 items-center gap-2 border-b transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-(--header-height)">
-      <div className="flex w-full items-center gap-1 px-4 lg:gap-2">
-        <Button onClick={toggleSidebar} size="icon" variant="ghost">
+      <div className="flex min-w-0 w-full items-center gap-1 px-3 sm:px-4 lg:gap-2">
+        <Button onClick={toggleSidebar} size="icon" variant="ghost" className="shrink-0">
           {open ? <PanelLeftClose /> : <PanelLeftOpen />}
         </Button>
-        <Separator orientation="vertical" className="mx-2 data-[orientation=vertical]:h-4" />
-        <Search />
+        <Separator orientation="vertical" className="mx-1 hidden sm:block data-[orientation=vertical]:h-4" />
+        <div className="min-w-0 flex-1">
+          <Search />
+        </div>
 
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex shrink-0 items-center gap-1 sm:gap-2">
           <Notifications />
           <ThemeSwitch />
-          <ThemeCustomizerPanel />
-          <Separator orientation="vertical" className="mx-2 data-[orientation=vertical]:h-4" />
+          <div className="hidden md:block">
+            <ThemeCustomizerPanel />
+          </div>
+          <Separator orientation="vertical" className="mx-1 hidden sm:block data-[orientation=vertical]:h-4" />
           <UserMenu />
         </div>
       </div>

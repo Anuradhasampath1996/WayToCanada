@@ -49,10 +49,27 @@ function LoginPageContent() {
     if (searchParams.get("verified") === "1") setVerified(true);
     if (searchParams.get("registered") === "1") setRegistered(true);
 
-    const match = document.cookie.match(/(^| )wtc_consultant_token=([^;]+)/);
-    if (match) {
-      window.location.replace(`${CONSULTANT_DASHBOARD_URL}/consultantdashboard`);
+    async function resumeSession() {
+      const cookieMatch = document.cookie.match(/(^| )wtc_consultant_token=([^;]+)/);
+      const rawToken = cookieMatch?.[2] ?? null;
+      if (!rawToken) return;
+
+      const token = decodeURIComponent(rawToken);
+      try {
+        const res = await fetch(`${API}/me`, {
+          headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+        });
+        if (!res.ok) {
+          document.cookie = "wtc_consultant_token=; path=/; max-age=0; SameSite=Lax";
+          return;
+        }
+        window.location.replace(`${CONSULTANT_DASHBOARD_URL}/consultantdashboard`);
+      } catch {
+        // ignore — user can sign in manually
+      }
     }
+
+    resumeSession();
   }, [searchParams]);
 
   async function handleSubmit(e: React.FormEvent) {

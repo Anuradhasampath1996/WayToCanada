@@ -311,7 +311,7 @@ export function ClientActionCenter() {
               {item.onAction ? (
                 <Button
                   size="sm"
-                  className="shrink-0 rounded-lg"
+                  className="h-9 w-full shrink-0 rounded-lg sm:w-auto"
                   disabled={acting === item.id}
                   onClick={async () => {
                     setActing(item.id);
@@ -325,7 +325,7 @@ export function ClientActionCenter() {
                   {acting === item.id ? <Loader2 className="size-4 animate-spin" /> : item.buttonLabel}
                 </Button>
               ) : item.href ? (
-                <Button size="sm" className="shrink-0 rounded-lg" asChild>
+                <Button size="sm" className="h-9 w-full shrink-0 rounded-lg sm:w-auto" asChild>
                   <Link href={item.href}>
                     {item.id.startsWith("meet-") && <Video className="mr-1.5 size-3.5" />}
                     {item.buttonLabel}

@@ -1,0 +1,32 @@
+/* Letter document preview — scales down for narrow viewports */
+
+.letter-document-preview {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.letter-document-preview .letter-preview-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.letter-document-preview .letter-preview-body img {
+  max-width: 100%;
+  height: auto;
+}
+
+@media (max-width: 639px) {
+  .letter-document-preview .letter-preview-header {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .letter-document-preview .letter-preview-company {
+    text-align: left;
+    width: 100%;
+  }
+}

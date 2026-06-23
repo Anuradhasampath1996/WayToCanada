@@ -148,16 +148,18 @@ type FileRowProps = {
 function FileRow({ file, depth, onView, onRename, onDelete }: FileRowProps) {
   return (
     <div
-      className="group flex items-center gap-1 rounded-lg py-1.5 pr-2 hover:bg-muted/50"
-      style={{ paddingLeft: depth * 20 + 8 }}
+      className="group flex flex-col gap-2 rounded-lg py-2 pr-2 hover:bg-muted/50 sm:flex-row sm:items-center sm:gap-1 sm:py-1.5"
+      style={{ paddingLeft: `calc(${depth} * var(--tree-indent, 20px) + 8px)` }}
     >
-      <span className="w-6 shrink-0" />
-      <FileText className="h-4 w-4 shrink-0 text-blue-500" />
-      <div className="min-w-0 flex-1 pl-1">
-        <p className="truncate text-sm font-medium">{file.original_filename}</p>
-        <p className="text-[11px] text-muted-foreground">{formatBytes(file.size_bytes)}</p>
+      <div className="flex min-w-0 items-center gap-1">
+        <span className="w-6 shrink-0" />
+        <FileText className="h-4 w-4 shrink-0 text-blue-500" />
+        <div className="min-w-0 flex-1 pl-1">
+          <p className="text-sm font-medium leading-tight break-words">{file.original_filename}</p>
+          <p className="text-[11px] text-muted-foreground">{formatBytes(file.size_bytes)}</p>
+        </div>
       </div>
-      <div className="flex shrink-0 gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+      <div className="flex shrink-0 gap-0.5 pl-8 opacity-100 sm:pl-0 sm:opacity-0 sm:transition-opacity sm:group-hover:opacity-100">
         <Button
           size="icon"
           variant="ghost"
@@ -258,9 +260,10 @@ function FolderRow({
   return (
     <div>
       <div
-        className="group flex items-center gap-1 rounded-lg py-1.5 pr-2 hover:bg-muted/50"
-        style={{ paddingLeft: depth * 20 + 8 }}
+        className="group flex flex-col gap-2 rounded-lg py-2 pr-2 hover:bg-muted/50 sm:flex-row sm:items-center sm:gap-1 sm:py-1.5"
+        style={{ paddingLeft: `calc(${depth} * var(--tree-indent, 20px) + 8px)` }}
       >
+        <div className="flex min-w-0 items-center gap-1">
         <button
           type="button"
           className={cn(
@@ -286,15 +289,16 @@ function FolderRow({
         <FolderIcon className="h-4 w-4 shrink-0 text-amber-500" />
 
         <div className="min-w-0 flex-1 pl-1">
-          <span className="truncate text-sm font-medium">{folder.name}</span>
+          <span className="text-sm font-medium leading-tight break-words">{folder.name}</span>
           {hasItems && !expanded && (
-            <span className="ml-2 text-[11px] text-muted-foreground">
+            <span className="ml-0 block text-[11px] text-muted-foreground sm:ml-2 sm:inline">
               {folder.item_count} item{(folder.item_count ?? 0) !== 1 ? "s" : ""}
             </span>
           )}
         </div>
+        </div>
 
-        <div className="flex shrink-0 gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+        <div className="flex shrink-0 gap-0.5 pl-8 opacity-100 sm:pl-0 sm:opacity-0 sm:transition-opacity sm:group-hover:opacity-100">
           <Button
             size="icon"
             variant="ghost"
@@ -331,7 +335,7 @@ function FolderRow({
         <div className="relative">
           <div
             className="absolute bottom-2 top-0 w-px bg-border/70"
-            style={{ left: depth * 20 + 19 }}
+            style={{ left: `calc(${depth} * var(--tree-indent, 20px) + 19px)` }}
           />
           {contents.folders.map((child) => (
             <FolderRow
@@ -375,7 +379,7 @@ function FolderRow({
           {contents.folders.length === 0 && contents.files.length === 0 && (
             <p
               className="py-2 text-xs italic text-muted-foreground"
-              style={{ paddingLeft: (depth + 1) * 20 + 28 }}
+              style={{ paddingLeft: `calc(${(depth + 1)} * var(--tree-indent, 20px) + 28px)` }}
             >
               Empty folder
             </p>
@@ -779,19 +783,19 @@ export function StorageClient() {
   const isEmpty = !initialLoading && root && root.folders.length === 0 && root.files.length === 0;
 
   return (
-    <div className="space-y-6 p-4 md:p-6 max-w-6xl mx-auto">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-            <HardDrive className="h-7 w-7 text-primary" />
+    <div className="mx-auto min-w-0 max-w-6xl space-y-4 overflow-x-hidden px-3 py-4 sm:space-y-6 sm:px-4 sm:py-6 md:px-6">
+      <div className="flex flex-col gap-3 sm:gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <h1 className="flex items-center gap-2 text-xl font-bold tracking-tight sm:text-2xl">
+            <HardDrive className="h-6 w-6 shrink-0 text-primary sm:h-7 sm:w-7" />
             My Document Storage
           </h1>
-          <p className="text-muted-foreground text-sm mt-1">
-            Tree view — click the arrow to expand folders and see subfolders &amp; files inside.
+          <p className="mt-1 text-sm text-muted-foreground">
+            Tree view — tap the arrow to expand folders and see subfolders &amp; files inside.
           </p>
         </div>
-        <Button variant="outline" onClick={() => setUpgradeOpen(true)}>
-          <Sparkles className="h-4 w-4 mr-2" />
+        <Button variant="outline" className="h-10 w-full shrink-0 sm:w-auto" onClick={() => setUpgradeOpen(true)}>
+          <Sparkles className="mr-2 h-4 w-4" />
           Upgrade storage
         </Button>
       </div>
@@ -815,26 +819,27 @@ export function StorageClient() {
       )}
 
       {error && (
-        <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+        <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-3 text-sm text-destructive break-words sm:px-4">
           {error}
         </div>
       )}
 
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
-          <div>
+        <CardHeader className="flex flex-col gap-3 space-y-0 pb-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
             <CardTitle className="text-base">Files &amp; folders</CardTitle>
-            <CardDescription className="text-xs mt-0.5">
+            <CardDescription className="mt-0.5 text-xs">
               Expand with <ChevronRight className="inline h-3 w-3" /> — no need to open folders separately
             </CardDescription>
           </div>
-          <div className="flex gap-2">
-            <Button size="sm" variant="outline" onClick={() => openNewFolder(null)}>
-              <FolderPlus className="h-4 w-4 mr-1" />
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+            <Button size="sm" variant="outline" className="h-9 w-full sm:w-auto" onClick={() => openNewFolder(null)}>
+              <FolderPlus className="mr-1 h-4 w-4" />
               New folder
             </Button>
             <Button
               size="sm"
+              className="h-9 w-full sm:w-auto"
               disabled={uploading || quotaFull}
               onClick={() => openUpload(null)}
             >
@@ -864,7 +869,7 @@ export function StorageClient() {
               No folders or files yet. Create a folder or upload documents.
             </div>
           ) : (
-            <div className="rounded-lg border bg-muted/20 p-2">
+            <div className="rounded-lg border bg-muted/20 p-1.5 [--tree-indent:14px] sm:p-2 sm:[--tree-indent:20px]">
               {root?.folders.map((folder) => (
                 <FolderRow
                   key={folder.id}
@@ -916,7 +921,7 @@ export function StorageClient() {
       </Card>
 
       <Dialog open={newFolderOpen} onOpenChange={setNewFolderOpen}>
-        <DialogContent>
+        <DialogContent className="w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] p-4 sm:max-w-lg sm:p-6">
           <DialogHeader>
             <DialogTitle>
               {newFolderParentId ? "New subfolder" : "New folder"}
@@ -932,15 +937,15 @@ export function StorageClient() {
               onKeyDown={(e) => e.key === "Enter" && void createFolder()}
             />
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setNewFolderOpen(false)}>Cancel</Button>
-            <Button onClick={() => void createFolder()}>Create</Button>
+          <DialogFooter className="flex-col-reverse gap-2 sm:flex-row">
+            <Button variant="outline" className="h-9 w-full sm:w-auto" onClick={() => setNewFolderOpen(false)}>Cancel</Button>
+            <Button className="h-9 w-full sm:w-auto" onClick={() => void createFolder()}>Create</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       <Dialog open={!!renameTarget} onOpenChange={(o) => !o && setRenameTarget(null)}>
-        <DialogContent>
+        <DialogContent className="w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] p-4 sm:max-w-lg sm:p-6">
           <DialogHeader>
             <DialogTitle>Rename folder</DialogTitle>
           </DialogHeader>
@@ -949,15 +954,15 @@ export function StorageClient() {
             onChange={(e) => setRenameName(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && void renameFolder()}
           />
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setRenameTarget(null)}>Cancel</Button>
-            <Button onClick={() => void renameFolder()}>Save</Button>
+          <DialogFooter className="flex-col-reverse gap-2 sm:flex-row">
+            <Button variant="outline" className="h-9 w-full sm:w-auto" onClick={() => setRenameTarget(null)}>Cancel</Button>
+            <Button className="h-9 w-full sm:w-auto" onClick={() => void renameFolder()}>Save</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       <Dialog open={!!renameFileTarget} onOpenChange={(o) => !o && setRenameFileTarget(null)}>
-        <DialogContent>
+        <DialogContent className="w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] p-4 sm:max-w-lg sm:p-6">
           <DialogHeader>
             <DialogTitle>Rename file</DialogTitle>
           </DialogHeader>
@@ -970,9 +975,9 @@ export function StorageClient() {
               onKeyDown={(e) => e.key === "Enter" && void renameFile()}
             />
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setRenameFileTarget(null)}>Cancel</Button>
-            <Button onClick={() => void renameFile()}>Save</Button>
+          <DialogFooter className="flex-col-reverse gap-2 sm:flex-row">
+            <Button variant="outline" className="h-9 w-full sm:w-auto" onClick={() => setRenameFileTarget(null)}>Cancel</Button>
+            <Button className="h-9 w-full sm:w-auto" onClick={() => void renameFile()}>Save</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -990,37 +995,37 @@ export function StorageClient() {
       />
 
       <AlertDialog open={!!deleteFolderTarget} onOpenChange={(o) => !o && setDeleteFolderTarget(null)}>
-        <AlertDialogContent>
+        <AlertDialogContent className="w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] sm:max-w-lg">
           <AlertDialogHeader>
             <AlertDialogTitle>Delete folder?</AlertDialogTitle>
-            <AlertDialogDescription>
+            <AlertDialogDescription className="break-words">
               This will delete &quot;{deleteFolderTarget?.name}&quot; and everything inside it.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => void deleteFolder()}>Delete</AlertDialogAction>
+          <AlertDialogFooter className="flex-col-reverse gap-2 sm:flex-row">
+            <AlertDialogCancel className="mt-0 h-9 w-full sm:w-auto">Cancel</AlertDialogCancel>
+            <AlertDialogAction className="h-9 w-full sm:w-auto" onClick={() => void deleteFolder()}>Delete</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
       <AlertDialog open={!!deleteFileTarget} onOpenChange={(o) => !o && setDeleteFileTarget(null)}>
-        <AlertDialogContent>
+        <AlertDialogContent className="w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] sm:max-w-lg">
           <AlertDialogHeader>
             <AlertDialogTitle>Delete file?</AlertDialogTitle>
-            <AlertDialogDescription>
+            <AlertDialogDescription className="break-words">
               Permanently delete &quot;{deleteFileTarget?.original_filename}&quot;?
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => void deleteFile()}>Delete</AlertDialogAction>
+          <AlertDialogFooter className="flex-col-reverse gap-2 sm:flex-row">
+            <AlertDialogCancel className="mt-0 h-9 w-full sm:w-auto">Cancel</AlertDialogCancel>
+            <AlertDialogAction className="h-9 w-full sm:w-auto" onClick={() => void deleteFile()}>Delete</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
       <Dialog open={upgradeOpen} onOpenChange={setUpgradeOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-h-[90vh] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] overflow-y-auto p-4 sm:max-w-lg sm:p-6">
           <DialogHeader>
             <DialogTitle>Upgrade storage</DialogTitle>
           </DialogHeader>
@@ -1060,10 +1065,11 @@ export function StorageClient() {
             </div>
           )}
           {selectedPkg && (
-            <div className="space-y-3 pt-2 border-t">
-              <div className="flex gap-2">
+            <div className="space-y-3 border-t pt-2">
+              <div className="grid grid-cols-2 gap-2">
                 <Button
                   size="sm"
+                  className="h-9"
                   variant={billingCycle === "monthly" ? "default" : "outline"}
                   onClick={() => setBillingCycle("monthly")}
                 >
@@ -1071,6 +1077,7 @@ export function StorageClient() {
                 </Button>
                 <Button
                   size="sm"
+                  className="h-9"
                   variant={billingCycle === "yearly" ? "default" : "outline"}
                   onClick={() => setBillingCycle("yearly")}
                 >
@@ -1090,10 +1097,10 @@ export function StorageClient() {
               </div>
             </div>
           )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setUpgradeOpen(false)}>Close</Button>
-            <Button disabled={!selectedPkg || checkoutLoading} onClick={() => void startCheckout()}>
-              {checkoutLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+          <DialogFooter className="flex-col-reverse gap-2 sm:flex-row">
+            <Button variant="outline" className="h-9 w-full sm:w-auto" onClick={() => setUpgradeOpen(false)}>Close</Button>
+            <Button className="h-9 w-full sm:w-auto" disabled={!selectedPkg || checkoutLoading} onClick={() => void startCheckout()}>
+              {checkoutLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Pay with Stripe
             </Button>
           </DialogFooter>

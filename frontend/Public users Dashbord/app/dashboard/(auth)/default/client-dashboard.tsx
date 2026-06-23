@@ -155,7 +155,7 @@ export function ClientDashboard() {
   }
 
   return (
-    <div className="w-full space-y-6 pb-10">
+    <div className="min-w-0 w-full space-y-4 overflow-x-hidden pb-10 sm:space-y-6">
       {showSubmittedBanner && (
         <div className="rounded-xl border border-emerald-200 bg-emerald-50/80 p-4">
           <p className="flex items-center gap-2 text-sm font-semibold text-emerald-900">
@@ -170,7 +170,7 @@ export function ClientDashboard() {
       <div className="space-y-4">
         <div className="flex items-start justify-between gap-3 flex-wrap">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">Hi {firstName}</h1>
+            <h1 className="text-xl font-bold tracking-tight sm:text-2xl">Hi {firstName}</h1>
             <p className="text-muted-foreground text-sm mt-1">
               {consultant
                 ? "Follow the 4 steps below — your consultant guides you through each stage."
@@ -183,8 +183,8 @@ export function ClientDashboard() {
         </div>
 
         {consultant && caseFile && (
-          <div className="rounded-xl border bg-card p-4 flex flex-wrap items-center gap-4">
-            <div className="flex-1 min-w-[140px]">
+          <div className="rounded-xl border bg-card p-4 flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-center">
+            <div className="min-w-0 flex-1">
               <p className="text-xs text-muted-foreground mb-1">Overall progress</p>
               <div className="flex items-center gap-3">
                 <div className="flex-1 h-2 rounded-full bg-muted overflow-hidden max-w-xs">

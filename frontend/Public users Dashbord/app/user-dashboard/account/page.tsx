@@ -90,9 +90,9 @@ export default function AccountPage() {
   const consultant = journey?.consultant;
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
+    <div className="min-w-0 w-full max-w-2xl space-y-4 overflow-x-hidden sm:space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Account</h1>
+        <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Account</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Your login details and security settings.
         </p>
@@ -153,7 +153,7 @@ export default function AccountPage() {
               )}
 
               <Button variant="outline" size="sm" className="rounded-lg" asChild>
-                <Link href="/user-dashboard/notifications">
+                <Link href="/user-dashboard/notifications?tab=preferences">
                   <Bell className="mr-1.5 size-4" />
                   Notification preferences
                 </Link>

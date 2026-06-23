@@ -26,10 +26,10 @@ export default async function UserDashboardLayout({
     >
       <DashboardClientWrapper>
         <AppSidebar variant="sidebar" />
-        <SidebarInset className="flex min-w-0 flex-1 flex-col">
+        <SidebarInset className="flex min-w-0 flex-1 flex-col overflow-x-hidden">
           <SiteHeader />
-          <div className="flex min-w-0 flex-1 flex-col w-full">
-            <div className="w-full min-w-0 flex-1 px-4 py-4 md:px-6 md:py-5">
+          <div className="flex min-w-0 flex-1 flex-col w-full overflow-x-hidden">
+            <div className="w-full min-w-0 flex-1 overflow-x-hidden px-3 py-4 sm:px-4 md:px-6 md:py-5">
               {children}
             </div>
           </div>

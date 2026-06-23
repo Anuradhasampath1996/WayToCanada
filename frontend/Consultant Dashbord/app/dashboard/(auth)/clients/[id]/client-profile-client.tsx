@@ -381,8 +381,8 @@ export function ClientProfilePageClient({ paramsPromise }: { paramsPromise: Prom
   const workspaceHref = `/dashboard/clients/${client.id}/workspace`;
 
   return (
-    <div className="w-full space-y-5 pb-10">
-      <div className="fixed top-4 right-4 z-50 flex flex-col gap-2 pointer-events-none">
+    <div className="min-w-0 w-full space-y-4 pb-4 sm:space-y-5 sm:pb-6">
+      <div className="fixed top-4 right-3 left-3 z-50 flex flex-col gap-2 pointer-events-none sm:left-auto sm:max-w-sm">
         {toasts.map((t) => (
           <div
             key={t.id}
@@ -403,7 +403,7 @@ export function ClientProfilePageClient({ paramsPromise }: { paramsPromise: Prom
         ))}
       </div>
 
-      <section className="rounded-2xl border border-border/70 bg-card p-5 shadow-sm md:p-6">
+      <section className="rounded-2xl border border-border/70 bg-card p-4 shadow-sm sm:p-5 md:p-6">
         <Button variant="ghost" size="sm" asChild className="-ml-2 mb-4 h-8 px-2 text-muted-foreground">
           <Link href="/dashboard/clients">
             <ArrowLeft className="mr-1.5 size-4" />
@@ -417,7 +417,7 @@ export function ClientProfilePageClient({ paramsPromise }: { paramsPromise: Prom
               {initials(client.user.name) || <UserCircle2 className="size-7" />}
             </div>
             <div className="min-w-0 space-y-2">
-              <h1 className="text-2xl font-bold tracking-tight md:text-3xl">{client.user.name}</h1>
+              <h1 className="text-xl font-bold tracking-tight break-words sm:text-2xl md:text-3xl">{client.user.name}</h1>
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
                 <EmailLink email={client.user.email} className="text-muted-foreground hover:text-primary" />
                 {phone ? (
@@ -451,8 +451,8 @@ export function ClientProfilePageClient({ paramsPromise }: { paramsPromise: Prom
             </div>
           </div>
 
-          <div className="flex shrink-0 flex-col gap-2 sm:flex-row lg:flex-col">
-            <Button size="lg" className="h-11 rounded-xl px-6" asChild>
+          <div className="flex w-full shrink-0 flex-col gap-2 sm:flex-row lg:w-auto lg:flex-col">
+            <Button size="lg" className="h-11 w-full rounded-xl px-6 sm:w-auto" asChild>
               <Link href={workspaceHref}>
                 <Briefcase className="mr-2 size-4" />
                 Open case workspace
@@ -482,17 +482,17 @@ export function ClientProfilePageClient({ paramsPromise }: { paramsPromise: Prom
       </section>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="h-auto w-full flex-wrap justify-start gap-1 p-1 sm:w-auto">
-          <TabsTrigger value="overview" className="rounded-lg px-4 py-2">
+        <TabsList className="h-auto w-full justify-start gap-1 overflow-x-auto p-1 [-ms-overflow-style:none] [scrollbar-width:none] sm:w-auto [&::-webkit-scrollbar]:hidden">
+          <TabsTrigger value="overview" className="shrink-0 rounded-lg px-3 py-2 text-xs sm:px-4 sm:text-sm">
             Case overview
           </TabsTrigger>
-          <TabsTrigger value="money" className="rounded-lg px-4 py-2" id="tab-money">
+          <TabsTrigger value="money" className="shrink-0 rounded-lg px-3 py-2 text-xs sm:px-4 sm:text-sm" id="tab-money">
             Trust &amp; compliance
           </TabsTrigger>
-          <TabsTrigger value="activity" className="rounded-lg px-4 py-2">
+          <TabsTrigger value="activity" className="shrink-0 rounded-lg px-3 py-2 text-xs sm:px-4 sm:text-sm">
             Activity log
           </TabsTrigger>
-          <TabsTrigger value="settings" className="rounded-lg px-4 py-2">
+          <TabsTrigger value="settings" className="shrink-0 rounded-lg px-3 py-2 text-xs sm:px-4 sm:text-sm">
             Client settings
           </TabsTrigger>
         </TabsList>
@@ -569,7 +569,7 @@ export function ClientProfilePageClient({ paramsPromise }: { paramsPromise: Prom
                 <CardTitle className="text-base">Portal access</CardTitle>
                 <CardDescription>Control whether this client can sign in to their portal.</CardDescription>
               </CardHeader>
-              <CardContent className="flex items-center justify-between gap-4 pt-5">
+              <CardContent className="flex flex-col gap-4 pt-5 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <p className="text-sm font-medium">
                     {client.user.is_verified ? "Client can access portal" : "Portal access disabled"}
@@ -668,15 +668,15 @@ export function ClientProfilePageClient({ paramsPromise }: { paramsPromise: Prom
           </Card>
 
           <Card className="border-red-200/60 shadow-sm">
-            <CardContent className="flex flex-wrap items-center justify-between gap-4 p-5">
-              <div>
+            <CardContent className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+              <div className="min-w-0">
                 <p className="text-sm font-semibold text-red-800">Remove client</p>
                 <p className="text-xs text-muted-foreground">Permanently deletes this client and all case data.</p>
               </div>
               <Button
                 variant="outline"
                 size="sm"
-                className="rounded-xl border-red-200 text-red-700 hover:bg-red-50"
+                className="h-9 w-full rounded-xl border-red-200 text-red-700 hover:bg-red-50 sm:w-auto"
                 onClick={() => setDeleting(true)}
               >
                 <Trash2 className="mr-1.5 size-3.5" />
@@ -688,7 +688,7 @@ export function ClientProfilePageClient({ paramsPromise }: { paramsPromise: Prom
       </Tabs>
 
       <AlertDialog open={deleting} onOpenChange={setDeleting}>
-        <AlertDialogContent>
+        <AlertDialogContent className="w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] sm:max-w-lg">
           <AlertDialogHeader>
             <AlertDialogTitle>Remove client?</AlertDialogTitle>
             <AlertDialogDescription>

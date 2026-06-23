@@ -13,15 +13,15 @@ export function WorkspaceRelevantLegislation({
   if (!sections.length) return null;
 
   return (
-    <section className="rounded-xl border border-border/70 bg-muted/20 p-3">
+    <section className="min-w-0 overflow-hidden rounded-xl border border-border/70 bg-muted/20 p-3">
       <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-        <Scale className="h-3.5 w-3.5" />
+        <Scale className="h-3.5 w-3.5 shrink-0" />
         Relevant legislation for this case
       </p>
       <ul className="mt-2 space-y-2">
         {sections.map((row) => (
           <li key={`${row.act_code}-${row.provision_key}`} className="text-sm">
-            <p className="font-medium leading-snug">{row.citation}</p>
+            <p className="font-medium leading-snug break-words">{row.citation}</p>
             {row.reason && <p className="text-xs text-muted-foreground">{row.reason}</p>}
             {row.marginal_note && (
               <p className="text-[11px] italic text-muted-foreground">{row.marginal_note}</p>

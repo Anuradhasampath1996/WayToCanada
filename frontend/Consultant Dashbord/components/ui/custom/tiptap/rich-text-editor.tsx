@@ -139,7 +139,7 @@ export function RichTextEditorDemo({
   return (
     <div
       className={cn(
-        "bg-card relative max-h-[calc(100dvh-6rem)] w-full overflow-hidden overflow-y-scroll border pb-[60px] sm:pb-0",
+        "bg-card relative max-h-[calc(100dvh-6rem)] w-full min-w-0 overflow-hidden overflow-y-scroll border pb-[calc(3.75rem+env(safe-area-inset-bottom))] sm:pb-0",
         className
       )}>
       <EditorToolbarBasic editor={editor} />

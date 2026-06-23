@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Scale } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 export type LegislationLink = {
   citation?: string;
@@ -30,7 +31,10 @@ export function LegislationLinkChips({
     <div className={compact ? "mt-1.5 flex flex-wrap gap-1" : "mt-2 flex flex-wrap gap-1.5"}>
       {visible.map((link) => {
         const label = link.citation ?? `${link.act_code} ${link.provision_key}`;
-        const className = compact ? "h-6 rounded-md px-2 text-[10px]" : "h-7 rounded-lg text-[11px]";
+        const className = cn(
+          compact ? "h-auto min-h-6 rounded-md px-2 py-1 text-[10px]" : "h-auto min-h-7 rounded-lg px-2.5 py-1.5 text-[11px]",
+          "max-w-full shrink whitespace-normal text-left leading-snug",
+        );
 
         if (onLinkClick) {
           return (

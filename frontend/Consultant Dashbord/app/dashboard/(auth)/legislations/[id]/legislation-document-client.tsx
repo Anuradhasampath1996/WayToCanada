@@ -146,18 +146,18 @@ export default function LegislationDocumentClient({ id }: { id: string }) {
 
   if (error) {
     return (
-      <div className="space-y-4 p-4 md:p-6">
-        <Button variant="ghost" size="sm" asChild>
-          <Link href="/dashboard/legislations"><ArrowLeft className="mr-1 size-4" />Back</Link>
+      <div className="min-w-0 space-y-4 overflow-x-hidden p-3 sm:p-4 md:p-6">
+        <Button variant="ghost" size="sm" className="h-9 px-2" asChild>
+          <Link href="/dashboard/legislations"><ArrowLeft className="mr-1 size-4 shrink-0" />Back</Link>
         </Button>
-        <p className="text-destructive">{error}</p>
+        <p className="text-sm text-destructive break-words">{error}</p>
       </div>
     );
   }
 
   if (!doc) {
     return (
-      <div className="flex items-center gap-2 p-6 text-muted-foreground">
+      <div className="flex items-center gap-2 p-4 text-muted-foreground sm:p-6">
         <Loader2 className="size-4 animate-spin" />
         Loading document…
       </div>
@@ -167,24 +167,33 @@ export default function LegislationDocumentClient({ id }: { id: string }) {
   const showSmartPopupBanner = viewerFormat === "xml" && !!viewerHtml;
 
   return (
-    <div className="space-y-4 p-4 md:p-6">
-      <Button variant="ghost" size="sm" asChild>
-        <Link href="/dashboard/legislations"><ArrowLeft className="mr-1 size-4" />Back to hub</Link>
+    <div className="min-w-0 space-y-3 overflow-x-hidden p-3 sm:space-y-4 sm:p-4 md:p-6">
+      <Button variant="ghost" size="sm" className="h-9 px-2" asChild>
+        <Link href="/dashboard/legislations">
+          <ArrowLeft className="mr-1 size-4 shrink-0" />
+          Back to hub
+        </Link>
       </Button>
 
-      <div className="space-y-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-xl font-bold leading-snug md:text-2xl">{doc.title}</h1>
-          <Badge variant="outline" className="uppercase">{doc.language}</Badge>
-          <Badge variant="secondary" className="uppercase">{doc.format}</Badge>
-          {doc.act_code && <Badge variant="outline" className="font-mono">{doc.act_code}</Badge>}
+      <div className="min-w-0 space-y-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-1.5 sm:gap-2">
+          <h1 className="min-w-0 flex-[1_1_100%] text-lg font-bold leading-snug break-words sm:flex-[1_1_auto] sm:text-xl md:text-2xl">
+            {doc.title}
+          </h1>
+          <Badge variant="outline" className="shrink-0 uppercase text-[10px] sm:text-xs">{doc.language}</Badge>
+          <Badge variant="secondary" className="shrink-0 uppercase text-[10px] sm:text-xs">{doc.format}</Badge>
+          {doc.act_code && (
+            <Badge variant="outline" className="max-w-full shrink-0 truncate font-mono text-[10px] sm:max-w-none sm:text-xs">
+              {doc.act_code}
+            </Badge>
+          )}
         </div>
 
         {showSmartPopupBanner && (
-          <div className="flex flex-wrap items-center gap-2 rounded-xl border border-primary/25 bg-primary/5 px-4 py-3 text-sm">
-            <Sparkles className="size-4 shrink-0 text-primary" />
-            <span>
-              <strong className="text-primary">Smart popups enabled</strong> — click blue legal references for instant preview.
+          <div className="flex items-start gap-2 rounded-xl border border-primary/25 bg-primary/5 px-3 py-2.5 text-xs leading-relaxed sm:px-4 sm:py-3 sm:text-sm">
+            <Sparkles className="mt-0.5 size-4 shrink-0 text-primary" />
+            <span className="min-w-0">
+              <strong className="text-primary">Smart popups enabled</strong> — tap blue legal references for instant preview.
               When OpenAI is enabled, use the <strong>Maple explains</strong> tab for a consultant-friendly summary.
             </span>
           </div>
@@ -198,7 +207,7 @@ export default function LegislationDocumentClient({ id }: { id: string }) {
       </div>
 
       {viewerHtml && (
-        <article className="rounded-xl border bg-background p-5 shadow-sm md:p-8">
+        <article className="min-w-0 overflow-hidden rounded-xl border bg-background p-3 shadow-sm sm:p-5 md:p-8">
           <LegislationViewer
             html={viewerHtml}
             language={doc.language}
@@ -209,8 +218,12 @@ export default function LegislationDocumentClient({ id }: { id: string }) {
       )}
 
       {doc.format === "pdf" && pdfUrl && (
-        <div className="rounded-xl border bg-background p-3 shadow-sm">
-          <iframe title={doc.title} src={pdfUrl} className="h-[min(78vh,820px)] w-full rounded-lg" />
+        <div className="min-w-0 overflow-hidden rounded-xl border bg-background p-2 shadow-sm sm:p-3">
+          <iframe
+            title={doc.title}
+            src={pdfUrl}
+            className="h-[min(68vh,640px)] w-full rounded-lg sm:h-[min(78vh,820px)]"
+          />
         </div>
       )}
 
@@ -228,8 +241,8 @@ export default function LegislationDocumentClient({ id }: { id: string }) {
       )}
 
       {doc.source_url && (
-        <div className="flex justify-end">
-          <Button variant="outline" size="sm" asChild>
+        <div className="flex justify-stretch sm:justify-end">
+          <Button variant="outline" size="sm" className="h-9 w-full sm:w-auto" asChild>
             <a href={doc.source_url} target="_blank" rel="noopener noreferrer">
               <ExternalLink className="mr-1 size-3.5" />
               Official source

@@ -295,7 +295,7 @@ export function ConsultantPicker({
         </p>
       </div>
 
-      <div className="flex gap-2 max-w-md mx-auto">
+      <div className="flex flex-col gap-2 max-w-md mx-auto sm:flex-row">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
@@ -306,7 +306,7 @@ export function ConsultantPicker({
             onKeyDown={(e) => e.key === "Enter" && setSearch(searchInput)}
           />
         </div>
-        <Button variant="outline" onClick={() => setSearch(searchInput)}>Search</Button>
+        <Button variant="outline" onClick={() => setSearch(searchInput)} className="h-10 w-full sm:w-auto">Search</Button>
       </div>
 
       {error && <p className="text-sm text-destructive text-center">{error}</p>}

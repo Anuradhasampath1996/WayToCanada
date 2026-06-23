@@ -63,20 +63,20 @@ export function MarketingReturnClient({ sessionId }: { sessionId: string }) {
   }, [sessionId, router]);
 
   return (
-    <div className="min-h-[60vh] flex items-center justify-center px-4">
-      <div className="w-full max-w-md rounded-2xl border bg-card px-8 py-14 text-center shadow-sm space-y-6">
+    <div className="flex min-h-[60vh] items-center justify-center px-3 py-6 sm:px-4">
+      <div className="w-full max-w-md space-y-5 rounded-2xl border bg-card px-5 py-10 text-center shadow-sm sm:space-y-6 sm:px-8 sm:py-14">
         {step === "activating" && (
           <>
-            <Loader2 className="mx-auto h-14 w-14 animate-spin text-primary" />
-            <h1 className="text-2xl font-bold">Confirming payment…</h1>
-            <p className="text-muted-foreground text-sm">Please wait while we verify your Stripe payment.</p>
+            <Loader2 className="mx-auto h-12 w-12 animate-spin text-primary sm:h-14 sm:w-14" />
+            <h1 className="text-xl font-bold sm:text-2xl">Confirming payment…</h1>
+            <p className="text-sm text-muted-foreground">Please wait while we verify your Stripe payment.</p>
           </>
         )}
         {step === "success" && (
           <>
-            <CheckCircle2 className="mx-auto h-14 w-14 text-emerald-600" />
-            <h1 className="text-2xl font-bold">Payment successful!</h1>
-            <p className="text-muted-foreground text-sm">
+            <CheckCircle2 className="mx-auto h-12 w-12 text-emerald-600 sm:h-14 sm:w-14" />
+            <h1 className="text-xl font-bold sm:text-2xl">Payment successful!</h1>
+            <p className="text-sm text-muted-foreground">
               Our marketing team will contact you within 2 business days to get started.
             </p>
             <Megaphone className="mx-auto size-8 text-violet-600 opacity-60" />
@@ -84,10 +84,10 @@ export function MarketingReturnClient({ sessionId }: { sessionId: string }) {
         )}
         {step === "error" && (
           <>
-            <AlertTriangle className="mx-auto h-14 w-14 text-amber-500" />
-            <h1 className="text-2xl font-bold">Something went wrong</h1>
-            <p className="text-muted-foreground text-sm">{errorMsg}</p>
-            <Button asChild variant="outline">
+            <AlertTriangle className="mx-auto h-12 w-12 text-amber-500 sm:h-14 sm:w-14" />
+            <h1 className="text-xl font-bold sm:text-2xl">Something went wrong</h1>
+            <p className="text-sm text-muted-foreground break-words">{errorMsg}</p>
+            <Button asChild variant="outline" className="h-10 w-full sm:w-auto">
               <Link href="/dashboard/marketing"><ArrowLeft className="mr-2 size-4" /> Back to Marketing</Link>
             </Button>
           </>

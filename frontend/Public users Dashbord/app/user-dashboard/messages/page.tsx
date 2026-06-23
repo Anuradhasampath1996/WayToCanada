@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Loader2, Lock, MessageSquare, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 import { CLIENT_API, clientAuthHeaders } from "@/lib/client-api";
 import { useClientJourney } from "@/context/client-journey-context";
 import { canAccessClientMessages, caseManagementUnlocked } from "@/lib/client-journey";
@@ -104,10 +105,10 @@ export default function ClientMessagesPage() {
   }
 
   return (
-    <div className="mx-auto flex max-w-2xl flex-col gap-4 pb-10">
+    <div className="min-w-0 w-full space-y-4 overflow-x-hidden pb-10 sm:space-y-6">
       <ClientJourneyBreadcrumb pageLabel="Messages" />
       <div>
-        <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+        <h1 className="flex items-center gap-2 text-xl font-bold tracking-tight sm:text-2xl">
           <MessageSquare className="size-6" />
           Messages
         </h1>
@@ -121,26 +122,28 @@ export default function ClientMessagesPage() {
       )}
 
       <div className="flex min-h-[360px] flex-col rounded-xl border bg-card">
-        <div className="flex-1 space-y-3 overflow-y-auto p-4 max-h-[50vh]">
+        <div className="max-h-[min(60vh,400px)] flex-1 space-y-3 overflow-y-auto p-3 sm:p-4">
           {messages.length === 0 ? (
             <p className="py-12 text-center text-sm text-muted-foreground">No messages yet.</p>
           ) : (
             messages.map((msg) => (
               <div
                 key={msg.id}
-                className={msg.sender_type === "client" ? "ml-8 text-right" : "mr-8"}
+                className={cn("flex", msg.sender_type === "client" ? "justify-end" : "justify-start")}
               >
-                <p className="text-[10px] font-medium text-muted-foreground mb-1">
+                <div className="max-w-[85%]">
+                <p className="mb-1 text-[10px] font-medium text-muted-foreground">
                   {msg.sender_name}
                 </p>
                 <div
                   className={
                     msg.sender_type === "client"
-                      ? "inline-block rounded-2xl rounded-tr-sm bg-primary px-3 py-2 text-sm text-primary-foreground text-left"
-                      : "inline-block rounded-2xl rounded-tl-sm bg-muted px-3 py-2 text-sm text-left"
+                      ? "inline-block rounded-2xl rounded-tr-sm bg-primary px-3 py-2 text-sm text-primary-foreground text-left break-words"
+                      : "inline-block rounded-2xl rounded-tl-sm bg-muted px-3 py-2 text-sm text-left break-words"
                   }
                 >
                   {msg.message}
+                </div>
                 </div>
               </div>
             ))

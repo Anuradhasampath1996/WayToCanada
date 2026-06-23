@@ -475,7 +475,7 @@ export function CaseManagementClient() {
       stepId="documents"
       description={`Upload required documents and message your consultant for your ${pathway ?? "immigration"} application.`}
       extra={
-        <div className="flex items-center gap-2">
+        <div className="flex w-full flex-wrap items-center gap-2">
           {hubProgress && (
             <div className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
               {hubProgress.overall_percent}% complete
@@ -490,7 +490,7 @@ export function CaseManagementClient() {
     >
       {toast && (
         <div className={cn(
-          "fixed top-4 right-4 z-50 flex items-center gap-2 rounded-lg border px-4 py-3 text-sm shadow-lg",
+          "fixed left-3 right-3 top-4 z-50 flex items-center gap-2 rounded-lg border px-4 py-3 text-sm shadow-lg sm:left-auto sm:right-4 sm:max-w-sm",
           toast.type === "success" ? "bg-white border-green-200 text-green-800" : "bg-white border-red-200 text-red-700"
         )}>
           {toast.type === "success" ? <Check className="h-4 w-4 shrink-0" /> : <AlertCircle className="h-4 w-4 shrink-0" />}
@@ -518,11 +518,11 @@ export function CaseManagementClient() {
         </div>
       </div>
 
-      <div className="flex border-b mb-6 overflow-x-auto">
+      <div className="-mx-3 mb-6 flex border-b overflow-x-auto px-3 sm:mx-0 sm:px-0">
         <button
           onClick={() => setActiveTab("overview")}
           className={cn(
-            "px-4 py-2 text-sm font-medium border-b-2 transition-colors shrink-0",
+            "px-3 py-2 text-sm font-medium border-b-2 transition-colors shrink-0 sm:px-4",
             activeTab === "overview" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
           )}
         >
@@ -532,7 +532,7 @@ export function CaseManagementClient() {
         <button
           onClick={() => setActiveTab("documents")}
           className={cn(
-            "px-4 py-2 text-sm font-medium border-b-2 transition-colors",
+            "px-3 py-2 text-sm font-medium border-b-2 transition-colors shrink-0 sm:px-4",
             activeTab === "documents" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
           )}
         >
@@ -542,7 +542,7 @@ export function CaseManagementClient() {
         <button
           onClick={() => setActiveTab("messages")}
           className={cn(
-            "px-4 py-2 text-sm font-medium border-b-2 transition-colors",
+            "px-3 py-2 text-sm font-medium border-b-2 transition-colors shrink-0 sm:px-4",
             activeTab === "messages" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
           )}
         >
@@ -659,7 +659,7 @@ export function CaseManagementClient() {
 
           {documents.filter(d => !requiredDocs.find(r => r.id === d.document_type)).map(doc => (
             <div key={doc.id} className="rounded-xl border p-4">
-              <div className="flex items-center gap-3">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
                 <FileText className="h-5 w-5 text-muted-foreground shrink-0" />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium">{doc.document_label}</p>
@@ -695,7 +695,7 @@ export function CaseManagementClient() {
 
       {activeTab === "messages" && (
         <div className="flex flex-col gap-4">
-          <div className="rounded-xl border bg-muted/10 p-4 h-[400px] overflow-y-auto flex flex-col gap-3">
+          <div className="flex min-h-[50vh] max-h-[60vh] flex-col gap-3 overflow-y-auto rounded-xl border bg-muted/10 p-4 sm:h-[400px] sm:max-h-none">
             {messages.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full gap-3 text-center">
                 <MessageSquare className="h-10 w-10 text-muted-foreground/40" />

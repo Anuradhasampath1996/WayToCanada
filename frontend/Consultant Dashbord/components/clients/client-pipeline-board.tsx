@@ -48,6 +48,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { useIsMobile } from "@/hooks/use-mobile";
 import {
   type PipelineBoardConfig,
   type PipelineBoardColumn,
@@ -60,6 +61,8 @@ import {
   addCustomColumn,
   defaultBoardConfig,
 } from "@/lib/pipeline-board-config";
+
+import "./client-pipeline-board.css";
 
 const API = (process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000") + "/api/v1";
 
@@ -173,28 +176,28 @@ function ClientCard({
           {initials(entry.client_name) || <User className="size-3.5" />}
         </div>
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold leading-tight">{entry.client_name}</p>
+          <p className="text-sm font-semibold leading-tight break-words">{entry.client_name}</p>
           <p className="truncate text-[11px] text-muted-foreground">{entry.client_email}</p>
         </div>
-        <GripVertical className="size-3.5 shrink-0 text-muted-foreground/40 group-hover:text-muted-foreground" />
+        <GripVertical className="size-3.5 shrink-0 text-muted-foreground/40 group-hover:text-muted-foreground max-sm:hidden" />
       </div>
       {entry.immigration_pathway && (
-        <Badge variant="outline" className="mt-2.5 h-5 px-1.5 text-[10px] font-medium">
+        <Badge variant="outline" className="mt-2.5 h-auto max-w-full whitespace-normal px-1.5 py-0.5 text-[10px] font-medium leading-snug">
           {entry.immigration_pathway}
         </Badge>
       )}
-      <div className="mt-2.5 flex items-center justify-between gap-2">
+      <div className="mt-2.5 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         {entry.pending_docs > 0 ? (
-          <span className="inline-flex items-center rounded-full border border-amber-200/80 bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-800 dark:text-amber-300">
+          <span className="inline-flex w-fit items-center rounded-full border border-amber-200/80 bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-800 dark:text-amber-300">
             {entry.pending_docs} pending
           </span>
         ) : (
-          <span className="inline-flex items-center gap-0.5 rounded-full border border-emerald-200/80 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-800 dark:text-emerald-300">
+          <span className="inline-flex w-fit items-center gap-0.5 rounded-full border border-emerald-200/80 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-800 dark:text-emerald-300">
             <Check className="size-2.5" />
             Reviewed
           </span>
         )}
-        <Button variant="ghost" size="sm" className="h-6 px-1.5 text-[10px] text-primary" asChild>
+        <Button variant="ghost" size="sm" className="h-8 w-full justify-center px-2 text-[10px] text-primary sm:h-6 sm:w-auto sm:justify-start sm:px-1.5" asChild>
           <Link href={`/dashboard/clients/${entry.profile_id}/workspace/case-management`}>
             Open
             <ArrowUpRight className="ml-0.5 size-3" />
@@ -273,12 +276,12 @@ function BoardCustomizeDialog({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className="shrink-0 gap-1.5">
+        <Button variant="outline" size="sm" className="shrink-0 gap-1.5 w-full sm:w-auto">
           <Settings2 className="size-3.5" />
           Customize board
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
+      <DialogContent className="max-h-[85vh] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] overflow-y-auto p-4 sm:max-w-lg sm:p-6">
         <DialogHeader>
           <DialogTitle>Customize your board</DialogTitle>
           <DialogDescription>
@@ -293,7 +296,7 @@ function BoardCustomizeDialog({
               const col = draft.columns[id];
               if (!col) return null;
               return (
-                <div key={id} className="flex items-center gap-2 rounded-lg border border-border/70 bg-muted/30 px-2.5 py-2">
+                <div key={id} className="flex flex-wrap items-center gap-2 rounded-lg border border-border/70 bg-muted/30 px-2.5 py-2 sm:flex-nowrap">
                   <div className="flex flex-col gap-0.5">
                     <Button type="button" variant="ghost" size="icon" className="size-6" onClick={() => moveColumn(id, -1)}>
                       <ChevronUp className="size-3.5" />
@@ -319,9 +322,9 @@ function BoardCustomizeDialog({
           <div className="space-y-2">
             <Label className="text-xs text-muted-foreground">Hidden columns</Label>
             {hiddenColumns.map((id) => (
-              <div key={id} className="flex items-center justify-between rounded-lg border border-dashed px-3 py-2">
-                <span className="text-sm text-muted-foreground">{draft.columns[id]?.label}</span>
-                <Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={() => showHiddenColumn(id)}>
+              <div key={id} className="flex flex-col gap-2 rounded-lg border border-dashed px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
+                <span className="min-w-0 text-sm text-muted-foreground break-words">{draft.columns[id]?.label}</span>
+                <Button type="button" variant="outline" size="sm" className="h-8 w-full text-xs sm:h-7 sm:w-auto" onClick={() => showHiddenColumn(id)}>
                   Show
                 </Button>
               </div>
@@ -350,12 +353,12 @@ function BoardCustomizeDialog({
             </Button>
           </div>
         )}
-        <DialogFooter className="flex-col gap-2 sm:flex-row sm:justify-between">
+        <DialogFooter className="flex-col-reverse gap-2 sm:flex-row sm:justify-between">
           <Button
             type="button"
             variant="ghost"
             size="sm"
-            className="gap-1.5 text-muted-foreground"
+            className="h-9 w-full gap-1.5 text-muted-foreground sm:w-auto"
             onClick={() => {
               const fresh = defaultBoardConfig();
               setDraft(fresh);
@@ -369,6 +372,7 @@ function BoardCustomizeDialog({
           <Button
             type="button"
             size="sm"
+            className="h-9 w-full sm:w-auto"
             onClick={() => {
               onSave(draft);
               setOpen(false);
@@ -393,6 +397,7 @@ export function ClientPipelineBoard({
   showToolbar?: boolean;
   showStats?: boolean;
 }) {
+  const isMobile = useIsMobile();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [pipeline, setPipeline] = useState<PipelineEntry[]>([]);
@@ -512,10 +517,10 @@ export function ClientPipelineBoard({
 
   if (error) {
     return (
-      <div className="flex flex-col items-center justify-center gap-4 py-16 text-center">
+      <div className="flex flex-col items-center justify-center gap-4 px-3 py-16 text-center">
         <AlertCircle className="size-10 text-destructive/80" />
-        <p className="text-sm font-medium text-destructive">{error}</p>
-        <Button variant="outline" size="sm" onClick={() => void load()}>
+        <p className="text-sm font-medium text-destructive break-words">{error}</p>
+        <Button variant="outline" size="sm" className="h-9 w-full max-w-xs sm:w-auto" onClick={() => void load()}>
           <RefreshCw className="mr-1.5 size-3.5" />
           Try again
         </Button>
@@ -524,13 +529,16 @@ export function ClientPipelineBoard({
   }
 
   const gridCols = visibleColumns.length <= 1 ? "1fr" : `repeat(${visibleColumns.length}, minmax(0, 1fr))`;
+  const columnMinPx = isMobile ? 260 : 168;
+  const boardMinWidth =
+    visibleColumns.length * columnMinPx + Math.max(0, visibleColumns.length - 1) * 12;
 
   return (
-    <div className="space-y-4">
+    <div className="min-w-0 space-y-4 overflow-x-hidden">
       {toast && (
         <div
           className={cn(
-            "fixed top-4 right-4 z-50 flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm shadow-lg backdrop-blur-sm",
+            "fixed top-4 right-3 left-3 z-50 flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm shadow-lg backdrop-blur-sm sm:left-auto sm:max-w-sm",
             toast.type === "success"
               ? "border-emerald-200/80 bg-background text-emerald-800"
               : "border-red-200/80 bg-background text-red-700",
@@ -542,9 +550,9 @@ export function ClientPipelineBoard({
       )}
 
       {showToolbar && (
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
           <BoardCustomizeDialog config={boardConfig} onSave={saveConfig} />
-          <Button variant="outline" size="sm" onClick={() => void load()}>
+          <Button variant="outline" size="sm" className="h-9 w-full sm:w-auto" onClick={() => void load()}>
             <RefreshCw className="mr-1.5 size-3.5" />
             Refresh board
           </Button>
@@ -559,13 +567,13 @@ export function ClientPipelineBoard({
             { label: "Ready to submit", value: stats.ready, icon: CheckCircle2 },
             { label: "Submitted", value: stats.submitted, icon: Send },
           ].map((s) => (
-            <div key={s.label} className="flex items-center gap-2.5 rounded-xl border border-border/60 bg-background/80 px-3 py-2.5">
-              <span className="flex size-8 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+            <div key={s.label} className="flex min-w-0 items-center gap-2 rounded-xl border border-border/60 bg-background/80 px-2.5 py-2.5 sm:gap-2.5 sm:px-3">
+              <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground sm:size-8">
                 <s.icon className="size-3.5" />
               </span>
-              <div>
-                <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{s.label}</p>
-                <p className="text-lg font-bold tabular-nums leading-none">{s.value}</p>
+              <div className="min-w-0">
+                <p className="pipeline-board-stat-label text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{s.label}</p>
+                <p className="text-base font-bold tabular-nums leading-none sm:text-lg">{s.value}</p>
               </div>
             </div>
           ))}
@@ -587,10 +595,10 @@ export function ClientPipelineBoard({
           </CardContent>
         </Card>
       ) : (
-        <div className="w-full overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:thin]">
+        <div className="pipeline-board-scroll w-full overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:thin]">
           <div
             className="grid w-full min-w-0 gap-3"
-            style={{ gridTemplateColumns: gridCols, minWidth: `${visibleColumns.length * 200}px` }}
+            style={{ gridTemplateColumns: gridCols, minWidth: `${boardMinWidth}px` }}
           >
             {visibleColumns.map((col) => {
               const theme = STATUS_THEMES[col.statusKey];
@@ -604,19 +612,19 @@ export function ClientPipelineBoard({
                   onDragLeave={() => setDropTarget(null)}
                   onDrop={(e) => void onDrop(e, col)}
                   className={cn(
-                    "flex min-h-[min(24rem,55vh)] min-w-0 flex-col overflow-hidden rounded-xl border border-border/80 bg-card shadow-sm transition-all",
+                    "pipeline-board-column flex min-h-[min(24rem,55vh)] min-w-0 flex-col overflow-hidden rounded-xl border border-border/80 bg-card shadow-sm transition-all",
                     isOver && "scale-[1.005] border-primary border-dashed ring-2 ring-primary/25 shadow-md",
                   )}
                 >
-                  <div className={cn("flex items-center gap-2.5 border-b px-3 py-3", theme.accentBar)}>
-                    <span className={cn("flex size-8 shrink-0 items-center justify-center rounded-lg", theme.iconClass)}>
-                      <Icon className="size-4" />
+                  <div className={cn("flex items-center gap-2 border-b px-2.5 py-2.5 sm:gap-2.5 sm:px-3 sm:py-3", theme.accentBar)}>
+                    <span className={cn("flex size-7 shrink-0 items-center justify-center rounded-lg sm:size-8", theme.iconClass)}>
+                      <Icon className="size-3.5 sm:size-4" />
                     </span>
                     <div className="min-w-0 flex-1">
-                      <p className={cn("truncate text-sm font-semibold leading-tight", theme.headerClass)}>{col.label}</p>
+                      <p className={cn("truncate text-xs font-semibold leading-tight sm:text-sm", theme.headerClass)}>{col.label}</p>
                       <p className="text-[10px] text-muted-foreground">{theme.shortLabel}</p>
                     </div>
-                    <span className={cn("flex size-7 shrink-0 items-center justify-center rounded-full border text-xs font-bold tabular-nums", theme.badgeClass)}>
+                    <span className={cn("flex size-6 shrink-0 items-center justify-center rounded-full border text-[10px] font-bold tabular-nums sm:size-7 sm:text-xs", theme.badgeClass)}>
                       {cards.length}
                     </span>
                   </div>

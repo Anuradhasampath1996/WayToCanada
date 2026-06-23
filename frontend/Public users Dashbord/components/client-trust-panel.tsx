@@ -93,7 +93,7 @@ export function ClientTrustPanel() {
               <Badge variant="outline" className="text-amber-700 border-amber-200">Awaiting approval</Badge>
               <Button
                 size="sm"
-                className="bg-emerald-600 hover:bg-emerald-700"
+                className="h-9 w-full bg-emerald-600 hover:bg-emerald-700 sm:w-auto"
                 disabled={approving === inv.id}
                 onClick={() => approve(inv.id)}
               >

@@ -126,71 +126,72 @@ export function AccountPaymentSettings({ onStripeReturn }: { onStripeReturn?: bo
   }
 
   return (
-    <div className="space-y-6">
+    <div className="min-w-0 space-y-5 sm:space-y-6">
       <div>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-sm leading-relaxed text-muted-foreground">
           Connect how you want to collect fees from clients. When you send a payment request, clients pay through your linked method.
         </p>
-        {message && <p className="text-sm text-emerald-600 mt-2">{message}</p>}
+        {message && <p className="mt-2 break-words text-sm text-emerald-600">{message}</p>}
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {/* Stripe */}
-        <div className={cn("rounded-xl border bg-muted/15 p-4 space-y-3", preferred === "stripe" && "ring-2 ring-emerald-500/30 border-emerald-200/50")}>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 font-semibold text-sm">
-              <CreditCard className="h-4 w-4 text-violet-600" /> Stripe
+        <div className={cn("space-y-3 rounded-xl border bg-muted/15 p-4", preferred === "stripe" && "ring-2 ring-emerald-500/30 border-emerald-200/50")}>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2 text-sm font-semibold">
+              <CreditCard className="h-4 w-4 shrink-0 text-violet-600" /> Stripe
             </div>
             {account?.stripe_ready
-              ? <Badge className="bg-emerald-600 gap-1"><CheckCircle2 className="h-3 w-3" /> Ready</Badge>
+              ? <Badge className="gap-1 bg-emerald-600"><CheckCircle2 className="h-3 w-3" /> Ready</Badge>
               : <Badge variant="secondary">Not connected</Badge>}
           </div>
-          <p className="text-xs text-muted-foreground">Card payments — recommended for online checkout in Canada.</p>
-          <div className="flex flex-wrap gap-2">
-            <Button size="sm" onClick={connectStripe} disabled={connecting}>
-              {connecting ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
+          <p className="text-xs leading-relaxed text-muted-foreground">Card payments — recommended for online checkout in Canada.</p>
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+            <Button size="sm" className="h-10 w-full sm:w-auto" onClick={connectStripe} disabled={connecting}>
+              {connecting ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : null}
               {account?.stripe_connect_account_id ? "Update Stripe account" : "Connect Stripe"}
             </Button>
             {account?.stripe_connect_account_id && (
-              <Button size="sm" variant="outline" onClick={openStripeDashboard}>
-                <ExternalLink className="h-3.5 w-3.5 mr-1" /> Dashboard
+              <Button size="sm" variant="outline" className="h-10 w-full sm:w-auto" onClick={openStripeDashboard}>
+                <ExternalLink className="mr-1 h-3.5 w-3.5" /> Dashboard
               </Button>
             )}
           </div>
         </div>
 
         {/* PayPal */}
-        <div className={cn("rounded-xl border bg-muted/15 p-4 space-y-3", preferred === "paypal" && "ring-2 ring-emerald-500/30 border-emerald-200/50")}>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 font-semibold text-sm">
-              <Wallet className="h-4 w-4 text-blue-600" /> PayPal
+        <div className={cn("space-y-3 rounded-xl border bg-muted/15 p-4", preferred === "paypal" && "ring-2 ring-emerald-500/30 border-emerald-200/50")}>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2 text-sm font-semibold">
+              <Wallet className="h-4 w-4 shrink-0 text-blue-600" /> PayPal
             </div>
             {account?.paypal_ready
-              ? <Badge className="bg-emerald-600 gap-1"><CheckCircle2 className="h-3 w-3" /> Ready</Badge>
+              ? <Badge className="gap-1 bg-emerald-600"><CheckCircle2 className="h-3 w-3" /> Ready</Badge>
               : <Badge variant="secondary">Not set</Badge>}
           </div>
-          <Input placeholder="PayPal email" value={paypalEmail} onChange={(e) => setPaypalEmail(e.target.value)} className="h-8 text-sm" />
-          <Input placeholder="PayPal.me username (optional)" value={paypalMe} onChange={(e) => setPaypalMe(e.target.value)} className="h-8 text-sm" />
+          <Input placeholder="PayPal email" value={paypalEmail} onChange={(e) => setPaypalEmail(e.target.value)} className="h-10 text-sm" />
+          <Input placeholder="PayPal.me username (optional)" value={paypalMe} onChange={(e) => setPaypalMe(e.target.value)} className="h-10 text-sm" />
         </div>
 
         {/* Interac */}
-        <div className={cn("rounded-xl border bg-muted/15 p-4 space-y-3 md:col-span-2 xl:col-span-1", preferred === "interac" && "ring-2 ring-emerald-500/30 border-emerald-200/50")}>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 font-semibold text-sm">
-              <Building2 className="h-4 w-4 text-amber-600" /> Interac e-Transfer
+        <div className={cn("space-y-3 rounded-xl border bg-muted/15 p-4 sm:col-span-2 xl:col-span-1", preferred === "interac" && "ring-2 ring-emerald-500/30 border-emerald-200/50")}>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex min-w-0 items-center gap-2 text-sm font-semibold">
+              <Building2 className="h-4 w-4 shrink-0 text-amber-600" />
+              <span className="break-words">Interac e-Transfer</span>
             </div>
             {account?.interac_ready
-              ? <Badge className="bg-emerald-600 gap-1"><CheckCircle2 className="h-3 w-3" /> Ready</Badge>
-              : <Badge variant="secondary">Not set</Badge>}
+              ? <Badge className="shrink-0 gap-1 bg-emerald-600"><CheckCircle2 className="h-3 w-3" /> Ready</Badge>
+              : <Badge variant="secondary" className="shrink-0">Not set</Badge>}
           </div>
-          <p className="text-xs text-muted-foreground">Popular in Canada — clients send e-Transfer to your email.</p>
-          <Input placeholder="Interac deposit email" value={interacEmail} onChange={(e) => setInteracEmail(e.target.value)} className="h-8 text-sm" />
+          <p className="text-xs leading-relaxed text-muted-foreground">Popular in Canada — clients send e-Transfer to your email.</p>
+          <Input placeholder="Interac deposit email" value={interacEmail} onChange={(e) => setInteracEmail(e.target.value)} className="h-10 text-sm" />
         </div>
       </div>
 
-      <div className="rounded-xl border bg-muted/15 p-5 space-y-3">
+      <div className="space-y-3 rounded-xl border bg-muted/15 p-4 sm:p-5">
         <p className="text-sm font-semibold">Default payment method for new requests</p>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
           {(["stripe", "paypal", "interac"] as const).map((p) => (
             <Button
               key={p}
@@ -198,14 +199,14 @@ export function AccountPaymentSettings({ onStripeReturn }: { onStripeReturn?: bo
               size="sm"
               variant={preferred === p ? "default" : "outline"}
               onClick={() => setPreferred(p)}
-              className={preferred === p ? "bg-emerald-600 hover:bg-emerald-700" : ""}
+              className={cn("h-10 w-full sm:w-auto", preferred === p ? "bg-emerald-600 hover:bg-emerald-700" : "")}
             >
               {p === "stripe" ? "Stripe" : p === "paypal" ? "PayPal" : "Interac"}
             </Button>
           ))}
         </div>
-        <Button onClick={saveSettings} disabled={saving} className="bg-emerald-600 hover:bg-emerald-700">
-          {saving ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
+        <Button onClick={saveSettings} disabled={saving} className="h-10 w-full bg-emerald-600 hover:bg-emerald-700 sm:w-auto">
+          {saving ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : null}
           Save payment settings
         </Button>
       </div>

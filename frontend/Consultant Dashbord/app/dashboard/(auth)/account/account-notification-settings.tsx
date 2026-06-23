@@ -77,60 +77,66 @@ export function AccountNotificationSettings() {
   }
 
   return (
-    <div className="space-y-6">
-      <p className="text-sm text-muted-foreground leading-relaxed">
+    <div className="min-w-0 space-y-5 sm:space-y-6">
+      <p className="text-sm leading-relaxed text-muted-foreground">
         Choose how you receive updates about client workspace activity, meetings, and payments.
       </p>
       {message && (
-        <p className={cn("text-sm rounded-lg px-3 py-2", message.includes("Could") ? "text-red-700 bg-red-50" : "text-emerald-700 bg-emerald-50")}>
+        <p className={cn("break-words rounded-lg px-3 py-2 text-sm", message.includes("Could") ? "bg-red-50 text-red-700" : "bg-emerald-50 text-emerald-700")}>
           {message}
         </p>
       )}
 
-      <div className="grid gap-4 md:grid-cols-3">
-        <div className="rounded-xl border bg-muted/15 p-4 space-y-3">
-          <div className="flex items-center gap-2 font-semibold text-sm">
-            <Bell className="h-4 w-4 text-emerald-600" /> In-app
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="space-y-3 rounded-xl border bg-muted/15 p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-2 text-sm font-semibold">
+              <Bell className="h-4 w-4 shrink-0 text-emerald-600" /> In-app
+            </div>
+            <Switch
+              checked={prefs.in_app_enabled}
+              onCheckedChange={(v) => { setPrefs({ ...prefs, in_app_enabled: v }); save({ in_app_enabled: v }); }}
+              disabled={saving}
+            />
           </div>
-          <p className="text-xs text-muted-foreground">Bell icon alerts in your dashboard header.</p>
-          <Switch
-            checked={prefs.in_app_enabled}
-            onCheckedChange={(v) => { setPrefs({ ...prefs, in_app_enabled: v }); save({ in_app_enabled: v }); }}
-            disabled={saving}
-          />
+          <p className="text-xs leading-relaxed text-muted-foreground">Bell icon alerts in your dashboard header.</p>
         </div>
-        <div className="rounded-xl border bg-muted/15 p-4 space-y-3">
-          <div className="flex items-center gap-2 font-semibold text-sm">
-            <Mail className="h-4 w-4 text-blue-600" /> Email
+        <div className="space-y-3 rounded-xl border bg-muted/15 p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-2 text-sm font-semibold">
+              <Mail className="h-4 w-4 shrink-0 text-blue-600" /> Email
+            </div>
+            <Switch
+              checked={prefs.email_enabled}
+              onCheckedChange={(v) => { setPrefs({ ...prefs, email_enabled: v }); save({ email_enabled: v }); }}
+              disabled={saving}
+            />
           </div>
-          <p className="text-xs text-muted-foreground">Transactional emails for important updates.</p>
-          <Switch
-            checked={prefs.email_enabled}
-            onCheckedChange={(v) => { setPrefs({ ...prefs, email_enabled: v }); save({ email_enabled: v }); }}
-            disabled={saving}
-          />
+          <p className="text-xs leading-relaxed text-muted-foreground">Transactional emails for important updates.</p>
         </div>
-        <div className="rounded-xl border bg-muted/15 p-4 space-y-3">
-          <div className="flex items-center gap-2 font-semibold text-sm">
-            <MessageCircle className="h-4 w-4 text-green-600" /> WhatsApp
+        <div className="space-y-3 rounded-xl border bg-muted/15 p-4 sm:col-span-2 lg:col-span-1">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-2 text-sm font-semibold">
+              <MessageCircle className="h-4 w-4 shrink-0 text-green-600" /> WhatsApp
+            </div>
+            <Switch
+              checked={prefs.whatsapp_enabled}
+              onCheckedChange={(v) => { setPrefs({ ...prefs, whatsapp_enabled: v }); save({ whatsapp_enabled: v }); }}
+              disabled={saving}
+            />
           </div>
-          <p className="text-xs text-muted-foreground">
-            Client reminders and workspace alerts on WhatsApp. Messages appear in your name — enabled by default; turn off here if you prefer email only.
+          <p className="text-xs leading-relaxed text-muted-foreground">
+            Client reminders and workspace alerts on WhatsApp. Turn off here if you prefer email only.
           </p>
-          <Switch
-            checked={prefs.whatsapp_enabled}
-            onCheckedChange={(v) => { setPrefs({ ...prefs, whatsapp_enabled: v }); save({ whatsapp_enabled: v }); }}
-            disabled={saving}
-          />
         </div>
       </div>
 
-      <div className="rounded-xl border bg-muted/15 p-5 space-y-3 max-w-md">
+      <div className="space-y-3 rounded-xl border bg-muted/15 p-4 sm:p-5">
         <Label htmlFor="wa-phone" className="text-sm font-semibold">WhatsApp phone number</Label>
         <p className="text-xs text-muted-foreground">Include country code, e.g. +14165551234</p>
-        <div className="flex gap-2">
-          <Input id="wa-phone" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+1..." className="h-9" />
-          <Button size="sm" onClick={() => save({ whatsapp_enabled: prefs.whatsapp_enabled })} disabled={saving}>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <Input id="wa-phone" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+1..." className="h-10" />
+          <Button size="sm" className="h-10 w-full shrink-0 sm:w-auto" onClick={() => save({ whatsapp_enabled: prefs.whatsapp_enabled })} disabled={saving}>
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}
           </Button>
         </div>

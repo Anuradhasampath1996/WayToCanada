@@ -602,7 +602,7 @@ export function LettersHubClient({ initialClientId = null }: { initialClientId?:
 
   if (loading) {
     return (
-      <div className="flex items-center gap-2 p-8 text-muted-foreground">
+      <div className="flex items-center gap-2 p-4 text-muted-foreground sm:p-8">
         <Loader2 className="size-5 animate-spin" />
         Loading Letters…
       </div>
@@ -610,34 +610,36 @@ export function LettersHubClient({ initialClientId = null }: { initialClientId?:
   }
 
   return (
-    <div className="space-y-6 pb-10">
-      <section className="rounded-2xl border border-border/70 bg-gradient-to-br from-background to-primary/5 p-5 shadow-sm">
-        <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight">
-          <Mail className="size-7 text-primary" />
+    <div className="min-w-0 space-y-4 overflow-x-hidden pb-20 sm:space-y-6 sm:pb-10">
+      <section className="rounded-2xl border border-border/70 bg-gradient-to-br from-background to-primary/5 p-4 shadow-sm sm:p-5">
+        <h1 className="flex items-center gap-2 text-xl font-bold tracking-tight sm:text-2xl">
+          <Mail className="size-6 shrink-0 text-primary sm:size-7" />
           Letters
         </h1>
         <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
           Draft immigration letters with AI — with or without a client. Use templates, edit, and export PDF.
         </p>
+        <div className="mt-2 flex flex-wrap items-center gap-2">
         {openAiAvailable ? (
-          <Badge variant="secondary" className="mt-2">
+          <Badge variant="secondary">
             <Sparkles className="mr-1 size-3" />
             AI drafting enabled
           </Badge>
         ) : (
-          <Badge variant="outline" className="mt-2 text-amber-700">
+          <Badge variant="outline" className="text-amber-700">
             AI unavailable — blank/template editing only
           </Badge>
         )}
         {isDirty && (
-          <Badge variant="outline" className="mt-2 ml-2 border-amber-500 text-amber-700">
+          <Badge variant="outline" className="border-amber-500 text-amber-700">
             Unsaved changes
           </Badge>
         )}
+        </div>
       </section>
 
       {brandingWarnings.length > 0 && (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-3 text-sm text-amber-900 sm:px-4">
           <p className="font-medium">Complete your letterhead</p>
           <ul className="mt-1 list-disc pl-5 space-y-0.5">
             {brandingWarnings.map((w) => (
@@ -651,7 +653,7 @@ export function LettersHubClient({ initialClientId = null }: { initialClientId?:
       )}
 
       {initialClientId && clientMode === "client" && selectedClientId === initialClientId && clientContext && (
-        <div className="rounded-lg border border-primary/25 bg-primary/5 px-4 py-3 text-sm">
+        <div className="rounded-lg border border-primary/25 bg-primary/5 px-3 py-3 text-sm sm:px-4">
           <p className="font-medium text-primary">
             Drafting for {clientContext.client_name ?? "this client"}
           </p>
@@ -665,17 +667,18 @@ export function LettersHubClient({ initialClientId = null }: { initialClientId?:
         <div className="rounded-lg border px-4 py-2 text-sm">{message}</div>
       )}
 
-      <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,280px)]">
+      <div className="grid min-w-0 gap-4 sm:gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,280px)]">
         {/* Main editor */}
-        <div className="min-w-0 space-y-4">
+        <div className="order-2 min-w-0 space-y-4 lg:order-1">
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base">Who is this letter for?</CardTitle>
             </CardHeader>
-            <CardContent className="flex flex-wrap gap-2">
+            <CardContent className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
               <Button
                 variant={clientMode === "none" ? "default" : "outline"}
                 size="sm"
+                className="h-9 w-full justify-center sm:w-auto"
                 onClick={() => {
                   setClientMode("none");
                   setSelectedClientId(null);
@@ -688,12 +691,13 @@ export function LettersHubClient({ initialClientId = null }: { initialClientId?:
               <Button
                 variant={clientMode === "client" ? "default" : "outline"}
                 size="sm"
+                className="h-9 w-full justify-center sm:w-auto"
                 onClick={() => setClientMode("client")}
               >
                 <User className="mr-1 size-4" />
                 Select client
               </Button>
-              <Button variant="ghost" size="sm" onClick={resetDraft}>
+              <Button variant="ghost" size="sm" className="col-span-2 h-9 w-full justify-center sm:col-span-1 sm:w-auto" onClick={resetDraft}>
                 <Plus className="mr-1 size-4" />
                 New blank
               </Button>
@@ -729,7 +733,7 @@ export function LettersHubClient({ initialClientId = null }: { initialClientId?:
                   ))}
                 </div>
                 {clientContext && selectedClientId && (
-                  <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 text-xs space-y-1">
+                  <div className="space-y-1 rounded-lg border border-primary/20 bg-primary/5 p-3 text-xs break-words">
                     <p className="font-medium text-primary">Using client data</p>
                     <p>{clientContext.client_name} · {clientContext.client_email}</p>
                     {clientContext.immigration_pathway && (
@@ -784,6 +788,7 @@ export function LettersHubClient({ initialClientId = null }: { initialClientId?:
                 />
               </div>
               <Button
+                className="h-10 w-full sm:w-auto"
                 onClick={() => void handleGenerate()}
                 disabled={generating || (clientMode === "client" && !selectedClientId)}
               >
@@ -799,8 +804,8 @@ export function LettersHubClient({ initialClientId = null }: { initialClientId?:
 
           <Card>
             <CardHeader className="pb-3">
-              <div className="flex items-center justify-between gap-2">
-                <div>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div className="min-w-0">
                   <CardTitle className="text-base">Document preview</CardTitle>
                   <CardDescription>
                     Professional letter layout with your logo, company details, and signature
@@ -809,6 +814,7 @@ export function LettersHubClient({ initialClientId = null }: { initialClientId?:
                 <Button
                   variant="outline"
                   size="sm"
+                  className="h-9 w-full shrink-0 sm:w-auto"
                   onClick={() => setShowPreview((v) => !v)}
                 >
                   {showPreview ? "Hide preview" : "Show preview"}
@@ -816,7 +822,7 @@ export function LettersHubClient({ initialClientId = null }: { initialClientId?:
               </div>
             </CardHeader>
             {showPreview && (
-              <CardContent className="bg-white py-2">
+              <CardContent className="overflow-x-auto bg-white px-2 py-2 sm:px-4">
                 <LetterDocumentPreview
                   ref={previewRef}
                   branding={branding}
@@ -845,13 +851,13 @@ export function LettersHubClient({ initialClientId = null }: { initialClientId?:
                 Edit the letter content only — header and signature are added automatically
               </CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="min-w-0">
               <RichTextEditorDemo
                 value={bodyHtml}
                 onChange={(v) => setBodyHtml(typeof v === "string" ? v : "")}
                 output="html"
                 placeholder="Letter content will appear here after generation, or start typing…"
-                className="min-h-[320px]"
+                className="min-h-[280px] sm:min-h-[320px]"
               />
             </CardContent>
           </Card>
@@ -860,19 +866,19 @@ export function LettersHubClient({ initialClientId = null }: { initialClientId?:
             <CardHeader className="pb-2">
               <CardTitle className="text-sm">Actions</CardTitle>
             </CardHeader>
-            <CardContent className="flex flex-wrap gap-2">
-              <Button variant="outline" onClick={() => void handleSave("draft")} disabled={saving}>
+            <CardContent className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+              <Button variant="outline" className="h-9 w-full justify-center sm:w-auto" onClick={() => void handleSave("draft")} disabled={saving}>
                 {saving ? <Loader2 className="mr-1 size-4 animate-spin" /> : <Save className="mr-1 size-4" />}
                 Save draft
               </Button>
-              <Button variant="outline" onClick={() => void handleSave("final")} disabled={saving}>
+              <Button variant="outline" className="h-9 w-full justify-center sm:w-auto" onClick={() => void handleSave("final")} disabled={saving}>
                 Mark final
               </Button>
-              <Button variant="outline" onClick={() => void handleExportPdf()} disabled={exporting}>
+              <Button variant="outline" className="h-9 w-full justify-center sm:w-auto" onClick={() => void handleExportPdf()} disabled={exporting}>
                 {exporting ? <Loader2 className="mr-1 size-4 animate-spin" /> : <FileDown className="mr-1 size-4" />}
                 Export PDF
               </Button>
-              <Button variant="outline" onClick={handlePrint}>
+              <Button variant="outline" className="col-span-2 h-9 w-full justify-center sm:col-span-1 sm:w-auto" onClick={handlePrint}>
                 <Printer className="mr-1 size-4" />
                 Print
               </Button>
@@ -884,22 +890,22 @@ export function LettersHubClient({ initialClientId = null }: { initialClientId?:
               <CardTitle className="text-sm">Save as template</CardTitle>
               <CardDescription>Reuse this letter structure later</CardDescription>
             </CardHeader>
-            <CardContent className="flex gap-2">
+            <CardContent className="flex flex-col gap-2 sm:flex-row">
               <Input
                 value={templateName}
                 onChange={(e) => setTemplateName(e.target.value)}
                 placeholder="Template name"
-                className="max-w-xs"
+                className="w-full sm:max-w-xs"
               />
-              <Button variant="secondary" onClick={() => void handleSaveTemplate()}>
+              <Button variant="secondary" className="h-9 w-full shrink-0 sm:w-auto" onClick={() => void handleSaveTemplate()}>
                 Save template
               </Button>
             </CardContent>
           </Card>
         </div>
 
-        {/* Sidebar — templates & drafts */}
-        <div className="min-w-0 space-y-4 lg:sticky lg:top-4 lg:self-start">
+        {/* Sidebar — templates & drafts (shown first on mobile) */}
+        <div className="order-1 min-w-0 space-y-4 lg:order-2 lg:sticky lg:top-4 lg:self-start">
           <Card className="overflow-hidden">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm">Templates</CardTitle>
@@ -1027,7 +1033,7 @@ export function LettersHubClient({ initialClientId = null }: { initialClientId?:
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="absolute right-1.5 top-1/2 size-7 -translate-y-1/2 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-destructive/10 hover:text-destructive"
+                          className="absolute right-1.5 top-1/2 size-7 -translate-y-1/2 opacity-100 hover:bg-destructive/10 hover:text-destructive sm:opacity-0 sm:transition-opacity sm:group-hover:opacity-100"
                           title="Delete draft"
                           onClick={(e) => {
                             e.stopPropagation();

@@ -157,14 +157,14 @@ function PostAttachmentBlock({
             </div>
           )}
         </div>
-        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border/50 bg-background/80 px-3 py-2.5">
+        <div className="flex flex-col gap-2 border-t border-border/50 bg-background/80 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
-            <p className="truncate text-sm font-medium">{name}</p>
+            <p className="text-sm font-medium break-words">{name}</p>
             {post.attachment_size ? (
               <p className="text-xs text-muted-foreground">{fmtSize(post.attachment_size)}</p>
             ) : null}
           </div>
-          <Button variant="outline" size="sm" className="gap-1.5 shrink-0" onClick={onDownload}>
+          <Button variant="outline" size="sm" className="h-9 w-full shrink-0 gap-1.5 sm:w-auto" onClick={onDownload}>
             <Download className="size-4" />
             Download
           </Button>
@@ -176,29 +176,29 @@ function PostAttachmentBlock({
   if (kind === "pdf") {
     return (
       <>
-        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-border/60 bg-muted/10 p-3">
+        <div className="flex flex-col gap-3 rounded-xl border border-border/60 bg-muted/10 p-3 sm:flex-row sm:flex-wrap sm:items-center">
           <span className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-red-500/10 text-red-600">
             <FileText className="size-5" />
           </span>
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium">{name}</p>
+            <p className="text-sm font-medium break-words">{name}</p>
             {post.attachment_size ? (
               <p className="text-xs text-muted-foreground">{fmtSize(post.attachment_size)} · PDF</p>
             ) : (
               <p className="text-xs text-muted-foreground">PDF document</p>
             )}
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
             <Button
               size="sm"
-              className="gap-1.5"
+              className="h-9 w-full gap-1.5 sm:w-auto"
               disabled={loading || !blobUrl}
               onClick={() => setPdfOpen(true)}
             >
               {loading ? <Loader2 className="size-4 animate-spin" /> : <Eye className="size-4" />}
               View
             </Button>
-            <Button variant="outline" size="sm" className="gap-1.5" onClick={onDownload}>
+            <Button variant="outline" size="sm" className="h-9 w-full gap-1.5 sm:w-auto" onClick={onDownload}>
               <Download className="size-4" />
               Download
             </Button>
@@ -206,15 +206,15 @@ function PostAttachmentBlock({
         </div>
 
         <Dialog open={pdfOpen} onOpenChange={setPdfOpen}>
-          <DialogContent className="flex max-h-[92vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-4xl">
+          <DialogContent className="flex max-h-[92vh] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-4xl">
             <DialogHeader className="border-b px-4 py-3">
-              <DialogTitle className="truncate pr-8 text-base">{name}</DialogTitle>
+              <DialogTitle className="truncate pr-8 text-sm font-medium break-words sm:text-base">{name}</DialogTitle>
             </DialogHeader>
             {blobUrl ? (
               <iframe
                 title={name}
                 src={blobUrl}
-                className="h-[min(78vh,820px)] w-full bg-muted/20"
+                className="h-[min(70vh,32rem)] w-full bg-muted/20 sm:h-[min(78vh,820px)]"
               />
             ) : (
               <div className="flex items-center justify-center py-16 text-sm text-muted-foreground">
@@ -222,7 +222,7 @@ function PostAttachmentBlock({
               </div>
             )}
             <DialogFooter className="border-t px-4 py-3">
-              <Button variant="outline" onClick={onDownload}>
+              <Button variant="outline" className="h-9 w-full sm:w-auto" onClick={onDownload}>
                 <Download className="mr-2 size-4" />
                 Download
               </Button>
@@ -234,7 +234,7 @@ function PostAttachmentBlock({
   }
 
   return (
-    <Button variant="outline" size="sm" className="gap-2" onClick={onDownload}>
+    <Button variant="outline" size="sm" className="h-9 w-full gap-2 break-words sm:w-auto" onClick={onDownload}>
       <Download className="size-4" />
       {name}
       {post.attachment_size ? ` (${fmtSize(post.attachment_size)})` : ""}
@@ -497,19 +497,19 @@ export function RcicCommunityClient() {
   const showPostDetail = selected !== null || (postIdFromUrl !== null && deepLinkHandled.current);
 
   return (
-    <div className="space-y-6 pb-10">
+    <div className="min-w-0 space-y-4 overflow-x-hidden pb-8 sm:space-y-6 sm:pb-10">
       {toast && (
-        <div className="fixed top-4 right-4 z-50 rounded-xl border bg-background px-4 py-2 text-sm shadow-lg">
+        <div className="fixed top-4 right-3 left-3 z-50 rounded-xl border bg-background px-4 py-2 text-sm shadow-lg sm:left-auto sm:max-w-sm">
           {toast}
         </div>
       )}
 
-      <section className="rounded-2xl border border-border/70 bg-gradient-to-br from-background via-background to-emerald-500/5 p-5 shadow-sm">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight">
-              <span className="flex size-10 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-700">
-                <Users className="size-5" />
+      <section className="rounded-2xl border border-border/70 bg-gradient-to-br from-background via-background to-emerald-500/5 p-4 shadow-sm sm:p-5">
+        <div className="flex flex-col gap-3 sm:gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
+            <h1 className="flex items-center gap-2 text-xl font-bold tracking-tight sm:text-2xl">
+              <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-700 sm:size-10">
+                <Users className="size-4 sm:size-5" />
               </span>
               RCIC Community
             </h1>
@@ -517,7 +517,7 @@ export function RcicCommunityClient() {
               A private peer space for RCICMASTER consultants — ask questions, share experience, and learn from colleagues.
             </p>
           </div>
-          <Button className="rounded-xl" onClick={() => setComposeOpen(true)}>
+          <Button className="h-10 w-full rounded-xl sm:w-auto" onClick={() => setComposeOpen(true)}>
             <Plus className="mr-2 size-4" />
             New post
           </Button>
@@ -526,12 +526,12 @@ export function RcicCommunityClient() {
 
       {!showPostDetail ? (
         <Card className="border-border/70">
-          <CardHeader className="border-b border-border/50 pb-4">
+          <CardHeader className="border-b border-border/50 p-4 pb-4 sm:p-6">
             <div className="flex flex-wrap gap-2">
-              <div className="relative min-w-[200px] flex-1">
+              <div className="relative min-w-0 flex-1">
                 <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
-                  className="h-9 rounded-xl pl-9"
+                  className="h-10 w-full rounded-xl pl-9"
                   placeholder="Search posts…"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
@@ -545,9 +545,9 @@ export function RcicCommunityClient() {
                 <Loader2 className="mr-2 size-5 animate-spin" /> Loading…
               </div>
             ) : error ? (
-              <p className="p-6 text-sm text-destructive">{error}</p>
+              <p className="p-4 text-sm text-destructive break-words sm:p-6">{error}</p>
             ) : posts.length === 0 ? (
-              <p className="p-8 text-center text-sm text-muted-foreground">
+              <p className="p-6 text-center text-sm text-muted-foreground sm:p-8">
                 No posts yet. Be the first to start a conversation.
               </p>
             ) : (
@@ -556,25 +556,25 @@ export function RcicCommunityClient() {
                   <li key={post.id}>
                     <button
                       type="button"
-                      className="w-full px-5 py-4 text-left transition-colors hover:bg-muted/30"
+                      className="w-full px-4 py-4 text-left transition-colors hover:bg-muted/30 sm:px-5"
                       onClick={() => void openPost(post)}
                     >
                       <div className="flex flex-wrap items-center gap-2">
-                        <p className="font-semibold">{post.title}</p>
+                        <p className="font-semibold leading-tight break-words">{post.title}</p>
                         {post.has_attachment && (
-                          <Badge variant="outline" className="gap-1 text-[10px]">
+                          <Badge variant="outline" className="shrink-0 gap-1 text-[10px]">
                             <Paperclip className="size-3" /> File
                           </Badge>
                         )}
                       </div>
-                      <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{post.body}</p>
-                      <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-                        <span>{post.author.name}{post.author.rcic_number ? ` · ${post.author.rcic_number}` : ""}</span>
-                        <span>{fmtDate(post.created_at)}</span>
-                        <span className="flex items-center gap-1">
+                      <p className="mt-1 line-clamp-2 text-sm text-muted-foreground break-words">{post.body}</p>
+                      <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                        <span className="break-words">{post.author.name}{post.author.rcic_number ? ` · ${post.author.rcic_number}` : ""}</span>
+                        <span className="shrink-0">{fmtDate(post.created_at)}</span>
+                        <span className="flex shrink-0 items-center gap-1">
                           <ThumbsUp className="size-3" /> {post.reactions_count}
                         </span>
-                        <span className="flex items-center gap-1">
+                        <span className="flex shrink-0 items-center gap-1">
                           <MessageSquare className="size-3" /> {post.replies_count}
                         </span>
                       </div>
@@ -587,11 +587,11 @@ export function RcicCommunityClient() {
         </Card>
       ) : (
         <Card className="border-border/70">
-          <CardHeader className="border-b border-border/50">
+          <CardHeader className="border-b border-border/50 p-4 sm:p-6">
             <Button
               variant="ghost"
               size="sm"
-              className="mb-2 w-fit"
+              className="mb-2 h-9 w-full justify-start sm:w-fit"
               onClick={() => {
                 setSelected(null);
                 deepLinkHandled.current = false;
@@ -604,8 +604,8 @@ export function RcicCommunityClient() {
               <Loader2 className="size-5 animate-spin text-muted-foreground" />
             ) : selected ? (
               <>
-                <CardTitle>{selected.title}</CardTitle>
-                <CardDescription>
+                <CardTitle className="text-lg leading-tight break-words sm:text-xl">{selected.title}</CardTitle>
+                <CardDescription className="break-words">
                   {selected.author.name}
                   {selected.author.rcic_number ? ` · ${selected.author.rcic_number}` : ""}
                   {selected.author.company_name ? ` · ${selected.author.company_name}` : ""}
@@ -615,8 +615,8 @@ export function RcicCommunityClient() {
             ) : null}
           </CardHeader>
           {!detailLoading && selected && (
-            <CardContent className="space-y-6 pt-5">
-              <p className="whitespace-pre-line text-sm leading-relaxed">{selected.body}</p>
+            <CardContent className="space-y-5 p-4 pt-4 sm:space-y-6 sm:p-6 sm:pt-5">
+              <p className="whitespace-pre-line text-sm leading-relaxed break-words">{selected.body}</p>
 
               {selected.has_attachment && selected.attachment_name && (
                 <PostAttachmentBlock
@@ -626,11 +626,11 @@ export function RcicCommunityClient() {
                 />
               )}
 
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
                 <Button
                   variant={selected.reacted ? "default" : "outline"}
                   size="sm"
-                  className="gap-1.5"
+                  className="h-9 w-full gap-1.5 sm:w-auto"
                   onClick={() => void toggleReact(selected)}
                 >
                   <ThumbsUp className="size-4" />
@@ -639,13 +639,13 @@ export function RcicCommunityClient() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="gap-1.5 text-muted-foreground"
+                  className="h-9 w-full gap-1.5 text-muted-foreground sm:w-auto"
                   onClick={() => setReportOpen({ type: "post", id: selected.id })}
                 >
                   <Flag className="size-4" /> Report
                 </Button>
                 {selected.is_mine && (
-                  <Button variant="ghost" size="sm" className="text-destructive" onClick={() => void deletePost(selected)}>
+                  <Button variant="ghost" size="sm" className="h-9 w-full text-destructive sm:w-auto" onClick={() => void deletePost(selected)}>
                     <Trash2 className="mr-1 size-4" /> Delete
                   </Button>
                 )}
@@ -655,15 +655,15 @@ export function RcicCommunityClient() {
                 <h3 className="text-sm font-semibold">Replies ({replies.length})</h3>
                 {replies.map((r) => (
                   <div key={r.id} className="rounded-xl border border-border/50 bg-muted/20 p-3">
-                    <p className="text-xs font-medium text-muted-foreground">
+                    <p className="text-xs font-medium text-muted-foreground break-words">
                       {r.author.name}{r.author.rcic_number ? ` · ${r.author.rcic_number}` : ""} · {fmtDate(r.created_at)}
                     </p>
-                    <p className="mt-1 whitespace-pre-line text-sm">{r.body}</p>
+                    <p className="mt-1 whitespace-pre-line text-sm break-words">{r.body}</p>
                     {!r.is_mine && (
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="mt-1 h-7 text-xs text-muted-foreground"
+                        className="mt-1 h-8 w-full justify-start text-xs text-muted-foreground sm:h-7 sm:w-auto"
                         onClick={() => setReportOpen({ type: "reply", id: r.id })}
                       >
                         <Flag className="mr-1 size-3" /> Report
@@ -676,9 +676,9 @@ export function RcicCommunityClient() {
                     placeholder="Share your advice or experience…"
                     value={replyText}
                     onChange={(e) => setReplyText(e.target.value)}
-                    className="min-h-[80px] rounded-xl"
+                    className="min-h-[88px] rounded-xl"
                   />
-                  <Button onClick={() => void submitReply()} disabled={replying || !replyText.trim()}>
+                  <Button className="h-10 w-full sm:w-auto" onClick={() => void submitReply()} disabled={replying || !replyText.trim()}>
                     {replying ? <Loader2 className="mr-2 size-4 animate-spin" /> : null}
                     Reply
                   </Button>
@@ -690,7 +690,7 @@ export function RcicCommunityClient() {
       )}
 
       <Dialog open={composeOpen} onOpenChange={setComposeOpen}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="max-h-[90vh] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] overflow-y-auto p-4 sm:max-w-lg sm:p-6">
           <DialogHeader>
             <DialogTitle>New community post</DialogTitle>
             <DialogDescription>
@@ -700,7 +700,7 @@ export function RcicCommunityClient() {
           <div className="space-y-3">
             <div>
               <Label>Title</Label>
-              <Input value={newTitle} onChange={(e) => setNewTitle(e.target.value)} className="mt-1" maxLength={255} />
+              <Input value={newTitle} onChange={(e) => setNewTitle(e.target.value)} className="mt-1 h-10" maxLength={255} />
             </div>
             <div>
               <Label>Details</Label>
@@ -710,16 +710,16 @@ export function RcicCommunityClient() {
               <Label>Attachment (optional)</Label>
               <Input
                 type="file"
-                className="mt-1"
+                className="mt-1 h-auto min-h-10 py-2"
                 accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
                 onChange={(e) => setNewFile(e.target.files?.[0] ?? null)}
               />
               <p className="mt-1 text-xs text-muted-foreground">Max 10 MB</p>
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setComposeOpen(false)}>Cancel</Button>
-            <Button onClick={() => void submitPost()} disabled={posting || !newTitle.trim() || !newBody.trim()}>
+          <DialogFooter className="flex-col-reverse gap-2 sm:flex-row">
+            <Button variant="outline" className="h-9 w-full sm:w-auto" onClick={() => setComposeOpen(false)}>Cancel</Button>
+            <Button className="h-9 w-full sm:w-auto" onClick={() => void submitPost()} disabled={posting || !newTitle.trim() || !newBody.trim()}>
               {posting ? <Loader2 className="mr-2 size-4 animate-spin" /> : null}
               Publish
             </Button>
@@ -728,7 +728,7 @@ export function RcicCommunityClient() {
       </Dialog>
 
       <Dialog open={reportOpen !== null} onOpenChange={(o) => !o && setReportOpen(null)}>
-        <DialogContent>
+        <DialogContent className="w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] p-4 sm:max-w-lg sm:p-6">
           <DialogHeader>
             <DialogTitle>Report content</DialogTitle>
             <DialogDescription>
@@ -741,9 +741,9 @@ export function RcicCommunityClient() {
             placeholder="e.g. Off-topic, spam, unprofessional…"
             className="min-h-[100px]"
           />
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setReportOpen(null)}>Cancel</Button>
-            <Button onClick={() => void submitReport()} disabled={reporting || !reportReason.trim()}>
+          <DialogFooter className="flex-col-reverse gap-2 sm:flex-row">
+            <Button variant="outline" className="h-9 w-full sm:w-auto" onClick={() => setReportOpen(null)}>Cancel</Button>
+            <Button className="h-9 w-full sm:w-auto" onClick={() => void submitReport()} disabled={reporting || !reportReason.trim()}>
               Submit report
             </Button>
           </DialogFooter>

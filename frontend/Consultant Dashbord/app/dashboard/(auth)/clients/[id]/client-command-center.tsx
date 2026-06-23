@@ -250,7 +250,7 @@ export function ClientCommandCenter({
             <Button
               variant="outline"
               size="sm"
-              className="h-8 rounded-lg text-xs"
+              className="h-9 w-full rounded-lg text-xs sm:w-auto"
               onClick={() => onNavigateTab?.("money")}
             >
               View trust ledger
@@ -262,7 +262,7 @@ export function ClientCommandCenter({
           <p className="text-xs text-muted-foreground">
             All case steps — questionnaire, pathway, agreement, forms — live in the workspace.
           </p>
-          <Button asChild className="shrink-0 rounded-xl">
+          <Button asChild className="h-10 w-full shrink-0 rounded-xl sm:w-auto">
             <Link href={ws}>
               Open case workspace
               <ArrowRight className="ml-1.5 size-4" />

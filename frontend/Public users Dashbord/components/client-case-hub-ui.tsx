@@ -80,16 +80,16 @@ export function CaseHubProgressHeader({
   pipelineLabel: string;
 }) {
   return (
-    <div className="rounded-xl border bg-gradient-to-br from-primary/5 via-background to-background p-5 mb-6">
-      <div className="flex flex-wrap items-center gap-5">
+    <div className="rounded-xl border bg-gradient-to-br from-primary/5 via-background to-background p-4 sm:p-5 mb-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-center sm:gap-5">
         <ProgressRing percent={progress.overall_percent} />
-        <div className="flex-1 min-w-[200px]">
+        <div className="min-w-0 flex-1">
           <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Case Progress</p>
           <h2 className="text-lg font-bold mt-0.5">{pathway ?? "Immigration Case"}</h2>
           {packageLabel && <p className="text-xs text-muted-foreground mt-1">Package: {packageLabel}</p>}
           <Badge variant="outline" className="mt-2 text-xs">{pipelineLabel}</Badge>
         </div>
-        <div className="grid grid-cols-3 gap-3 flex-1 min-w-[240px]">
+        <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-3 sm:gap-3">
           <StatPill label="Docs approved" value={`${progress.documents.approved}/${progress.documents.total}`} tone={progress.documents.percent >= 80 ? "green" : "amber"} />
           <StatPill label="Forms reviewed" value={progress.forms.total === 0 ? "N/A" : `${progress.forms.reviewed}/${progress.forms.total}`} tone={progress.forms.complete ? "green" : "blue"} />
           <StatPill label="Pending docs" value={String(progress.documents.pending + progress.documents.missing)} tone={progress.documents.pending + progress.documents.missing > 0 ? "amber" : "green"} />
@@ -124,7 +124,7 @@ export function ClientRequirementsStatusGrid({ requirements }: { requirements: H
             {items.map((req) => {
               const st = REQ_STATUS[req.status] ?? REQ_STATUS.missing;
               return (
-                <div key={req.id} className="flex items-center gap-3 rounded-lg border px-4 py-3 bg-card">
+                <div key={req.id} className="flex flex-col gap-2 rounded-lg border px-4 py-3 bg-card sm:flex-row sm:items-center sm:gap-3">
                   {req.status === "approved" ? (
                     <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
                   ) : req.status === "missing" ? (
@@ -156,15 +156,17 @@ export function IrccFormsList({ forms, pathway }: { forms: HubIrccForm[]; pathwa
   return (
     <div className="space-y-2">
       {forms.map((form, i) => (
-        <div key={`${form.code}-${i}`} className="flex items-center gap-3 rounded-lg border px-4 py-3">
-          {form.type === "interactive" ? (
-            <FormInput className="h-4 w-4 text-purple-600 shrink-0" />
-          ) : (
-            <FileText className="h-4 w-4 text-primary shrink-0" />
-          )}
-          <span className="text-sm font-mono font-medium text-primary shrink-0">{form.code}</span>
-          <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-          <span className="text-sm text-muted-foreground flex-1 min-w-0">{form.name}</span>
+        <div key={`${form.code}-${i}`} className="flex flex-col gap-2 rounded-lg border px-4 py-3 sm:flex-row sm:items-center sm:gap-3">
+          <div className="flex min-w-0 items-center gap-2">
+            {form.type === "interactive" ? (
+              <FormInput className="h-4 w-4 text-purple-600 shrink-0" />
+            ) : (
+              <FileText className="h-4 w-4 text-primary shrink-0" />
+            )}
+            <span className="text-sm font-mono font-medium text-primary shrink-0">{form.code}</span>
+            <ChevronRight className="hidden h-3.5 w-3.5 text-muted-foreground shrink-0 sm:block" />
+          </div>
+          <span className="min-w-0 flex-1 text-sm text-muted-foreground break-words">{form.name}</span>
           {form.type === "interactive" && (
             <Badge variant="outline" className="text-[10px] shrink-0">
               {form.reviewed ? "Reviewed" : form.status?.replace(/_/g, " ") ?? "Online form"}

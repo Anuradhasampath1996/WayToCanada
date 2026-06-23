@@ -23,7 +23,7 @@ export function WorkspaceBreadcrumb({
   pageLabel: string;
 }) {
   return (
-    <nav className="mb-4 flex flex-wrap items-center gap-1.5 text-sm text-muted-foreground">
+    <nav className="mb-3 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground sm:mb-4 sm:text-sm">
       <Link
         href={`/dashboard/clients/${profileId}/workspace`}
         className="font-medium transition-colors hover:text-foreground"
@@ -181,18 +181,18 @@ export function NextActionCard({ action }: { action: NextAction }) {
   };
 
   return (
-    <div className={cn("rounded-2xl border p-5 shadow-sm", tones[action.tone])}>
+    <div className={cn("rounded-2xl border p-4 shadow-sm sm:p-5", tones[action.tone])}>
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="space-y-1">
+        <div className="min-w-0 space-y-1">
           <p className="flex items-center gap-2 text-sm font-semibold">
-            <ArrowRight className="size-4 text-primary" />
+            <ArrowRight className="size-4 shrink-0 text-primary" />
             Next action
           </p>
-          <p className="text-base font-semibold tracking-tight">{action.title}</p>
+          <p className="text-base font-semibold tracking-tight break-words">{action.title}</p>
           <p className="max-w-2xl text-sm text-muted-foreground">{action.description}</p>
         </div>
         {action.href && action.buttonLabel && (
-          <Button asChild className="shrink-0 rounded-xl">
+          <Button asChild className="h-10 w-full shrink-0 rounded-xl sm:w-auto">
             <Link href={action.href}>{action.buttonLabel}</Link>
           </Button>
         )}
@@ -265,7 +265,7 @@ export function AssessmentSubProgress({
           {completed}/{steps.length} complete
         </Badge>
       </div>
-      <div className="grid gap-px bg-border/40 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="grid gap-px bg-border/40 grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
         {steps.map((s) => (
           <Link
             key={s.id}
@@ -440,7 +440,7 @@ export function QuestionnaireGateBanner({
   if (!qStats.isSubmitted) return null;
   if (qStats.pendingRefills > 0) {
     return (
-      <div className="mb-4 flex items-start gap-3 rounded-xl border border-amber-200/70 bg-amber-500/[0.06] px-4 py-3">
+      <div className="mb-4 flex flex-col gap-3 rounded-xl border border-amber-200/70 bg-amber-500/[0.06] px-3 py-3 sm:flex-row sm:items-start sm:px-4 sm:py-3">
         <RotateCcw className="mt-0.5 size-4 shrink-0 text-amber-700" />
         <div className="min-w-0 flex-1 text-sm">
           <p className="font-semibold text-amber-900">Refill requests outstanding</p>
@@ -448,7 +448,7 @@ export function QuestionnaireGateBanner({
             Confirm corrections in questionnaire review before final pathway sign-off.
           </p>
         </div>
-        <Button asChild size="sm" variant="outline" className="shrink-0 rounded-lg border-amber-200 text-xs">
+        <Button asChild size="sm" variant="outline" className="h-9 w-full shrink-0 rounded-lg border-amber-200 text-xs sm:w-auto">
           <Link href={`/dashboard/clients/${profileId}/workspace/questionnaire-review`}>Review</Link>
         </Button>
       </div>
@@ -456,7 +456,7 @@ export function QuestionnaireGateBanner({
   }
   if (qStats.verifiedCount < 8 && !qStats.pendingRefills) {
     return (
-      <div className="mb-4 flex items-start gap-3 rounded-xl border border-blue-200/70 bg-blue-500/[0.05] px-4 py-3">
+      <div className="mb-4 flex flex-col gap-3 rounded-xl border border-blue-200/70 bg-blue-500/[0.05] px-3 py-3 sm:flex-row sm:items-start sm:px-4 sm:py-3">
         <MessageSquare className="mt-0.5 size-4 shrink-0 text-blue-700" />
         <div className="min-w-0 flex-1 text-sm">
           <p className="font-semibold text-blue-900">Questionnaire review recommended</p>
@@ -464,7 +464,7 @@ export function QuestionnaireGateBanner({
             {qStats.verifiedCount} fields verified — review identity documents and key answers before assigning a pathway.
           </p>
         </div>
-        <Button asChild size="sm" variant="outline" className="shrink-0 rounded-lg text-xs">
+        <Button asChild size="sm" variant="outline" className="h-9 w-full shrink-0 rounded-lg text-xs sm:w-auto">
           <Link href={`/dashboard/clients/${profileId}/workspace/questionnaire-review`}>Verify now</Link>
         </Button>
       </div>

@@ -75,7 +75,7 @@ export function RetainerAgreementDocument({
   return (
     <div
       id="retainer-agreement-doc"
-      className="mx-auto max-w-3xl space-y-6 rounded-xl border bg-white p-8 text-sm leading-relaxed text-foreground shadow-sm"
+      className="mx-auto max-w-3xl space-y-6 rounded-xl border bg-white p-4 text-sm leading-relaxed text-foreground shadow-sm sm:p-8"
     >
       <div className="border-b pb-5">
         <div className="mb-4 flex items-start gap-5">
@@ -155,8 +155,21 @@ export function RetainerAgreementDocument({
           <strong>{formatAgreementCurrency(config.totalFee, config.currency)}</strong> ({config.currency}),
           payable in three milestones:
         </p>
-        <div className="mt-3 overflow-hidden rounded-lg border">
-          <table className="w-full text-xs">
+        <div className="mt-3 space-y-3 sm:hidden">
+          {[
+            { n: `1 (${config.milestone1Pct}%)`, trigger: config.milestone1Label, amount: m1 },
+            { n: `2 (${config.milestone2Pct}%)`, trigger: config.milestone2Label, amount: m2 },
+            { n: `3 (${config.milestone3Pct}%)`, trigger: config.milestone3Label, amount: m3 },
+          ].map((row) => (
+            <div key={row.n} className="rounded-lg border p-3 text-xs">
+              <p className="font-semibold">Milestone {row.n}</p>
+              <p className="mt-1 text-muted-foreground">{row.trigger}</p>
+              <p className="mt-2 font-medium">{formatAgreementCurrency(row.amount, config.currency)}</p>
+            </div>
+          ))}
+        </div>
+        <div className="mt-3 hidden overflow-x-auto rounded-lg border sm:block">
+          <table className="w-full min-w-[480px] text-xs">
             <thead className="bg-muted/60">
               <tr>
                 <th className="px-3 py-2 text-left font-semibold">Milestone</th>
@@ -218,7 +231,7 @@ export function RetainerAgreementDocument({
 
       <section className="border-t pt-4">
         <p className="mb-4 text-xs font-bold uppercase tracking-wide text-primary">Signatures</p>
-        <div className="grid grid-cols-2 gap-8 text-xs">
+        <div className="grid grid-cols-1 gap-8 text-xs sm:grid-cols-2">
           <div>
             <p className="mb-2 font-semibold">Immigration Consultant</p>
             {digitalSig ? (

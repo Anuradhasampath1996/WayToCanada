@@ -91,7 +91,7 @@ export function ClientJourneyTimeline({
                   </p>
                 )}
                 {highlighted && step.status !== "locked" && step.status !== "done" && (
-                  <Button size="sm" className="mt-3 h-8 text-xs" asChild>
+                  <Button size="sm" className="mt-3 h-9 w-full text-xs sm:w-auto" asChild>
                     <Link href={step.href}>
                       {step.actionLabel}
                       <ChevronRight className="ml-1 h-3.5 w-3.5" />

@@ -5,15 +5,33 @@ import { useSearchParams } from "next/navigation";
 import { AccountPaymentSettings } from "./account-payment-settings";
 import { AccountMeetingSettings } from "./account-meeting-settings";
 import { AccountNotificationSettings } from "./account-notification-settings";
+import { AccountPasswordSettings } from "./account-password-settings";
 import {
-  User, Mail, Phone, BadgeCheck, Shield,
-  CheckCircle2, Building2, MapPin,
-  Upload, ImageIcon, Loader2, CloudCheck, Info,
-  Lock, PenLine, CreditCard, ExternalLink, Video, Bell,
+  User,
+  Mail,
+  BadgeCheck,
+  Shield,
+  CheckCircle2,
+  Building2,
+  MapPin,
+  Upload,
+  ImageIcon,
+  Loader2,
+  CloudCheck,
+  Info,
+  Lock,
+  PenLine,
+  CreditCard,
+  ExternalLink,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 
 const API = (process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000") + "/api/v1";
@@ -32,44 +50,42 @@ function authHeaders(json = true): Record<string, string> {
 }
 
 function getInitials(name: string) {
-  return name.split(" ").filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join("");
+  return name
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0].toUpperCase())
+    .join("");
 }
 
 function formatDate(iso: string | null) {
   if (!iso) return "—";
-  return new Date(iso).toLocaleDateString("en-CA", { year: "numeric", month: "long", day: "numeric" });
+  return new Date(iso).toLocaleDateString("en-CA", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
 }
 
-function SectionCard({
-  icon: Icon,
+function SettingsBlock({
   title,
   description,
   children,
-  id,
 }: {
-  icon: React.ComponentType<{ className?: string }>;
   title: string;
   description?: string;
   children: React.ReactNode;
-  id?: string;
 }) {
   return (
-    <section id={id} className="rounded-2xl border border-border/70 bg-card shadow-sm overflow-hidden">
-      <div className="border-b border-border/50 bg-muted/25 px-6 py-4 md:px-8">
-        <div className="flex items-start gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-700 dark:text-emerald-400">
-            <Icon className="h-5 w-5" />
-          </div>
-          <div className="min-w-0">
-            <h2 className="text-base font-semibold tracking-tight">{title}</h2>
-            {description && (
-              <p className="text-sm text-muted-foreground mt-0.5 leading-relaxed">{description}</p>
-            )}
-          </div>
-        </div>
+    <div className="space-y-4">
+      <div>
+        <h3 className="text-sm font-semibold text-foreground">{title}</h3>
+        {description && (
+          <p className="mt-1 text-sm leading-relaxed text-muted-foreground break-words">{description}</p>
+        )}
       </div>
-      <div className="p-6 md:p-8">{children}</div>
-    </section>
+      {children}
+    </div>
   );
 }
 
@@ -117,9 +133,15 @@ interface RcicRegistry {
   profile_url: string | null;
 }
 
-// â”€â”€â”€ Sub-components â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-function Field({
-  label, value, onChange, type = "text", placeholder, readOnly = false, hint,
+function ProfileField({
+  label,
+  value,
+  onChange,
+  type = "text",
+  placeholder,
+  readOnly = false,
+  hint,
+  id,
 }: {
   label: string;
   value: string;
@@ -128,71 +150,79 @@ function Field({
   placeholder?: string;
   readOnly?: boolean;
   hint?: string;
+  id?: string;
 }) {
+  const fieldId = id ?? label.toLowerCase().replace(/\s+/g, "-");
   return (
-    <div className="space-y-1.5">
-      <label className="text-xs font-medium text-muted-foreground">{label}</label>
-      <input
+    <div className="space-y-2">
+      <Label htmlFor={fieldId} className="text-sm font-medium text-foreground">
+        {label}
+      </Label>
+      <Input
+        id={fieldId}
         type={type}
         value={value}
         readOnly={readOnly}
-        onChange={e => onChange?.(e.target.value)}
+        onChange={(e) => onChange?.(e.target.value)}
         placeholder={placeholder}
-        className={cn(
-          "w-full rounded-lg border px-3 py-2.5 text-sm transition-colors",
-          "focus:outline-none focus:ring-2 focus:ring-ring focus:ring-emerald-500/20",
-          readOnly
-            ? "bg-muted/50 border-input text-muted-foreground cursor-not-allowed"
-            : "bg-background border-input hover:border-border"
-        )}
+        className={cn("h-10", readOnly && "bg-muted/40 text-muted-foreground")}
       />
-      {hint && <p className="text-xs text-muted-foreground italic">{hint}</p>}
+      {hint && <p className="text-xs text-muted-foreground break-words">{hint}</p>}
     </div>
   );
 }
 
-// â”€â”€â”€ Save status pill â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 type SaveStatus = "idle" | "dirty" | "saving" | "saved" | "error";
 
-function SavePill({ status, error }: { status: SaveStatus; error: string | null }) {
-  if (status === "idle")   return null;
-  if (status === "dirty")  return <span className="text-xs text-muted-foreground">Unsaved…</span>;
-  if (status === "saving") return (
-    <span className="flex items-center gap-1 text-xs text-muted-foreground">
-      <Loader2 className="h-3 w-3 animate-spin" /> Saving…
-    </span>
-  );
-  if (status === "saved")  return (
-    <span className="flex items-center gap-1 text-xs text-emerald-600">
-      <CloudCheck className="h-3 w-3" /> Saved
-    </span>
-  );
+function SaveIndicator({ status, error }: { status: SaveStatus; error: string | null }) {
+  if (status === "idle") return null;
+  if (status === "dirty")
+    return <span className="text-xs text-muted-foreground">Unsaved changes</span>;
+  if (status === "saving")
+    return (
+      <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+        <Loader2 className="size-3 animate-spin" />
+        Saving
+      </span>
+    );
+  if (status === "saved")
+    return (
+      <span className="inline-flex items-center gap-1.5 text-xs text-emerald-700 dark:text-emerald-400">
+        <CloudCheck className="size-3.5" />
+        All changes saved
+      </span>
+    );
   return <span className="text-xs text-destructive">{error ?? "Save failed"}</span>;
 }
 
 function SignaturePad({
-  onSave, onClear, isSaving,
+  onSave,
+  onClear,
+  isSaving,
 }: {
   onSave: (dataUrl: string) => void;
   onClear: () => void;
   isSaving: boolean;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const drawing   = useRef(false);
-  const lastPos   = useRef<{ x: number; y: number } | null>(null);
+  const drawing = useRef(false);
+  const lastPos = useRef<{ x: number; y: number } | null>(null);
   const [isEmpty, setIsEmpty] = useState(true);
 
   function getPos(e: React.MouseEvent | React.TouchEvent): { x: number; y: number } {
-    const c    = canvasRef.current!;
+    const c = canvasRef.current!;
     const rect = c.getBoundingClientRect();
-    const sx   = c.width  / rect.width;
-    const sy   = c.height / rect.height;
+    const sx = c.width / rect.width;
+    const sy = c.height / rect.height;
     if ("touches" in e) {
-      return { x: (e.touches[0].clientX - rect.left) * sx, y: (e.touches[0].clientY - rect.top) * sy };
+      return {
+        x: (e.touches[0].clientX - rect.left) * sx,
+        y: (e.touches[0].clientY - rect.top) * sy,
+      };
     }
     return {
       x: ((e as React.MouseEvent).clientX - rect.left) * sx,
-      y: ((e as React.MouseEvent).clientY - rect.top)  * sy,
+      y: ((e as React.MouseEvent).clientY - rect.top) * sy,
     };
   }
 
@@ -211,15 +241,18 @@ function SignaturePad({
     ctx.moveTo(lastPos.current.x, lastPos.current.y);
     ctx.lineTo(pos.x, pos.y);
     ctx.strokeStyle = "#1e293b";
-    ctx.lineWidth   = 2.2;
-    ctx.lineCap     = "round";
-    ctx.lineJoin    = "round";
+    ctx.lineWidth = 2.2;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
     ctx.stroke();
     lastPos.current = pos;
     setIsEmpty(false);
   }
 
-  function endDraw() { drawing.current = false; lastPos.current = null; }
+  function endDraw() {
+    drawing.current = false;
+    lastPos.current = null;
+  }
 
   function clearCanvas() {
     const c = canvasRef.current!;
@@ -230,12 +263,12 @@ function SignaturePad({
 
   return (
     <div className="space-y-3">
-      <div className="relative">
+      <div className="relative overflow-hidden rounded-lg border border-dashed bg-background">
         <canvas
           ref={canvasRef}
           width={600}
           height={180}
-          className="w-full rounded-lg border-2 border-dashed border-input bg-white cursor-crosshair"
+          className="w-full cursor-crosshair bg-white"
           style={{ touchAction: "none" }}
           onMouseDown={startDraw}
           onMouseMove={draw}
@@ -246,24 +279,33 @@ function SignaturePad({
           onTouchEnd={endDraw}
         />
         {isEmpty && (
-          <p className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground pointer-events-none select-none">
-            Draw your signature here
+          <p className="pointer-events-none absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
+            Sign here with your mouse or finger
           </p>
         )}
       </div>
-      <div className="flex items-center gap-3">
+      <div className="flex flex-col gap-2 sm:flex-row">
         <Button
-          type="button" size="sm"
+          type="button"
+          size="sm"
+          className="h-9 w-full sm:w-auto"
           onClick={() => onSave(canvasRef.current!.toDataURL("image/png"))}
           disabled={isEmpty || isSaving}
-          className="gap-1.5"
         >
-          {isSaving
-            ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            : <CloudCheck className="h-3.5 w-3.5" />}
-          {isSaving ? "Saving..." : "Save Signature"}
+          {isSaving ? (
+            <Loader2 className="mr-1.5 size-3.5 animate-spin" />
+          ) : (
+            <CloudCheck className="mr-1.5 size-3.5" />
+          )}
+          {isSaving ? "Saving…" : "Save signature"}
         </Button>
-        <Button type="button" variant="ghost" size="sm" onClick={clearCanvas} className="text-muted-foreground">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-9 w-full sm:w-auto"
+          onClick={clearCanvas}
+        >
           Clear
         </Button>
       </div>
@@ -271,7 +313,6 @@ function SignaturePad({
   );
 }
 
-// â”€â”€â”€ Main Component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export function AccountClient() {
   const searchParams = useSearchParams();
   const stripeConnectReturn = searchParams.get("stripe_connect") === "return";
@@ -279,50 +320,46 @@ export function AccountClient() {
   const meetOAuthProvider = searchParams.get("meet_oauth");
   const meetOAuthStatus = searchParams.get("status");
   const meetOAuthMessage = searchParams.get("message");
-  const [profile,    setProfile]    = useState<ConsultantProfile | null>(null);
-  const [registry,   setRegistry]   = useState<RcicRegistry | null>(null);
-  const [loading,    setLoading]    = useState(true);
+  const [profile, setProfile] = useState<ConsultantProfile | null>(null);
+  const [registry, setRegistry] = useState<RcicRegistry | null>(null);
+  const [loading, setLoading] = useState(true);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
-  const [saveError,  setSaveError]  = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState("profile");
 
-  // Editable fields
-  const [name,      setName]      = useState("");
-  const [phone,     setPhone]     = useState("");
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
   const [ciccEmail, setCiccEmail] = useState("");
-  const [posType,   setPosType]   = useState("");
+  const [posType, setPosType] = useState("");
 
-  // Company fields
-  const [companyName,   setCompanyName]   = useState("");
-  const [companyBio,    setCompanyBio]    = useState("");
-  const [companyWeb,    setCompanyWeb]    = useState("");
-  const [companyPhone,  setCompanyPhone]  = useState("");
-  const [addrLine1,     setAddrLine1]     = useState("");
-  const [addrLine2,     setAddrLine2]     = useState("");
-  const [city,          setCity]          = useState("");
-  const [province,      setProvince]      = useState("");
-  const [postalCode,    setPostalCode]    = useState("");
-  const [country,       setCountry]       = useState("Canada");
+  const [companyName, setCompanyName] = useState("");
+  const [companyBio, setCompanyBio] = useState("");
+  const [companyWeb, setCompanyWeb] = useState("");
+  const [companyPhone, setCompanyPhone] = useState("");
+  const [addrLine1, setAddrLine1] = useState("");
+  const [addrLine2, setAddrLine2] = useState("");
+  const [city, setCity] = useState("");
+  const [province, setProvince] = useState("");
+  const [postalCode, setPostalCode] = useState("");
+  const [country, setCountry] = useState("Canada");
 
-  // Logo
   const [logoUploading, setLogoUploading] = useState(false);
-  const [logoPreview,   setLogoPreview]   = useState<string | null>(null);
-  const logoInputRef  = useRef<HTMLInputElement>(null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const logoInputRef = useRef<HTMLInputElement>(null);
 
-  // Signature
-  const [sigSaved,   setSigSaved]   = useState<string | null>(null);
-  const [sigSaving,  setSigSaving]  = useState(false);
-  const [sigStatus,  setSigStatus]  = useState<"idle" | "saved" | "error">("idle");
+  const [sigSaved, setSigSaved] = useState<string | null>(null);
+  const [sigSaving, setSigSaving] = useState(false);
+  const [sigStatus, setSigStatus] = useState<"idle" | "saved" | "error">("idle");
   const [showSigPad, setShowSigPad] = useState(false);
 
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const firstLoad     = useRef(true);
+  const firstLoad = useRef(true);
 
-  // â”€â”€ Load â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   useEffect(() => {
     async function load() {
       try {
         const [pRes, rRes] = await Promise.all([
-          fetch(`${API}/consultant/profile`,       { headers: authHeaders() }),
+          fetch(`${API}/consultant/profile`, { headers: authHeaders() }),
           fetch(`${API}/consultant/rcic-registry`, { headers: authHeaders() }),
         ]);
         const prof: ConsultantProfile = await pRes.json();
@@ -331,7 +368,6 @@ export function AccountClient() {
         setProfile(prof);
         setRegistry(reg);
 
-        // Prefer saved profile value; fall back to CICC registry if empty
         const p = (profVal: string | null, regVal: string | null | undefined) =>
           profVal ?? regVal ?? "";
 
@@ -359,7 +395,24 @@ export function AccountClient() {
     load();
   }, []);
 
-  // â”€â”€ Auto-save â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  useEffect(() => {
+    const tab = searchParams.get("tab");
+    const validTabs = ["profile", "practice", "integrations", "security"];
+    if (tab && validTabs.includes(tab)) {
+      setActiveTab(tab);
+    } else if (typeof window !== "undefined" && window.location.hash === "#notifications") {
+      setActiveTab("integrations");
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (!loading && activeTab === "integrations" && typeof window !== "undefined" && window.location.hash === "#notifications") {
+      requestAnimationFrame(() => {
+        document.getElementById("notifications")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    }
+  }, [loading, activeTab]);
+
   const doSave = useCallback(async (vals: Record<string, string>) => {
     if (!vals.name.trim()) return;
     setSaveStatus("saving");
@@ -369,25 +422,25 @@ export function AccountClient() {
         method: "PUT",
         headers: authHeaders(),
         body: JSON.stringify({
-          name:                   vals.name,
-          phone:                  vals.phone || null,
-          cicc_email:             vals.ciccEmail || null,
-          company_name:           vals.companyName || null,
-          company_bio:            vals.companyBio || null,
-          company_website:        vals.companyWeb || null,
-          company_phone:          vals.companyPhone || null,
-          company_address_line1:  vals.addrLine1 || null,
-          company_address_line2:  vals.addrLine2 || null,
-          company_city:           vals.city || null,
-          company_province:       vals.province || null,
-          company_postal_code:    vals.postalCode || null,
-          company_country:        vals.country || null,
+          name: vals.name,
+          phone: vals.phone || null,
+          cicc_email: vals.ciccEmail || null,
+          company_name: vals.companyName || null,
+          company_bio: vals.companyBio || null,
+          company_website: vals.companyWeb || null,
+          company_phone: vals.companyPhone || null,
+          company_address_line1: vals.addrLine1 || null,
+          company_address_line2: vals.addrLine2 || null,
+          company_city: vals.city || null,
+          company_province: vals.province || null,
+          company_postal_code: vals.postalCode || null,
+          company_country: vals.country || null,
         }),
       });
       const json = await res.json();
       if (!res.ok) {
         const msg = json?.errors
-          ? (Object.values(json.errors as Record<string, string[]>).flat()[0])
+          ? Object.values(json.errors as Record<string, string[]>).flat()[0]
           : json?.message;
         setSaveError(msg ?? "Save failed");
         setSaveStatus("error");
@@ -396,10 +449,15 @@ export function AccountClient() {
       setProfile(json as ConsultantProfile);
       try {
         const raw = localStorage.getItem("wtc_consultant_user");
-        localStorage.setItem("wtc_consultant_user", JSON.stringify({ ...(raw ? JSON.parse(raw) : {}), name: json.name }));
-      } catch {}
+        localStorage.setItem(
+          "wtc_consultant_user",
+          JSON.stringify({ ...(raw ? JSON.parse(raw) : {}), name: json.name }),
+        );
+      } catch {
+        /* optional */
+      }
       setSaveStatus("saved");
-      setTimeout(() => setSaveStatus(s => s === "saved" ? "idle" : s), 3000);
+      setTimeout(() => setSaveStatus((s) => (s === "saved" ? "idle" : s)), 3000);
     } catch {
       setSaveError("Network error");
       setSaveStatus("error");
@@ -411,23 +469,58 @@ export function AccountClient() {
     setSaveStatus("dirty");
     clearTimeout(autoSaveTimer.current);
     autoSaveTimer.current = setTimeout(() => {
-      doSave({ name, phone, ciccEmail, companyName, companyBio, companyWeb, companyPhone, addrLine1, addrLine2, city, province, postalCode, country });
+      doSave({
+        name,
+        phone,
+        ciccEmail,
+        companyName,
+        companyBio,
+        companyWeb,
+        companyPhone,
+        addrLine1,
+        addrLine2,
+        city,
+        province,
+        postalCode,
+        country,
+      });
     }, AUTOSAVE_MS);
     return () => clearTimeout(autoSaveTimer.current);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [name, phone, ciccEmail, companyName, companyBio, companyWeb, companyPhone, addrLine1, addrLine2, city, province, postalCode, country]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    name,
+    phone,
+    ciccEmail,
+    companyName,
+    companyBio,
+    companyWeb,
+    companyPhone,
+    addrLine1,
+    addrLine2,
+    city,
+    province,
+    postalCode,
+    country,
+  ]);
 
-  // â”€â”€ Logo upload â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   async function handleLogoUpload(file: File) {
     setLogoUploading(true);
     try {
       const fd = new FormData();
       fd.append("logo", file);
-      const res = await fetch(`${API}/consultant/profile/logo`, { method: "POST", headers: authHeaders(false), body: fd });
+      const res = await fetch(`${API}/consultant/profile/logo`, {
+        method: "POST",
+        headers: authHeaders(false),
+        body: fd,
+      });
       const json = await res.json();
-      if (!res.ok) { setSaveError(json.message ?? "Upload failed"); setSaveStatus("error"); return; }
+      if (!res.ok) {
+        setSaveError(json.message ?? "Upload failed");
+        setSaveStatus("error");
+        return;
+      }
       setLogoPreview(json.company_logo);
-      setProfile(prev => prev ? { ...prev, company_logo: json.company_logo } : prev);
+      setProfile((prev) => (prev ? { ...prev, company_logo: json.company_logo } : prev));
     } catch {
       setSaveError("Logo upload failed");
       setSaveStatus("error");
@@ -437,22 +530,24 @@ export function AccountClient() {
     }
   }
 
-
   async function handleSaveSignature(dataUrl: string) {
     setSigSaving(true);
     setSigStatus("idle");
     try {
-      const res  = await fetch(`${API}/consultant/profile/signature`, {
+      const res = await fetch(`${API}/consultant/profile/signature`, {
         method: "POST",
         headers: authHeaders(),
         body: JSON.stringify({ signature: dataUrl }),
       });
       const json = await res.json();
-      if (!res.ok) { setSigStatus("error"); return; }
+      if (!res.ok) {
+        setSigStatus("error");
+        return;
+      }
       setSigSaved(json.digital_signature);
       setSigStatus("saved");
       setShowSigPad(false);
-      setTimeout(() => setSigStatus(s => s === "saved" ? "idle" : s), 3000);
+      setTimeout(() => setSigStatus((s) => (s === "saved" ? "idle" : s)), 3000);
     } catch {
       setSigStatus("error");
     } finally {
@@ -475,274 +570,501 @@ export function AccountClient() {
       setSigSaving(false);
     }
   }
-  // â”€â”€ Render â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
   if (loading) {
     return (
-      <div className="flex min-h-[50vh] w-full items-center justify-center gap-2 text-muted-foreground text-sm">
-        <Loader2 className="h-5 w-5 animate-spin" /> Loading your profile…
+      <div className="flex min-h-[40vh] items-center justify-center gap-2 text-sm text-muted-foreground">
+        <Loader2 className="size-5 animate-spin" />
+        Loading account…
       </div>
     );
   }
+
   if (!profile) {
     return (
-      <div className="flex h-64 items-center justify-center text-destructive text-sm">
-        Could not load profile.
+      <div className="flex min-h-[40vh] items-center justify-center text-sm text-destructive">
+        Could not load your profile. Please refresh the page.
       </div>
     );
   }
 
-  const initials     = getInitials(profile.name ?? "C");
+  const initials = getInitials(profile.name ?? "C");
   const fromRegistry = registry !== null;
-
-  const officeLine = [city, province, country].filter(Boolean).join(", ");
+  const officeLine = [addrLine1, city, province, postalCode, country].filter(Boolean).join(", ");
 
   return (
-    <div className="w-full pb-16 space-y-8">
+    <div className="min-w-0 w-full space-y-4 overflow-x-hidden px-3 pb-10 sm:space-y-6 sm:px-0 sm:pb-12">
+      {/* Page header */}
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between sm:gap-3">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
+            Account settings
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Manage your consultant profile, practice details, and connected services.
+          </p>
+        </div>
+        <SaveIndicator status={saveStatus} error={saveError} />
+      </div>
 
-      {/* Hero — full-width trust header */}
-      <section className="relative overflow-hidden rounded-2xl border border-slate-800/10 bg-gradient-to-br from-slate-900 via-slate-800 to-emerald-950 text-white shadow-lg">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(16,185,129,0.18),transparent_55%)]" />
-        <div className="relative px-6 py-8 md:px-10 md:py-10">
-          <div className="flex flex-col gap-8 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-5 min-w-0">
-              <Avatar className="h-24 w-24 ring-4 ring-white/10 shadow-xl">
-                <AvatarImage src={profile.avatar ?? logoPreview ?? ""} alt={profile.name} />
-                <AvatarFallback className="bg-emerald-600/30 text-white font-bold text-2xl">{initials}</AvatarFallback>
-              </Avatar>
-              <div className="min-w-0 space-y-2">
-                <p className="text-xs font-semibold uppercase tracking-widest text-emerald-300/90">Consultant profile</p>
-                <h1 className="text-2xl md:text-3xl font-bold tracking-tight truncate">{name || profile.name}</h1>
-                <p className="text-sm text-slate-300 flex items-center gap-2 truncate">
-                  <Mail className="h-3.5 w-3.5 shrink-0" />
-                  {profile.email}
+      {/* Identity card */}
+      <div className="rounded-lg border bg-card">
+        <div className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:gap-5 sm:p-6">
+          <Avatar className="size-16 shrink-0 ring-1 ring-border sm:size-20">
+            <AvatarImage src={profile.avatar ?? logoPreview ?? ""} alt={profile.name} />
+            <AvatarFallback className="bg-muted text-base font-medium text-foreground">
+              {initials}
+            </AvatarFallback>
+          </Avatar>
+          <div className="min-w-0 flex-1 space-y-2">
+            <div>
+              <p className="text-lg font-semibold leading-tight break-words text-foreground">
+                {name || profile.name}
+              </p>
+              <p className="mt-0.5 flex items-center gap-1.5 text-sm text-muted-foreground">
+                <Mail className="size-3.5 shrink-0" />
+                <span className="min-w-0 break-all">{profile.email}</span>
+              </p>
+              {companyName && (
+                <p className="mt-0.5 flex items-center gap-1.5 text-sm text-muted-foreground">
+                  <Building2 className="size-3.5 shrink-0" />
+                  <span className="min-w-0 break-words">{companyName}</span>
                 </p>
-                {companyName && (
-                  <p className="text-sm text-slate-400 flex items-center gap-2 truncate">
-                    <Building2 className="h-3.5 w-3.5 shrink-0" />
-                    {companyName}
-                  </p>
-                )}
-                <div className="flex flex-wrap items-center gap-2 pt-1">
-                  {profile.is_license_verified ? (
-                    <Badge className="bg-emerald-500/20 text-emerald-100 border-emerald-400/30 gap-1">
-                      <BadgeCheck className="h-3 w-3" /> CICC Verified
-                    </Badge>
-                  ) : (
-                    <Badge variant="outline" className="border-amber-400/40 text-amber-100 gap-1">
-                      <Shield className="h-3 w-3" /> Pending verification
-                    </Badge>
-                  )}
-                  {profile.rcic_number && (
-                    <Badge variant="outline" className="font-mono text-xs border-white/20 text-slate-200">
-                      {profile.rcic_number}
-                    </Badge>
-                  )}
-                </div>
-              </div>
+              )}
             </div>
-
-            <div className="flex flex-col gap-3 lg:items-end shrink-0 text-slate-200 [&_.text-muted-foreground]:text-slate-400">
-              <SavePill status={saveStatus} error={saveError} />
-              <div className="grid grid-cols-2 gap-3 text-sm">
-                <div className="rounded-xl bg-white/5 border border-white/10 px-4 py-3 backdrop-blur-sm">
-                  <p className="text-[10px] uppercase tracking-wider text-slate-400">Member since</p>
-                  <p className="font-medium mt-0.5">{formatDate(profile.created_at)}</p>
-                </div>
-                <div className="rounded-xl bg-white/5 border border-white/10 px-4 py-3 backdrop-blur-sm">
-                  <p className="text-[10px] uppercase tracking-wider text-slate-400">License</p>
-                  <p className="font-medium mt-0.5">{profile.is_license_verified ? "Verified" : "Pending"}</p>
-                </div>
-              </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {profile.is_license_verified ? (
+                <Badge variant="secondary" className="gap-1 font-normal">
+                  <BadgeCheck className="size-3.5 text-emerald-600" />
+                  CICC verified
+                </Badge>
+              ) : (
+                <Badge variant="outline" className="gap-1 font-normal text-amber-700">
+                  <Shield className="size-3.5" />
+                  Verification pending
+                </Badge>
+              )}
+              {profile.rcic_number && (
+                <Badge variant="outline" className="font-mono text-xs font-normal">
+                  {profile.rcic_number}
+                </Badge>
+              )}
+              <span className="text-xs text-muted-foreground">
+                Member since {formatDate(profile.created_at)}
+              </span>
             </div>
           </div>
         </div>
-      </section>
 
-      {/* Status alerts */}
-      <div className="grid gap-4 lg:grid-cols-2">
-        {fromRegistry && (
-          <div className="rounded-xl border border-blue-200/80 bg-blue-50/80 dark:bg-blue-950/20 px-5 py-4 flex items-start gap-3">
-            <Info className="h-4 w-4 text-blue-600 mt-0.5 shrink-0" />
-            <div className="min-w-0">
-              <p className="text-sm font-semibold text-blue-900 dark:text-blue-100">CICC registry connected</p>
-              <p className="text-xs text-blue-800/80 dark:text-blue-200/80 mt-1 leading-relaxed">
-                Practice details were pre-filled from your public register entry. You can edit any field — changes save automatically.
-                {registry?.profile_url && (
-                  <>{" "}
-                    <a href={registry.profile_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-0.5 font-medium underline">
-                      View CICC profile <ExternalLink className="h-3 w-3" />
-                    </a>
-                  </>
-                )}
-              </p>
+        {(fromRegistry || !profile.is_license_verified) && (
+          <>
+            <Separator />
+            <div className="space-y-3 p-4 sm:p-6">
+              {fromRegistry && (
+                <div className="flex gap-3 text-sm">
+                  <Info className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+                  <p className="min-w-0 break-words text-muted-foreground leading-relaxed">
+                    Practice details were imported from the CICC public register. You may edit any
+                    field — changes save automatically.
+                    {registry?.profile_url && (
+                      <>
+                        {" "}
+                        <a
+                          href={registry.profile_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-0.5 font-medium text-foreground underline-offset-4 hover:underline"
+                        >
+                          View CICC profile
+                          <ExternalLink className="size-3" />
+                        </a>
+                      </>
+                    )}
+                  </p>
+                </div>
+              )}
+              {!profile.is_license_verified && (
+                <div className="flex gap-3 text-sm">
+                  <Shield className="mt-0.5 size-4 shrink-0 text-amber-600" />
+                  <p className="min-w-0 break-words text-muted-foreground leading-relaxed">
+                    Your license is being reviewed by our team. Once approved, your verified status
+                    will appear on client-facing documents.
+                  </p>
+                </div>
+              )}
             </div>
-          </div>
-        )}
-        {!profile.is_license_verified && (
-          <div className="rounded-xl border border-amber-200/80 bg-amber-50/80 dark:bg-amber-950/20 px-5 py-4 flex items-start gap-3">
-            <Shield className="h-5 w-5 text-amber-600 mt-0.5 shrink-0" />
-            <div>
-              <p className="text-sm font-semibold text-amber-900 dark:text-amber-100">License verification in progress</p>
-              <p className="text-xs text-amber-800/80 dark:text-amber-200/80 mt-1 leading-relaxed">
-                An administrator will confirm your CICC license. Your verified badge will appear on client-facing documents once approved.
-              </p>
-            </div>
-          </div>
+          </>
         )}
       </div>
 
-      {/* Main layout — full width two columns */}
-      <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_300px]">
-        <div className="space-y-6 min-w-0">
+      {/* Settings tabs */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="gap-4 sm:gap-6">
+        <TabsList className="!h-auto grid w-full grid-cols-2 gap-1 rounded-lg border border-border/60 bg-muted/40 p-1 sm:inline-flex sm:w-auto sm:grid-cols-none sm:gap-0.5 sm:border-transparent sm:bg-muted sm:p-[3px]">
+          {[
+            { value: "profile", label: "Profile", icon: User },
+            { value: "practice", label: "Practice", icon: Building2 },
+            { value: "integrations", label: "Integrations", icon: CreditCard },
+            { value: "security", label: "Security", icon: Lock },
+          ].map((tab) => (
+            <TabsTrigger
+              key={tab.value}
+              value={tab.value}
+              className={cn(
+                "h-9 min-w-0 flex-none gap-1.5 rounded-sm px-2 text-xs font-medium shadow-none after:hidden",
+                "w-full sm:w-auto sm:flex-initial sm:px-3 sm:text-sm",
+                "border-0 data-[state=active]:border-0 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-none",
+                "dark:data-[state=active]:border-0 dark:data-[state=active]:bg-background",
+              )}
+            >
+              <tab.icon className="size-3.5 shrink-0" />
+              <span className="truncate">{tab.label}</span>
+            </TabsTrigger>
+          ))}
+        </TabsList>
 
-          <SectionCard
-            id="personal"
-            icon={User}
-            title="Personal information"
-            description="Your name and contact details shown to clients in agreements and correspondence."
+        {/* Profile tab */}
+        <TabsContent value="profile" className="mt-0 space-y-6 sm:space-y-8">
+          <SettingsBlock
+            title="Personal details"
+            description="Shown on retainer agreements and client correspondence."
           >
             <div className="grid gap-5 sm:grid-cols-2">
-              <Field label="Full name *" value={name} onChange={setName} placeholder="e.g. John Smith" />
-              <Field label="Phone number" value={phone} onChange={setPhone} type="tel" placeholder="+1 (416) 555-0000" />
+              <ProfileField
+                label="Full name"
+                value={name}
+                onChange={setName}
+                placeholder="e.g. John Smith"
+              />
+              <ProfileField
+                label="Phone"
+                value={phone}
+                onChange={setPhone}
+                type="tel"
+                placeholder="+1 (416) 555-0000"
+              />
             </div>
-            <div className="mt-5">
-              <Field label="Email address" value={profile.email} readOnly hint="Primary login — contact support to change" />
-            </div>
-          </SectionCard>
+            <ProfileField
+              label="Login email"
+              value={profile.email}
+              readOnly
+              hint="Contact support if you need to change your login email."
+            />
+          </SettingsBlock>
 
-          <SectionCard
-            id="professional"
-            icon={BadgeCheck}
+          <Separator />
+
+          <SettingsBlock
             title="Professional credentials"
-            description="Regulatory details that establish your authority as a licensed immigration consultant."
+            description="Regulatory information associated with your CICC licence."
           >
             <div className="grid gap-5 sm:grid-cols-2">
-              <Field label="RCIC / CICC license no." value={profile.rcic_number ?? ""} readOnly hint="Assigned by administrator" />
-              <Field label="CICC registered email" value={ciccEmail} onChange={setCiccEmail} type="email" placeholder="yourname@cicc.ca" />
-              <Field
-                label="Position / type"
+              <ProfileField
+                label="RCIC / CICC licence number"
+                value={profile.rcic_number ?? ""}
+                readOnly
+                hint="Assigned by your administrator."
+              />
+              <ProfileField
+                label="CICC registered email"
+                value={ciccEmail}
+                onChange={setCiccEmail}
+                type="email"
+                placeholder="yourname@cicc.ca"
+              />
+              <ProfileField
+                label="Position / designation"
                 value={posType}
                 onChange={setPosType}
                 placeholder="e.g. RCIC, RISIA"
-                hint={fromRegistry && registry?.type ? "Pre-filled from CICC registry" : undefined}
+                hint={
+                  fromRegistry && registry?.type ? "Imported from CICC register" : undefined
+                }
               />
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-muted-foreground">License status</label>
-                <div className="flex items-center gap-2 rounded-lg border bg-muted/30 px-3 py-2.5">
+              <div className="space-y-2 sm:col-span-2">
+                <Label className="text-sm font-medium">Licence status</Label>
+                <div className="flex min-h-10 flex-wrap items-center gap-x-2 gap-y-1 rounded-md border bg-muted/30 px-3 py-2 sm:h-10 sm:flex-nowrap sm:py-0">
                   {profile.is_license_verified ? (
                     <>
-                      <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
-                      <span className="text-sm font-medium text-emerald-700">Verified</span>
+                      <CheckCircle2 className="size-4 shrink-0 text-emerald-600" />
+                      <span className="text-sm">Verified</span>
                       {profile.license_verified_at && (
-                        <span className="text-xs text-muted-foreground">· {formatDate(profile.license_verified_at)}</span>
+                        <span className="text-xs text-muted-foreground sm:truncate">
+                          · {formatDate(profile.license_verified_at)}
+                        </span>
                       )}
                     </>
                   ) : (
                     <>
-                      <Shield className="h-4 w-4 text-amber-500 shrink-0" />
-                      <span className="text-sm font-medium text-amber-700">Pending verification</span>
+                      <Shield className="size-4 shrink-0 text-amber-500" />
+                      <span className="text-sm">Pending review</span>
                     </>
                   )}
                 </div>
               </div>
             </div>
             {registry?.languages && (
-              <div className="mt-5">
-                <Field label="Languages (CICC registry)" value={registry.languages} readOnly />
-              </div>
+              <ProfileField
+                label="Languages (CICC register)"
+                value={registry.languages}
+                readOnly
+              />
             )}
-          </SectionCard>
+          </SettingsBlock>
+        </TabsContent>
 
-          <SectionCard
-            id="company"
-            icon={Building2}
-            title="Company & practice"
-            description="Your firm identity — appears on retainer agreements, invoices, and client communications."
+        {/* Practice tab */}
+        <TabsContent value="practice" className="mt-0 space-y-6 sm:space-y-8">
+          <SettingsBlock
+            title="Firm identity"
+            description="Used on agreements, invoices, and payment requests sent to clients."
           >
-            <div className="flex flex-col sm:flex-row items-start gap-5 mb-6 p-4 rounded-xl border bg-muted/20">
-              <div className="h-24 w-24 rounded-xl border bg-background flex items-center justify-center overflow-hidden shrink-0 shadow-sm">
-                {logoPreview
-                  ? <img src={logoPreview} alt="Company logo" className="h-full w-full object-contain p-1" />
-                  : <ImageIcon className="h-9 w-9 text-muted-foreground/50" />}
+            <div className="flex flex-col gap-4 rounded-lg border bg-muted/20 p-4 sm:flex-row sm:items-start">
+              <div className="flex size-20 shrink-0 items-center justify-center overflow-hidden rounded-md border bg-background">
+                {logoPreview ? (
+                  <img
+                    src={logoPreview}
+                    alt="Company logo"
+                    className="size-full object-contain p-1"
+                  />
+                ) : (
+                  <ImageIcon className="size-8 text-muted-foreground/40" />
+                )}
               </div>
-              <div className="space-y-2">
+              <div className="min-w-0 flex-1 space-y-2">
                 <p className="text-sm font-medium">Practice logo</p>
-                <p className="text-xs text-muted-foreground max-w-sm">A professional logo builds client trust on agreements and payment requests.</p>
-                <input ref={logoInputRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden"
-                  onChange={e => { const f = e.target.files?.[0]; if (f) handleLogoUpload(f); }} />
-                <Button type="button" variant="outline" size="sm" onClick={() => logoInputRef.current?.click()} disabled={logoUploading} className="gap-1.5">
-                  {logoUploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
+                <p className="text-xs leading-relaxed text-muted-foreground">
+                  JPG, PNG, or WebP · max 2 MB
+                </p>
+                <input
+                  ref={logoInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) void handleLogoUpload(f);
+                  }}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="mt-2 h-10 w-full sm:w-auto"
+                  onClick={() => logoInputRef.current?.click()}
+                  disabled={logoUploading}
+                >
+                  {logoUploading ? (
+                    <Loader2 className="mr-1.5 size-3.5 animate-spin" />
+                  ) : (
+                    <Upload className="mr-1.5 size-3.5" />
+                  )}
                   {logoUploading ? "Uploading…" : "Upload logo"}
                 </Button>
-                <p className="text-[11px] text-muted-foreground">JPG, PNG or WebP · max 2 MB</p>
               </div>
             </div>
-            <div className="grid gap-5 sm:grid-cols-2">
-              <Field
-                label={fromRegistry && !profile.company_name && registry?.company ? "Company name (CICC)" : "Company name"}
-                value={companyName} onChange={setCompanyName} placeholder="e.g. Smith Immigration Services"
-              />
-              <Field
-                label={fromRegistry && !profile.company_phone && registry?.phone ? "Company phone (CICC)" : "Company phone"}
-                value={companyPhone} onChange={setCompanyPhone} type="tel" placeholder="+1 (416) 555-0000"
-              />
-              <Field
-                label={fromRegistry && !profile.company_website && registry?.website ? "Website (CICC)" : "Website"}
-                value={companyWeb} onChange={setCompanyWeb} type="url" placeholder="https://example.com"
-              />
-            </div>
-            <div className="mt-5 space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">About / bio</label>
-              <textarea value={companyBio} onChange={e => setCompanyBio(e.target.value)}
-                placeholder="Brief description of your practice, experience, and services…" rows={4}
-                className="w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring resize-none leading-relaxed" />
-            </div>
-          </SectionCard>
 
-          <SectionCard
-            id="address"
-            icon={MapPin}
+            <div className="grid gap-5 sm:grid-cols-2">
+              <ProfileField
+                label={
+                  fromRegistry && !profile.company_name && registry?.company
+                    ? "Company name (CICC)"
+                    : "Company name"
+                }
+                value={companyName}
+                onChange={setCompanyName}
+                placeholder="e.g. Smith Immigration Services"
+              />
+              <ProfileField
+                label={
+                  fromRegistry && !profile.company_phone && registry?.phone
+                    ? "Company phone (CICC)"
+                    : "Company phone"
+                }
+                value={companyPhone}
+                onChange={setCompanyPhone}
+                type="tel"
+              />
+              <ProfileField
+                label={
+                  fromRegistry && !profile.company_website && registry?.website
+                    ? "Website (CICC)"
+                    : "Website"
+                }
+                value={companyWeb}
+                onChange={setCompanyWeb}
+                type="url"
+                placeholder="https://"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="company-bio" className="text-sm font-medium">
+                About your practice
+              </Label>
+              <Textarea
+                id="company-bio"
+                value={companyBio}
+                onChange={(e) => setCompanyBio(e.target.value)}
+                placeholder="Brief description of your services and experience…"
+                rows={4}
+                className="resize-none leading-relaxed"
+              />
+            </div>
+          </SettingsBlock>
+
+          <Separator />
+
+          <SettingsBlock
             title="Office address"
-            description="Your registered office location for legal documents and client records."
+            description="Registered office location for legal documents and client records."
           >
             <div className="space-y-5">
-              <Field
-                label={fromRegistry && !profile.company_address_line1 && registry?.address_line_1 ? "Address line 1 (CICC)" : "Address line 1"}
-                value={addrLine1} onChange={setAddrLine1} placeholder="Street address"
+              <ProfileField
+                label={
+                  fromRegistry && !profile.company_address_line1 && registry?.address_line_1
+                    ? "Address line 1 (CICC)"
+                    : "Address line 1"
+                }
+                value={addrLine1}
+                onChange={setAddrLine1}
+                placeholder="Street address"
               />
-              <Field label="Address line 2 (optional)" value={addrLine2} onChange={setAddrLine2} placeholder="Suite, unit, floor" />
+              <ProfileField
+                label="Address line 2"
+                value={addrLine2}
+                onChange={setAddrLine2}
+                placeholder="Suite, unit, floor (optional)"
+              />
               <div className="grid gap-5 sm:grid-cols-2">
-                <Field label={fromRegistry && !profile.company_city && registry?.city ? "City (CICC)" : "City"} value={city} onChange={setCity} placeholder="e.g. Toronto" />
-                <Field label={fromRegistry && !profile.company_province && registry?.province ? "Province (CICC)" : "Province"} value={province} onChange={setProvince} placeholder="e.g. Ontario" />
-                <Field label={fromRegistry && !profile.company_postal_code && registry?.postal_code ? "Postal code (CICC)" : "Postal code"} value={postalCode} onChange={setPostalCode} placeholder="M5H 2N2" />
-                <Field label="Country" value={country} onChange={setCountry} placeholder="Canada" />
+                <ProfileField
+                  label={
+                    fromRegistry && !profile.company_city && registry?.city ? "City (CICC)" : "City"
+                  }
+                  value={city}
+                  onChange={setCity}
+                />
+                <ProfileField
+                  label={
+                    fromRegistry && !profile.company_province && registry?.province
+                      ? "Province (CICC)"
+                      : "Province"
+                  }
+                  value={province}
+                  onChange={setProvince}
+                />
+                <ProfileField
+                  label={
+                    fromRegistry && !profile.company_postal_code && registry?.postal_code
+                      ? "Postal code (CICC)"
+                      : "Postal code"
+                  }
+                  value={postalCode}
+                  onChange={setPostalCode}
+                />
+                <ProfileField label="Country" value={country} onChange={setCountry} />
               </div>
+              {officeLine && (
+                <p className="flex items-start gap-2 text-xs text-muted-foreground">
+                  <MapPin className="mt-0.5 size-3.5 shrink-0" />
+                  <span>{officeLine}</span>
+                </p>
+              )}
             </div>
-          </SectionCard>
+          </SettingsBlock>
 
-          <SectionCard
-            id="payments"
-            icon={CreditCard}
+          <Separator />
+
+          <SettingsBlock
+            title="Digital signature"
+            description="Applied to retainer agreements and official client documents."
+          >
+            {sigSaved && !showSigPad ? (
+              <div className="space-y-4">
+                <div className="inline-block rounded-lg border bg-white px-6 py-4 dark:bg-muted/20">
+                  <img
+                    src={sigSaved}
+                    alt="Your digital signature"
+                    className="h-16 w-auto max-w-full object-contain sm:h-20"
+                  />
+                </div>
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-9 w-full sm:w-auto"
+                    onClick={() => setShowSigPad(true)}
+                  >
+                    <PenLine className="mr-1.5 size-3.5" />
+                    Replace signature
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-9 w-full text-destructive hover:text-destructive sm:w-auto"
+                    onClick={() => void handleClearSignature()}
+                    disabled={sigSaving}
+                  >
+                    {sigSaving && <Loader2 className="mr-1.5 size-3.5 animate-spin" />}
+                    Remove
+                  </Button>
+                  {sigStatus === "saved" && (
+                    <span className="inline-flex items-center gap-1 text-xs text-emerald-600">
+                      <CloudCheck className="size-3.5" />
+                      Saved
+                    </span>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {showSigPad && sigSaved && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 text-muted-foreground"
+                    onClick={() => setShowSigPad(false)}
+                  >
+                    Cancel
+                  </Button>
+                )}
+                <SignaturePad
+                  onSave={handleSaveSignature}
+                  onClear={() => {}}
+                  isSaving={sigSaving}
+                />
+                {sigStatus === "saved" && (
+                  <span className="inline-flex items-center gap-1 text-xs text-emerald-600">
+                    <CloudCheck className="size-3.5" />
+                    Signature saved
+                  </span>
+                )}
+                {sigStatus === "error" && (
+                  <span className="text-xs text-destructive">
+                    Could not save signature. Please try again.
+                  </span>
+                )}
+              </div>
+            )}
+          </SettingsBlock>
+        </TabsContent>
+
+        {/* Integrations tab */}
+        <TabsContent value="integrations" className="mt-0 space-y-8 sm:space-y-10">
+          <SettingsBlock
             title="Client payments"
-            description="Connect Stripe, PayPal, or Interac so you can send secure payment links to clients."
+            description="Connect Stripe, PayPal, or Interac to collect fees from clients."
           >
             <AccountPaymentSettings onStripeReturn={stripeConnectReturn} />
-          </SectionCard>
+          </SettingsBlock>
 
-          <SectionCard
-            id="notifications"
-            icon={Bell}
-            title="Notifications"
-            description="Choose how you receive in-app, email, and WhatsApp alerts about client activity."
-          >
-            <AccountNotificationSettings />
-          </SectionCard>
+          <Separator />
 
-          <SectionCard
-            id="meetings"
-            icon={Video}
+          <SettingsBlock
             title="Video meetings"
-            description="Connect Google Meet, Zoom, or Microsoft Teams to schedule online consultations with clients."
+            description="Link Google Meet, Zoom, or Microsoft Teams for client consultations."
           >
             <AccountMeetingSettings
               onOAuthReturn={meetOAuthReturn}
@@ -750,135 +1072,45 @@ export function AccountClient() {
               oauthStatus={meetOAuthStatus}
               oauthMessage={meetOAuthMessage}
             />
-          </SectionCard>
+          </SettingsBlock>
 
-          <SectionCard
-            id="signature"
-            icon={PenLine}
-            title="Digital signature"
-            description="Your signature on retainer agreements and official client documents."
+          <Separator />
+
+          <div id="notifications">
+            <SettingsBlock
+              title="Notifications"
+              description="Control in-app, email, and WhatsApp alerts."
+            >
+              <AccountNotificationSettings />
+            </SettingsBlock>
+          </div>
+        </TabsContent>
+
+        {/* Security tab */}
+        <TabsContent value="security" className="mt-0 space-y-6 sm:space-y-8">
+          <SettingsBlock
+            title="Password & sign-in"
+            description="Set or update your password. Google sign-in remains available if connected."
           >
-            {sigSaved && !showSigPad && (
-              <div className="space-y-4">
-                <div className="rounded-xl border-2 border-dashed bg-white dark:bg-muted/30 px-6 py-4 inline-block">
-                  <img src={sigSaved} alt="Your digital signature" className="h-20 w-auto max-w-[360px] object-contain" />
-                </div>
-                <div className="flex flex-wrap items-center gap-3">
-                  <Button type="button" variant="outline" size="sm" onClick={() => setShowSigPad(true)} className="gap-1.5">
-                    <Upload className="h-3.5 w-3.5" /> Replace signature
-                  </Button>
-                  <Button type="button" variant="ghost" size="sm" onClick={handleClearSignature} disabled={sigSaving} className="text-destructive hover:text-destructive gap-1.5">
-                    {sigSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
-                    Remove
-                  </Button>
-                  {sigStatus === "saved" && (
-                    <span className="flex items-center gap-1 text-xs text-emerald-600"><CloudCheck className="h-3 w-3" /> Saved</span>
-                  )}
-                </div>
-              </div>
-            )}
-            {(!sigSaved || showSigPad) && (
-              <div className="space-y-2">
-                {showSigPad && (
-                  <Button type="button" variant="ghost" size="sm" onClick={() => setShowSigPad(false)} className="text-muted-foreground mb-1">
-                    ← Keep existing
-                  </Button>
-                )}
-                <SignaturePad onSave={handleSaveSignature} onClear={() => {}} isSaving={sigSaving} />
-                {sigStatus === "saved" && <span className="flex items-center gap-1 text-xs text-emerald-600"><CloudCheck className="h-3 w-3" /> Signature saved</span>}
-                {sigStatus === "error" && <span className="text-xs text-destructive">Could not save signature. Try again.</span>}
-              </div>
-            )}
-          </SectionCard>
-        </div>
+            <AccountPasswordSettings />
+          </SettingsBlock>
 
-        {/* Trust sidebar */}
-        <aside className="space-y-4 xl:sticky xl:top-4 xl:self-start">
-          <div className="rounded-2xl border border-border/70 bg-card p-5 shadow-sm space-y-4">
-            <div className="flex items-center gap-2">
-              <Lock className="h-4 w-4 text-emerald-600" />
-              <p className="text-sm font-semibold">Trust & security</p>
-            </div>
-            <ul className="space-y-3 text-xs text-muted-foreground leading-relaxed">
-              <li className="flex gap-2">
-                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0 mt-0.5" />
-                Profile changes are encrypted in transit and saved automatically.
-              </li>
-              <li className="flex gap-2">
-                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0 mt-0.5" />
-                CICC license details are verified before the trusted consultant badge is issued.
-              </li>
-              <li className="flex gap-2">
-                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0 mt-0.5" />
-                Client payments go directly to your connected Stripe, PayPal, or Interac account.
-              </li>
-            </ul>
-          </div>
+          <Separator />
 
-          <div className="rounded-2xl border border-border/70 bg-card p-5 shadow-sm space-y-3">
-            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Profile summary</p>
-            <div className="space-y-2.5 text-sm">
-              <div className="flex justify-between gap-2">
-                <span className="text-muted-foreground">Verification</span>
-                <span className={cn("font-medium", profile.is_license_verified ? "text-emerald-600" : "text-amber-600")}>
-                  {profile.is_license_verified ? "Verified" : "Pending"}
-                </span>
-              </div>
-              {profile.rcic_number && (
-                <div className="flex justify-between gap-2">
-                  <span className="text-muted-foreground">License</span>
-                  <span className="font-mono text-xs font-medium">{profile.rcic_number}</span>
-                </div>
-              )}
-              <div className="flex justify-between gap-2">
-                <span className="text-muted-foreground">Member since</span>
-                <span className="font-medium text-xs">{formatDate(profile.created_at)}</span>
-              </div>
-              {officeLine && (
-                <div className="pt-2 border-t">
-                  <p className="text-muted-foreground text-xs mb-0.5">Office</p>
-                  <p className="text-xs font-medium leading-snug">{officeLine}</p>
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="rounded-2xl border border-emerald-200/60 bg-emerald-50/50 dark:bg-emerald-950/20 p-5">
-            <div className="flex items-start gap-2">
-              <CloudCheck className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
-              <div>
-                <p className="text-sm font-medium text-emerald-900 dark:text-emerald-100">Auto-save enabled</p>
-                <p className="text-xs text-emerald-800/70 dark:text-emerald-200/70 mt-1 leading-relaxed">
-                  Edits save as you type. Watch the status indicator in the header for confirmation.
+          <div className="rounded-lg border bg-muted/20 p-4 text-sm text-muted-foreground">
+            <div className="flex gap-3">
+              <Lock className="mt-0.5 size-4 shrink-0 text-foreground" />
+              <div className="min-w-0 space-y-1 leading-relaxed">
+                <p className="font-medium text-foreground">Data protection</p>
+                <p className="break-words">
+                  Profile changes are encrypted in transit. Client payments are processed directly
+                  through your connected payment provider — RCICMASTER does not hold client funds.
                 </p>
-                <div className="mt-3"><SavePill status={saveStatus} error={saveError} /></div>
               </div>
             </div>
           </div>
-
-          <nav className="rounded-2xl border border-border/70 bg-card p-4 shadow-sm hidden xl:block">
-            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">On this page</p>
-            <ul className="space-y-1 text-sm">
-              {[
-                { id: "personal", label: "Personal" },
-                { id: "professional", label: "Credentials" },
-                { id: "company", label: "Company" },
-                { id: "address", label: "Address" },
-                { id: "payments", label: "Payments" },
-                { id: "meetings", label: "Video" },
-                { id: "signature", label: "Signature" },
-              ].map((item) => (
-                <li key={item.id}>
-                  <a href={`#${item.id}`} className="block rounded-lg px-2.5 py-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors">
-                    {item.label}
-                  </a>
-                </li>
-              ))}
-            </ul>
-          </nav>
-        </aside>
-      </div>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
-

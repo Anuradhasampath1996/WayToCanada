@@ -1657,17 +1657,17 @@ export function PathwayCalculatorClient({ paramsPromise }: { paramsPromise: Prom
   const canClearPathway = !agreementSentAt;
 
   return (
-    <div className="w-full space-y-6 pb-10">
+    <div className="min-w-0 w-full space-y-4 overflow-x-hidden pb-4 sm:space-y-6 sm:pb-6">
 
       <WorkspaceBreadcrumb profileId={id} workspaceStep={1} pageLabel="Pathway calculator" />
 
-      <section className="rounded-2xl border border-border/70 bg-gradient-to-br from-background via-background to-violet-500/[0.06] p-5 shadow-sm md:p-6">
+      <section className="rounded-2xl border border-border/70 bg-gradient-to-br from-background via-background to-violet-500/[0.06] p-4 shadow-sm sm:p-5 md:p-6">
 
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="space-y-1">
-            <h1 className="flex items-center gap-2.5 text-2xl font-bold tracking-tight md:text-3xl">
-              <span className="flex size-10 items-center justify-center rounded-xl bg-violet-500/15 text-violet-700 dark:text-violet-300">
-                <Calculator className="size-5" />
+            <h1 className="flex items-center gap-2.5 text-xl font-bold tracking-tight sm:text-2xl md:text-3xl">
+              <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-violet-500/15 text-violet-700 dark:text-violet-300 sm:size-10">
+                <Calculator className="size-4 sm:size-5" />
               </span>
               CRS &amp; pathway calculator
             </h1>

@@ -196,7 +196,7 @@ function NextActionChip({
           onNavigate(href);
         }}
         className={cn(
-          "inline-flex max-w-[220px] truncate rounded-md border px-2 py-0.5 text-left text-[11px] font-medium transition-opacity hover:opacity-80",
+          "inline-flex max-w-full truncate rounded-md border px-2 py-0.5 text-left text-[11px] font-medium transition-opacity hover:opacity-80 sm:max-w-[220px]",
           cls,
         )}
         title={title}
@@ -207,7 +207,7 @@ function NextActionChip({
   }
 
   return (
-    <span className={cn("inline-flex max-w-[220px] truncate rounded-md border px-2 py-0.5 text-[11px] font-medium", cls)}>
+    <span className={cn("inline-flex max-w-full truncate rounded-md border px-2 py-0.5 text-[11px] font-medium sm:max-w-[220px]", cls)}>
       {title}
     </span>
   );
@@ -288,6 +288,121 @@ function ClientActions({
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+}
+
+function ClientListCard({
+  client,
+  resending,
+  onOpen,
+  onResend,
+  onDelete,
+  onNavigate,
+}: {
+  client: Client;
+  resending: number | null;
+  onOpen: (id: number) => void;
+  onResend: (client: Client) => void;
+  onDelete: (client: Client) => void;
+  onNavigate: (href: string) => void;
+}) {
+  const phone = clientPhone(client);
+
+  return (
+    <div className="border-b border-border/60 last:border-b-0">
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={() => onOpen(client.id)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            onOpen(client.id);
+          }
+        }}
+        className="w-full cursor-pointer px-3 py-3 text-left transition-colors active:bg-muted/40 sm:px-4"
+      >
+        <div className="flex items-start gap-3">
+          <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-xs font-bold text-primary">
+            {initials(client.user.name) || client.user.name.charAt(0)}
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="font-semibold leading-tight break-words">{client.user.name}</p>
+                {client.passport_number && (
+                  <p className="mt-0.5 truncate font-mono text-[10px] text-muted-foreground">
+                    {client.passport_number}
+                  </p>
+                )}
+              </div>
+              <div onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+                <ClientActions
+                  client={client}
+                  resending={resending}
+                  onResend={onResend}
+                  onDelete={onDelete}
+                />
+              </div>
+            </div>
+
+            <div className="mt-2 space-y-1.5">
+              <EmailLink email={client.user.email} />
+              {phone ? (
+                <PhoneLink phone={phone} />
+              ) : (
+                <span className="text-xs text-muted-foreground">No phone</span>
+              )}
+            </div>
+
+            <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+              {(client.pipeline || client.case_summary) && (
+                <Badge
+                  variant="secondary"
+                  className={cn(
+                    "text-[10px] font-medium",
+                    CASE_STATUS_TONES[
+                      (client.pipeline?.status ?? client.case_summary?.case_status) ?? ""
+                    ] ?? "bg-muted",
+                  )}
+                >
+                  {client.pipeline?.status_label ?? client.case_summary?.case_status_label}
+                </Badge>
+              )}
+              {client.immigration_pathway && (
+                <Badge
+                  variant="outline"
+                  className={cn(
+                    "text-[10px]",
+                    PATHWAY_COLORS[client.immigration_pathway] ?? "bg-muted text-muted-foreground",
+                  )}
+                >
+                  {client.immigration_pathway}
+                </Badge>
+              )}
+              <span className="text-[10px] text-muted-foreground">Added {formatDate(client.created_at)}</span>
+            </div>
+
+            {client.pipeline && (
+              <p
+                className={cn(
+                  "mt-1.5 text-[10px] font-medium",
+                  client.pipeline.pending_docs > 0 ? "text-amber-700" : "text-emerald-700",
+                )}
+              >
+                {client.pipeline.pending_docs > 0
+                  ? `${client.pipeline.pending_docs} document(s) pending review`
+                  : "All documents reviewed"}
+              </p>
+            )}
+
+            <div className="mt-2" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+              <NextActionChip summary={client.case_summary} onNavigate={onNavigate} />
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -413,7 +528,7 @@ export function ClientsPageClient() {
     const phone = clientPhone(client);
     return (
       <div
-        className="cursor-pointer rounded-xl border border-border/70 bg-card p-5 shadow-sm transition-all hover:border-primary/20 hover:shadow-md"
+        className="cursor-pointer rounded-xl border border-border/70 bg-card p-4 shadow-sm transition-all hover:border-primary/20 hover:shadow-md sm:p-5"
         onClick={() => openClient(client.id)}
       >
         <div className="mb-4 flex items-start justify-between gap-2">
@@ -421,8 +536,8 @@ export function ClientsPageClient() {
             <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-sm font-bold text-primary">
               {initials(client.user.name) || client.user.name.charAt(0)}
             </div>
-            <div>
-              <p className="font-semibold leading-tight">{client.user.name}</p>
+            <div className="min-w-0">
+              <p className="font-semibold leading-tight break-words">{client.user.name}</p>
               <p className="mt-0.5 text-xs text-muted-foreground">Added {formatDate(client.created_at)}</p>
             </div>
           </div>
@@ -487,11 +602,11 @@ export function ClientsPageClient() {
   };
 
   return (
-    <div className="space-y-6 pb-10">
+    <div className="min-w-0 space-y-4 overflow-x-hidden pb-8 sm:space-y-6 sm:pb-10">
       {toast && (
         <div
           className={cn(
-            "fixed top-4 right-4 z-50 rounded-xl border px-4 py-2.5 text-sm font-medium shadow-lg backdrop-blur-sm",
+            "fixed top-4 right-3 left-3 z-50 rounded-xl border px-4 py-2.5 text-sm font-medium shadow-lg backdrop-blur-sm sm:left-auto sm:max-w-sm",
             toast.type === "success"
               ? "border-emerald-200/80 bg-background text-emerald-800"
               : "border-red-200/80 bg-background text-red-700",
@@ -501,12 +616,12 @@ export function ClientsPageClient() {
         </div>
       )}
 
-      <section className="rounded-2xl border border-border/70 bg-gradient-to-br from-background via-background to-primary/5 p-5 shadow-sm">
+      <section className="rounded-2xl border border-border/70 bg-gradient-to-br from-background via-background to-primary/5 p-4 shadow-sm sm:p-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div className="space-y-1">
-            <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight md:text-3xl">
-              <span className="flex size-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                <Users className="size-5" />
+          <div className="min-w-0 space-y-1">
+            <h1 className="flex items-center gap-2 text-xl font-bold tracking-tight sm:text-2xl md:text-3xl">
+              <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary sm:size-10">
+                <Users className="size-4 sm:size-5" />
               </span>
               My clients
             </h1>
@@ -518,7 +633,7 @@ export function ClientsPageClient() {
                   : `${pagination?.total ?? clients.length} client${(pagination?.total ?? clients.length) !== 1 ? "s" : ""} in your practice`}
             </p>
           </div>
-          <Button asChild className="shrink-0 rounded-xl">
+          <Button asChild className="h-10 w-full shrink-0 rounded-xl sm:w-auto">
             <Link href="/dashboard/clients/new">
               <UserPlus className="mr-2 size-4" />
               Add new client
@@ -528,12 +643,12 @@ export function ClientsPageClient() {
       </section>
 
       <Card className="border-border/70 shadow-sm">
-        <CardContent className="space-y-3 p-4">
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="relative min-w-[200px] flex-1">
+        <CardContent className="space-y-3 p-3 sm:p-4">
+          <div className="flex flex-col gap-3">
+            <div className="relative min-w-0 w-full">
               <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
               <Input
-                className="h-9 rounded-xl bg-muted/20 pl-9"
+                className="h-10 rounded-xl bg-muted/20 pl-9"
                 placeholder={layout === "pipeline" ? "Search board by name, email, pathway…" : "Search by name…"}
                 value={filterName}
                 onChange={(e) => {
@@ -543,10 +658,11 @@ export function ClientsPageClient() {
               />
             </div>
 
+            <div className="flex flex-wrap items-center gap-2">
             <Button
               variant={showFilters ? "default" : "outline"}
               size="sm"
-              className="gap-1.5 rounded-xl"
+              className="h-9 gap-1.5 rounded-xl"
               onClick={() => setShowFilters((v) => !v)}
             >
               <SlidersHorizontal className="size-4" />
@@ -569,7 +685,7 @@ export function ClientsPageClient() {
               <button
                 type="button"
                 className={cn(
-                  "p-2 transition-colors",
+                  "p-2.5 transition-colors",
                   layout === "list" ? "bg-primary text-primary-foreground" : "hover:bg-muted",
                 )}
                 onClick={() => setLayout("list")}
@@ -580,7 +696,7 @@ export function ClientsPageClient() {
               <button
                 type="button"
                 className={cn(
-                  "p-2 transition-colors",
+                  "p-2.5 transition-colors",
                   layout === "grid" ? "bg-primary text-primary-foreground" : "hover:bg-muted",
                 )}
                 onClick={() => setLayout("grid")}
@@ -591,7 +707,7 @@ export function ClientsPageClient() {
               <button
                 type="button"
                 className={cn(
-                  "p-2 transition-colors",
+                  "p-2.5 transition-colors",
                   layout === "pipeline" ? "bg-primary text-primary-foreground" : "hover:bg-muted",
                 )}
                 onClick={() => setLayout("pipeline")}
@@ -601,9 +717,10 @@ export function ClientsPageClient() {
               </button>
             </div>
 
-            <Button variant="ghost" size="icon" className="rounded-xl" onClick={() => void load(page, { name: filterName, email: filterEmail, phone: filterPhone })} disabled={loading}>
+            <Button variant="ghost" size="icon" className="size-9 rounded-xl" onClick={() => void load(page, { name: filterName, email: filterEmail, phone: filterPhone })} disabled={loading}>
               <RefreshCw className={cn("size-4", loading && "animate-spin")} />
             </Button>
+            </div>
           </div>
 
           {showFilters && (
@@ -638,10 +755,12 @@ export function ClientsPageClient() {
       </Card>
 
       {error && (
-        <div className="flex items-center gap-2 rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
-          <AlertCircle className="size-4 shrink-0" />
-          <span className="flex-1">{error}</span>
-          <Button variant="outline" size="sm" className="shrink-0" onClick={() => void load(page, { name: filterName, email: filterEmail, phone: filterPhone })}>
+        <div className="flex flex-col gap-3 rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive sm:flex-row sm:items-center">
+          <div className="flex items-start gap-2">
+            <AlertCircle className="mt-0.5 size-4 shrink-0" />
+            <span className="flex-1 break-words">{error}</span>
+          </div>
+          <Button variant="outline" size="sm" className="h-9 w-full shrink-0 sm:w-auto" onClick={() => void load(page, { name: filterName, email: filterEmail, phone: filterPhone })}>
             <RefreshCw className="mr-1.5 size-4" />
             Retry
           </Button>
@@ -690,7 +809,20 @@ export function ClientsPageClient() {
         <>
           {layout === "list" ? (
             <Card className="overflow-hidden border-border/70 shadow-sm">
-              <div className="overflow-x-auto">
+              <div className="md:hidden">
+                {clients.map((client) => (
+                  <ClientListCard
+                    key={client.id}
+                    client={client}
+                    resending={resending}
+                    onOpen={openClient}
+                    onResend={handleResendInvite}
+                    onDelete={setDeleting}
+                    onNavigate={openAction}
+                  />
+                ))}
+              </div>
+              <div className="hidden overflow-x-auto md:block">
                 <Table>
                   <TableHeader>
                     <TableRow className="hover:bg-transparent">
@@ -806,7 +938,7 @@ export function ClientsPageClient() {
               </div>
             </Card>
           ) : (
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            <div className="grid gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-3">
               {clients.map((client) => (
                 <CardItem key={client.id} client={client} />
               ))}
@@ -836,7 +968,7 @@ export function ClientsPageClient() {
       )}
 
       <AlertDialog open={!!deleting} onOpenChange={(o) => !o && setDeleting(null)}>
-        <AlertDialogContent>
+        <AlertDialogContent className="w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] sm:max-w-lg">
           <AlertDialogHeader>
             <AlertDialogTitle>Remove client?</AlertDialogTitle>
             <AlertDialogDescription>

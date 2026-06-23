@@ -3,6 +3,8 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
+import "./letter-document-preview.css";
+
 export type ConsultantBranding = {
   name?: string;
   email?: string;
@@ -63,24 +65,24 @@ export const LetterDocumentPreview = React.forwardRef<HTMLDivElement, LetterDocu
       <div
         ref={ref}
         className={cn(
-          "mx-auto w-full max-w-[816px] bg-white px-10 py-10 text-[#111827]",
+          "letter-document-preview mx-auto w-full max-w-[816px] bg-white px-4 py-6 text-[#111827] sm:px-8 sm:py-8 md:px-10 md:py-10",
           "font-[Georgia,Times_New_Roman,serif]",
           className,
         )}
       >
-        <div className="mb-8 flex items-start justify-between gap-8">
-          <div className="flex min-h-[88px] shrink-0 items-center">
+        <div className="letter-preview-header">
+          <div className="flex min-h-[56px] shrink-0 items-center sm:min-h-[88px]">
             {branding?.company_logo ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={branding.company_logo}
                 alt="Company logo"
-                className="h-[88px] w-auto max-w-[200px] object-contain object-left"
+                className="h-14 w-auto max-w-[160px] object-contain object-left sm:h-[88px] sm:max-w-[200px]"
               />
             ) : null}
           </div>
-          <div className="min-w-0 flex-1 text-right text-[11pt] leading-[1.6] text-[#374151]">
-            <p className="text-[13pt] font-bold text-[#111827]">{companyName}</p>
+          <div className="letter-preview-company min-w-0 flex-1 text-left text-[10pt] leading-[1.55] text-[#374151] sm:text-right sm:text-[11pt] sm:leading-[1.6]">
+            <p className="text-[12pt] font-bold text-[#111827] sm:text-[13pt]">{companyName}</p>
             {consultantName && consultantName !== companyName && (
               <p className="font-semibold">{consultantName}</p>
             )}
@@ -92,38 +94,38 @@ export const LetterDocumentPreview = React.forwardRef<HTMLDivElement, LetterDocu
           </div>
         </div>
 
-        <p className="mb-8 text-right text-[11pt] text-[#374151]">{letterDate}</p>
+        <p className="mb-6 text-left text-[10pt] text-[#374151] sm:mb-8 sm:text-right sm:text-[11pt]">{letterDate}</p>
 
         {clientReLine && (
-          <p className="mb-1 text-[11pt] leading-[1.6]">
+          <p className="mb-1 text-[10pt] leading-[1.6] sm:text-[11pt]">
             <span className="font-semibold">Re:</span> {clientReLine}
           </p>
         )}
 
         {subject && (
-          <p className="mb-6 text-[11pt] leading-[1.6]">
+          <p className="mb-5 text-[10pt] leading-[1.6] sm:mb-6 sm:text-[11pt]">
             <span className="font-semibold">Subject:</span> {subject}
           </p>
         )}
 
         {bodyHtml ? (
           <div
-            className="text-[11pt] leading-[1.7] text-[#111827] [&_li]:mb-1 [&_p]:mb-3 [&_ul]:my-2 [&_ul]:pl-6"
+            className="letter-preview-body text-[10pt] leading-[1.65] text-[#111827] sm:text-[11pt] sm:leading-[1.7] [&_li]:mb-1 [&_p]:mb-3 [&_ul]:my-2 [&_ul]:pl-5 sm:[&_ul]:pl-6"
             dangerouslySetInnerHTML={{ __html: bodyHtml }}
           />
         ) : (
-          <p className="text-[11pt] italic text-[#6b7280]">
+          <p className="text-[10pt] italic text-[#6b7280] sm:text-[11pt]">
             Letter body will appear here after you generate or type content.
           </p>
         )}
 
-        <div className="mt-10 text-[11pt] leading-[1.6] text-[#374151]">
+        <div className="mt-8 text-[10pt] leading-[1.6] text-[#374151] sm:mt-10 sm:text-[11pt]">
           {branding?.digital_signature ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={branding.digital_signature}
               alt="Signature"
-              className="mb-3 h-[72px] w-auto max-w-[220px] object-contain object-left"
+              className="mb-3 h-14 w-auto max-w-[180px] object-contain object-left sm:h-[72px] sm:max-w-[220px]"
             />
           ) : null}
           <p className="font-semibold text-[#111827]">{consultantName}</p>
@@ -139,7 +141,7 @@ export const LetterDocumentPreview = React.forwardRef<HTMLDivElement, LetterDocu
           )}
         </div>
 
-        <p className="mt-12 text-center text-[8pt] text-[#9ca3af]">
+        <p className="mt-8 text-center text-[7pt] leading-snug text-[#9ca3af] sm:mt-12 sm:text-[8pt]">
           Confidential — prepared by {companyName}
           {branding?.rcic_number ? ` · RCIC ${branding.rcic_number}` : ""} · {letterDate}
         </p>

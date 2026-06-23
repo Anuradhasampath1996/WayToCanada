@@ -151,5 +151,26 @@ class AuthTest extends TestCase
             'email' => $user->email,
             'password' => 'newpassword123',
         ])->assertOk();
+
+        $this->assertNotNull($user->fresh()->google_id);
+    }
+
+    public function test_google_id_preserved_after_set_password(): void
+    {
+        $user = User::factory()->create([
+            'password' => null,
+            'google_id' => 'gid-preserve',
+        ]);
+        $user->assignRole('rcic');
+        $token = $user->createToken('test')->plainTextToken;
+
+        $this->withToken($token)->postJson('/api/v1/auth/set-password', [
+            'password' => 'securepass123',
+            'password_confirmation' => 'securepass123',
+        ])->assertOk();
+
+        $user->refresh();
+        $this->assertSame('gid-preserve', $user->google_id);
+        $this->assertTrue($user->hasPassword());
     }
 }

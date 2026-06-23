@@ -89,7 +89,7 @@ function ZoomToolbar({
   if (!canZoom) return null;
 
   return (
-    <div className="flex flex-wrap items-center gap-2 border-b bg-muted/40 px-4 py-2">
+    <div className="flex flex-wrap items-center gap-2 border-b bg-muted/40 px-3 py-2 sm:px-4">
       <Button type="button" size="icon" variant="outline" className="h-8 w-8" onClick={onZoomOut} disabled={zoom <= ZOOM_LEVELS[0]}>
         <ZoomOut className="h-4 w-4" />
       </Button>
@@ -101,7 +101,7 @@ function ZoomToolbar({
         <RotateCcw className="h-3.5 w-3.5" />
         Reset
       </Button>
-      <span className="ml-auto flex items-center gap-1 text-xs text-muted-foreground">
+      <span className="hidden items-center gap-1 text-xs text-muted-foreground sm:ml-auto sm:flex">
         <Move className="h-3.5 w-3.5" />
         Click &amp; drag to pan
       </span>
@@ -157,7 +157,7 @@ function PanZoomViewport({
       ref={viewportRef}
       onMouseDown={onMouseDown}
       className={cn(
-        "h-[60vh] w-full overflow-auto select-none",
+        "h-[min(55vh,32rem)] w-full overflow-auto select-none sm:h-[60vh]",
         "cursor-grab active:cursor-grabbing",
         blockChildPointerEvents && "[&_*]:pointer-events-none",
         className,
@@ -171,7 +171,7 @@ function PanZoomViewport({
 function EditNotice({ kind }: { kind: PreviewKind }) {
   if (kind === "pdf") {
     return (
-      <p className="border-b bg-amber-50 px-4 py-2 text-xs text-amber-950 dark:bg-amber-950/30 dark:text-amber-100">
+      <p className="border-b bg-amber-50 px-3 py-2 text-xs text-amber-950 dark:bg-amber-950/30 dark:text-amber-100 sm:px-4">
         PDF preview &amp; zoom are available here. To <strong>edit</strong> this PDF, download it and use
         Adobe Acrobat or similar — full in-browser PDF editing needs an OnlyOffice server (future upgrade).
       </p>
@@ -179,7 +179,7 @@ function EditNotice({ kind }: { kind: PreviewKind }) {
   }
   if (kind === "docx") {
     return (
-      <p className="border-b bg-blue-50 px-4 py-2 text-xs text-blue-950 dark:bg-blue-950/30 dark:text-blue-100">
+      <p className="border-b bg-blue-50 px-3 py-2 text-xs text-blue-950 dark:bg-blue-950/30 dark:text-blue-100 sm:px-4">
         Word preview is <strong>read-only</strong>. Download the file to edit in Microsoft Word on your computer.
         Full in-browser Word editing needs OnlyOffice or Microsoft 365 integration.
       </p>
@@ -227,9 +227,9 @@ export function StorageFilePreviewDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[92vh] w-[min(96vw,56rem)] max-w-none flex-col gap-0 overflow-hidden p-0 sm:max-w-none">
-        <DialogHeader className="shrink-0 border-b px-5 py-4">
-          <DialogTitle className="truncate pr-10 text-base font-medium" title={file?.original_filename}>
+      <DialogContent className="flex max-h-[92vh] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-none sm:w-[min(96vw,56rem)]">
+        <DialogHeader className="shrink-0 border-b px-4 py-3 sm:px-5 sm:py-4">
+          <DialogTitle className="truncate pr-8 text-sm font-medium sm:pr-10 sm:text-base" title={file?.original_filename}>
             {file ? shortFilename(file.original_filename) : "Preview"}
           </DialogTitle>
         </DialogHeader>
@@ -246,7 +246,7 @@ export function StorageFilePreviewDialog({
 
         <div className="min-h-0 flex-1 overflow-hidden bg-muted/20">
           {loading ? (
-            <div className="flex h-[60vh] items-center justify-center">
+            <div className="flex h-[min(55vh,32rem)] items-center justify-center sm:h-[60vh]">
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
             </div>
           ) : previewKind === "pdf" && previewUrl ? (
@@ -257,7 +257,7 @@ export function StorageFilePreviewDialog({
               <iframe
                 src={previewUrl}
                 title={file?.original_filename}
-                className="block min-h-[60vh] border-0 bg-white"
+                className="block min-h-[min(55vh,32rem)] border-0 bg-white sm:min-h-[60vh]"
                 style={{
                   width: `${zoom}%`,
                   minWidth: "100%",
@@ -278,11 +278,11 @@ export function StorageFilePreviewDialog({
             </PanZoomViewport>
           ) : previewKind === "docx" && previewHtml ? (
             <div
-              className="docx-preview h-[60vh] overflow-auto bg-white p-6 text-sm leading-relaxed text-foreground dark:bg-neutral-950 [&_h1]:mb-3 [&_h1]:text-xl [&_h1]:font-bold [&_h2]:mb-2 [&_h2]:text-lg [&_h2]:font-semibold [&_li]:ml-5 [&_ol]:my-2 [&_p]:my-2 [&_table]:my-3 [&_table]:w-full [&_table]:border-collapse [&_td]:border [&_td]:p-2 [&_th]:border [&_th]:bg-muted [&_th]:p-2 [&_ul]:my-2"
+              className="docx-preview h-[min(55vh,32rem)] overflow-auto bg-white p-4 text-sm leading-relaxed text-foreground dark:bg-neutral-950 sm:h-[60vh] sm:p-6 [&_h1]:mb-3 [&_h1]:text-xl [&_h1]:font-bold [&_h2]:mb-2 [&_h2]:text-lg [&_h2]:font-semibold [&_li]:ml-5 [&_ol]:my-2 [&_p]:my-2 [&_table]:my-3 [&_table]:w-full [&_table]:border-collapse [&_td]:border [&_td]:p-2 [&_th]:border [&_th]:bg-muted [&_th]:p-2 [&_ul]:my-2"
               dangerouslySetInnerHTML={{ __html: previewHtml }}
             />
           ) : previewKind === "text" && previewText !== null ? (
-            <pre className="h-[60vh] overflow-auto whitespace-pre-wrap p-4 text-sm font-mono">{previewText}</pre>
+            <pre className="h-[min(55vh,32rem)] overflow-auto whitespace-pre-wrap p-3 text-sm font-mono sm:h-[60vh] sm:p-4">{previewText}</pre>
           ) : (
             <div className="flex h-[40vh] flex-col items-center justify-center gap-3 p-6 text-center text-sm text-muted-foreground">
               <FileText className="h-10 w-10 opacity-50" />
@@ -297,20 +297,20 @@ export function StorageFilePreviewDialog({
           )}
         </div>
 
-        <DialogFooter className="shrink-0 border-t px-5 py-4">
+        <DialogFooter className="shrink-0 flex-col gap-2 border-t px-4 py-3 sm:flex-row sm:px-5 sm:py-4">
           {previewUrl && (previewKind === "pdf" || previewKind === "image") && (
-            <Button type="button" variant="outline" onClick={openInNewTab}>
-              <ExternalLink className="h-4 w-4 mr-2" />
+            <Button type="button" variant="outline" className="h-9 w-full sm:w-auto" onClick={openInNewTab}>
+              <ExternalLink className="mr-2 h-4 w-4" />
               Open in new tab
             </Button>
           )}
           {file && (
-            <Button type="button" variant="outline" onClick={() => onDownload(file)}>
-              <Download className="h-4 w-4 mr-2" />
+            <Button type="button" variant="outline" className="h-9 w-full sm:w-auto" onClick={() => onDownload(file)}>
+              <Download className="mr-2 h-4 w-4" />
               Download
             </Button>
           )}
-          <Button type="button" onClick={() => onOpenChange(false)}>
+          <Button type="button" className="h-9 w-full sm:ml-auto sm:w-auto" onClick={() => onOpenChange(false)}>
             Close
           </Button>
         </DialogFooter>

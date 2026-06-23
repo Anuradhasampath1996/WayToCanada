@@ -1,0 +1,14 @@
+/* Client profile + workspace pages — room for quick-tools rail / mobile dock */
+
+.client-workspace-shell {
+  min-width: 0;
+  overflow-x: hidden;
+  padding-bottom: calc(5.25rem + env(safe-area-inset-bottom, 0px));
+}
+
+@media (min-width: 640px) {
+  .client-workspace-shell {
+    padding-right: 3.25rem;
+    padding-bottom: 2.5rem;
+  }
+}

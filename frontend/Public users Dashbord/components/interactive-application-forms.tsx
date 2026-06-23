@@ -590,10 +590,10 @@ export function InteractiveApplicationForms({ compact = false }: { compact?: boo
         return (
           <div
             key={form.id}
-            className="flex items-start gap-3 rounded-lg border p-3 hover:bg-muted/30 transition-colors"
+            className="flex flex-col gap-3 rounded-lg border p-3 transition-colors hover:bg-muted/30 sm:flex-row sm:items-start"
           >
             <FormInput className="h-4 w-4 mt-0.5 text-primary shrink-0" />
-            <div className="flex-1 min-w-0">
+            <div className="min-w-0 flex-1">
               <p className="font-medium text-sm">{form.title}</p>
               {form.description && !compact && (
                 <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{form.description}</p>
@@ -612,6 +612,7 @@ export function InteractiveApplicationForms({ compact = false }: { compact?: boo
             <Button
               size="sm"
               variant={form.response?.status === "submitted" ? "outline" : "default"}
+              className="h-9 w-full shrink-0 sm:w-auto"
               onClick={() => setActiveFormId(form.id)}
             >
               {form.response?.status === "submitted" ? "View" : "Fill"}

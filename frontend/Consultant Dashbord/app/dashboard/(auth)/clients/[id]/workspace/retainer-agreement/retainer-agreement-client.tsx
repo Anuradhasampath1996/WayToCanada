@@ -501,10 +501,10 @@ export function RetainerAgreementClient({ paramsPromise }: { paramsPromise: Prom
   if (alreadySigned) {
     const signedConfig = buildPayloadConfig();
     return (
-      <div className="w-full px-4 py-6">
+      <div className="min-w-0 w-full overflow-x-hidden px-3 py-4 sm:px-4 sm:py-6">
         <WorkspaceBreadcrumb profileId={id} workspaceStep={2} pageLabel="Retainer agreement" />
-        <div className="mb-6 flex flex-wrap items-center gap-3">
-          <h1 className="text-lg font-bold">Signed Retainer Agreement</h1>
+        <div className="mb-4 flex flex-wrap items-center gap-3 sm:mb-6">
+          <h1 className="text-base font-bold sm:text-lg">Signed Retainer Agreement</h1>
           <Badge className="bg-green-600 text-white gap-1">
             <CheckCircle2 className="h-3 w-3" /> Signed
           </Badge>
@@ -588,30 +588,30 @@ export function RetainerAgreementClient({ paramsPromise }: { paramsPromise: Prom
   }
 
   return (
-    <div className="w-full px-4 py-6">
+    <div className="min-w-0 w-full overflow-x-hidden px-3 py-4 sm:px-4 sm:py-6">
 
       <WorkspaceBreadcrumb profileId={id} workspaceStep={2} pageLabel="Retainer agreement" />
 
       {/* Page Header */}
-      <div className="mb-6 flex items-center gap-3">
-        <div className="flex items-center gap-2">
-          <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
+      <div className="mb-4 flex flex-wrap items-center gap-3 sm:mb-6">
+        <div className="flex min-w-0 flex-1 items-center gap-2">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10">
             <FileText className="h-4 w-4 text-primary" />
           </div>
-          <div>
-            <h1 className="text-lg font-bold leading-none">Create Retainer Agreement</h1>
-            <p className="text-xs text-muted-foreground mt-0.5">
+          <div className="min-w-0">
+            <h1 className="text-base font-bold leading-none sm:text-lg">Create Retainer Agreement</h1>
+            <p className="mt-0.5 truncate text-xs text-muted-foreground">
               {clientName ? `For: ${clientName}` : "Loading client data\u2026"}
             </p>
           </div>
         </div>
         {alreadySigned && (
-          <Badge className="ml-auto bg-green-600 text-white gap-1">
+          <Badge className="w-full justify-center bg-green-600 text-white gap-1 sm:ml-auto sm:w-auto">
             <CheckCircle2 className="h-3 w-3" /> Agreement Signed
           </Badge>
         )}
         {!alreadySigned && alreadySent && (
-          <Badge variant="outline" className="ml-auto border-amber-400 text-amber-700 gap-1">
+          <Badge variant="outline" className="w-full justify-center border-amber-400 text-amber-700 gap-1 sm:ml-auto sm:w-auto">
             <Clock className="h-3 w-3" /> Previously Sent
           </Badge>
         )}

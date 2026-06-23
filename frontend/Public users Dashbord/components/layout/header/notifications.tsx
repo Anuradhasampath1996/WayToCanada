@@ -138,7 +138,7 @@ const Notifications = () => {
         </Button>
       </DropdownMenuTrigger>
 
-      <DropdownMenuContent align={isMobile ? "center" : "end"} className="ms-4 w-80 p-0">
+      <DropdownMenuContent align={isMobile ? "center" : "end"} className="ms-4 w-[calc(100vw-2rem)] max-w-80 p-0">
         <DropdownMenuLabel className="bg-background dark:bg-muted sticky top-0 z-10 p-0">
           <div className="flex items-center justify-between border-b px-4 py-3">
             <div className="font-medium text-sm">Notifications</div>

@@ -1,0 +1,22 @@
+/* Kanban board — mobile horizontal scroll with snap */
+
+.pipeline-board-scroll {
+  -webkit-overflow-scrolling: touch;
+  scroll-snap-type: x proximity;
+  scroll-padding-inline: 0.75rem;
+}
+
+.pipeline-board-column {
+  scroll-snap-align: start;
+}
+
+@media (max-width: 639px) {
+  .pipeline-board-column {
+    min-height: min(20rem, 52vh);
+  }
+
+  .pipeline-board-stat-label {
+    font-size: 0.5625rem;
+    line-height: 1.2;
+  }
+}

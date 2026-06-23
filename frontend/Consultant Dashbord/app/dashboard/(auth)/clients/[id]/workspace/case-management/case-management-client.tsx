@@ -468,11 +468,11 @@ export function CaseManagementClient({ paramsPromise }: { paramsPromise: Promise
   ];
 
   return (
-    <div className="w-full px-4 py-6 pb-16">
+    <div className="min-w-0 w-full overflow-x-hidden px-3 py-4 sm:px-4 sm:py-6">
       {/* Toast */}
       {toast && (
         <div className={cn(
-          "fixed top-4 right-4 z-50 flex items-center gap-2 rounded-lg border px-4 py-3 text-sm shadow-lg",
+          "fixed top-4 right-3 left-3 z-50 flex items-center gap-2 rounded-lg border px-4 py-3 text-sm shadow-lg sm:left-auto sm:max-w-sm",
           toast.type === "success" ? "bg-white border-green-200 text-green-800" : "bg-white border-red-200 text-red-700"
         )}>
           {toast.type === "success" ? <Check className="h-4 w-4 shrink-0" /> : <AlertCircle className="h-4 w-4 shrink-0" />}
@@ -491,21 +491,21 @@ export function CaseManagementClient({ paramsPromise }: { paramsPromise: Promise
 
       <WorkspaceBreadcrumb profileId={id} workspaceStep={4} pageLabel="Case management" />
 
-      <div className="flex items-start justify-between gap-4 flex-wrap mb-6">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Full Case Management</h1>
-          <p className="text-muted-foreground text-sm mt-0.5">
+      <div className="mb-4 flex flex-col gap-3 sm:mb-6 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <h1 className="text-xl font-bold tracking-tight sm:text-2xl">Full Case Management</h1>
+          <p className="mt-0.5 text-sm text-muted-foreground break-words">
             {client?.user.name} &mdash; {client?.user.email} &middot; {caseFile?.immigration_pathway ?? "No pathway"}
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
           {/* Pipeline status dropdown */}
-          <div className="relative">
+          <div className="relative w-full sm:w-auto">
             <button
               onClick={() => setStatusMenuOpen(o => !o)}
               disabled={updatingStatus}
-              className="flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm font-medium hover:bg-muted/50 transition-colors"
+              className="flex w-full items-center justify-between gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-colors hover:bg-muted/50 sm:w-auto"
             >
               {updatingStatus ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
               Pipeline: <span className="text-primary">{currentStatusLabel}</span>
@@ -545,11 +545,11 @@ export function CaseManagementClient({ paramsPromise }: { paramsPromise: Promise
       )}
 
       {/* Tabs */}
-      <div className="flex border-b mb-6 overflow-x-auto">
+      <div className="mb-4 flex border-b overflow-x-auto sm:mb-6 [-ms-overflow-style:none] [scrollbar-width:thin]">
         <button
           onClick={() => setActiveTab("overview")}
           className={cn(
-            "px-4 py-2 text-sm font-medium border-b-2 transition-colors shrink-0",
+            "shrink-0 px-3 py-2 text-sm font-medium border-b-2 transition-colors sm:px-4",
             activeTab === "overview" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
           )}
         >
@@ -559,7 +559,7 @@ export function CaseManagementClient({ paramsPromise }: { paramsPromise: Promise
         <button
           onClick={() => setActiveTab("documents")}
           className={cn(
-            "px-4 py-2 text-sm font-medium border-b-2 transition-colors",
+            "shrink-0 px-3 py-2 text-sm font-medium border-b-2 transition-colors sm:px-4",
             activeTab === "documents" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
           )}
         >
@@ -574,7 +574,7 @@ export function CaseManagementClient({ paramsPromise }: { paramsPromise: Promise
         <button
           onClick={() => setActiveTab("forms")}
           className={cn(
-            "px-4 py-2 text-sm font-medium border-b-2 transition-colors",
+            "shrink-0 px-3 py-2 text-sm font-medium border-b-2 transition-colors sm:px-4",
             activeTab === "forms" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
           )}
         >
@@ -584,7 +584,7 @@ export function CaseManagementClient({ paramsPromise }: { paramsPromise: Promise
         <button
           onClick={() => setActiveTab("messages")}
           className={cn(
-            "px-4 py-2 text-sm font-medium border-b-2 transition-colors",
+            "shrink-0 px-3 py-2 text-sm font-medium border-b-2 transition-colors sm:px-4",
             activeTab === "messages" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
           )}
         >

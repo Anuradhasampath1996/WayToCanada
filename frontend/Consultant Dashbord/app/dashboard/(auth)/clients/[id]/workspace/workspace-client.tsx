@@ -161,8 +161,8 @@ function ViewSignedAgreementButton({
       </Button>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-4xl w-[95vw] max-h-[92vh] flex flex-col p-0 gap-0">
-          <DialogHeader className="px-6 pt-6 pb-4 border-b shrink-0">
+        <DialogContent className="flex max-h-[92vh] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-4xl sm:w-[95vw]">
+          <DialogHeader className="shrink-0 border-b px-4 py-4 sm:px-6 sm:pt-6">
             <DialogTitle>Signed Retainer Agreement</DialogTitle>
             <DialogDescription>
               {agreement?.client_name ? `${agreement.client_name} — ` : ""}
@@ -170,7 +170,7 @@ function ViewSignedAgreementButton({
             </DialogDescription>
           </DialogHeader>
 
-          <div className="flex-1 overflow-y-auto px-6 py-4 min-h-0">
+          <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6">
             {loading && (
               <div className="flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" /> Loading agreement…
@@ -191,7 +191,7 @@ function ViewSignedAgreementButton({
                 <iframe
                   src={pdfUrl}
                   title="Signed retainer agreement PDF"
-                  className="w-full h-[70vh] rounded-lg border bg-muted/20"
+                  className="h-[min(60vh,520px)] w-full rounded-lg border bg-muted/20 sm:h-[70vh]"
                 />
               </div>
             )}
@@ -207,7 +207,7 @@ function ViewSignedAgreementButton({
             )}
           </div>
 
-          <div className="px-6 py-4 border-t shrink-0 flex justify-end gap-2">
+          <div className="flex shrink-0 flex-col gap-2 border-t px-4 py-4 sm:flex-row sm:justify-end sm:px-6">
             <Button variant="outline" size="sm" asChild>
               <Link href={`/dashboard/clients/${profileId}/workspace/retainer-agreement`}>
                 Agreement Editor
@@ -337,7 +337,11 @@ function WorkflowSection({
               <CardDescription className="mt-1">{subtitle}</CardDescription>
             </div>
           </div>
-          {headerActions ? <div className="flex shrink-0 flex-wrap gap-2">{headerActions}</div> : null}
+          {headerActions ? (
+            <div className="flex w-full flex-col gap-2 sm:flex-row sm:flex-wrap lg:w-auto [&_a]:w-full [&_button]:w-full sm:[&_a]:w-auto sm:[&_button]:w-auto">
+              {headerActions}
+            </div>
+          ) : null}
         </div>
       </CardHeader>
       <CardContent className="pt-6">{children}</CardContent>
@@ -551,11 +555,11 @@ export function WorkspacePageClient({ paramsPromise }: { paramsPromise: Promise<
   const activityEvents = buildClientActivity(qStats, caseFile, verification);
 
   return (
-    <div className="w-full space-y-6 pb-10">
+    <div className="min-w-0 w-full space-y-4 pb-4 sm:space-y-6 sm:pb-6">
       {toast && (
         <div
           className={cn(
-            "fixed top-4 right-4 z-50 flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm shadow-lg backdrop-blur-sm",
+            "fixed top-4 right-3 left-3 z-50 flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm shadow-lg backdrop-blur-sm sm:left-auto sm:max-w-sm",
             toast.type === "success"
               ? "border-emerald-200/80 bg-background text-emerald-800"
               : "border-red-200/80 bg-background text-red-700",
@@ -566,7 +570,7 @@ export function WorkspacePageClient({ paramsPromise }: { paramsPromise: Promise<
         </div>
       )}
 
-      <section className="rounded-2xl border border-border/70 bg-gradient-to-br from-background via-background to-primary/5 p-5 shadow-sm md:p-6">
+      <section className="rounded-2xl border border-border/70 bg-gradient-to-br from-background via-background to-primary/5 p-4 shadow-sm sm:p-5 md:p-6">
         <Button variant="ghost" size="sm" asChild className="-ml-2 mb-4 h-8 px-2 text-muted-foreground">
           <Link href={`/dashboard/clients/${id}`}>
             <ArrowLeft className="mr-1.5 size-4" />
@@ -576,13 +580,13 @@ export function WorkspacePageClient({ paramsPromise }: { paramsPromise: Promise<
 
         <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
           <div className="space-y-2">
-            <h1 className="flex items-center gap-2.5 text-2xl font-bold tracking-tight md:text-3xl">
-              <span className="flex size-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                <Briefcase className="size-5" />
+            <h1 className="flex items-center gap-2.5 text-xl font-bold tracking-tight sm:text-2xl md:text-3xl">
+              <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary sm:size-10">
+                <Briefcase className="size-4 sm:size-5" />
               </span>
               Case workspace
             </h1>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-muted-foreground break-words">
               <span className="font-medium text-foreground">{client.user.name}</span>
               {" · "}
               {client.user.email}
@@ -592,7 +596,7 @@ export function WorkspacePageClient({ paramsPromise }: { paramsPromise: Promise<
             </p>
           </div>
 
-          <div className="flex shrink-0 flex-wrap items-center gap-2">
+          <div className="flex w-full shrink-0 flex-wrap items-center gap-2 xl:w-auto">
             <Badge
               variant="outline"
               className={cn(
@@ -639,8 +643,12 @@ export function WorkspacePageClient({ paramsPromise }: { paramsPromise: Promise<
         </CardContent>
       </Card>
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_280px]">
-        <div className="space-y-6 min-w-0 pr-0 xl:pr-2">
+      <div className="grid min-w-0 gap-4 sm:gap-6 xl:grid-cols-[minmax(0,1fr)_280px]">
+        <aside className="order-1 min-w-0 xl:order-2 xl:sticky xl:top-4 xl:self-start">
+          <ClientActivityTimeline events={activityEvents} />
+        </aside>
+
+        <div className="order-2 min-w-0 space-y-4 sm:space-y-6 xl:order-1 xl:pr-2">
 
       <WorkflowSection
         step={1}
@@ -911,10 +919,6 @@ export function WorkspacePageClient({ paramsPromise }: { paramsPromise: Promise<
       </WorkflowSection>
 
         </div>
-
-        <aside className="xl:sticky xl:top-4 xl:self-start">
-          <ClientActivityTimeline events={activityEvents} />
-        </aside>
       </div>
     </div>
   );

@@ -55,7 +55,7 @@ export function ClientJourneyPageChrome({
 }) {
   const meta = JOURNEY_STEP_PAGES[stepId];
   return (
-    <div className="w-full space-y-6 pb-10">
+    <div className="min-w-0 w-full space-y-4 overflow-x-hidden px-0 pb-10 sm:space-y-6 sm:pb-12">
       <div>
         <Button variant="ghost" size="sm" className="-ml-2 h-8 rounded-lg text-muted-foreground" asChild>
           <Link href="/user-dashboard">
@@ -65,15 +65,15 @@ export function ClientJourneyPageChrome({
         </Button>
       </div>
       <ClientJourneyBreadcrumb stepId={stepId} />
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="space-y-1">
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
+        <div className="min-w-0 space-y-1">
           <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             Step {meta.step} of 4
           </p>
-          <h1 className="text-2xl font-bold tracking-tight">{title ?? meta.title}</h1>
+          <h1 className="text-xl font-bold tracking-tight sm:text-2xl">{title ?? meta.title}</h1>
           {description && <p className="max-w-2xl text-sm text-muted-foreground">{description}</p>}
         </div>
-        {extra}
+        {extra && <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">{extra}</div>}
       </div>
       {children}
     </div>
@@ -100,7 +100,7 @@ export function ClientNextActionCard({ action }: { action: ClientNextAction }) {
           <p className="max-w-2xl text-sm text-muted-foreground">{action.description}</p>
         </div>
         {action.href && action.buttonLabel && (
-          <Button asChild className="shrink-0 rounded-xl">
+          <Button asChild className="w-full shrink-0 rounded-xl sm:w-auto">
             <Link href={action.href}>{action.buttonLabel}</Link>
           </Button>
         )}

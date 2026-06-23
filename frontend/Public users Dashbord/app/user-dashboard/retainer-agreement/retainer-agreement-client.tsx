@@ -156,13 +156,13 @@ function SignaturePad({
           </p>
         )}
       </div>
-      <div className="flex items-center gap-3">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
         <Button
           type="button"
           size="sm"
           disabled={isEmpty || isSaving}
           onClick={() => onSave(canvasRef.current!.toDataURL("image/png"))}
-          className="gap-1.5"
+          className="h-9 w-full gap-1.5 sm:w-auto"
         >
           {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CloudCheck className="h-3.5 w-3.5" />}
           {isSaving ? "Signing…" : "Sign Agreement"}
@@ -338,7 +338,7 @@ export function RetainerAgreementClient() {
       stepId="retainer"
       description={`Review and sign your agreement with ${data.consultant_profile?.company_name ?? data.consultant_name ?? "your consultant"}.`}
       extra={
-        <div className="flex items-center gap-2">
+        <div className="flex w-full flex-wrap items-center gap-2">
           {isSigned ? (
             <Badge className="bg-green-600 text-white gap-1.5">
               <CheckCircle2 className="h-3.5 w-3.5" /> Signed
@@ -348,7 +348,7 @@ export function RetainerAgreementClient() {
               Awaiting Your Signature
             </Badge>
           )}
-          <Button variant="outline" size="sm" onClick={handleDownloadPdf} disabled={downloadingPdf} className="gap-1.5">
+          <Button variant="outline" size="sm" onClick={handleDownloadPdf} disabled={downloadingPdf} className="h-9 w-full gap-1.5 sm:w-auto">
             {downloadingPdf ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
             Download PDF
           </Button>
@@ -358,13 +358,13 @@ export function RetainerAgreementClient() {
       <div className="space-y-5">
       {/* Tabs — only show sign/upload if not yet signed */}
       {!isSigned && (
-        <div className="flex gap-1 rounded-xl border bg-muted/40 p-1 w-fit">
+        <div className="flex w-full max-w-full gap-1 overflow-x-auto rounded-xl border bg-muted/40 p-1">
           {(["view", "sign", "upload"] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
               className={cn(
-                "flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-medium transition-all",
+                "flex shrink-0 items-center gap-1.5 whitespace-nowrap px-3 py-1.5 rounded-lg text-sm font-medium transition-all sm:px-4",
                 activeTab === tab
                   ? "bg-background shadow text-foreground"
                   : "text-muted-foreground hover:text-foreground"

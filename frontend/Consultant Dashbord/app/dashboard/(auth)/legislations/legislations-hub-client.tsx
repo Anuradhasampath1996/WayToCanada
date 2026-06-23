@@ -172,6 +172,64 @@ function fmtDate(iso: string | null) {
   return new Date(iso).toLocaleDateString("en-CA", { month: "short", day: "numeric", year: "numeric" });
 }
 
+function DocumentGroupCards({
+  groups,
+  onOpen,
+  featured = false,
+}: {
+  groups: LegislationDocGroup[];
+  onOpen: (group: LegislationDocGroup) => void;
+  featured?: boolean;
+}) {
+  return (
+    <ul className="divide-y divide-border/60 md:hidden">
+      {groups.map((group) => (
+        <li key={group.key}>
+          <button
+            type="button"
+            onClick={() => onOpen(group)}
+            className={cn(
+              "w-full px-3 py-3 text-left transition-colors active:bg-muted/50 sm:px-4",
+              featured && "bg-primary/5",
+            )}
+          >
+            <div className="flex items-start gap-2">
+              {featured && <Star className="mt-0.5 size-3.5 shrink-0 text-primary" aria-hidden />}
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium leading-snug break-words">{group.title}</p>
+                {group.act_code && PRIORITY_SHORT[group.act_code] && (
+                  <p className="mt-0.5 text-[10px] font-medium text-primary">
+                    {PRIORITY_SHORT[group.act_code]}
+                  </p>
+                )}
+                <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                  {group.act_code ? (
+                    <Badge variant="secondary" className="font-mono text-[10px]">
+                      {group.act_code}
+                    </Badge>
+                  ) : (
+                    <span className="text-[10px] text-muted-foreground">{group.source_slug}</span>
+                  )}
+                  <Badge variant="outline" className="uppercase text-[10px]">
+                    {group.language}
+                  </Badge>
+                  {group.category && (
+                    <span className="text-[10px] capitalize text-muted-foreground">{group.category}</span>
+                  )}
+                </div>
+                <div className="mt-1.5 flex items-center justify-between gap-2 text-[10px] text-muted-foreground">
+                  <span>{group.provisions_count.toLocaleString()} provisions</span>
+                  <span className="shrink-0">{fmtDate(group.last_synced_at)}</span>
+                </div>
+              </div>
+            </div>
+          </button>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 function DocumentGroupRows({
   groups,
   onOpen,
@@ -441,12 +499,12 @@ export function LegislationsHubClient() {
   };
 
   return (
-    <div className="space-y-6 pb-8">
-      <section className="rounded-2xl border border-border/70 bg-gradient-to-br from-background to-primary/5 p-5 shadow-sm">
+    <div className="min-w-0 space-y-4 overflow-x-hidden pb-8 sm:space-y-6">
+      <section className="rounded-2xl border border-border/70 bg-gradient-to-br from-background to-primary/5 p-4 shadow-sm sm:p-5">
         <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-          <div className="space-y-1">
-            <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight">
-              <Scale className="size-7 text-primary" />
+          <div className="min-w-0 space-y-1">
+            <h1 className="flex items-center gap-2 text-xl font-bold tracking-tight sm:text-2xl">
+              <Scale className="size-6 shrink-0 text-primary sm:size-7" />
               Legislations Hub
             </h1>
             <p className="max-w-2xl text-sm text-muted-foreground">
@@ -546,8 +604,8 @@ export function LegislationsHubClient() {
 
       <Card className="border-primary/20 bg-gradient-to-br from-background to-primary/5 shadow-sm">
         <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Sparkles className="size-4 text-primary" />
+          <CardTitle className="flex flex-wrap items-center gap-2 text-base">
+            <Sparkles className="size-4 shrink-0 text-primary" />
             Smart provision search
             {openAiAvailable && (
               <Badge variant="secondary" className="text-[10px] font-normal">AI ranking</Badge>
@@ -572,7 +630,7 @@ export function LegislationsHubClient() {
               type="button"
               onClick={() => void runSmartSearch()}
               disabled={smartLoading || smartQuery.trim().length < 2}
-              className="shrink-0"
+              className="h-10 w-full shrink-0 sm:w-auto"
             >
               {smartLoading ? <Loader2 className="mr-1 size-4 animate-spin" /> : <Search className="mr-1 size-4" />}
               Search provisions
@@ -595,7 +653,7 @@ export function LegislationsHubClient() {
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                     <div className="min-w-0 flex-1 space-y-1">
                       <div className="flex flex-wrap items-center gap-2">
-                        <p className="text-sm font-semibold leading-snug">{row.citation}</p>
+                        <p className="text-sm font-semibold leading-snug break-words">{row.citation}</p>
                         <Badge variant="outline" className="font-mono text-[10px]">{row.act_code}</Badge>
                       </div>
                       {row.marginal_note && (
@@ -608,7 +666,7 @@ export function LegislationsHubClient() {
                         type="button"
                         size="sm"
                         variant="outline"
-                        className="shrink-0"
+                        className="h-9 w-full shrink-0 sm:w-auto"
                         onClick={() => openSearchResult(row)}
                       >
                         Open section
@@ -665,9 +723,9 @@ export function LegislationsHubClient() {
       {!loading && !error && showFeatured && (
         <Card className="border-primary/30 bg-gradient-to-br from-primary/5 to-background shadow-sm overflow-hidden">
           <CardHeader className="border-b border-primary/20 pb-3">
-            <div className="flex items-center justify-between gap-2">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Star className="size-4 text-primary fill-primary/20" />
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Star className="size-4 shrink-0 fill-primary/20 text-primary" />
                 Frequently used — Immigration essentials
               </CardTitle>
               <span className="text-xs text-muted-foreground tabular-nums">
@@ -679,7 +737,8 @@ export function LegislationsHubClient() {
             </CardDescription>
           </CardHeader>
           <CardContent className="p-0">
-            <div className="overflow-x-auto">
+            <DocumentGroupCards groups={featuredGroups} onOpen={handleOpenGroup} featured />
+            <div className="hidden overflow-x-auto md:block">
               <Table>
                 <TableHeader>
                   <TableRow className="hover:bg-transparent">
@@ -703,7 +762,7 @@ export function LegislationsHubClient() {
       {!loading && !error && (pageGroups.length > 0 || (showFeatured && hubMeta.total > 0)) && (
         <Card className="border-border/70 shadow-sm overflow-hidden">
           <CardHeader className="border-b pb-3">
-            <div className="flex items-center justify-between gap-2">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <CardTitle className="text-base">
                 {showFeatured ? "All other legislation" : pathway !== "all" ? activePathway?.label ?? "Pathway documents" : "Documents"}
               </CardTitle>
@@ -715,10 +774,12 @@ export function LegislationsHubClient() {
               </span>
             </div>
           </CardHeader>
-          <CardContent className="p-0 space-y-4">
+          <CardContent className="space-y-4 p-0">
             {pageGroups.length > 0 ? (
-              <div className="overflow-x-auto">
-                <Table>
+              <>
+                <DocumentGroupCards groups={pageGroups} onOpen={handleOpenGroup} />
+                <div className="hidden overflow-x-auto md:block">
+                  <Table>
                   <TableHeader>
                     <TableRow className="hover:bg-transparent">
                       <TableHead className="min-w-[220px]">Document</TableHead>
@@ -733,7 +794,8 @@ export function LegislationsHubClient() {
                     <DocumentGroupRows groups={pageGroups} onOpen={handleOpenGroup} />
                   </TableBody>
                 </Table>
-              </div>
+                </div>
+              </>
             ) : (
               <p className="px-4 py-8 text-center text-sm text-muted-foreground">
                 No other documents on this page — browse featured acts above.
@@ -741,8 +803,8 @@ export function LegislationsHubClient() {
             )}
 
             {hubMeta.last_page > 1 && (
-              <div className="px-4 pb-4">
-                <Pagination>
+              <div className="px-3 pb-4 sm:px-4">
+                <Pagination className="max-w-full overflow-x-auto">
                   <PaginationContent>
                     <PaginationItem>
                       <PaginationPrevious
@@ -795,10 +857,10 @@ export function LegislationsHubClient() {
       )}
 
       <Dialog open={!!pickerGroup} onOpenChange={(open) => !open && setPickerGroup(null)}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] p-4 sm:max-w-md sm:p-6">
           <DialogHeader>
-            <DialogTitle>Choose document format</DialogTitle>
-            <DialogDescription>
+            <DialogTitle className="text-base leading-snug">Choose document format</DialogTitle>
+            <DialogDescription className="break-words">
               {pickerGroup?.title} — select which version to open.
             </DialogDescription>
           </DialogHeader>

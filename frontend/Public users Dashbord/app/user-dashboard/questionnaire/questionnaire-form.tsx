@@ -459,8 +459,34 @@ function ScoreInputs({
 // â”€â”€ Step indicator â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function StepIndicator({ step }: { step: 1 | 2 | 3 }) {
+  const steps = [
+    { n: 1 as const, label: "General Info" },
+    { n: 2 as const, label: "Detailed Profile" },
+    { n: 3 as const, label: "Review & Submit" },
+  ];
+
   return (
-    <div className="flex items-center gap-3 mb-6">
+    <>
+      <div className="mb-4 space-y-2 sm:hidden">
+        {steps.map((s) => (
+          <div
+            key={s.n}
+            className={cn(
+              "flex items-center gap-2 rounded-lg border px-3 py-2 text-sm",
+              step === s.n ? "border-primary bg-primary/5 font-medium" : step > s.n ? "border-green-200 bg-green-50/50" : "border-border text-muted-foreground",
+            )}
+          >
+            <div className={cn(
+              "flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold",
+              step === s.n ? "bg-primary text-primary-foreground" : step > s.n ? "bg-green-500 text-white" : "bg-muted text-muted-foreground",
+            )}>
+              {step > s.n ? <Check className="h-3 w-3" /> : s.n}
+            </div>
+            <span>{s.label}</span>
+          </div>
+        ))}
+      </div>
+      <div className="mb-6 hidden items-center gap-3 overflow-x-auto sm:flex">
       {/* Step 1 */}
       <div className="flex items-center gap-2 shrink-0">
         <div className={cn(
@@ -512,6 +538,7 @@ function StepIndicator({ step }: { step: 1 | 2 | 3 }) {
         </span>
       </div>
     </div>
+    </>
   );
 }
 
@@ -2310,7 +2337,7 @@ function TwoSidedDocumentCard({
           <p className="text-xs text-muted-foreground">{description} Â· Upload both sides</p>
         </div>
       </div>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <DocumentUploadCard
           title="Front Side"
           description=""
@@ -2687,7 +2714,7 @@ function DocumentUploadCard({
               <p className={`text-[10px] font-semibold uppercase tracking-wide ${isPartial ? "text-yellow-700" : "text-blue-600"}`}>
                 {isPartial ? "Partial extraction — please verify" : "Auto-extracted data"}
               </p>
-              <div className="grid grid-cols-2 gap-x-3 gap-y-0.5">
+              <div className="grid grid-cols-1 gap-x-3 gap-y-0.5 sm:grid-cols-2">
                 {fields.map(([label, value]) => (
                   <div key={label} className="flex items-baseline gap-1 min-w-0">
                     <span className="text-[10px] text-muted-foreground shrink-0">{label}:</span>
@@ -2727,22 +2754,21 @@ function DocumentUploadCard({
       {/* Full-document preview modal */}
       {previewOpen && previewUrl && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-3 sm:p-4"
           onClick={() => setPreviewOpen(false)}
         >
           <div
-            className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden flex flex-col"
-            style={{ maxHeight: "90vh" }}
+            className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
-            <div className="flex items-center justify-between px-5 py-3 border-b shrink-0">
-              <p className="text-sm font-semibold truncate max-w-[55%]">{displayName}</p>
+            <div className="flex shrink-0 flex-col gap-2 border-b px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+              <p className="min-w-0 truncate text-sm font-semibold">{displayName}</p>
               <div className="flex items-center gap-2">
                 <Button
                   variant="destructive"
                   size="sm"
-                  className="h-7 text-xs"
+                  className="h-8 flex-1 text-xs sm:flex-none sm:h-7"
                   onClick={handleRemove}
                 >
                   Remove &amp; Re-upload
@@ -3780,30 +3806,30 @@ export function QuestionnaireForm() {
           onEdit2={(tabIdx) => { setStep(2); setActiveTab(tabIdx); }}
         />
       )}
-      <div className="flex items-center justify-between gap-4 pt-2">
+      <div className="flex flex-col gap-3 pt-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
         {step === 1 ? (
           <>
-            <Button variant="outline" asChild>
+            <Button variant="outline" asChild className="h-10 w-full sm:w-auto">
               <Link href="/user-dashboard">
                 <ChevronLeft className="mr-1.5 h-4 w-4" />
                 Back to Dashboard
               </Link>
             </Button>
-            <Button onClick={handleNext1}>
+            <Button onClick={handleNext1} className="h-10 w-full sm:w-auto">
               Next — Detailed Profile
               <ChevronRight className="ml-1.5 h-4 w-4" />
             </Button>
           </>
         ) : step === 2 ? (
           <>
-            <Button variant="outline" onClick={handleTabBack}>
+            <Button variant="outline" onClick={handleTabBack} className="h-10 w-full sm:w-auto">
               <ChevronLeft className="mr-1.5 h-4 w-4" />
               {activeTab === 0 ? "Back to General Info" : "Previous Tab"}
             </Button>
 
             {/* Tab progress dots */}
             {tabs.length > 1 && (
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center justify-center gap-1.5">
                 {tabs.map((_, i) => (
                   <div
                     key={i}
@@ -3817,12 +3843,12 @@ export function QuestionnaireForm() {
             )}
 
             {activeTab < tabs.length - 1 ? (
-              <Button onClick={handleTabNext}>
+              <Button onClick={handleTabNext} className="h-10 w-full sm:w-auto">
                 Next Tab
                 <ChevronRight className="ml-1.5 h-4 w-4" />
               </Button>
             ) : (
-              <Button onClick={handleTabNext}>
+              <Button onClick={handleTabNext} className="h-10 w-full sm:w-auto">
                 Next — Review
                 <ChevronRight className="ml-1.5 h-4 w-4" />
               </Button>
@@ -3830,14 +3856,14 @@ export function QuestionnaireForm() {
           </>
         ) : (
           <>
-            <Button variant="outline" onClick={() => { setStep(2); setActiveTab(tabs.length - 1); }}>
+            <Button variant="outline" onClick={() => { setStep(2); setActiveTab(tabs.length - 1); }} className="h-10 w-full sm:w-auto">
               <ChevronLeft className="mr-1.5 h-4 w-4" />
               Back to Detailed Profile
             </Button>
             <Button
               onClick={handleFinalSubmit}
               disabled={submitting}
-              className="bg-green-600 hover:bg-green-700 text-white"
+              className="h-10 w-full bg-green-600 text-white hover:bg-green-700 sm:w-auto"
             >
                 {submitting ? (
                   <><Loader2 className="mr-1.5 h-4 w-4 animate-spin" />Submitting…</>

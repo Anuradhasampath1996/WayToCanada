@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import FullCalendar from "@fullcalendar/react";
@@ -14,11 +14,13 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 import "./consultant-calendar-panel.css";
 
 const API = (process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000") + "/api/v1";
-const CALENDAR_HEIGHT = 500;
+const CALENDAR_HEIGHT_DESKTOP = 500;
+const CALENDAR_HEIGHT_MOBILE = 360;
 
 type CalendarEvent = {
   id: string;
@@ -81,6 +83,8 @@ export function ConsultantCalendarPanel({
   retainerSignings?: RetainerItem[];
 }) {
   const router = useRouter();
+  const isMobile = useIsMobile();
+  const calendarRef = useRef<FullCalendar>(null);
   const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "America/Toronto";
   const today = useMemo(() => new Date(), []);
 
@@ -88,6 +92,20 @@ export function ConsultantCalendarPanel({
   const [googleConnected, setGoogleConnected] = useState(false);
   const [loading, setLoading] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date>(today);
+  const [calendarView, setCalendarView] = useState<"dayGridMonth" | "timeGridWeek">("dayGridMonth");
+
+  const headerToolbar = useMemo(
+    () =>
+      isMobile
+        ? { left: "prev,next", center: "title", right: "today" }
+        : { left: "prev,next today", center: "title", right: "dayGridMonth,timeGridWeek" },
+    [isMobile],
+  );
+
+  const switchView = (view: "dayGridMonth" | "timeGridWeek") => {
+    setCalendarView(view);
+    calendarRef.current?.getApi().changeView(view);
+  };
 
   const loadEvents = useCallback(async (from: Date, to: Date) => {
     setLoading(true);
@@ -168,6 +186,10 @@ export function ConsultantCalendarPanel({
   }, [events]);
 
   function handleDatesSet(arg: DatesSetArg) {
+    const viewType = arg.view.type;
+    if (viewType === "dayGridMonth" || viewType === "timeGridWeek") {
+      setCalendarView(viewType);
+    }
     void loadEvents(arg.start, arg.end);
   }
 
@@ -191,20 +213,20 @@ export function ConsultantCalendarPanel({
   return (
     <section className="overflow-hidden rounded-2xl border border-primary/15 bg-gradient-to-br from-background via-background to-primary/[0.04] shadow-md">
       {/* Header */}
-      <div className="flex flex-col gap-4 border-b border-border/60 bg-card/50 px-5 py-5 md:flex-row md:items-center md:justify-between">
-        <div className="flex items-start gap-3">
-          <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-sm">
+      <div className="flex flex-col gap-3 border-b border-border/60 bg-card/50 px-4 py-4 sm:px-5 sm:py-5 md:flex-row md:items-center md:justify-between">
+        <div className="flex min-w-0 items-start gap-3">
+          <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-sm sm:size-11">
             <CalendarDays className="size-5" />
           </div>
-          <div>
-            <h2 className="text-xl font-bold tracking-tight">Your schedule</h2>
-            <p className="mt-0.5 text-sm text-muted-foreground">
+          <div className="min-w-0">
+            <h2 className="text-lg font-bold tracking-tight sm:text-xl">Your schedule</h2>
+            <p className="mt-0.5 text-xs text-muted-foreground sm:text-sm">
               Google Calendar, client meetings, and retainer milestones — synced in one place.
             </p>
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
           <Badge variant="secondary" className="rounded-lg px-2.5 py-1 font-normal">
             {todayEvents.length} today
           </Badge>
@@ -224,7 +246,7 @@ export function ConsultantCalendarPanel({
       </div>
 
       {/* Legend */}
-      <div className="flex flex-wrap gap-2 border-b border-border/50 bg-muted/20 px-5 py-2.5">
+      <div className="flex flex-wrap gap-1.5 border-b border-border/50 bg-muted/20 px-4 py-2 sm:gap-2 sm:px-5 sm:py-2.5">
         <Badge variant="outline" className="gap-1.5 rounded-md border-primary/20 bg-background/80 font-normal">
           <span className="size-2 rounded-full bg-primary" />
           Client meetings
@@ -241,23 +263,48 @@ export function ConsultantCalendarPanel({
 
       {/* Body */}
       <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_300px]">
-        <div className="relative border-b p-4 lg:border-b-0 lg:border-r">
+        <div className="relative border-b p-3 sm:p-4 lg:border-b-0 lg:border-r">
           {loading && (
-            <div className="absolute right-6 top-6 z-10 inline-flex items-center gap-1.5 rounded-full border bg-background/95 px-3 py-1 text-xs text-muted-foreground shadow-sm">
+            <div className="absolute right-3 top-3 z-10 inline-flex items-center gap-1.5 rounded-full border bg-background/95 px-2.5 py-1 text-xs text-muted-foreground shadow-sm sm:right-6 sm:top-6 sm:px-3">
               <Loader2 className="size-3.5 animate-spin" />
               Syncing…
             </div>
           )}
-          <div className="consultant-dashboard-calendar overflow-hidden rounded-xl border bg-card p-3 shadow-sm">
+          <div className="consultant-dashboard-calendar overflow-hidden rounded-xl border bg-card p-2 shadow-sm sm:p-3">
+            {isMobile && (
+              <div className="mb-2 flex gap-1.5">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={calendarView === "dayGridMonth" ? "default" : "outline"}
+                  className="h-8 flex-1 rounded-lg text-xs"
+                  onClick={() => switchView("dayGridMonth")}
+                >
+                  Month
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={calendarView === "timeGridWeek" ? "default" : "outline"}
+                  className="h-8 flex-1 rounded-lg text-xs"
+                  onClick={() => switchView("timeGridWeek")}
+                >
+                  Week
+                </Button>
+              </div>
+            )}
             <FullCalendar
+              ref={calendarRef}
               plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
               initialView="dayGridMonth"
-              headerToolbar={{
-                left: "prev,next today",
-                center: "title",
-                right: "dayGridMonth,timeGridWeek",
-              }}
-              height={CALENDAR_HEIGHT}
+              headerToolbar={headerToolbar}
+              titleFormat={
+                isMobile
+                  ? { month: "short", year: "numeric" }
+                  : { month: "long", year: "numeric" }
+              }
+              dayHeaderFormat={isMobile ? { weekday: "narrow" } : { weekday: "short" }}
+              height={isMobile ? CALENDAR_HEIGHT_MOBILE : CALENDAR_HEIGHT_DESKTOP}
               events={calendarEvents}
               datesSet={handleDatesSet}
               dateClick={(info) => setSelectedDate(startOfLocalDay(info.date))}
@@ -266,7 +313,7 @@ export function ConsultantCalendarPanel({
                 isSameLocalDay(arg.date, selectedDate) ? ["fc-day-selected"] : []
               }
               nowIndicator
-              dayMaxEvents={3}
+              dayMaxEvents={isMobile ? 2 : 3}
               moreLinkClick="popover"
             />
           </div>

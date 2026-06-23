@@ -79,11 +79,11 @@ export function MarketingClient() {
   }, [load]);
 
   return (
-    <div className="space-y-6 pb-10">
-      <section className="rounded-2xl border border-border/70 bg-gradient-to-br from-background via-background to-violet-500/5 p-5 shadow-sm">
-        <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight">
-          <span className="flex size-10 items-center justify-center rounded-xl bg-violet-500/10 text-violet-700">
-            <Megaphone className="size-5" />
+    <div className="min-w-0 space-y-4 overflow-x-hidden pb-8 sm:space-y-6 sm:pb-10">
+      <section className="rounded-2xl border border-border/70 bg-gradient-to-br from-background via-background to-violet-500/5 p-4 shadow-sm sm:p-5">
+        <h1 className="flex items-center gap-2 text-xl font-bold tracking-tight sm:text-2xl">
+          <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-violet-500/10 text-violet-700 sm:size-10">
+            <Megaphone className="size-4 sm:size-5" />
           </span>
           Marketing Services
         </h1>
@@ -98,45 +98,45 @@ export function MarketingClient() {
           <Loader2 className="mr-2 size-5 animate-spin" /> Loading services…
         </div>
       ) : error ? (
-        <p className="text-sm text-destructive">{error}</p>
+        <p className="px-1 text-sm text-destructive break-words">{error}</p>
       ) : (
-        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+        <div className="grid gap-4 sm:gap-5 md:grid-cols-2 xl:grid-cols-3">
           {services.map((svc) => {
             const Icon = ICONS[svc.slug] ?? Megaphone;
             const owned = purchased.has(svc.slug);
             return (
               <Card key={svc.id} className={cn("flex flex-col border-border/70", owned && "ring-1 ring-emerald-500/30")}>
-                <CardHeader>
+                <CardHeader className="p-4 sm:p-6">
                   <div className="flex items-start justify-between gap-2">
-                    <span className="flex size-11 items-center justify-center rounded-xl bg-violet-500/10 text-violet-700">
+                    <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-violet-500/10 text-violet-700 sm:size-11">
                       <Icon className="size-5" />
                     </span>
                     {owned && (
-                      <Badge className="gap-1 bg-emerald-600">
+                      <Badge className="shrink-0 gap-1 bg-emerald-600">
                         <CheckCircle2 className="size-3" /> Active
                       </Badge>
                     )}
                   </div>
-                  <CardTitle className="text-lg">{svc.name}</CardTitle>
-                  <CardDescription>{svc.tagline ?? svc.summary}</CardDescription>
+                  <CardTitle className="text-lg leading-tight">{svc.name}</CardTitle>
+                  <CardDescription className="break-words">{svc.tagline ?? svc.summary}</CardDescription>
                 </CardHeader>
-                <CardContent className="flex flex-1 flex-col gap-4">
+                <CardContent className="flex flex-1 flex-col gap-4 p-4 pt-0 sm:p-6 sm:pt-0">
                   <p className="line-clamp-3 text-sm text-muted-foreground">{svc.summary}</p>
                   {svc.features?.length > 0 && (
                     <ul className="space-y-1.5 text-xs text-muted-foreground">
                       {svc.features.slice(0, 3).map((f) => (
                         <li key={f} className="flex gap-2">
                           <CheckCircle2 className="mt-0.5 size-3 shrink-0 text-emerald-600" />
-                          <span>{f}</span>
+                          <span className="break-words">{f}</span>
                         </li>
                       ))}
                     </ul>
                   )}
                   <div className="mt-auto space-y-3 border-t border-border/50 pt-4">
-                    <p className="text-xl font-bold text-foreground">
+                    <p className="text-lg font-bold text-foreground sm:text-xl">
                       {fmtPrice(svc.price, svc.price_label)}
                     </p>
-                    <Button asChild className="w-full gap-1.5">
+                    <Button asChild className="h-10 w-full gap-1.5">
                       <Link href={`/dashboard/marketing/${svc.slug}`}>
                         Read more <ArrowRight className="size-4" />
                       </Link>

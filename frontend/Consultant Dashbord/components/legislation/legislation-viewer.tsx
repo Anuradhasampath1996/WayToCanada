@@ -13,6 +13,9 @@ import { Loader2, BookOpen, Sparkles, FileText, Star, MessageCircle } from "luci
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { useIsMobile } from "@/hooks/use-mobile";
+
+import "./legislation-viewer.css";
 
 const API = (process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000") + "/api/v1";
 
@@ -70,6 +73,7 @@ export function LegislationViewer({
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const isMobile = useIsMobile();
   const containerRef = React.useRef<HTMLDivElement>(null);
   const resolveCacheRef = React.useRef<Map<string, ResolvedProvision>>(new Map());
 
@@ -277,24 +281,37 @@ export function LegislationViewer({
 
   return (
     <>
-      <div ref={containerRef} className="legislation-viewer relative" dangerouslySetInnerHTML={{ __html: html }} />
+      <div
+        ref={containerRef}
+        className="legislation-viewer relative min-w-0 max-w-full overflow-x-auto"
+        dangerouslySetInnerHTML={{ __html: html }}
+      />
 
       {selectionPos && (
         <Button
           type="button"
           size="sm"
-          className="fixed z-50 h-8 gap-1.5 shadow-lg"
-          style={{ top: selectionPos.top, left: selectionPos.left }}
+          className={cn(
+            "fixed z-50 h-9 gap-1.5 px-3 shadow-lg",
+            isMobile
+              ? "bottom-[max(1rem,env(safe-area-inset-bottom))] left-1/2 w-[min(100%,calc(100vw-1.5rem))] -translate-x-1/2"
+              : "max-w-xs",
+          )}
+          style={
+            isMobile
+              ? undefined
+              : { top: selectionPos.top, left: selectionPos.left }
+          }
           onClick={() => void runExplainSelection()}
         >
-          <MessageCircle className="h-3.5 w-3.5" />
+          <MessageCircle className="h-3.5 w-3.5 shrink-0" />
           Ask Maple
         </Button>
       )}
 
       {loading && (
-        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2 rounded-lg border bg-background px-4 py-2 shadow-lg text-sm">
-          <Loader2 className="h-4 w-4 animate-spin" />
+        <div className="fixed bottom-4 left-3 right-3 z-50 flex items-center justify-center gap-2 rounded-lg border bg-background px-4 py-2 text-sm shadow-lg sm:left-auto sm:right-6 sm:justify-start">
+          <Loader2 className="h-4 w-4 animate-spin shrink-0" />
           Loading reference…
         </div>
       )}
@@ -309,47 +326,48 @@ export function LegislationViewer({
           }
         }}
       >
-        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogContent className="flex max-h-[min(88vh,900px)] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] flex-col gap-3 overflow-hidden p-4 sm:max-w-2xl sm:p-6">
           {popup && (
             <>
-              <DialogHeader>
-                <DialogTitle className="text-base pr-6 leading-snug">{popup.citation}</DialogTitle>
+              <DialogHeader className="shrink-0 space-y-1 pr-8">
+                <DialogTitle className="text-sm leading-snug break-words sm:text-base">{popup.citation}</DialogTitle>
                 <DialogDescription asChild>
-                  <p className="text-xs pt-1">From: {popup.document.title}</p>
+                  <p className="pt-1 text-xs break-words">From: {popup.document.title}</p>
                 </DialogDescription>
               </DialogHeader>
 
+              <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain">
               {(hasMapleSummary || summaryAvailable) && (
                 <div className="flex gap-1 rounded-lg border bg-muted/40 p-1">
                   <button
                     type="button"
                     className={cn(
-                      "flex flex-1 items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium transition-colors",
+                      "flex flex-1 items-center justify-center gap-1.5 rounded-md px-2 py-2 text-xs font-medium transition-colors",
                       popupTab === "legal" ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground",
                     )}
                     onClick={() => setPopupTab("legal")}
                   >
-                    <FileText className="h-3.5 w-3.5" />
+                    <FileText className="h-3.5 w-3.5 shrink-0" />
                     Legal text
                   </button>
                   <button
                     type="button"
                     className={cn(
-                      "flex flex-1 items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium transition-colors",
+                      "flex flex-1 items-center justify-center gap-1.5 rounded-md px-2 py-2 text-xs font-medium transition-colors",
                       popupTab === "maple" ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground",
                       !hasMapleSummary && "opacity-60",
                     )}
                     onClick={() => setPopupTab("maple")}
                     disabled={!hasMapleSummary}
                   >
-                    <Sparkles className="h-3.5 w-3.5 text-primary" />
+                    <Sparkles className="h-3.5 w-3.5 shrink-0 text-primary" />
                     Maple explains
                   </button>
                 </div>
               )}
 
               {popupTab === "maple" && hasMapleSummary ? (
-                <div className="leg-maple-summary space-y-3 rounded-lg border border-primary/20 bg-primary/5 p-4 text-sm leading-relaxed">
+                <div className="leg-maple-summary space-y-3 rounded-lg border border-primary/20 bg-primary/5 p-3 text-sm leading-relaxed sm:p-4">
                   <p>{popup.maple_summary!.summary}</p>
                   {popup.maple_summary!.key_points.length > 0 && (
                     <ul className="list-disc space-y-1 pl-5 text-[13px] text-muted-foreground">
@@ -364,27 +382,35 @@ export function LegislationViewer({
                 </div>
               ) : (
                 <div
-                  className="leg-popup-content"
+                  className="leg-popup-content max-w-full overflow-x-auto"
                   dangerouslySetInnerHTML={{
                     __html: popup.popup_html || popup.html_fragment || popup.text_content,
                   }}
                 />
               )}
+              </div>
 
               {popup.document?.id ? (
-                <div className="flex justify-between pt-2">
+                <div className="flex shrink-0 flex-col-reverse gap-2 border-t pt-3 sm:flex-row sm:items-center sm:justify-between">
                   <Button
                     type="button"
                     variant="ghost"
                     size="sm"
+                    className="h-9 w-full justify-center sm:w-auto"
                     onClick={() => void saveBookmark()}
                     disabled={bookmarkSaved}
                   >
-                    <Star className={cn("h-3 w-3 mr-1", bookmarkSaved && "fill-amber-400 text-amber-500")} />
+                    <Star className={cn("mr-1 h-3 w-3", bookmarkSaved && "fill-amber-400 text-amber-500")} />
                     {bookmarkSaved ? "Saved" : "Save section"}
                   </Button>
-                  <Button type="button" variant="outline" size="sm" onClick={openFullDocument}>
-                    <BookOpen className="h-3 w-3 mr-1" />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-9 w-full justify-center sm:w-auto"
+                    onClick={openFullDocument}
+                  >
+                    <BookOpen className="mr-1 h-3 w-3" />
                     Open full document
                   </Button>
                 </div>
@@ -404,36 +430,23 @@ export function LegislationViewer({
       </Dialog>
 
       <Dialog open={explainOpen} onOpenChange={setExplainOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] p-4 sm:max-w-lg sm:p-6">
           <DialogHeader>
-            <DialogTitle className="text-base flex items-center gap-2">
-              <Sparkles className="h-4 w-4 text-primary" />
+            <DialogTitle className="flex items-start gap-2 text-sm leading-snug sm:text-base">
+              <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
               Maple explains your selection
             </DialogTitle>
           </DialogHeader>
           {explainLoading ? (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
-              <Loader2 className="h-4 w-4 animate-spin" />
+            <div className="flex items-center gap-2 py-4 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin shrink-0" />
               Analyzing selected text…
             </div>
           ) : (
-            <p className="text-sm leading-relaxed whitespace-pre-line">{explainText}</p>
+            <p className="text-sm leading-relaxed whitespace-pre-line break-words">{explainText}</p>
           )}
         </DialogContent>
       </Dialog>
-
-      <style jsx global>{`
-        .legislation-viewer { font-size: 0.9375rem; line-height: 1.65; }
-        .legislation-viewer .leg-section { margin: 1.25rem 0; padding: 1rem; border: 1px solid var(--border); border-radius: 0.5rem; }
-        .legislation-viewer .leg-section-num { font-weight: 700; color: var(--primary); }
-        .legislation-viewer .leg-marginal { font-size: 0.75rem; font-style: italic; color: var(--muted-foreground); }
-        .legislation-viewer .leg-ref { color: var(--primary); font-weight: 600; text-decoration: underline; cursor: pointer; }
-        .leg-popup-content { border-radius: 0.5rem; border: 1px solid var(--border); background: color-mix(in oklab, var(--muted) 30%, transparent); padding: 1rem 1.25rem; font-size: 0.875rem; line-height: 1.7; }
-        .leg-popup-content .leg-popup-section { font-size: 1rem; font-weight: 700; color: var(--primary); padding-bottom: 0.35rem; border-bottom: 1px solid var(--border); margin-bottom: 0.5rem; }
-        .leg-popup-content .leg-popup-marginal { font-size: 0.75rem; font-style: italic; color: var(--muted-foreground); margin-bottom: 0.5rem; }
-        .leg-popup-content .leg-popup-body-text { text-align: justify; }
-        .leg-highlight-scroll { outline: 2px solid color-mix(in oklab, var(--primary) 55%, transparent); outline-offset: 4px; border-radius: 0.5rem; transition: outline-color 0.3s ease; }
-      `}</style>
     </>
   );
 }

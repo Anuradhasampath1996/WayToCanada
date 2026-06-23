@@ -241,7 +241,7 @@ export function MarketingServiceClient({ slug }: { slug: string }) {
 
   if (loading) {
     return (
-      <div className="flex justify-center py-20 text-muted-foreground">
+      <div className="flex justify-center px-3 py-16 text-muted-foreground sm:py-20">
         <Loader2 className="mr-2 size-5 animate-spin" /> Loading…
       </div>
     );
@@ -249,9 +249,11 @@ export function MarketingServiceClient({ slug }: { slug: string }) {
 
   if (error || !service) {
     return (
-      <div className="space-y-4 p-6">
-        <p className="text-destructive">{error || "Service not found."}</p>
-        <Button asChild variant="outline"><Link href="/dashboard/marketing">Back to Marketing</Link></Button>
+      <div className="min-w-0 space-y-4 overflow-x-hidden px-3 py-4 sm:px-6 sm:py-6">
+        <p className="text-sm text-destructive break-words">{error || "Service not found."}</p>
+        <Button asChild variant="outline" className="h-10 w-full sm:w-auto">
+          <Link href="/dashboard/marketing">Back to Marketing</Link>
+        </Button>
       </div>
     );
   }
@@ -259,43 +261,45 @@ export function MarketingServiceClient({ slug }: { slug: string }) {
   const Icon = ICONS[service.slug] ?? Megaphone;
 
   return (
-    <div className="space-y-6 pb-10">
+    <div className="min-w-0 space-y-4 overflow-x-hidden pb-8 sm:space-y-6 sm:pb-10">
       {toast && (
-        <div className="fixed top-4 right-4 z-50 rounded-xl border bg-background px-4 py-2 text-sm shadow-lg">{toast}</div>
+        <div className="fixed top-4 right-3 left-3 z-50 rounded-xl border bg-background px-4 py-2 text-sm shadow-lg sm:left-auto sm:max-w-sm">
+          {toast}
+        </div>
       )}
 
-      <Button asChild variant="ghost" size="sm" className="w-fit">
+      <Button asChild variant="ghost" size="sm" className="h-9 w-full justify-start sm:w-fit">
         <Link href="/dashboard/marketing"><ChevronLeft className="mr-1 size-4" /> Back to Marketing</Link>
       </Button>
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        <div className="space-y-6 lg:col-span-2">
-          <div className="rounded-2xl border border-border/70 bg-gradient-to-br from-background to-violet-500/5 p-6">
-            <div className="flex flex-wrap items-start gap-4">
-              <span className="flex size-14 items-center justify-center rounded-2xl bg-violet-500/10 text-violet-700">
-                <Icon className="size-7" />
+      <div className="grid gap-4 sm:gap-6 lg:grid-cols-3">
+        <div className="space-y-4 sm:space-y-6 lg:col-span-2">
+          <div className="rounded-2xl border border-border/70 bg-gradient-to-br from-background to-violet-500/5 p-4 sm:p-6">
+            <div className="flex flex-wrap items-start gap-3 sm:gap-4">
+              <span className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-violet-500/10 text-violet-700 sm:size-14">
+                <Icon className="size-6 sm:size-7" />
               </span>
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <h1 className="text-2xl font-bold">{service.name}</h1>
+                  <h1 className="text-xl font-bold leading-tight sm:text-2xl">{service.name}</h1>
                   {owned && <Badge className="gap-1 bg-emerald-600"><CheckCircle2 className="size-3" /> Purchased</Badge>}
                 </div>
-                {service.tagline && <p className="mt-1 text-muted-foreground">{service.tagline}</p>}
+                {service.tagline && <p className="mt-1 text-sm text-muted-foreground break-words">{service.tagline}</p>}
               </div>
             </div>
           </div>
 
           {service.features?.length > 0 && (
             <Card>
-              <CardHeader>
+              <CardHeader className="p-4 sm:p-6">
                 <CardTitle className="text-base">What&apos;s included</CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="p-4 pt-0 sm:p-6 sm:pt-0">
                 <ul className="grid gap-2 sm:grid-cols-2">
                   {service.features.map((f) => (
                     <li key={f} className="flex gap-2 text-sm">
                       <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-emerald-600" />
-                      <span>{f}</span>
+                      <span className="break-words">{f}</span>
                     </li>
                   ))}
                 </ul>
@@ -304,12 +308,12 @@ export function MarketingServiceClient({ slug }: { slug: string }) {
           )}
 
           <Card>
-            <CardHeader>
+            <CardHeader className="p-4 sm:p-6">
               <CardTitle className="text-base">Full details</CardTitle>
-              <CardDescription>{service.summary}</CardDescription>
+              <CardDescription className="break-words">{service.summary}</CardDescription>
             </CardHeader>
-            <CardContent>
-              <div className="whitespace-pre-line text-sm leading-relaxed text-muted-foreground">
+            <CardContent className="p-4 pt-0 sm:p-6 sm:pt-0">
+              <div className="whitespace-pre-line text-sm leading-relaxed text-muted-foreground break-words">
                 {service.detail_body ?? service.summary}
               </div>
             </CardContent>
@@ -317,17 +321,17 @@ export function MarketingServiceClient({ slug }: { slug: string }) {
         </div>
 
         <div className="lg:col-span-1">
-          <Card className="sticky top-4 border-violet-500/20 shadow-md">
-            <CardHeader>
+          <Card className="border-violet-500/20 shadow-md lg:sticky lg:top-4">
+            <CardHeader className="p-4 sm:p-6">
               <CardTitle className="text-lg">Get started</CardTitle>
-              <CardDescription>
+              <CardDescription className="break-words">
                 {owned
                   ? "You have already purchased this service. Our team will contact you."
                   : "Same secure checkout as your RCICMASTER subscription — billing address and tax calculated before Stripe."}
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <p className="text-3xl font-bold">{fmtPrice(service.price, service.price_label)}</p>
+            <CardContent className="space-y-4 p-4 pt-0 sm:p-6 sm:pt-0">
+              <p className="text-2xl font-bold sm:text-3xl">{fmtPrice(service.price, service.price_label)}</p>
 
               {!owned && (
                 <>
@@ -337,7 +341,7 @@ export function MarketingServiceClient({ slug }: { slug: string }) {
                     <div className="space-y-1.5">
                       <Label htmlFor="country">Country</Label>
                       <Select value={billingCountry} onValueChange={setBillingCountry}>
-                        <SelectTrigger id="country" className="w-full">
+                        <SelectTrigger id="country" className="h-10 w-full">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -356,28 +360,30 @@ export function MarketingServiceClient({ slug }: { slug: string }) {
                     </div>
 
                     <Input
+                      className="h-10"
                       placeholder="Street address"
                       value={addressLine1}
                       onChange={(e) => setAddressLine1(e.target.value)}
                     />
                     <Input
+                      className="h-10"
                       placeholder="Apartment, suite (optional)"
                       value={addressLine2}
                       onChange={(e) => setAddressLine2(e.target.value)}
                     />
-                    <div className="grid grid-cols-2 gap-2">
-                      <Input placeholder="City" value={city} onChange={(e) => setCity(e.target.value)} />
-                      <Input placeholder="Postal / ZIP" value={postalCode} onChange={(e) => setPostalCode(e.target.value)} />
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                      <Input className="h-10" placeholder="City" value={city} onChange={(e) => setCity(e.target.value)} />
+                      <Input className="h-10" placeholder="Postal / ZIP" value={postalCode} onChange={(e) => setPostalCode(e.target.value)} />
                     </div>
 
                     {isCanada && (
                       <div className="space-y-1.5">
                         <Label htmlFor="province" className="flex items-center gap-1.5">
-                          <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
+                          <MapPin className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                           Province (place of supply)
                         </Label>
                         <Select value={province} onValueChange={setProvince} disabled={provinces.length === 0}>
-                          <SelectTrigger id="province" className="w-full">
+                          <SelectTrigger id="province" className="h-10 w-full">
                             <SelectValue placeholder="Select province" />
                           </SelectTrigger>
                           <SelectContent>
@@ -397,29 +403,29 @@ export function MarketingServiceClient({ slug }: { slug: string }) {
                       <Loader2 className="size-3 animate-spin" /> Calculating tax…
                     </p>
                   ) : tax ? (
-                    <div className="rounded-lg bg-muted/40 p-3 text-sm space-y-1">
-                      <div className="flex justify-between">
+                    <div className="space-y-1 rounded-lg bg-muted/40 p-3 text-sm">
+                      <div className="flex justify-between gap-3">
                         <span>Subtotal</span>
-                        <span>{fmtPrice(tax.subtotal)}</span>
+                        <span className="shrink-0 tabular-nums">{fmtPrice(tax.subtotal)}</span>
                       </div>
-                      <div className="flex justify-between text-muted-foreground">
-                        <span>
+                      <div className="flex justify-between gap-3 text-muted-foreground">
+                        <span className="min-w-0 break-words">
                           Tax{tax.tax_label ? ` (${tax.tax_label})` : ""}
                         </span>
-                        <span>{tax.tax_applicable === false ? "—" : fmtPrice(tax.total_tax)}</span>
+                        <span className="shrink-0 tabular-nums">{tax.tax_applicable === false ? "—" : fmtPrice(tax.total_tax)}</span>
                       </div>
                       {tax.disclaimer && (
-                        <p className="text-[11px] text-muted-foreground pt-1">{tax.disclaimer}</p>
+                        <p className="pt-1 text-[11px] text-muted-foreground break-words">{tax.disclaimer}</p>
                       )}
-                      <div className="flex justify-between font-semibold border-t pt-1">
+                      <div className="flex justify-between gap-3 border-t pt-1 font-semibold">
                         <span>Total</span>
-                        <span>{fmtPrice(tax.total)}</span>
+                        <span className="shrink-0 tabular-nums">{fmtPrice(tax.total)}</span>
                       </div>
                     </div>
                   ) : null}
 
                   <Button
-                    className="w-full gap-2"
+                    className="h-11 w-full gap-2"
                     size="lg"
                     disabled={!canCheckout}
                     onClick={() => void startCheckout()}
@@ -428,15 +434,15 @@ export function MarketingServiceClient({ slug }: { slug: string }) {
                     {checkingOut ? "Redirecting to Stripe…" : "Continue to Stripe"}
                   </Button>
 
-                  <p className="text-center text-[11px] text-muted-foreground flex items-center justify-center gap-1">
-                    <Lock className="h-3 w-3" />
+                  <p className="flex items-center justify-center gap-1 text-center text-[11px] text-muted-foreground">
+                    <Lock className="h-3 w-3 shrink-0" />
                     Payments secured by Stripe
                   </p>
                 </>
               )}
 
               {owned && (
-                <div className={cn("rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900")}>
+                <div className={cn("rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900 break-words")}>
                   Thank you! Our marketing team will reach out within 2 business days.
                 </div>
               )}

@@ -219,16 +219,16 @@ function Section({
 }) {
   return (
     <section className="rounded-xl border border-border/80 bg-card">
-      <div className="flex flex-col gap-3 border-b border-border/60 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-        <div>
+      <div className="flex flex-col gap-3 border-b border-border/60 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+        <div className="min-w-0">
           <h2 className="text-[15px] font-semibold tracking-tight text-foreground">{title}</h2>
           {description && (
-            <p className="mt-0.5 text-sm text-muted-foreground">{description}</p>
+            <p className="mt-0.5 text-sm leading-relaxed text-muted-foreground break-words">{description}</p>
           )}
         </div>
-        {action}
+        {action && <div className="w-full shrink-0 sm:w-auto">{action}</div>}
       </div>
-      <div className="px-5 py-5 sm:px-6">{children}</div>
+      <div className="px-4 py-4 sm:px-6 sm:py-5">{children}</div>
     </section>
   );
 }
@@ -536,12 +536,12 @@ export function BillingClient() {
   }
 
   return (
-    <div className="w-full space-y-6 pb-12">
+    <div className="min-w-0 w-full space-y-4 overflow-x-hidden px-3 pb-10 sm:space-y-6 sm:px-0 sm:pb-12">
       {/* Page header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Billing</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
+        <div className="min-w-0">
+          <h1 className="text-xl font-semibold tracking-tight text-foreground sm:text-2xl">Billing</h1>
+          <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
             Your RCICMASTER subscription and marketing service payments in one place — clearly separated so nothing is missed.
           </p>
         </div>
@@ -554,7 +554,7 @@ export function BillingClient() {
       </div>
 
       {loadError && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+        <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-3 text-sm text-red-800 break-words sm:px-4">
           {loadError}
         </div>
       )}
@@ -562,7 +562,7 @@ export function BillingClient() {
       {message && (
         <div
           className={cn(
-            "rounded-lg border px-4 py-3 text-sm",
+            "rounded-lg border px-3 py-3 text-sm break-words sm:px-4",
             message.includes("Could not") || message.includes("failed")
               ? "border-red-200 bg-red-50 text-red-800"
               : "border-emerald-200 bg-emerald-50 text-emerald-800",
@@ -574,14 +574,14 @@ export function BillingClient() {
 
       {/* Summary strip — only when there is billing activity */}
       {(sub || invoices.length > 0 || marketingOrders.length > 0) && (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="rounded-xl border border-border/80 bg-card px-4 py-3.5">
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <div className="rounded-xl border border-border/80 bg-card px-3 py-3 sm:px-4 sm:py-3.5">
             <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Plan status</p>
             <p className="mt-1 text-lg font-semibold tracking-tight">
               {sub ? (sub.is_trial ? "Free trial" : sub.package_name ?? "Subscription") : "No plan"}
             </p>
           </div>
-          <div className="rounded-xl border border-border/80 bg-card px-4 py-3.5">
+          <div className="rounded-xl border border-border/80 bg-card px-3 py-3 sm:px-4 sm:py-3.5">
             <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Payments recorded</p>
             <p className="mt-1 text-lg font-semibold tracking-tight">{billingStats.count}</p>
             {(billingStats.subscriptionCount > 0 || billingStats.marketingCount > 0) && (
@@ -591,7 +591,7 @@ export function BillingClient() {
               </p>
             )}
           </div>
-          <div className="rounded-xl border border-border/80 bg-card px-4 py-3.5">
+          <div className="rounded-xl border border-border/80 bg-card px-3 py-3 sm:px-4 sm:py-3.5">
             <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Total paid</p>
             <p className="mt-1 text-lg font-semibold tracking-tight">
               {fmtMoney(billingStats.totalPaid, sub?.currency ?? "CAD")}
@@ -602,7 +602,7 @@ export function BillingClient() {
               </p>
             )}
           </div>
-          <div className="rounded-xl border border-border/80 bg-card px-4 py-3.5">
+          <div className="rounded-xl border border-border/80 bg-card px-3 py-3 sm:px-4 sm:py-3.5">
             <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Marketing services</p>
             <p className="mt-1 text-lg font-semibold tracking-tight">{marketingOrders.length}</p>
             <p className="mt-0.5 text-xs text-muted-foreground">Active paid orders</p>
@@ -616,7 +616,7 @@ export function BillingClient() {
         description="Your plan, renewal date, and billing cycle."
         action={
           !sub ? (
-            <Button asChild size="sm" className="h-8">
+            <Button asChild size="sm" className="h-9 w-full sm:h-8 sm:w-auto">
               <Link href="/dashboard/subscribe">View plans</Link>
             </Button>
           ) : undefined
@@ -628,7 +628,7 @@ export function BillingClient() {
             title="No active subscription"
             description="Choose a plan to unlock the full RCICMASTER consultant workspace — client management, documents, and marketing tools."
             action={
-              <Button asChild>
+              <Button asChild className="h-10 w-full sm:w-auto">
                 <Link href="/dashboard/subscribe">Browse subscription plans</Link>
               </Button>
             }
@@ -638,7 +638,7 @@ export function BillingClient() {
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div className="min-w-0 space-y-3">
                 <div className="flex flex-wrap items-center gap-2.5">
-                  <h3 className="text-lg font-semibold tracking-tight">
+                  <h3 className="text-lg font-semibold tracking-tight break-words">
                     {sub.package_name ?? "Consultant subscription"}
                   </h3>
                   <StatusBadge status={sub.status} cancelAtEnd={sub.cancel_at_period_end} />
@@ -660,7 +660,7 @@ export function BillingClient() {
                 </div>
               </div>
 
-              <div className="grid w-full max-w-md grid-cols-2 gap-4 rounded-lg border border-border/60 bg-muted/15 p-4 sm:grid-cols-2">
+              <div className="grid w-full grid-cols-1 gap-3 rounded-lg border border-border/60 bg-muted/15 p-4 sm:max-w-md sm:grid-cols-2 sm:gap-4">
                 {sub.is_trial && sub.trial_ends_at && (
                   <MetaItem label="Trial ends" value={fmtDate(sub.trial_ends_at)} />
                 )}
@@ -684,22 +684,22 @@ export function BillingClient() {
             </div>
 
             {sub.can_manage_auto_renew && (
-              <div className="rounded-lg border border-border/60 bg-muted/10 px-4 py-4">
+              <div className="rounded-lg border border-border/60 bg-muted/10 px-3 py-4 sm:px-4">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="space-y-1">
+                  <div className="min-w-0 space-y-1">
                     <div className="flex items-center gap-2">
                       <RefreshCw className="h-4 w-4 text-muted-foreground" />
                       <Label htmlFor="auto-renew" className="text-sm font-medium cursor-pointer">
                         Automatic renewal
                       </Label>
                     </div>
-                    <p className="text-xs text-muted-foreground max-w-xl leading-relaxed">
+                    <p className="max-w-xl text-xs leading-relaxed text-muted-foreground break-words">
                       {sub.auto_renew_enabled
                         ? `Your plan renews automatically on ${fmtDate(sub.next_billing_at)}. Tax is calculated using your billing address.`
                         : `Renewal is off. Access continues until ${fmtDate(sub.next_billing_at ?? sub.ends_at)} — no further charges.`}
                     </p>
                   </div>
-                  <div className="flex items-center gap-2 shrink-0">
+                  <div className="flex shrink-0 items-center justify-between gap-2 rounded-md border border-border/50 bg-background/50 px-3 py-2 sm:justify-start sm:border-0 sm:bg-transparent sm:p-0">
                     {togglingAutoRenew && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
                     <Switch
                       id="auto-renew"
@@ -722,9 +722,9 @@ export function BillingClient() {
               </div>
             )}
 
-            <div className="flex flex-wrap gap-2 border-t border-border/60 pt-5">
+            <div className="flex flex-col gap-2 border-t border-border/60 pt-5 sm:flex-row sm:flex-wrap">
               {!isActive && sub.status !== "trial" && (
-                <Button asChild size="sm">
+                <Button asChild size="sm" className="h-10 w-full sm:w-auto">
                   <Link href="/dashboard/subscribe">Resubscribe</Link>
                 </Button>
               )}
@@ -734,27 +734,27 @@ export function BillingClient() {
                     <Button
                       variant="outline"
                       size="sm"
-                      className="text-destructive hover:bg-destructive/5 hover:text-destructive"
+                      className="h-10 w-full text-destructive hover:bg-destructive/5 hover:text-destructive sm:w-auto"
                     >
                       <XCircle className="mr-1.5 h-3.5 w-3.5" />
                       Cancel subscription
                     </Button>
                   </AlertDialogTrigger>
-                  <AlertDialogContent>
+                  <AlertDialogContent className="w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] sm:max-w-lg">
                     <AlertDialogHeader>
                       <AlertDialogTitle>Cancel your subscription?</AlertDialogTitle>
-                      <AlertDialogDescription>
+                      <AlertDialogDescription className="break-words">
                         {sub.is_trial
                           ? "Your trial ends immediately and consultant features will be disabled."
                           : "You will not be charged again. Access continues until the end of the current billing period."}
                       </AlertDialogDescription>
                     </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Keep subscription</AlertDialogCancel>
+                    <AlertDialogFooter className="flex-col-reverse gap-2 sm:flex-row">
+                      <AlertDialogCancel className="mt-0 h-9 w-full sm:w-auto">Keep subscription</AlertDialogCancel>
                       <AlertDialogAction
                         onClick={cancelSubscription}
                         disabled={cancelling}
-                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        className="h-9 w-full bg-destructive text-destructive-foreground hover:bg-destructive/90 sm:w-auto"
                       >
                         {cancelling ? <Loader2 className="h-4 w-4 animate-spin" /> : "Confirm cancellation"}
                       </AlertDialogAction>
@@ -772,7 +772,7 @@ export function BillingClient() {
         title="Payments & services"
         description="Marketing purchases and full payment history — choose the tab you need."
         action={
-          <Button asChild variant="outline" size="sm" className="h-8">
+          <Button asChild variant="outline" size="sm" className="h-9 w-full sm:h-8 sm:w-auto">
             <Link href="/dashboard/marketing">
               Manage marketing
               <ArrowUpRight className="ml-1.5 h-3.5 w-3.5" />
@@ -781,21 +781,37 @@ export function BillingClient() {
         }
       >
         <Tabs defaultValue="history" className="w-full">
-          <TabsList className="mb-5 h-9 w-full sm:w-auto">
-            <TabsTrigger value="marketing" className="flex-1 sm:flex-none sm:px-4">
-              <Megaphone className="h-3.5 w-3.5" />
-              Marketing services
+          <TabsList className="!h-auto mb-4 grid w-full grid-cols-2 gap-1 rounded-lg border border-border/60 bg-muted/40 p-1 sm:mb-5 sm:inline-flex sm:w-auto sm:gap-0.5 sm:border-transparent sm:bg-muted sm:p-[3px]">
+            <TabsTrigger
+              value="marketing"
+              className={cn(
+                "h-9 min-w-0 flex-none gap-1.5 rounded-sm px-2 text-xs font-medium shadow-none after:hidden",
+                "w-full sm:w-auto sm:flex-initial sm:px-4 sm:text-sm",
+                "border-0 data-[state=active]:border-0 data-[state=active]:bg-background data-[state=active]:shadow-none",
+                "dark:data-[state=active]:border-0 dark:data-[state=active]:bg-background",
+              )}
+            >
+              <Megaphone className="h-3.5 w-3.5 shrink-0" />
+              <span className="truncate">Marketing</span>
               {marketingOrders.length > 0 && (
-                <Badge variant="secondary" className="ml-1.5 h-5 min-w-5 px-1.5 text-[10px] font-normal">
+                <Badge variant="secondary" className="ml-0.5 h-5 min-w-5 shrink-0 px-1.5 text-[10px] font-normal sm:ml-1.5">
                   {marketingOrders.length}
                 </Badge>
               )}
             </TabsTrigger>
-            <TabsTrigger value="history" className="flex-1 sm:flex-none sm:px-4">
-              <Receipt className="h-3.5 w-3.5" />
-              Payment history
+            <TabsTrigger
+              value="history"
+              className={cn(
+                "h-9 min-w-0 flex-none gap-1.5 rounded-sm px-2 text-xs font-medium shadow-none after:hidden",
+                "w-full sm:w-auto sm:flex-initial sm:px-4 sm:text-sm",
+                "border-0 data-[state=active]:border-0 data-[state=active]:bg-background data-[state=active]:shadow-none",
+                "dark:data-[state=active]:border-0 dark:data-[state=active]:bg-background",
+              )}
+            >
+              <Receipt className="h-3.5 w-3.5 shrink-0" />
+              <span className="truncate">History</span>
               {invoices.length > 0 && (
-                <Badge variant="secondary" className="ml-1.5 h-5 min-w-5 px-1.5 text-[10px] font-normal">
+                <Badge variant="secondary" className="ml-0.5 h-5 min-w-5 shrink-0 px-1.5 text-[10px] font-normal sm:ml-1.5">
                   {invoices.length}
                 </Badge>
               )}
@@ -809,7 +825,7 @@ export function BillingClient() {
                 title="No marketing purchases yet"
                 description="Marketing payments are billed separately from your RCICMASTER subscription. Browse services on the Marketing page — completed payments also appear under Payment history."
                 action={
-                  <Button asChild variant="outline" size="sm">
+                  <Button asChild variant="outline" size="sm" className="h-10 w-full sm:w-auto">
                     <Link href="/dashboard/marketing">Browse marketing services</Link>
                   </Button>
                 }
@@ -824,7 +840,7 @@ export function BillingClient() {
                     <div className="min-w-0 space-y-1">
                       <div className="flex flex-wrap items-center gap-2">
                         <Megaphone className="h-4 w-4 shrink-0 text-violet-600" />
-                        <p className="font-medium text-foreground">{order.service_name ?? "Marketing service"}</p>
+                        <p className="font-medium break-words text-foreground">{order.service_name ?? "Marketing service"}</p>
                         <Badge variant="outline" className="border-violet-200 bg-white font-normal capitalize">
                           {order.status}
                         </Badge>
@@ -840,7 +856,7 @@ export function BillingClient() {
                         {order.price_label ? ` · ${order.price_label}` : ""}
                       </p>
                     </div>
-                    <div className="flex shrink-0 flex-col items-end gap-2 sm:text-right">
+                    <div className="flex w-full shrink-0 flex-col items-stretch gap-2 sm:w-auto sm:items-end sm:text-right">
                       <div>
                         <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Total paid</p>
                         <p className="text-base font-semibold tabular-nums">{fmtMoney(order.total)}</p>
@@ -856,7 +872,7 @@ export function BillingClient() {
                         </p>
                       )}
                       {order.can_manage_auto_renew && (
-                        <div className="flex items-center gap-2 rounded-md border bg-white/80 px-2 py-1.5">
+                        <div className="flex w-full items-center justify-between gap-2 rounded-md border bg-white/80 px-2 py-1.5 sm:w-auto sm:justify-start">
                           {togglingMarketingId === order.id && (
                             <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
                           )}
@@ -874,22 +890,23 @@ export function BillingClient() {
                       {order.is_recurring && !order.cancel_at_period_end && (
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
-                            <Button variant="outline" size="sm" className="h-8 text-xs">
+                            <Button variant="outline" size="sm" className="h-9 w-full text-xs sm:h-8 sm:w-auto">
                               Cancel service
                             </Button>
                           </AlertDialogTrigger>
-                          <AlertDialogContent>
+                          <AlertDialogContent className="w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] sm:max-w-lg">
                             <AlertDialogHeader>
                               <AlertDialogTitle>Cancel marketing service?</AlertDialogTitle>
-                              <AlertDialogDescription>
+                              <AlertDialogDescription className="break-words">
                                 {order.service_name ?? "This service"} will stay active until the end of the current billing period. No further monthly charges after that.
                               </AlertDialogDescription>
                             </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Keep service</AlertDialogCancel>
+                            <AlertDialogFooter className="flex-col-reverse gap-2 sm:flex-row">
+                              <AlertDialogCancel className="mt-0 h-9 w-full sm:w-auto">Keep service</AlertDialogCancel>
                               <AlertDialogAction
                                 onClick={() => void cancelMarketingOrder(order.id)}
                                 disabled={cancellingMarketingId === order.id}
+                                className="h-9 w-full sm:w-auto"
                               >
                                 {cancellingMarketingId === order.id ? (
                                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -920,7 +937,7 @@ export function BillingClient() {
 
           <TabsContent value="history" className="mt-0">
             {invoices.length > 0 && (
-              <div className="mb-4 flex flex-wrap gap-1.5">
+              <div className="mb-4 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:gap-1.5">
                 {(
                   [
                     { key: "all", label: "All" },
@@ -934,7 +951,7 @@ export function BillingClient() {
                     type="button"
                     size="sm"
                     variant={paymentFilter === key ? "default" : "outline"}
-                    className="h-8 text-xs"
+                    className="h-9 w-full text-xs sm:h-8 sm:w-auto"
                     onClick={() => setPaymentFilter(key)}
                   >
                     {label}
@@ -949,13 +966,13 @@ export function BillingClient() {
                 title="No payments yet"
                 description="Subscription and marketing payments appear here after your first charge. Subscription plans are on Subscribe; marketing services are on the Marketing page."
                 action={
-                  <div className="flex flex-wrap justify-center gap-2">
+                  <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:justify-center">
                     {!sub && (
-                      <Button asChild variant="outline" size="sm">
+                      <Button asChild variant="outline" size="sm" className="h-10 w-full sm:w-auto">
                         <Link href="/dashboard/subscribe">View subscription plans</Link>
                       </Button>
                     )}
-                    <Button asChild variant="outline" size="sm">
+                    <Button asChild variant="outline" size="sm" className="h-10 w-full sm:w-auto">
                       <Link href="/dashboard/marketing">Browse marketing</Link>
                     </Button>
                   </div>
@@ -967,13 +984,70 @@ export function BillingClient() {
                 title={`No ${paymentFilter === "subscription" ? "subscription" : paymentFilter === "marketing" ? "marketing" : "storage"} payments`}
                 description="Try another filter or check the Marketing services tab for active orders."
                 action={
-                  <Button type="button" variant="outline" size="sm" onClick={() => setPaymentFilter("all")}>
+                  <Button type="button" variant="outline" size="sm" className="h-10 w-full sm:w-auto" onClick={() => setPaymentFilter("all")}>
                     Show all payments
                   </Button>
                 }
               />
             ) : (
-              <div className="-mx-5 overflow-x-auto sm:-mx-6">
+              <>
+                <div className="space-y-3 md:hidden">
+                  {filteredInvoices.map((inv) => (
+                    <div key={inv.id} className="rounded-lg border border-border/80 bg-card p-4 space-y-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <CategoryBadge category={inv.category ?? "subscription"} />
+                        <Badge
+                          variant="outline"
+                          className={cn(
+                            "shrink-0 font-normal capitalize",
+                            inv.status === "paid"
+                              ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                              : "text-muted-foreground",
+                          )}
+                        >
+                          {inv.status}
+                        </Badge>
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-medium break-all">
+                          {inv.number ?? inv.id.slice(0, 12).toUpperCase()}
+                        </p>
+                        {inv.category === "marketing" && inv.description && (
+                          <p className="mt-0.5 text-xs text-muted-foreground break-words">{inv.description}</p>
+                        )}
+                        <p className="mt-1 text-xs text-muted-foreground tabular-nums">
+                          {fmtDate(inv.paid_at ?? inv.created_at)}
+                        </p>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-sm">
+                        <div>
+                          <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Subtotal</p>
+                          <p className="font-medium tabular-nums">{fmtMoney(inv.subtotal ?? inv.amount, inv.currency)}</p>
+                        </div>
+                        <div>
+                          <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Tax</p>
+                          <p className="font-medium tabular-nums">
+                            {inv.tax_applicable === false ? "—" : fmtMoney(inv.tax_amount ?? 0, inv.currency)}
+                          </p>
+                        </div>
+                        <div className="col-span-2 border-t border-border/60 pt-2">
+                          <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Total</p>
+                          <p className="text-base font-semibold tabular-nums">{fmtMoney(inv.amount, inv.currency)}</p>
+                        </div>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-9 w-full"
+                        onClick={() => openPaymentDetail(inv)}
+                      >
+                        View details
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="hidden overflow-x-auto md:block md:-mx-6">
                 <Table>
                   <TableHeader>
                     <TableRow className="hover:bg-transparent">
@@ -1047,7 +1121,8 @@ export function BillingClient() {
                     ))}
                   </TableBody>
                 </Table>
-              </div>
+                </div>
+              </>
             )}
           </TabsContent>
         </Tabs>
@@ -1064,10 +1139,10 @@ export function BillingClient() {
           }
         }}
       >
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="max-h-[90vh] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-base">
-              <FileText className="h-4 w-4 text-muted-foreground" />
+              <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
               Payment details
             </DialogTitle>
           </DialogHeader>
@@ -1161,7 +1236,7 @@ export function BillingClient() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3 rounded-lg border px-3 py-2.5 text-xs">
+              <div className="grid grid-cols-1 gap-3 rounded-lg border px-3 py-2.5 text-xs sm:grid-cols-2">
                 <div>
                   <p className="text-muted-foreground">Country</p>
                   <p className="font-medium mt-0.5">{selectedInvoice.country ?? "—"}</p>
@@ -1202,12 +1277,12 @@ export function BillingClient() {
             </div>
           ) : null}
 
-          <DialogFooter className="gap-2 sm:gap-0">
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>
+          <DialogFooter className="flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button variant="outline" className="h-9 w-full sm:w-auto" onClick={() => setDialogOpen(false)}>
               Close
             </Button>
             {selectedInvoice?.hosted_url && selectedInvoice.source === "stripe" && (
-              <Button asChild variant="secondary">
+              <Button asChild variant="secondary" className="h-9 w-full sm:w-auto">
                 <a href={selectedInvoice.hosted_url} target="_blank" rel="noreferrer">
                   View online
                   <ArrowUpRight className="ml-1.5 h-3.5 w-3.5" />
@@ -1220,6 +1295,7 @@ export function BillingClient() {
                 selectedInvoice.payment_record_id ||
                 /^\d+$/.test(selectedInvoice.id)) && (
               <Button
+                className="h-9 w-full sm:w-auto"
                 disabled={downloadingId === selectedInvoice.id || detailLoading}
                 onClick={() => handleDownloadInvoice(selectedInvoice)}
               >

@@ -1,0 +1,130 @@
+/* Legislation document viewer — mobile-friendly reading layout */
+
+.legislation-viewer {
+  font-size: 0.9375rem;
+  line-height: 1.65;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.legislation-viewer .leg-section {
+  margin: 1.25rem 0;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+}
+
+.legislation-viewer .leg-section-num {
+  font-weight: 700;
+  color: var(--primary);
+}
+
+.legislation-viewer .leg-marginal {
+  font-size: 0.75rem;
+  font-style: italic;
+  color: var(--muted-foreground);
+}
+
+.legislation-viewer .leg-ref {
+  color: var(--primary);
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+  word-break: break-word;
+}
+
+.legislation-viewer table {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border-collapse: collapse;
+}
+
+.legislation-viewer img,
+.legislation-viewer svg,
+.legislation-viewer video,
+.legislation-viewer iframe {
+  max-width: 100%;
+  height: auto;
+}
+
+.legislation-viewer pre {
+  max-width: 100%;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.leg-popup-content {
+  border-radius: 0.5rem;
+  border: 1px solid var(--border);
+  background: color-mix(in oklab, var(--muted) 30%, transparent);
+  padding: 1rem 1.25rem;
+  font-size: 0.875rem;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.leg-popup-content .leg-popup-section {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--primary);
+  padding-bottom: 0.35rem;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 0.5rem;
+}
+
+.leg-popup-content .leg-popup-marginal {
+  font-size: 0.75rem;
+  font-style: italic;
+  color: var(--muted-foreground);
+  margin-bottom: 0.5rem;
+}
+
+.leg-popup-content .leg-popup-body-text {
+  text-align: justify;
+}
+
+.leg-highlight-scroll {
+  outline: 2px solid color-mix(in oklab, var(--primary) 55%, transparent);
+  outline-offset: 4px;
+  border-radius: 0.5rem;
+  transition: outline-color 0.3s ease;
+}
+
+@media (max-width: 767px) {
+  .legislation-viewer {
+    font-size: 0.875rem;
+    line-height: 1.6;
+  }
+
+  .legislation-viewer .leg-section {
+    margin: 0.85rem 0;
+    padding: 0.75rem;
+    border-radius: 0.45rem;
+  }
+
+  .legislation-viewer .leg-marginal {
+    font-size: 0.7rem;
+  }
+
+  .legislation-viewer dl,
+  .legislation-viewer ol,
+  .legislation-viewer ul {
+    padding-left: 1.1rem;
+  }
+
+  .leg-popup-content {
+    padding: 0.75rem 0.85rem;
+    font-size: 0.8125rem;
+    line-height: 1.65;
+  }
+
+  .leg-popup-content .leg-popup-body-text {
+    text-align: left;
+  }
+}

@@ -200,23 +200,23 @@ export function AccountMeetingSettings({
   };
 
   return (
-    <div className="space-y-6">
-      <p className="text-sm text-muted-foreground leading-relaxed">
+    <div className="min-w-0 space-y-5 sm:space-y-6">
+      <p className="text-sm leading-relaxed text-muted-foreground">
         Link your Google, Zoom, or Microsoft account once. When you schedule a client meeting, we create a real video call on that platform and email a professional invite with the join link.
       </p>
 
       {message && (
         <p className={cn(
-          "text-sm rounded-lg px-3 py-2",
+          "break-words rounded-lg px-3 py-2 text-sm",
           message.includes("failed") || message.includes("Could not") || message.includes("not configured")
-            ? "text-red-700 bg-red-50 dark:bg-red-950/30"
-            : "text-emerald-700 bg-emerald-50 dark:bg-emerald-950/30",
+            ? "bg-red-50 text-red-700 dark:bg-red-950/30"
+            : "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30",
         )}>
           {message}
         </p>
       )}
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {PROVIDERS.map((p) => {
           const connected = connectedMap[p.id];
           const ready = readyMap[p.id];
@@ -230,10 +230,10 @@ export function AccountMeetingSettings({
                 preferred === p.id && `ring-2 ${p.ring}`,
               )}
             >
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2 font-semibold text-sm">
-                  <Video className={cn("h-4 w-4", p.color)} />
-                  {p.label}
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex min-w-0 items-center gap-2 text-sm font-semibold">
+                  <Video className={cn("h-4 w-4 shrink-0", p.color)} />
+                  <span className="break-words">{p.label}</span>
                 </div>
                 {ready
                   ? <Badge className="bg-emerald-600 gap-1 text-[10px] shrink-0"><CheckCircle2 className="h-3 w-3" /> Ready</Badge>
@@ -254,7 +254,7 @@ export function AccountMeetingSettings({
                     type="button"
                     size="sm"
                     variant="outline"
-                    className="w-full h-9 text-xs"
+                    className="h-10 w-full text-xs sm:h-9"
                     disabled={disconnecting === p.connectKey}
                     onClick={() => disconnect(p.connectKey)}
                   >
@@ -267,7 +267,7 @@ export function AccountMeetingSettings({
                   <Button
                     type="button"
                     size="sm"
-                    className={cn("w-full h-9 text-xs text-white", p.btn)}
+                    className={cn("h-10 w-full text-xs text-white sm:h-9", p.btn)}
                     disabled={!configured || connecting === p.connectKey}
                     onClick={() => connect(p.connectKey)}
                   >
@@ -283,10 +283,10 @@ export function AccountMeetingSettings({
         })}
       </div>
 
-      <div className="rounded-xl border bg-muted/15 p-5 space-y-3">
+      <div className="space-y-3 rounded-xl border bg-muted/15 p-4 sm:p-5">
         <p className="text-sm font-semibold">Default platform for new meetings</p>
         <p className="text-xs text-muted-foreground">Only connected platforms can be selected.</p>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
           {PROVIDERS.map((p) => (
             <Button
               key={p.id}
@@ -295,7 +295,7 @@ export function AccountMeetingSettings({
               variant={preferred === p.id ? "default" : "outline"}
               disabled={!readyMap[p.id] || saving}
               onClick={() => savePreferred(p.id)}
-              className={preferred === p.id ? "bg-emerald-600 hover:bg-emerald-700" : ""}
+              className={cn("h-10 w-full sm:w-auto", preferred === p.id ? "bg-emerald-600 hover:bg-emerald-700" : "")}
             >
               {saving && preferred === p.id ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
               {p.label}
