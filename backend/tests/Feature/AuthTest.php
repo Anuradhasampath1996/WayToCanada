@@ -6,6 +6,7 @@ use App\Models\User;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\PersonalAccessToken;
+use Tests\Concerns\RefreshesLmsDatabase;
 use Laravel\Socialite\Facades\Socialite;
 use Laravel\Socialite\Two\User as SocialiteUser;
 use Mockery;
@@ -14,10 +15,16 @@ use Tests\TestCase;
 class AuthTest extends TestCase
 {
     use RefreshDatabase;
+    use RefreshesLmsDatabase;
 
     protected bool $seed = true;
 
     protected string $seeder = RolesAndPermissionsSeeder::class;
+
+    protected function beforeRefreshingDatabase(): void
+    {
+        $this->wipeLmsTestDatabase();
+    }
 
     protected function tearDown(): void
     {
