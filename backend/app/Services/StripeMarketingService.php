@@ -70,30 +70,50 @@ class StripeMarketingService extends StripeService
         string $cancelUrl,
         ?string $provinceCode = null,
         ?array $taxRateIds = null,
+        ?string $billingCountry = 'CA',
     ): array {
         $priceId = $this->ensurePrice($service);
         $mode    = $service->billing_type === MarketingService::BILLING_MONTHLY ? 'subscription' : 'payment';
 
         $lineItem = ['price' => $priceId, 'quantity' => 1];
-        if ($taxRateIds) {
+        if ($mode === 'payment' && $taxRateIds) {
             $lineItem['tax_rates'] = $taxRateIds;
         }
 
-        $session = Session::create([
+        $metadata = [
+            'type'                 => 'marketing_service',
+            'marketing_service_id' => (string) $service->id,
+            'billing_type'         => $service->billing_type,
+            'user_id'              => (string) $userId,
+            'province'             => $provinceCode ?? '',
+            'billing_country'      => $billingCountry ?? 'CA',
+        ];
+
+        $sessionParams = [
             'mode'                => $mode,
             'line_items'          => [$lineItem],
             'success_url'         => $successUrl,
             'cancel_url'          => $cancelUrl,
             'client_reference_id' => (string) $userId,
-            'customer_email'      => $userEmail,
-            'metadata'            => [
-                'type'                 => 'marketing_service',
-                'marketing_service_id' => (string) $service->id,
-                'billing_type'         => $service->billing_type,
-                'user_id'              => (string) $userId,
-                'province'             => $provinceCode ?? '',
-            ],
-        ]);
+            'metadata'            => $metadata,
+        ];
+
+        if ($mode === 'subscription') {
+            $subscriptionData = ['metadata' => $metadata];
+            if ($taxRateIds) {
+                $subscriptionData['default_tax_rates'] = $taxRateIds;
+            }
+            $sessionParams['subscription_data'] = $subscriptionData;
+        }
+
+        $testClock = new StripeTestClockService();
+        if ($testClock->getTestClockId()) {
+            $sessionParams['customer'] = $testClock->ensureCustomer($userEmail, $userId);
+        } else {
+            $sessionParams['customer_email'] = $userEmail;
+        }
+
+        $session = Session::create($sessionParams);
 
         return [
             'session_id' => $session->id,

@@ -1,15 +1,6 @@
-import { generateMeta } from "@/lib/utils";
-import { ClientDashboard } from "./client-dashboard";
+import { redirect } from "next/navigation";
 
-export async function generateMetadata() {
-  return generateMeta({
-    title: "User Dashboard",
-    description: "Your personal immigration journey dashboard — RCICMASTER.",
-    canonical: "/default",
-  });
-}
-
+/** Legacy URL — canonical dashboard is /user-dashboard */
 export default function Page() {
-  return <ClientDashboard />;
+  redirect("/user-dashboard");
 }
-

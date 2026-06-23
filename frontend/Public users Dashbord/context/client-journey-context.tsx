@@ -5,6 +5,7 @@ import {
   buildClientJourney,
   buildClientActivity,
   canAccessNavStep,
+  canAccessLearning,
   resolveClientNextAction,
   type ClientCaseFile,
   type ClientFormsVerification,
@@ -86,6 +87,7 @@ type ClientJourneyContextValue = {
   activityEvents: ClientActivityEvent[];
   refresh: () => Promise<void>;
   canAccess: (stepId: JourneyStepId) => boolean;
+  canAccessLearning: boolean;
 };
 
 const ClientJourneyContext = React.createContext<ClientJourneyContextValue | null>(null);
@@ -155,6 +157,8 @@ export function ClientJourneyProvider({ children }: { children: React.ReactNode 
     [caseFile, verification],
   );
 
+  const learningUnlocked = canAccessLearning(caseFile);
+
   const value: ClientJourneyContextValue = {
     loading,
     error,
@@ -173,6 +177,7 @@ export function ClientJourneyProvider({ children }: { children: React.ReactNode 
     activityEvents,
     refresh,
     canAccess,
+    canAccessLearning: learningUnlocked,
   };
 
   return (

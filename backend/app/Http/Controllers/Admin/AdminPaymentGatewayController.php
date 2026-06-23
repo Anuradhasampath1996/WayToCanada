@@ -36,6 +36,9 @@ class AdminPaymentGatewayController extends Controller
                 'publishable_key_preview' => PaymentGatewaySetting::maskKey($decryptedPublishable),
                 'secret_key_preview'      => PaymentGatewaySetting::maskKey($decryptedSecret),
                 'webhook_preview'           => PaymentGatewaySetting::maskKey($decryptedWebhook),
+                'last_webhook_at'           => $row->last_webhook_at?->toIso8601String(),
+                'last_webhook_type'         => $row->last_webhook_type,
+                'last_webhook_account'      => $row->last_webhook_account,
                 'updated_at'      => $row->updated_at,
             ];
         });

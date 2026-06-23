@@ -21,6 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
 
 const API = (process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000") + "/api/v1";
 
@@ -45,6 +46,14 @@ const T = {
     province:        "Place of supply (province)",
     provinceHint:    "Tax rate is based on CRA place-of-supply rules for your province.",
     selectProvince:  "Select your province",
+    billingAddress:  "Billing address",
+    country:         "Country",
+    addressLine1:    "Street address",
+    addressLine2:    "Apartment, suite (optional)",
+    city:            "City",
+    postalCode:      "Postal / ZIP code",
+    outsideCanada:   "No Canadian sales tax — recipient located outside Canada.",
+    canadaOnlyTax:   "Canadian GST/HST applies based on your province of supply.",
     perMonth:        "/month",
     perYear:         "/year",
     error:           "Something went wrong. Please try again.",
@@ -110,6 +119,11 @@ export function SubscribeClient({ packageId, packageName, price, billingCycle, l
   const [errorMsg,    setErrorMsg]    = useState("");
   const [provinces,   setProvinces]   = useState<ProvinceOption[]>([]);
   const [province,    setProvince]    = useState("");
+  const [billingCountry, setBillingCountry] = useState("CA");
+  const [addressLine1, setAddressLine1] = useState("");
+  const [addressLine2, setAddressLine2] = useState("");
+  const [city, setCity] = useState("");
+  const [postalCode, setPostalCode] = useState("");
   const [tax,         setTax]         = useState<TaxBreakdown | null>(null);
   const [taxLoading,  setTaxLoading]  = useState(false);
 
@@ -160,6 +174,14 @@ export function SubscribeClient({ packageId, packageName, price, billingCycle, l
         } else if (opts.length > 0) {
           setProvince(opts.find((p) => p.code === "ON")?.code ?? opts[0].code);
         }
+
+        if (profileJson) {
+          setBillingCountry(profileJson.company_country === "Canada" || profileJson.company_country === "CA" ? "CA" : (profileJson.company_country ?? "CA"));
+          setAddressLine1(profileJson.company_address_line1 ?? "");
+          setAddressLine2(profileJson.company_address_line2 ?? "");
+          setCity(profileJson.company_city ?? "");
+          setPostalCode(profileJson.company_postal_code ?? "");
+        }
       } catch {
         /* province list optional — checkout still works */
       }
@@ -169,14 +191,28 @@ export function SubscribeClient({ packageId, packageName, price, billingCycle, l
     return () => { cancelled = true; };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const fetchTaxQuote = useCallback(async (prov: string) => {
-    if (!prov || !packageId) return;
+  const isCanada = billingCountry === "CA";
+
+  const billingPayload = useCallback(() => ({
+    subscription_package_id: packageId,
+    billing_cycle: billingCycle,
+    billing_country: billingCountry,
+    billing_address_line1: addressLine1.trim(),
+    billing_address_line2: addressLine2.trim() || undefined,
+    billing_city: city.trim(),
+    billing_postal_code: postalCode.trim() || undefined,
+    billing_province: isCanada ? province : undefined,
+    province: isCanada ? province : undefined,
+  }), [packageId, billingCycle, billingCountry, addressLine1, addressLine2, city, postalCode, province, isCanada]);
+
+  const fetchTaxQuote = useCallback(async () => {
+    if (!packageId || !addressLine1.trim() || !city.trim()) return;
+    if (isCanada && !province) return;
     setTaxLoading(true);
     try {
-      const params = new URLSearchParams({
-        subscription_package_id: String(packageId),
-        billing_cycle: billingCycle,
-        province: prov,
+      const params = new URLSearchParams();
+      Object.entries(billingPayload()).forEach(([k, v]) => {
+        if (v !== undefined && v !== null) params.set(k, String(v));
       });
       const res = await fetch(`${API}/consultant/payment/stripe/tax-quote?${params}`, {
         headers: { Authorization: `Bearer ${token()}`, Accept: "application/json" },
@@ -192,11 +228,11 @@ export function SubscribeClient({ packageId, packageName, price, billingCycle, l
     } finally {
       setTaxLoading(false);
     }
-  }, [packageId, billingCycle]);
+  }, [billingPayload, packageId, isCanada]);
 
   useEffect(() => {
-    if (province) void fetchTaxQuote(province);
-  }, [province, fetchTaxQuote]);
+    void fetchTaxQuote();
+  }, [fetchTaxQuote]);
 
   async function handleStripeCheckout() {
     setStatus("loading");
@@ -209,11 +245,7 @@ export function SubscribeClient({ packageId, packageName, price, billingCycle, l
           "Content-Type": "application/json",
           Accept: "application/json",
         },
-        body: JSON.stringify({
-          subscription_package_id: packageId,
-          billing_cycle: billingCycle,
-          province,
-        }),
+        body: JSON.stringify(billingPayload()),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json?.message ?? t.error);
@@ -248,7 +280,7 @@ export function SubscribeClient({ packageId, packageName, price, billingCycle, l
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-950 to-slate-900 flex flex-col">
       <header className="flex items-center justify-between px-6 py-5 max-w-5xl mx-auto w-full">
         <span className="text-2xl font-black tracking-tight text-white">
-          Way<span className="text-blue-400">To</span>Canada
+          RCIC<span className="text-blue-400">MASTER</span>
         </span>
         <button
           onClick={() => router.back()}
@@ -342,25 +374,55 @@ export function SubscribeClient({ packageId, packageName, price, billingCycle, l
                 )}
 
                 <div className="space-y-4">
+                  <p className="text-sm font-semibold text-slate-700">{t.billingAddress}</p>
+
                   <div className="space-y-2">
-                    <label className="text-sm font-semibold text-slate-700 flex items-center gap-1.5">
-                      <MapPin className="h-4 w-4 text-slate-500" />
-                      {t.province}
-                    </label>
-                    <Select value={province} onValueChange={setProvince} disabled={provinces.length === 0}>
+                    <label className="text-sm font-medium text-slate-700">{t.country}</label>
+                    <Select value={billingCountry} onValueChange={setBillingCountry}>
                       <SelectTrigger className="w-full">
-                        <SelectValue placeholder={t.selectProvince} />
+                        <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {provinces.map((p) => (
-                          <SelectItem key={p.code} value={p.code}>
-                            {p.name} — {p.label}
-                          </SelectItem>
-                        ))}
+                        <SelectItem value="CA">Canada</SelectItem>
+                        <SelectItem value="US">United States</SelectItem>
+                        <SelectItem value="GB">United Kingdom</SelectItem>
+                        <SelectItem value="IN">India</SelectItem>
+                        <SelectItem value="OTHER">Outside Canada (other)</SelectItem>
                       </SelectContent>
                     </Select>
-                    <p className="text-xs text-slate-400">{t.provinceHint}</p>
+                    <p className="text-xs text-slate-400">
+                      {isCanada ? t.canadaOnlyTax : t.outsideCanada}
+                    </p>
                   </div>
+
+                  <Input placeholder={t.addressLine1} value={addressLine1} onChange={(e) => setAddressLine1(e.target.value)} />
+                  <Input placeholder={t.addressLine2} value={addressLine2} onChange={(e) => setAddressLine2(e.target.value)} />
+                  <div className="grid grid-cols-2 gap-3">
+                    <Input placeholder={t.city} value={city} onChange={(e) => setCity(e.target.value)} />
+                    <Input placeholder={t.postalCode} value={postalCode} onChange={(e) => setPostalCode(e.target.value)} />
+                  </div>
+
+                  {isCanada && (
+                    <div className="space-y-2">
+                      <label className="text-sm font-semibold text-slate-700 flex items-center gap-1.5">
+                        <MapPin className="h-4 w-4 text-slate-500" />
+                        {t.province}
+                      </label>
+                      <Select value={province} onValueChange={setProvince} disabled={provinces.length === 0}>
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder={t.selectProvince} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {provinces.map((p) => (
+                            <SelectItem key={p.code} value={p.code}>
+                              {p.name} — {p.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-slate-400">{t.provinceHint}</p>
+                    </div>
+                  )}
 
                   <div className="flex items-center gap-2">
                     <svg viewBox="0 0 38 24" className="h-7 w-11 rounded border border-slate-200 bg-white p-0.5" aria-label="Visa">
@@ -382,7 +444,7 @@ export function SubscribeClient({ packageId, packageName, price, billingCycle, l
 
                   <button
                     onClick={handleStripeCheckout}
-                    disabled={status === "loading" || status === "redirecting" || !province || taxLoading}
+                    disabled={status === "loading" || status === "redirecting" || !addressLine1.trim() || !city.trim() || (isCanada && !province) || taxLoading}
                     className="w-full flex items-center justify-center gap-3 h-14 rounded-xl font-bold text-white bg-[#635BFF] hover:bg-[#5851e6] transition-colors disabled:opacity-60 disabled:cursor-not-allowed shadow-md text-lg"
                   >
                     {(status === "loading" || status === "redirecting") ? (

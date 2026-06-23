@@ -4,8 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Models\ConsultantSubscription;
 use App\Models\SubscriptionPackage;
+use App\Services\CanadianBillingTaxService;
 use App\Services\PayPalService;
 use App\Services\PayPalSubscriptionService;
+use App\Services\SubscriptionPaymentRecorder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -120,6 +122,22 @@ class PaymentController extends Controller
             'cancelled_at'            => null,
             'paypal_order_id'         => $data['order_id'],
         ]);
+
+        $billingAddress = [
+            'line1'       => $user->company_address_line1,
+            'line2'       => $user->company_address_line2,
+            'city'        => $user->company_city,
+            'province'    => $user->company_province,
+            'postal_code' => $user->company_postal_code,
+            'country'     => $user->company_country ?? 'CA',
+        ];
+        $taxBreakdown = app(CanadianBillingTaxService::class)->quote((float) $price, $billingAddress);
+        app(SubscriptionPaymentRecorder::class)->recordFromCheckout(
+            $sub,
+            $user,
+            $billingAddress,
+            $taxBreakdown,
+        );
 
         return response()->json([
             'message'      => 'Subscription activated successfully.',
@@ -240,6 +258,23 @@ class PaymentController extends Controller
             'cancelled_at'            => null,
             'paypal_subscription_id'  => $data['subscription_id'],
         ]);
+
+        $billingAddress = [
+            'line1'       => $user->company_address_line1,
+            'line2'       => $user->company_address_line2,
+            'city'        => $user->company_city,
+            'province'    => $user->company_province,
+            'postal_code' => $user->company_postal_code,
+            'country'     => $user->company_country ?? 'CA',
+        ];
+        $subtotal = $cycle === 'yearly' ? (float) $package->yearly_price : (float) $package->monthly_price;
+        $taxBreakdown = app(CanadianBillingTaxService::class)->quote($subtotal, $billingAddress);
+        app(SubscriptionPaymentRecorder::class)->recordFromCheckout(
+            $sub,
+            $user,
+            $billingAddress,
+            $taxBreakdown,
+        );
 
         return response()->json([
             'message'      => 'Subscription activated successfully.',

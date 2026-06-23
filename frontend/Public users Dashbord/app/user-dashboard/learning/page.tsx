@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { BookOpen, GraduationCap, PlayCircle, ArrowRight } from "lucide-react";
+import { BookOpen, GraduationCap, PlayCircle, ArrowRight, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -43,19 +43,27 @@ export default function LearningPortalPage() {
   const [courses, setCourses] = React.useState<any[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
+  const [pathwayLocked, setPathwayLocked] = React.useState(false);
 
   React.useEffect(() => {
     fetch(`${API}/client/lms/courses`, {
       headers: { Accept: "application/json", Authorization: `Bearer ${token()}` },
     })
       .then(async (r) => {
+        const body = await r.json().catch(() => ({}));
+        if (r.status === 403) {
+          setPathwayLocked(true);
+          setError(typeof body.message === "string" ? body.message : "Learning unlocks after your pathway is assigned.");
+          return null;
+        }
         if (!r.ok) {
-          const body = await r.json().catch(() => ({}));
           throw new Error(body.message ?? `Could not load courses (${r.status})`);
         }
-        return r.json();
+        return body;
       })
-      .then((d) => setCourses(d.data ?? []))
+      .then((d) => {
+        if (d) setCourses(d.data ?? []);
+      })
       .catch((e) => setError(e.message ?? "Failed to load courses"))
       .finally(() => setLoading(false));
   }, []);
@@ -83,7 +91,20 @@ export default function LearningPortalPage() {
       {loading && (
         <Card className="border-dashed"><CardContent className="py-16 text-center text-muted-foreground">Loading your courses…</CardContent></Card>
       )}
-      {error && (
+      {error && pathwayLocked && (
+        <Card className="border-amber-200/70 bg-amber-500/[0.04]">
+          <CardContent className="flex flex-col items-center gap-4 py-12 text-center">
+            <span className="flex size-14 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-700">
+              <Lock className="size-7" />
+            </span>
+            <div className="max-w-md space-y-2">
+              <p className="text-lg font-semibold">Not available yet</p>
+              <p className="text-sm text-muted-foreground">{error}</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+      {error && !pathwayLocked && (
         <Card className="border-red-200"><CardContent className="py-10 text-center text-red-600 text-sm">{error}</CardContent></Card>
       )}
 

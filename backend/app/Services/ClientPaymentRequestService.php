@@ -73,6 +73,41 @@ class ClientPaymentRequestService
         ];
     }
 
+    public function markPaidFromConnectWebhook(object $session, string $connectedAccountId): ?ClientPaymentRequest
+    {
+        if (($session->metadata->type ?? '') !== 'client_payment_request') {
+            return null;
+        }
+
+        $requestId = (int) ($session->metadata->payment_request_id ?? 0);
+        if (! $requestId) {
+            return null;
+        }
+
+        if (($session->payment_status ?? '') !== 'paid') {
+            return null;
+        }
+
+        $paymentRequest = ClientPaymentRequest::with('consultant')->find($requestId);
+        if (! $paymentRequest) {
+            return null;
+        }
+
+        $account = ConsultantPaymentAccount::where('user_id', $paymentRequest->consultant_id)
+            ->where('stripe_connect_account_id', $connectedAccountId)
+            ->first();
+
+        if (! $account) {
+            throw new \RuntimeException('Connected account does not match payment request consultant.');
+        }
+
+        if ($paymentRequest->stripe_checkout_session_id && $paymentRequest->stripe_checkout_session_id !== ($session->id ?? '')) {
+            return null;
+        }
+
+        return $this->markPaid($paymentRequest);
+    }
+
     public function markPaid(ClientPaymentRequest $request): ClientPaymentRequest
     {
         if ($request->status === 'paid') {

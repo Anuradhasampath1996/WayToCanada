@@ -2,7 +2,9 @@
 
 namespace App\Mail;
 
+use App\Enums\NotificationType;
 use App\Models\UserNotification;
+use App\Services\Email\EmailBrandingService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Content;
@@ -22,6 +24,18 @@ class GenericNotificationEmail extends Mailable
 
     public function content(): Content
     {
-        return new Content(view: 'emails.generic_notification');
+        $notification = $this->notification->loadMissing('user');
+        $type         = NotificationType::tryFrom($notification->type);
+        $branding     = app(EmailBrandingService::class)->viewData($notification->user?->name);
+
+        return new Content(
+            view: 'emails.generic_notification',
+            with: array_merge($branding, [
+                'emailSubject'  => $notification->title,
+                'notification'  => $notification,
+                'categoryLabel' => $type?->categoryLabel(),
+                'actionLabel'   => $type?->emailActionLabel() ?? 'View details',
+            ]),
+        );
     }
 }

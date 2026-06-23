@@ -2,10 +2,11 @@
 
 import { useCallback, useEffect, useState } from "react";
 import {
-  Activity, Loader2, User, Briefcase, Filter, Shield, ExternalLink, Download,
+  Activity, Loader2, User, Briefcase, Filter, Shield, Download, ExternalLink,
   FileText, MessageSquare, Calendar, CreditCard, GraduationCap, ClipboardList,
-  ChevronLeft, ChevronRight,
+  ChevronLeft, ChevronRight, Package,
 } from "lucide-react";
+import { downloadCompliancePacketPdf } from "@/lib/compliance-packet-download";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -119,6 +120,7 @@ export function ClientActivityReport({ clientId }: { clientId: number }) {
   const [actorFilter, setActorFilter] = useState("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [downloading, setDownloading] = useState(false);
+  const [packetDownloading, setPacketDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
 
   const filterParams = useCallback(() => {
@@ -167,6 +169,18 @@ export function ClientActivityReport({ clientId }: { clientId: number }) {
       setDownloadError(e instanceof Error ? e.message : "Could not download PDF. Please try again.");
     } finally {
       setDownloading(false);
+    }
+  };
+
+  const downloadCompliancePacket = async () => {
+    setPacketDownloading(true);
+    setDownloadError(null);
+    try {
+      await downloadCompliancePacketPdf(clientId);
+    } catch (e: unknown) {
+      setDownloadError(e instanceof Error ? e.message : "Could not download compliance packet.");
+    } finally {
+      setPacketDownloading(false);
     }
   };
 
@@ -236,6 +250,20 @@ export function ClientActivityReport({ clientId }: { clientId: number }) {
                   {summary.consultant_actions} consultant
                 </Badge>
               </div>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8 gap-1.5 rounded-lg"
+                onClick={() => void downloadCompliancePacket()}
+                disabled={packetDownloading || loading}
+              >
+                {packetDownloading ? (
+                  <Loader2 className="size-3.5 animate-spin" />
+                ) : (
+                  <Package className="size-3.5" />
+                )}
+                Compliance packet
+              </Button>
               <Button
                 size="sm"
                 className="h-8 gap-1.5 rounded-lg"

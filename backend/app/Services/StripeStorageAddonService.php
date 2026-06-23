@@ -71,8 +71,18 @@ class StripeStorageAddonService extends StripeService
         string $cancelUrl,
         ?string $provinceCode = null,
         ?array $taxRateIds = null,
+        ?string $billingCountry = 'CA',
     ): array {
         $priceId = $this->ensurePrice($package, $cycle);
+
+        $metadata = [
+            'type'                     => 'storage_addon',
+            'storage_addon_package_id' => (string) $package->id,
+            'billing_cycle'            => $cycle,
+            'user_id'                  => (string) $userId,
+            'province'                 => $provinceCode ?? '',
+            'billing_country'          => $billingCountry ?? 'CA',
+        ];
 
         $sessionParams = [
             'mode'                => 'subscription',
@@ -80,21 +90,9 @@ class StripeStorageAddonService extends StripeService
             'success_url'         => $successUrl,
             'cancel_url'          => $cancelUrl,
             'client_reference_id' => (string) $userId,
-            'metadata'            => [
-                'type'                     => 'storage_addon',
-                'storage_addon_package_id' => (string) $package->id,
-                'billing_cycle'            => $cycle,
-                'user_id'                  => (string) $userId,
-                'province'                 => $provinceCode ?? '',
-            ],
-            'subscription_data' => [
-                'metadata' => [
-                    'type'                     => 'storage_addon',
-                    'storage_addon_package_id' => (string) $package->id,
-                    'billing_cycle'            => $cycle,
-                    'user_id'                  => (string) $userId,
-                    'province'                 => $provinceCode ?? '',
-                ],
+            'metadata'            => $metadata,
+            'subscription_data'   => [
+                'metadata' => $metadata,
             ],
         ];
 

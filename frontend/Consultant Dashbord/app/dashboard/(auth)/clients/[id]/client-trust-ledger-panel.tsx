@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   Loader2, Landmark, Plus, CheckCircle2, FileText, ArrowRight,
-  Wallet, RefreshCw, AlertCircle,
+  Wallet, RefreshCw, AlertCircle, Undo2,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -96,8 +96,10 @@ export function ClientTrustLedgerPanel({ clientId }: { clientId: number }) {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [depositOpen, setDepositOpen] = useState(false);
+  const [refundOpen, setRefundOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [depositForm, setDepositForm] = useState({ amount: "", method: "interac", reference: "", notes: "" });
+  const [refundForm, setRefundForm] = useState({ amount: "", reason: "" });
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -141,6 +143,15 @@ export function ClientTrustLedgerPanel({ clientId }: { clientId: number }) {
     setDepositForm({ amount: "", method: "interac", reference: "", notes: "" });
   }
 
+  async function recordRefund() {
+    await post("refund", {
+      amount: parseFloat(refundForm.amount),
+      reason: refundForm.reason.trim(),
+    });
+    setRefundOpen(false);
+    setRefundForm({ amount: "", reason: "" });
+  }
+
   if (loading) {
     return (
       <Card className="border-border/70">
@@ -175,6 +186,16 @@ export function ClientTrustLedgerPanel({ clientId }: { clientId: number }) {
             <Button size="sm" className="h-8 gap-1.5 bg-emerald-600 hover:bg-emerald-700" onClick={() => setDepositOpen(true)}>
               <Plus className="size-3.5" /> Record deposit
             </Button>
+            {trust && trust.balance_held > 0 && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8 gap-1.5"
+                onClick={() => setRefundOpen(true)}
+              >
+                <Undo2 className="size-3.5" /> Record refund
+              </Button>
+            )}
           </div>
         </div>
       </CardHeader>
@@ -361,6 +382,51 @@ export function ClientTrustLedgerPanel({ clientId }: { clientId: number }) {
               onClick={recordDeposit}
             >
               {actionLoading ? <Loader2 className="size-4 animate-spin" /> : "Record deposit"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={refundOpen} onOpenChange={setRefundOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Record trust refund</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            {trust && (
+              <p className="text-xs text-muted-foreground">
+                Available to refund: {fmtMoney(trust.balance_held, currency)}
+              </p>
+            )}
+            <div className="space-y-1">
+              <Label>Amount ({currency})</Label>
+              <Input
+                type="number"
+                min="0.01"
+                step="0.01"
+                max={trust?.balance_held}
+                value={refundForm.amount}
+                onChange={(e) => setRefundForm((f) => ({ ...f, amount: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>Reason</Label>
+              <Textarea
+                rows={3}
+                value={refundForm.reason}
+                onChange={(e) => setRefundForm((f) => ({ ...f, reason: e.target.value }))}
+                placeholder="Why funds are being returned to the client…"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRefundOpen(false)}>Cancel</Button>
+            <Button
+              variant="destructive"
+              disabled={actionLoading || !refundForm.amount || !refundForm.reason.trim()}
+              onClick={recordRefund}
+            >
+              {actionLoading ? <Loader2 className="size-4 animate-spin" /> : "Record refund"}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -42,6 +42,12 @@ class NotificationUrlBuilder
             . '/pay/' . $token;
     }
 
+    public static function adminLegislationsHub(): string
+    {
+        return rtrim((string) env('ADMIN_DASHBOARD_URL', 'http://localhost:3001'), '/')
+            . '/admindashboard/legislations-hub';
+    }
+
     public static function adminDashboard(): string
     {
         return rtrim((string) env('ADMIN_DASHBOARD_URL', 'http://localhost:3001'), '/')
@@ -116,5 +122,11 @@ class NotificationUrlBuilder
             . '/admindashboard/support-tickets';
 
         return $ticketId ? $base . '?ticket=' . $ticketId : $base;
+    }
+
+    public static function consultantBilling(): string
+    {
+        return rtrim((string) env('CONSULTANT_DASHBOARD_URL', 'http://localhost:3005'), '/')
+            . '/dashboard/billing';
     }
 }

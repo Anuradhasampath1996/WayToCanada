@@ -3,18 +3,22 @@
 namespace App\Http\Controllers;
 
 use App\Models\ClientPaymentRequest;
-use App\Models\ConsultantSubscription;
+use App\Models\ConsultantPaymentAccount;
 use App\Models\PaymentGatewaySetting;
 use App\Services\ClientPaymentRequestService;
-use App\Services\StripeService;
+use App\Services\StripePaymentFulfillmentService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
-use Stripe\Subscription as StripeSubscription;
 use Stripe\Webhook;
 
 class StripeWebhookController extends Controller
 {
+    public function __construct(
+        private StripePaymentFulfillmentService $fulfillment,
+        private ClientPaymentRequestService $clientPayments,
+    ) {}
+
     public function handle(Request $request): JsonResponse
     {
         $payload   = $request->getContent();
@@ -32,52 +36,122 @@ class StripeWebhookController extends Controller
             $secret = PaymentGatewaySetting::decryptKey($setting->webhook_id) ?? $setting->webhook_id;
             if (! $secret) {
                 Log::warning('[Stripe] Webhook received but webhook secret not configured');
-                return response()->json(['received' => true]);
+
+                return response()->json(['message' => 'Webhook secret not configured'], 503);
             }
 
             $event = Webhook::constructEvent($payload, $sigHeader, $secret);
         } catch (\Throwable $e) {
             Log::error('[Stripe] Webhook verification failed', ['error' => $e->getMessage()]);
+
             return response()->json(['message' => 'Invalid signature'], 400);
         }
 
-        $type = $event->type;
-        $data = $event->data->object;
+        $type               = $event->type;
+        $data               = $event->data->object;
+        $connectedAccountId = $event->account ?? null;
 
-        Log::info('[Stripe] Webhook', ['type' => $type]);
+        Log::info('[Stripe] Webhook', [
+            'type'    => $type,
+            'account' => $connectedAccountId,
+        ]);
 
-        match ($type) {
-            'checkout.session.completed' => $this->handleCheckoutCompleted($data),
-            'invoice.paid'               => $this->handleInvoicePaid($data),
-            'customer.subscription.deleted',
-            'customer.subscription.updated' => $this->handleSubscriptionChange($data),
-            default => null,
-        };
+        $this->recordWebhookHealth($setting, $type, $connectedAccountId);
+
+        try {
+            if ($connectedAccountId) {
+                $this->handleConnectEvent($type, $data, $connectedAccountId);
+            } else {
+                $this->handlePlatformEvent($type, $data);
+            }
+        } catch (\Throwable $e) {
+            Log::error('[Stripe] Webhook handler failed', [
+                'type'    => $type,
+                'account' => $connectedAccountId,
+                'error'   => $e->getMessage(),
+            ]);
+
+            return response()->json(['message' => 'Handler error'], 500);
+        }
 
         return response()->json(['received' => true]);
     }
 
-    private function handleCheckoutCompleted(object $session): void
+    private function handlePlatformEvent(string $type, object $data): void
+    {
+        match ($type) {
+            'checkout.session.completed' => $this->handlePlatformCheckoutCompleted($data),
+            'invoice.paid'                 => $this->fulfillment->handleInvoicePaid($data),
+            'invoice.payment_failed'       => $this->fulfillment->handleInvoicePaymentFailed($data),
+            'customer.subscription.deleted',
+            'customer.subscription.updated' => $this->fulfillment->handleSubscriptionUpdated($data),
+            'charge.refunded'              => $this->handleChargeRefunded($data),
+            default => null,
+        };
+    }
+
+    private function handleConnectEvent(string $type, object $data, string $connectedAccountId): void
+    {
+        match ($type) {
+            'checkout.session.completed' => $this->handleConnectCheckoutCompleted($data, $connectedAccountId),
+            'account.updated'            => $this->handleConnectAccountUpdated($data, $connectedAccountId),
+            default => Log::debug('[Stripe] Connect event ignored', ['type' => $type]),
+        };
+    }
+
+    private function handlePlatformCheckoutCompleted(object $session): void
     {
         if (($session->mode ?? '') === 'payment') {
+            $metadata = (array) ($session->metadata ?? []);
+            if (($metadata['type'] ?? '') === 'marketing_service') {
+                $this->fulfillment->fulfillMarketingCheckout($session);
+
+                return;
+            }
+
+            // Platform-mode client payments (legacy) — Connect checkouts use connected account events.
             $this->handleClientPaymentCheckout($session);
 
             return;
         }
 
-        if (($session->mode ?? '') !== 'subscription') {
+        $result = $this->fulfillment->fulfillCheckoutSession($session);
+        if ($result) {
+            Log::info('[Stripe] Checkout fulfilled via webhook', ['type' => $result['type'] ?? 'unknown']);
+        }
+    }
+
+    private function handleConnectCheckoutCompleted(object $session, string $connectedAccountId): void
+    {
+        try {
+            $paymentRequest = $this->clientPayments->markPaidFromConnectWebhook($session, $connectedAccountId);
+        } catch (\Throwable $e) {
+            Log::warning('[Stripe] Connect checkout fulfillment failed', [
+                'error'   => $e->getMessage(),
+                'account' => $connectedAccountId,
+            ]);
+
             return;
         }
 
-        $existing = ConsultantSubscription::where('stripe_checkout_session_id', $session->id)->first();
-        if ($existing) {
+        if ($paymentRequest) {
+            Log::info('[Stripe] Client payment marked paid via Connect webhook', [
+                'payment_request_id' => $paymentRequest->id,
+                'account'            => $connectedAccountId,
+            ]);
+        }
+    }
+
+    private function handleConnectAccountUpdated(object $account, string $connectedAccountId): void
+    {
+        $record = ConsultantPaymentAccount::where('stripe_connect_account_id', $connectedAccountId)->first();
+        if (! $record) {
             return;
         }
 
-        // Initial activation is handled by verify-session on return URL.
-        // This handler is a backup if the user closes the browser before return.
-        Log::info('[Stripe] checkout.session.completed — awaiting verify-session or manual sync', [
-            'session_id' => $session->id,
+        $record->update([
+            'stripe_charges_enabled'   => (bool) ($account->charges_enabled ?? false),
+            'stripe_details_submitted' => (bool) ($account->details_submitted ?? false),
         ]);
     }
 
@@ -97,7 +171,7 @@ class StripeWebhookController extends Controller
             return;
         }
 
-        app(ClientPaymentRequestService::class)->markPaid($paymentRequest);
+        $this->clientPayments->markPaid($paymentRequest);
 
         Log::info('[Stripe] Client payment request marked paid', [
             'payment_request_id' => $paymentRequest->id,
@@ -105,53 +179,37 @@ class StripeWebhookController extends Controller
         ]);
     }
 
-    private function handleInvoicePaid(object $invoice): void
+    private function handleChargeRefunded(object $charge): void
     {
-        $stripeSubId = $invoice->subscription ?? null;
-        if (! $stripeSubId) {
+        $paymentIntent = $charge->payment_intent ?? null;
+        $sessionId     = $charge->metadata->checkout_session_id ?? null;
+
+        if (! $paymentIntent && ! $sessionId) {
             return;
         }
 
-        $updates = [
-            'status'          => 'active',
-            'last_payment_at' => now(),
-        ];
+        $query = \App\Models\SubscriptionPaymentRecord::query();
 
-        try {
-            new StripeService();
-            $stripeSub = StripeSubscription::retrieve($stripeSubId);
-            if ($stripeSub->current_period_end) {
-                $updates['ends_at'] = \Carbon\Carbon::createFromTimestamp($stripeSub->current_period_end);
+        $query->where(function ($q) use ($paymentIntent, $sessionId) {
+            if ($paymentIntent) {
+                $q->where('stripe_invoice_id', $paymentIntent);
             }
-        } catch (\Throwable $e) {
-            Log::warning('[Stripe] Could not fetch subscription for invoice.paid', [
-                'subscription_id' => $stripeSubId,
-                'error'           => $e->getMessage(),
-            ]);
-        }
+            if ($sessionId) {
+                $paymentIntent
+                    ? $q->orWhere('stripe_checkout_session_id', $sessionId)
+                    : $q->where('stripe_checkout_session_id', $sessionId);
+            }
+        });
 
-        ConsultantSubscription::where('stripe_subscription_id', $stripeSubId)
-            ->update($updates);
+        $query->update(['payment_status' => \App\Models\SubscriptionPaymentRecord::STATUS_REFUNDED]);
     }
 
-    private function handleSubscriptionChange(object $subscription): void
+    private function recordWebhookHealth(PaymentGatewaySetting $setting, string $type, ?string $connectedAccountId): void
     {
-        $sub = ConsultantSubscription::where('stripe_subscription_id', $subscription->id)->first();
-        if (! $sub) {
-            return;
-        }
-
-        $status = $subscription->status ?? '';
-        if (in_array($status, ['canceled', 'unpaid', 'incomplete_expired'], true)) {
-            $sub->update(['status' => 'cancelled', 'cancelled_at' => now()]);
-            return;
-        }
-
-        if ($status === 'active' && isset($subscription->current_period_end)) {
-            $sub->update([
-                'status'  => 'active',
-                'ends_at' => \Carbon\Carbon::createFromTimestamp($subscription->current_period_end),
-            ]);
-        }
+        $setting->update([
+            'last_webhook_at'      => now(),
+            'last_webhook_type'    => $type,
+            'last_webhook_account' => $connectedAccountId,
+        ]);
     }
 }

@@ -107,13 +107,17 @@ export function NavUser() {
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
-              <DropdownMenuItem>
-                <UserCircle2Icon />
-                Account
+              <DropdownMenuItem asChild>
+                <Link href="/user-dashboard/account">
+                  <UserCircle2Icon />
+                  Account
+                </Link>
               </DropdownMenuItem>
-              <DropdownMenuItem>
-                <CreditCardIcon />
-                Billing
+              <DropdownMenuItem asChild>
+                <Link href="/user-dashboard/billing">
+                  <CreditCardIcon />
+                  Billing
+                </Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
                 <Link href="/user-dashboard/notifications">

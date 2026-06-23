@@ -21,12 +21,20 @@ import {
   LockIcon,
   MailIcon,
   Loader2,
+  UserCircle2Icon,
+  CreditCardIcon,
+  UserSearchIcon,
+  MessageSquareIcon,
+  RouteIcon,
 } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { useClientJourneyOptional } from "@/context/client-journey-context";
+import { useClientUnreadMessages } from "@/hooks/use-client-unread-messages";
 import {
   journeyCurrentStepNumber,
   journeyStepBadge,
+  LEARNING_LOCKED_REASON,
+  canAccessClientMessages,
   type JourneyStep,
   type JourneyStepId,
 } from "@/lib/client-journey";
@@ -44,6 +52,11 @@ export const navItems = [
       { title: "Government forms", href: "/user-dashboard/application-forms", icon: FormInputIcon },
       { title: "Documents & messages", href: "/user-dashboard/case-management", icon: FolderUpIcon },
       { title: "Learning courses", href: "/user-dashboard/learning", icon: BookOpenIcon },
+      { title: "Find a consultant", href: "/user-dashboard/choose-consultant", icon: UserSearchIcon },
+      { title: "My pathway", href: "/user-dashboard/my-pathway", icon: RouteIcon },
+      { title: "Messages", href: "/user-dashboard/messages", icon: MessageSquareIcon },
+      { title: "Account", href: "/user-dashboard/account", icon: UserCircle2Icon },
+      { title: "Billing", href: "/user-dashboard/billing", icon: CreditCardIcon },
     ],
   },
 ];
@@ -73,10 +86,12 @@ function JourneyStepNavItem({
   step,
   canAccess,
   isActive,
+  badgeCount,
 }: {
   step: JourneyStep;
   canAccess: boolean;
   isActive: boolean;
+  badgeCount?: number;
 }) {
   const Icon = STEP_ICONS[step.id];
   const badge = journeyStepBadge(step.status);
@@ -117,6 +132,11 @@ function JourneyStepNavItem({
               )}
             >
               {step.navLabel}
+              {badgeCount != null && badgeCount > 0 && (
+                <span className="ml-1.5 inline-flex min-w-[1.1rem] items-center justify-center rounded-full bg-primary px-1.5 py-px text-[10px] font-bold text-primary-foreground">
+                  {badgeCount > 9 ? "9+" : badgeCount}
+                </span>
+              )}
             </span>
             <span
               className={cn(
@@ -179,7 +199,12 @@ export function NavMain() {
   const currentStepNum = journeyCurrentStepNumber(steps, currentStepId);
   const nextAction = journey?.nextAction;
   const consultant = journey?.consultant;
+  const showJourneyNav = Boolean(consultant);
   const canAccess = journey?.canAccess ?? (() => false);
+  const learningUnlocked = journey?.canAccessLearning ?? false;
+  const messagesUnlocked = canAccessClientMessages(journey?.caseFile ?? null);
+  const pathwayAssigned = Boolean(journey?.meta.pathwayAssigned);
+  const { count: unreadMessages } = useClientUnreadMessages(messagesUnlocked);
 
   const isOverviewActive = pathname === "/user-dashboard";
 
@@ -198,27 +223,38 @@ export function NavMain() {
                 Your status
               </p>
               <p className="text-sm font-semibold leading-snug text-foreground">
-                {nextAction?.title ?? "Getting started"}
+                {showJourneyNav
+                  ? (nextAction?.title ?? "Getting started")
+                  : "Choose your immigration consultant"}
               </p>
               <p className="text-[11px] leading-relaxed text-muted-foreground line-clamp-2">
-                {nextAction?.description}
+                {showJourneyNav
+                  ? nextAction?.description
+                  : "Search licensed RCICs and send a request to start your 4-step application journey."}
               </p>
             </div>
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between text-[10px] font-medium text-muted-foreground">
-                <span>Step {currentStepNum} of 4</span>
-                <span className="tabular-nums">{progress}%</span>
+            {showJourneyNav && (
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between text-[10px] font-medium text-muted-foreground">
+                  <span>Step {currentStepNum} of 4</span>
+                  <span className="tabular-nums">{progress}%</span>
+                </div>
+                <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+                  <div
+                    className="h-full rounded-full bg-primary transition-all duration-500"
+                    style={{ width: `${progress}%` }}
+                  />
+                </div>
               </div>
-              <div className="h-1.5 overflow-hidden rounded-full bg-muted">
-                <div
-                  className="h-full rounded-full bg-primary transition-all duration-500"
-                  style={{ width: `${progress}%` }}
-                />
-              </div>
-            </div>
-            {nextAction?.href && nextAction.buttonLabel && (
+            )}
+            {showJourneyNav && nextAction?.href && nextAction.buttonLabel && (
               <Button size="sm" className="h-8 w-full rounded-lg text-xs" asChild>
                 <Link href={nextAction.href}>{nextAction.buttonLabel}</Link>
+              </Button>
+            )}
+            {!showJourneyNav && (
+              <Button size="sm" className="h-8 w-full rounded-lg text-xs" asChild>
+                <Link href="/user-dashboard/choose-consultant">Find a consultant</Link>
               </Button>
             )}
           </>
@@ -226,7 +262,7 @@ export function NavMain() {
       </div>
 
       <SidebarGroupLabel className="text-[10px] font-semibold uppercase tracking-wider">
-        Your journey
+        {showJourneyNav ? "Your journey" : "Get started"}
       </SidebarGroupLabel>
 
       <SidebarGroupContent>
@@ -246,29 +282,109 @@ export function NavMain() {
             </SidebarMenuButton>
           </SidebarMenuItem>
 
-          {/* 4 journey steps */}
-          {steps.map((step) => (
+          {/* 4 journey steps — only after a consultant is linked */}
+          {showJourneyNav && steps.map((step) => (
             <JourneyStepNavItem
               key={step.id}
               step={step}
               canAccess={canAccess(step.id)}
               isActive={pathname.startsWith(step.href)}
+              badgeCount={step.id === "documents" ? unreadMessages : undefined}
             />
           ))}
 
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              className="hover:!bg-primary/10 hover:!text-foreground active:!bg-primary/10 active:!text-foreground data-[active=true]:!bg-primary/15 data-[active=true]:!text-foreground hover:[&_svg]:!text-foreground data-[active=true]:[&_svg]:!text-foreground"
-              isActive={pathname.startsWith("/user-dashboard/learning")}
-              tooltip="Learning courses"
-              asChild
-            >
-              <Link href="/user-dashboard/learning">
-                <BookOpenIcon className="size-4 shrink-0" />
-                <span>Learning courses</span>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
+          {showJourneyNav && messagesUnlocked && (
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                className="hover:!bg-primary/10 hover:!text-foreground active:!bg-primary/10 active:!text-foreground data-[active=true]:!bg-primary/15 data-[active=true]:!text-foreground hover:[&_svg]:!text-foreground data-[active=true]:[&_svg]:!text-foreground"
+                isActive={pathname.startsWith("/user-dashboard/messages")}
+                tooltip="Messages"
+                asChild
+              >
+                <Link href="/user-dashboard/messages">
+                  <MessageSquareIcon className="size-4 shrink-0" />
+                  <span>
+                    Messages
+                    {unreadMessages > 0 && (
+                      <span className="ml-1.5 inline-flex min-w-[1.1rem] items-center justify-center rounded-full bg-primary px-1.5 py-px text-[10px] font-bold text-primary-foreground">
+                        {unreadMessages > 9 ? "9+" : unreadMessages}
+                      </span>
+                    )}
+                  </span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          )}
+
+          {showJourneyNav && pathwayAssigned && (
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                className="hover:!bg-primary/10 hover:!text-foreground active:!bg-primary/10 active:!text-foreground data-[active=true]:!bg-primary/15 data-[active=true]:!text-foreground hover:[&_svg]:!text-foreground data-[active=true]:[&_svg]:!text-foreground"
+                isActive={pathname.startsWith("/user-dashboard/my-pathway")}
+                tooltip="My pathway"
+                asChild
+              >
+                <Link href="/user-dashboard/my-pathway">
+                  <RouteIcon className="size-4 shrink-0" />
+                  <span>My pathway</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          )}
+
+          {!showJourneyNav && (
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                className="hover:!bg-primary/10 hover:!text-foreground active:!bg-primary/10 active:!text-foreground data-[active=true]:!bg-primary/15 data-[active=true]:!text-foreground hover:[&_svg]:!text-foreground data-[active=true]:[&_svg]:!text-foreground"
+                isActive={pathname.startsWith("/user-dashboard/choose-consultant")}
+                tooltip="Find a consultant"
+                asChild
+              >
+                <Link href="/user-dashboard/choose-consultant">
+                  <UserSearchIcon className="size-4 shrink-0" />
+                  <span>Find a consultant</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          )}
+
+          {showJourneyNav && (
+            <SidebarMenuItem>
+              {learningUnlocked ? (
+                <SidebarMenuButton
+                  className="hover:!bg-primary/10 hover:!text-foreground active:!bg-primary/10 active:!text-foreground data-[active=true]:!bg-primary/15 data-[active=true]:!text-foreground hover:[&_svg]:!text-foreground data-[active=true]:[&_svg]:!text-foreground"
+                  isActive={pathname.startsWith("/user-dashboard/learning")}
+                  tooltip="Learning courses"
+                  asChild
+                >
+                  <Link href="/user-dashboard/learning">
+                    <BookOpenIcon className="size-4 shrink-0" />
+                    <span>Learning courses</span>
+                  </Link>
+                </SidebarMenuButton>
+              ) : (
+                <SidebarMenuButton
+                  className="h-auto min-h-10 cursor-not-allowed items-start py-2 opacity-80 hover:!bg-transparent active:!bg-transparent hover:!text-inherit"
+                  isActive={false}
+                  tooltip={`Learning courses — ${LEARNING_LOCKED_REASON}`}
+                  onClick={(e) => e.preventDefault()}
+                >
+                  <BookOpenIcon className="size-4 shrink-0 text-muted-foreground opacity-40" />
+                  <div className="min-w-0 flex-1 group-data-[collapsible=icon]:hidden">
+                    <span className="block truncate text-sm font-medium text-muted-foreground/70">
+                      Learning courses
+                    </span>
+                    <span className="mt-0.5 inline-flex rounded-md border border-muted-foreground/20 bg-muted px-1.5 py-px text-[10px] font-semibold leading-tight text-muted-foreground">
+                      Locked
+                    </span>
+                    <p className="mt-1 line-clamp-2 text-[10px] leading-snug text-muted-foreground/70">
+                      {LEARNING_LOCKED_REASON}
+                    </p>
+                  </div>
+                </SidebarMenuButton>
+              )}
+            </SidebarMenuItem>
+          )}
         </SidebarMenu>
       </SidebarGroupContent>
 

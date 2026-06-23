@@ -45,6 +45,8 @@ class WorkspaceCaseRulesService
             'pathway_snapshot_summary' => $this->summarizePathwaySnapshot($snapshot),
             'next_action' => $nextAction,
             'pathway_focus' => $this->isPathwayFocusStage($caseFile, $qStats, $verification),
+            'pathway_review_mode' => filled($caseFile->immigration_pathway),
+            'workflow_phase' => $this->resolveWorkflowPhase($caseFile, $qStats, $verification),
         ];
     }
 
@@ -205,12 +207,15 @@ class WorkspaceCaseRulesService
             return $this->action('warning', 'Waiting for client questionnaire', $desc, "{$base}/questionnaire-review", 'Open questionnaire review');
         }
 
-        if (($qStats['verified_count'] ?? 0) < 5) {
+        $pathwayAssigned = filled($caseFile->immigration_pathway);
+        $agreementSigned = filled($caseFile->agreement_signed_at);
+
+        if (! $pathwayAssigned && ! $agreementSigned && ($qStats['verified_count'] ?? 0) < 5) {
             $count = $qStats['verified_count'] ?? 0;
             return $this->action('info', 'Review client questionnaire', "Only {$count} field(s) verified. Verify identity and key answers before pathway assignment.", "{$base}/questionnaire-review", 'Verify questionnaire');
         }
 
-        if (! $caseFile->immigration_pathway) {
+        if (! $pathwayAssigned) {
             return $this->action('primary', 'Assign immigration pathway', 'Questionnaire is ready. Run CRS/pathway analysis and assign the best route for this client.', "{$base}/pathway-calculator", 'Open pathway calculator', true);
         }
 
@@ -241,6 +246,66 @@ class WorkspaceCaseRulesService
         return $this->action('info', 'Continue case workflow', 'Work through workspace steps toward submission.', $base, 'View workspace');
     }
 
+    /**
+     * Lightweight case row for the clients list (status + next action).
+     *
+     * @param  array<string, mixed>  $verification
+     * @return array<string, mixed>
+     */
+    public function summarizeForClientList(
+        int $profileId,
+        ?CaseFile $caseFile,
+        ?QuestionnaireSubmission $submission,
+        array $verification,
+    ): array {
+        $qStats = $this->questionnaireStats($submission);
+
+        if (! $caseFile) {
+            $next = $this->action(
+                'info',
+                'Open workspace',
+                'Start the client assessment workflow.',
+                "/dashboard/clients/{$profileId}/workspace",
+                'Open workspace',
+            );
+
+            return [
+                'case_status'        => null,
+                'case_status_label'  => 'Not started',
+                'immigration_pathway'=> null,
+                'workflow_phase'     => 'not_started',
+                'agreement_signed'   => false,
+                'case_updated_at'    => null,
+                'next_action'        => $this->compactNextAction($next),
+            ];
+        }
+
+        $next = $this->resolveNextAction($profileId, $caseFile, $qStats, $verification);
+
+        return [
+            'case_status'        => $caseFile->status,
+            'case_status_label'  => ConsultantClientListService::statusLabels()[$caseFile->status]
+                ?? str_replace('_', ' ', ucwords(strtolower($caseFile->status), '_')),
+            'immigration_pathway'=> $caseFile->immigration_pathway,
+            'workflow_phase'     => $this->resolveWorkflowPhase($caseFile, $qStats, $verification),
+            'agreement_signed'   => $caseFile->isAgreementSigned(),
+            'case_updated_at'    => $caseFile->updated_at?->toIso8601String(),
+            'next_action'        => $this->compactNextAction($next),
+        ];
+    }
+
+    /** @param  array<string, mixed>  $action
+     * @return array{title: string, tone: string, href: string|null}
+     */
+    private function compactNextAction(array $action): array
+    {
+        return [
+            'title' => (string) ($action['title'] ?? 'Continue'),
+            'tone'  => (string) ($action['tone'] ?? 'info'),
+            'href'  => isset($action['href']) ? (string) $action['href'] : null,
+        ];
+    }
+
     /** @return array<string, mixed> */
     private function action(string $tone, string $title, string $description, ?string $href = null, ?string $buttonLabel = null, bool $pathwayFocus = false): array
     {
@@ -257,13 +322,50 @@ class WorkspaceCaseRulesService
     /** @param array<string, mixed> $qStats @param array<string, mixed> $verification */
     private function isPathwayFocusStage(CaseFile $caseFile, array $qStats, array $verification): bool
     {
-        if ($caseFile->immigration_pathway) {
+        if (($qStats['pending_refills'] ?? 0) > 0) {
             return false;
         }
 
-        return ($qStats['is_submitted'] ?? false)
-            && ($qStats['verified_count'] ?? 0) >= 5
-            && ($qStats['pending_refills'] ?? 0) === 0;
+        if (! ($qStats['is_submitted'] ?? false)) {
+            return false;
+        }
+
+        if ($caseFile->immigration_pathway) {
+            return true;
+        }
+
+        return ($qStats['verified_count'] ?? 0) >= 5;
+    }
+
+    /** @param array<string, mixed> $qStats @param array<string, mixed> $verification */
+    private function resolveWorkflowPhase(CaseFile $caseFile, array $qStats, array $verification): string
+    {
+        if (($qStats['pending_refills'] ?? 0) > 0) {
+            return 'questionnaire_refill';
+        }
+
+        if (! ($qStats['is_submitted'] ?? false)) {
+            return 'questionnaire_pending';
+        }
+
+        if (! $caseFile->immigration_pathway) {
+            return 'pathway_selection';
+        }
+
+        if (! $caseFile->agreement_signed_at) {
+            return 'retainer_pending';
+        }
+
+        $total = (int) ($verification['total_forms'] ?? 0);
+        if ($total > 0 && ! ($verification['all_reviewed'] ?? false)) {
+            return 'application_forms';
+        }
+
+        if ($verification['case_management_unlocked'] ?? false) {
+            return 'case_hub';
+        }
+
+        return 'post_agreement';
     }
 
     /** @param array<string, mixed> $snapshot */

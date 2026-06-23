@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/layout/sidebar/app-sidebar";
 import { SiteHeader } from "@/components/layout/header";
+import { DashboardClientWrapper } from "@/components/layout/dashboard-client-wrapper";
 
 export default async function AuthLayout({
   children
@@ -28,15 +29,17 @@ export default async function AuthLayout({
             "calc(100vh - var(--header-height) - (var(--content-padding) * 2) - (var(--content-margin) * 2))"
         } as React.CSSProperties
       }>
-      <AppSidebar variant="inset" />
-      <SidebarInset>
-        <SiteHeader />
-        <div className="bg-muted/40 flex flex-1 flex-col">
-          <div className="@container/main p-(--content-padding) xl:group-data-[theme-content-layout=centered]/layout:container xl:group-data-[theme-content-layout=centered]/layout:mx-auto">
-            {children}
+      <DashboardClientWrapper>
+        <AppSidebar variant="inset" />
+        <SidebarInset>
+          <SiteHeader />
+          <div className="bg-muted/40 flex flex-1 flex-col">
+            <div className="@container/main p-(--content-padding) xl:group-data-[theme-content-layout=centered]/layout:container xl:group-data-[theme-content-layout=centered]/layout:mx-auto">
+              {children}
+            </div>
           </div>
-        </div>
-      </SidebarInset>
+        </SidebarInset>
+      </DashboardClientWrapper>
     </SidebarProvider>
   );
 }

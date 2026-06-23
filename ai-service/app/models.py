@@ -26,3 +26,14 @@ class ScanResponse(BaseModel):
     confidence_score: float = 0.0
     raw_text: Optional[str] = None   # Debug only; omitted in production
     message: Optional[str] = None
+
+
+class ExtractTextResponse(BaseModel):
+    """Response envelope returned by /extract-text."""
+
+    status: str
+    text: str = ""
+    page_count: Optional[int] = None
+    extraction_method: str = "unknown"
+    confidence_score: Optional[float] = None
+    message: Optional[str] = None

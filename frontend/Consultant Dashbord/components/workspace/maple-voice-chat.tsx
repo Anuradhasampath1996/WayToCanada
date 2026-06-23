@@ -1,9 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Loader2, Mic, MicOff, Send, Volume2, VolumeX } from "lucide-react";
+import { Loader2, Mic, MicOff, Paperclip, Send, Volume2, VolumeX, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { MAPLE_ASSISTANT } from "@/lib/workspace-ai-character";
 import { MapleAvatar } from "@/components/workspace/maple-avatar";
@@ -14,10 +15,45 @@ import {
   speechSynthesisSupported,
   stopSpeaking,
 } from "@/lib/maple-voice";
+import { LegislationLinkChips, type LegislationLink } from "@/components/legislation/legislation-link-chips";
 
 const API = (process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000") + "/api/v1";
 
-type ChatTurn = { role: "user" | "assistant"; content: string; aiPowered?: boolean };
+type ChatTurn = {
+  role: "user" | "assistant";
+  content: string;
+  aiPowered?: boolean;
+  intelligenceMode?: string;
+  legislationLinks?: LegislationLink[];
+};
+
+type MapleDocument = {
+  id: number;
+  original_filename: string;
+  char_count: number;
+  page_count?: number | null;
+  extraction_method?: string | null;
+  status: "ready" | "failed" | string;
+  error_message?: string | null;
+  created_at?: string;
+};
+
+function authHeadersJson(): Record<string, string> {
+  const token = typeof window !== "undefined" ? localStorage.getItem("wtc_consultant_token") : null;
+  return {
+    "Content-Type": "application/json",
+    Accept: "application/json",
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+}
+
+function authHeadersMultipart(): Record<string, string> {
+  const token = typeof window !== "undefined" ? localStorage.getItem("wtc_consultant_token") : null;
+  return {
+    Accept: "application/json",
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+}
 
 function MapleVoiceToggle({
   voiceOn,
@@ -68,16 +104,15 @@ function MapleVoiceToggle({
   );
 }
 
-function authHeaders(): Record<string, string> {
-  const token = typeof window !== "undefined" ? localStorage.getItem("wtc_consultant_token") : null;
-  return {
-    "Content-Type": "application/json",
-    Accept: "application/json",
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-  };
-}
-
-export function MapleVoiceChat({ clientId }: { clientId: number }) {
+export function MapleVoiceChat({
+  clientId,
+  openAiAvailable = true,
+  onLegislationLinkClick,
+}: {
+  clientId: number;
+  openAiAvailable?: boolean;
+  onLegislationLinkClick?: (link: LegislationLink) => void;
+}) {
   const [input, setInput] = useState("");
   const [history, setHistory] = useState<ChatTurn[]>([]);
   const [loading, setLoading] = useState(false);
@@ -85,9 +120,12 @@ export function MapleVoiceChat({ clientId }: { clientId: number }) {
   const [speaking, setSpeaking] = useState(false);
   const [voiceOn, setVoiceOn] = useState(true);
   const [error, setError] = useState("");
+  const [documents, setDocuments] = useState<MapleDocument[]>([]);
+  const [uploading, setUploading] = useState(false);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const stopSpeakRef = useRef<(() => void) | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const canListen = speechRecognitionSupported();
   const canSpeak = speechSynthesisSupported();
@@ -104,6 +142,100 @@ export function MapleVoiceChat({ clientId }: { clientId: number }) {
     };
   }, []);
 
+  useEffect(() => {
+    async function loadHistory() {
+      try {
+        const res = await fetch(`${API}/consultant/clients/${clientId}/ai-advisor/state`, {
+          headers: authHeadersJson(),
+        });
+        if (!res.ok) return;
+        const json = await res.json();
+        const rows = (json.data?.chat_messages ?? []) as Array<{
+          role: string;
+          content: string;
+          openai_used?: boolean | null;
+          metadata?: { legislation_links?: LegislationLink[] } | null;
+        }>;
+        setHistory(
+          rows.map((row) => ({
+            role: row.role === "assistant" ? "assistant" : "user",
+            content: row.content,
+            aiPowered: row.role === "assistant" ? row.openai_used === true : undefined,
+            intelligenceMode:
+              row.role === "assistant"
+                ? row.openai_used
+                  ? "ai_enhanced"
+                  : "rules_engine"
+                : undefined,
+            legislationLinks:
+              row.role === "assistant" ? row.metadata?.legislation_links : undefined,
+          })),
+        );
+        setDocuments((json.data?.documents ?? []) as MapleDocument[]);
+      } catch {
+        // ignore
+      }
+    }
+    void loadHistory();
+  }, [clientId]);
+
+  const uploadDocument = useCallback(
+    async (file: File) => {
+      setUploading(true);
+      setError("");
+      try {
+        const form = new FormData();
+        form.append("file", file);
+        const res = await fetch(`${API}/consultant/clients/${clientId}/ai-advisor/documents`, {
+          method: "POST",
+          headers: authHeadersMultipart(),
+          body: form,
+        });
+        let json: { message?: string; data?: MapleDocument } = {};
+        try {
+          json = await res.json();
+        } catch {
+          throw new Error(
+            res.status === 404
+              ? "Upload API not found — restart the Laravel backend."
+              : `Upload failed (${res.status}).`,
+          );
+        }
+        if (!res.ok) throw new Error(json?.message ?? "Upload failed.");
+
+        const doc = json.data as MapleDocument;
+        setDocuments((prev) => [doc, ...prev.filter((d) => d.id !== doc.id)]);
+        if (doc.status !== "ready") {
+          setError(doc.error_message ?? json.message ?? "Could not read text from this file.");
+        }
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Upload failed.");
+      } finally {
+        setUploading(false);
+        if (fileInputRef.current) fileInputRef.current.value = "";
+      }
+    },
+    [clientId],
+  );
+
+  const removeDocument = useCallback(
+    async (docId: number) => {
+      setError("");
+      try {
+        const res = await fetch(`${API}/consultant/clients/${clientId}/ai-advisor/documents/${docId}`, {
+          method: "DELETE",
+          headers: authHeadersJson(),
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json?.message ?? "Could not remove file.");
+        setDocuments((prev) => prev.filter((d) => d.id !== docId));
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Could not remove file.");
+      }
+    },
+    [clientId],
+  );
+
   const sendMessage = useCallback(
     async (text: string) => {
       const message = text.trim();
@@ -117,15 +249,20 @@ export function MapleVoiceChat({ clientId }: { clientId: number }) {
       try {
         const res = await fetch(`${API}/consultant/clients/${clientId}/ai-advisor/chat`, {
           method: "POST",
-          headers: authHeaders(),
-          body: JSON.stringify({ message, history }),
+          headers: authHeadersJson(),
+          body: JSON.stringify({ message }),
         });
         const json = await res.json();
         if (!res.ok) throw new Error(json?.message ?? "Maple could not reply.");
 
         const reply = String(json.data?.reply ?? "");
         const aiPowered = Boolean(json.data?.openai_used);
-        setHistory((h) => [...h, { role: "assistant", content: reply, aiPowered }]);
+        const intelligenceMode = String(json.data?.intelligence_mode ?? (aiPowered ? "ai_enhanced" : "rules_engine"));
+        const legislationLinks = (json.data?.legislation_links ?? []) as LegislationLink[];
+        setHistory((h) => [
+          ...h,
+          { role: "assistant", content: reply, aiPowered, intelligenceMode, legislationLinks },
+        ]);
 
         if (voiceOn && canSpeak && reply) {
           setSpeaking(true);
@@ -138,7 +275,7 @@ export function MapleVoiceChat({ clientId }: { clientId: number }) {
         setLoading(false);
       }
     },
-    [clientId, history, loading, voiceOn, canSpeak],
+    [clientId, loading, voiceOn, canSpeak],
   );
 
   function toggleListen() {
@@ -199,14 +336,79 @@ export function MapleVoiceChat({ clientId }: { clientId: number }) {
         <p className="text-xs font-semibold text-muted-foreground">
           Ask {MAPLE_ASSISTANT.name} anything about this client
         </p>
-        <div className="flex gap-1">
+        <div className="flex items-center gap-2">
+          {!openAiAvailable && (
+            <Badge variant="secondary" className="text-[10px]">Rules mode</Badge>
+          )}
           {canSpeak && (
             <MapleVoiceToggle voiceOn={voiceOn} speaking={speaking} onClick={toggleVoiceReplies} />
           )}
         </div>
       </div>
 
-      <div ref={scrollRef} className="max-h-64 space-y-3 overflow-y-auto px-3 py-3">
+      <div className="border-b border-border/60 px-3 py-2">
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-[11px] font-medium text-muted-foreground">Attached files for Q&amp;A</p>
+          <div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              className="hidden"
+              accept=".pdf,.png,.jpg,.jpeg,.webp,.txt,.csv,application/pdf,image/*,text/plain"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) void uploadDocument(file);
+              }}
+            />
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-7 gap-1.5 rounded-lg text-[11px]"
+              disabled={uploading || loading || documents.filter((d) => d.status === "ready").length >= 5}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Paperclip className="h-3.5 w-3.5" />}
+              Upload file
+            </Button>
+          </div>
+        </div>
+        {documents.length > 0 ? (
+          <ul className="mt-2 space-y-1">
+            {documents.map((doc) => (
+              <li
+                key={doc.id}
+                className="flex items-center justify-between gap-2 rounded-lg bg-muted/50 px-2 py-1.5 text-[11px]"
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-medium text-foreground">{doc.original_filename}</p>
+                  <p className="text-muted-foreground">
+                    {doc.status === "ready"
+                      ? `${doc.char_count.toLocaleString()} chars${doc.page_count ? ` · ${doc.page_count} pg` : ""}`
+                      : (doc.error_message ?? "Text extraction failed") + " — remove and upload again."}
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="ghost"
+                  className="h-7 w-7 shrink-0"
+                  title="Remove file"
+                  onClick={() => void removeDocument(doc.id)}
+                >
+                  <X className="h-3.5 w-3.5" />
+                </Button>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="mt-1.5 text-[11px] text-muted-foreground">
+            PDF, image, or .txt — then ask Maple about what&apos;s inside (e.g. expiry date, refusal reason).
+          </p>
+        )}
+      </div>
+
+      <div ref={scrollRef} className="max-h-[min(28rem,50vh)] space-y-3 overflow-y-auto px-3 py-3">
         {history.length === 0 && (
           <p className="text-xs leading-relaxed text-muted-foreground">
             {MAPLE_ASSISTANT.voiceHint}
@@ -232,8 +434,19 @@ export function MapleVoiceChat({ clientId }: { clientId: number }) {
               >
                 {turn.content}
               </div>
-              {turn.role === "assistant" && turn.aiPowered && (
-                <p className="px-1 text-[10px] text-muted-foreground">AI-powered reply</p>
+              {turn.role === "assistant" && (
+                <>
+                  <LegislationLinkChips
+                    links={turn.legislationLinks ?? []}
+                    compact
+                    onLinkClick={onLegislationLinkClick}
+                  />
+                  <p className="px-1 text-[10px] text-muted-foreground">
+                    {turn.intelligenceMode === "ai_enhanced" || turn.aiPowered
+                      ? "AI-enhanced reply"
+                      : "Rules engine reply"}
+                  </p>
+                </>
               )}
             </div>
           </div>

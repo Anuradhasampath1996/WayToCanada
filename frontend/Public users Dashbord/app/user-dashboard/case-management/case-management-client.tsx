@@ -302,6 +302,23 @@ export function CaseManagementClient() {
     }
   }, []);
 
+  const markMessagesRead = useCallback(async () => {
+    try {
+      await fetch(`${CLIENT_API}/client/messages/mark-read`, {
+        method: "PATCH",
+        headers: clientAuthHeaders(),
+      });
+      const now = new Date().toISOString();
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.sender_type === "consultant" && !m.read_at ? { ...m, read_at: now } : m,
+        ),
+      );
+    } catch {
+      // ignore
+    }
+  }, []);
+
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
     else setRefreshing(true);
@@ -354,9 +371,10 @@ export function CaseManagementClient() {
 
   useEffect(() => {
     if (locked || activeTab !== "messages") return;
+    void markMessagesRead();
     const interval = setInterval(loadMessages, 30000);
     return () => clearInterval(interval);
-  }, [locked, activeTab, loadMessages]);
+  }, [locked, activeTab, loadMessages, markMessagesRead]);
 
   const uploadDocument = async (docType: string, docLabel: string, file: File) => {
     const form = new FormData();

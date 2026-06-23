@@ -1,4 +1,4 @@
-/** Maple — RCICMASTER workspace AI co-pilot character */
+/** Maple — consultant workspace AI co-pilot character */
 
 export const MAPLE_ASSISTANT = {
   name: "Maple",
@@ -6,7 +6,7 @@ export const MAPLE_ASSISTANT = {
   role: "Your friendly case co-pilot",
   tagline: "Always here in every client workspace when you need a hand.",
   availability:
-    "I'm part of your RCICMASTER system — click whenever you want help. I only run when you ask, never in the background.",
+    "Click whenever you want help. I only run when you ask, never in the background.",
   intro:
     "Hi! I'm Maple. I review this client's status, questionnaire, and pathway data, then suggest your next steps — especially helpful before recommending a pathway.",
   analyzeButton: "Ask Maple to analyze",

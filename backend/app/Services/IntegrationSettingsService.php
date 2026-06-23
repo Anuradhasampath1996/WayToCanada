@@ -56,14 +56,36 @@ class IntegrationSettingsService
             ],
         ],
         'twilio' => [
-            'label'       => 'Twilio WhatsApp',
-            'description' => 'WhatsApp notifications and agreement reminders.',
+            'label'       => 'Twilio WhatsApp (legacy fallback)',
+            'description' => 'Optional fallback if Meta Cloud API is unavailable. Uses free-text messages.',
             'secrets'     => ['auth_token'],
             'fields'      => ['account_sid', 'auth_token', 'whatsapp_from'],
             'env'         => [
                 'account_sid'   => 'TWILIO_ACCOUNT_SID',
                 'auth_token'    => 'TWILIO_AUTH_TOKEN',
                 'whatsapp_from' => 'TWILIO_WHATSAPP_FROM',
+            ],
+        ],
+        'whatsapp_cloud' => [
+            'label'       => 'Meta WhatsApp Cloud API',
+            'description' => 'Primary WhatsApp provider for consultant and client notifications.',
+            'secrets'     => ['access_token', 'app_secret'],
+            'fields'      => [
+                'provider', 'phone_number_id', 'waba_id', 'access_token', 'api_version',
+                'language', 'consultant_template', 'client_template',
+                'webhook_verify_token', 'app_secret',
+            ],
+            'env' => [
+                'provider'              => 'WHATSAPP_PROVIDER',
+                'phone_number_id'       => 'WHATSAPP_CLOUD_PHONE_NUMBER_ID',
+                'waba_id'               => 'WHATSAPP_CLOUD_WABA_ID',
+                'access_token'          => 'WHATSAPP_CLOUD_ACCESS_TOKEN',
+                'api_version'           => 'WHATSAPP_CLOUD_API_VERSION',
+                'language'              => 'WHATSAPP_CLOUD_LANGUAGE',
+                'consultant_template'   => 'WHATSAPP_CLOUD_CONSULTANT_TEMPLATE',
+                'client_template'       => 'WHATSAPP_CLOUD_CLIENT_TEMPLATE',
+                'webhook_verify_token'  => 'WHATSAPP_CLOUD_WEBHOOK_VERIFY_TOKEN',
+                'app_secret'            => 'WHATSAPP_CLOUD_APP_SECRET',
             ],
         ],
         'zoom' => [
@@ -126,14 +148,23 @@ class IntegrationSettingsService
 
             $values = [];
             $previews = [];
+            $hints    = [];
+            $warnings = [];
             foreach ($meta['fields'] as $field) {
                 $val = $merged[$field] ?? null;
                 if (in_array($field, $meta['secrets'], true)) {
                     $values[$field] = null;
                     $previews[$field] = IntegrationSetting::maskSecret(is_string($val) ? $val : null);
+                    if (is_string($val) && $val !== '') {
+                        $hints[$field] = substr($val, 0, min(12, strlen($val))).'…';
+                    }
                 } else {
                     $values[$field] = $val;
                 }
+            }
+
+            if ($key === 'openai' && is_string($merged['api_key'] ?? null) && str_starts_with($merged['api_key'], 'sk-test')) {
+                $warnings[] = 'Saved API key looks like a placeholder (sk-test…). Paste your real OpenAI key from platform.openai.com and click Save.';
             }
 
             return [
@@ -144,6 +175,8 @@ class IntegrationSettingsService
                 'secrets'     => $meta['secrets'],
                 'values'      => $values,
                 'previews'    => $previews,
+                'hints'       => $hints,
+                'warnings'    => $warnings,
                 'configured'  => $this->isConfigured($key, $merged),
                 'source'      => $stored?->payload ? 'database' : 'env',
                 'updated_at'  => $stored?->updated_at?->toIso8601String(),
@@ -215,6 +248,7 @@ class IntegrationSettingsService
         $this->applyGoogleOAuth($all['google_oauth'] ?? []);
         $this->applyGoogleMeet($all['google_meet'] ?? [], $all['google_oauth'] ?? []);
         $this->applyTwilio($all['twilio'] ?? []);
+        $this->applyWhatsAppCloud($all['whatsapp_cloud'] ?? []);
         $this->applyZoom($all['zoom'] ?? []);
         $this->applyMicrosoft($all['microsoft'] ?? []);
         $this->applyAws($all['aws_s3'] ?? [], $all['mail'] ?? []);
@@ -263,6 +297,7 @@ class IntegrationSettingsService
             'google_oauth', 'google_meet', 'zoom', 'microsoft' =>
                 ! empty($v['client_id']) && ! empty($v['client_secret']),
             'twilio' => ! empty($v['account_sid']) && ! empty($v['auth_token']),
+            'whatsapp_cloud' => ! empty($v['phone_number_id']) && ! empty($v['access_token']),
             'aws_s3' => ! empty($v['access_key_id']) && ! empty($v['bucket']),
             'openai' => ! empty($v['api_key']),
             default => false,
@@ -334,6 +369,27 @@ class IntegrationSettingsService
             'services.twilio.sid'           => $v['account_sid'],
             'services.twilio.token'         => $v['auth_token'] ?? config('services.twilio.token'),
             'services.twilio.whatsapp_from' => $v['whatsapp_from'] ?? config('services.twilio.whatsapp_from'),
+        ]);
+    }
+
+    /** @param array<string, mixed> $v */
+    private function applyWhatsAppCloud(array $v): void
+    {
+        if (empty($v['phone_number_id']) && empty($v['access_token']) && empty($v['provider'])) {
+            return;
+        }
+
+        config([
+            'services.whatsapp.provider'              => $v['provider'] ?? config('services.whatsapp.provider', 'meta'),
+            'services.whatsapp_cloud.phone_number_id' => $v['phone_number_id'] ?? config('services.whatsapp_cloud.phone_number_id'),
+            'services.whatsapp_cloud.waba_id'         => $v['waba_id'] ?? config('services.whatsapp_cloud.waba_id'),
+            'services.whatsapp_cloud.access_token'    => $v['access_token'] ?? config('services.whatsapp_cloud.access_token'),
+            'services.whatsapp_cloud.api_version'     => $v['api_version'] ?? config('services.whatsapp_cloud.api_version', 'v21.0'),
+            'services.whatsapp_cloud.language'        => $v['language'] ?? config('services.whatsapp_cloud.language', 'en'),
+            'services.whatsapp_cloud.consultant_template' => $v['consultant_template'] ?? config('services.whatsapp_cloud.consultant_template', 'wtc_consultant_alert'),
+            'services.whatsapp_cloud.client_template'     => $v['client_template'] ?? config('services.whatsapp_cloud.client_template', 'wtc_client_alert'),
+            'services.whatsapp_cloud.webhook_verify_token'  => $v['webhook_verify_token'] ?? config('services.whatsapp_cloud.webhook_verify_token'),
+            'services.whatsapp_cloud.app_secret'            => $v['app_secret'] ?? config('services.whatsapp_cloud.app_secret'),
         ]);
     }
 

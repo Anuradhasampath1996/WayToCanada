@@ -8,16 +8,40 @@ use App\Models\UserNotificationPreference;
 
 class NotificationPreferenceService
 {
+    public function __construct(
+        private NotificationPhoneResolver $phones,
+    ) {}
+
     public function forUser(User $user): UserNotificationPreference
     {
         return UserNotificationPreference::firstOrCreate(
             ['user_id' => $user->id],
-            [
-                'in_app_enabled'   => true,
-                'email_enabled'    => true,
-                'whatsapp_enabled' => false,
-            ],
+            $this->defaultAttributesFor($user),
         );
+    }
+
+    /** @return array<string, mixed> */
+    private function defaultAttributesFor(User $user): array
+    {
+        $isWorkspaceUser = $user->hasAnyRole(['rcic', 'client']);
+
+        $attributes = [
+            'in_app_enabled'   => true,
+            'email_enabled'    => true,
+            'whatsapp_enabled' => $isWorkspaceUser,
+        ];
+
+        if ($isWorkspaceUser) {
+            $phone = $user->hasRole('rcic')
+                ? ($user->phone ?: $user->company_phone)
+                : $this->phones->resolveForUser($user);
+
+            if ($phone) {
+                $attributes['whatsapp_phone'] = $phone;
+            }
+        }
+
+        return $attributes;
     }
 
     /** @param list<string> $channels */

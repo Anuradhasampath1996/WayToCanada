@@ -27,7 +27,7 @@ import {
 } from "@/lib/questionnaire-crs-prefill";
 import {
   calculateCrs, fetchCrsDraws, fetchCrsRules, savePathwayAssessment, toApiPayload,
-  apiToBreakdown, apiToFsw,
+  apiToBreakdown, apiToFsw, spouseToExtendedPerson, personToSpouseFields,
   type ExtendedPersonInput, type CrsRulesMeta, type CrsDraw, type CrsApiResult,
 } from "@/lib/crs-api";
 
@@ -274,7 +274,7 @@ function PersonForm({ data, onChange, label }: {
 
 // ─── Spouse Form ─────────────────────────────────────────────────────────────
 
-function SpouseForm({ data, onChange }: { data: SpouseInput; onChange: (d: SpouseInput) => void }) {
+function SpouseForm({ data, onChange }: { data: SpouseInput & { age?: number }; onChange: (d: SpouseInput & { age?: number }) => void }) {
   const set = <K extends keyof SpouseInput>(k: K, v: SpouseInput[K]) => onChange({ ...data, [k]: v });
   const setIelts = (k: keyof SpouseInput["ielts"], v: number) =>
     onChange({ ...data, ielts: { ...data.ielts, [k]: v } });
@@ -283,6 +283,7 @@ function SpouseForm({ data, onChange }: { data: SpouseInput; onChange: (d: Spous
     <div className="space-y-3">
       <p className="text-sm font-bold text-muted-foreground uppercase tracking-wide">Spouse / Partner</p>
       <SectionCard title="Spouse Education &amp; Work" icon={GraduationCap}>
+        <NumInput label="Age" value={data.age ?? 28} onChange={v => set("age", v)} min={16} max={60} />
         <div className="col-span-2">
           <SelectInput label="Education Level" value={data.education} onChange={v => set("education", v as EducationLevel)}
             options={Object.entries(EDU_LABELS).map(([k, v]) => ({ value: k, label: v }))} />
@@ -413,10 +414,14 @@ function SpouseCompareModal({
   open, onClose,
   mainCRS, mainFSW,
   spouseCRS, spouseFSW,
+  onChoosePrincipal,
+  saving,
 }: {
   open: boolean; onClose: () => void;
   mainCRS: CRSBreakdown; mainFSW: FSWBreakdown;
   spouseCRS: CRSBreakdown; spouseFSW: FSWBreakdown;
+  onChoosePrincipal: (who: "main" | "spouse") => void;
+  saving?: boolean;
 }) {
   if (!open) return null;
 
@@ -481,11 +486,77 @@ function SpouseCompareModal({
         </div>
 
         {/* Footer */}
-        <div className="px-6 pb-4">
-          <Button onClick={onClose} className="w-full">
-            Close Comparison
+        <div className="space-y-2 px-6 pb-4">
+          <p className="text-center text-xs text-muted-foreground">
+            Choose who will be the principal applicant on the Express Entry profile. This saves the simulation to the case file and continues to pathway review.
+          </p>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <Button
+              variant={mainWins || mainCRS.total === spouseCRS.total ? "default" : "outline"}
+              disabled={saving}
+              onClick={() => onChoosePrincipal("main")}
+            >
+              {saving ? <Loader2 className="mr-2 size-4 animate-spin" /> : null}
+              Use client as principal
+            </Button>
+            <Button
+              variant={!mainWins && mainCRS.total !== spouseCRS.total ? "default" : "outline"}
+              disabled={saving}
+              onClick={() => onChoosePrincipal("spouse")}
+            >
+              {saving ? <Loader2 className="mr-2 size-4 animate-spin" /> : null}
+              Use spouse as principal
+            </Button>
+          </div>
+          <Button variant="ghost" onClick={onClose} className="w-full">
+            Close without saving
           </Button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function PrincipalApplicantBanner({
+  principal,
+  mainCrs,
+  spouseCrs,
+  onChange,
+}: {
+  principal: "main" | "spouse";
+  mainCrs: number;
+  spouseCrs: number;
+  onChange: (who: "main" | "spouse") => void;
+}) {
+  const recommended = mainCrs >= spouseCrs ? "main" : "spouse";
+  return (
+    <div className="rounded-xl border border-violet-200/60 bg-violet-500/[0.06] px-4 py-3">
+      <p className="text-xs font-semibold uppercase tracking-wide text-violet-800">Principal applicant for this case</p>
+      <p className="mt-1 text-sm text-violet-950">
+        {principal === "main"
+          ? `Client is principal (CRS ${mainCrs}) — spouse accompanies (CRS ${spouseCrs} if principal).`
+          : `Spouse is principal (CRS ${spouseCrs}) — client accompanies (CRS ${mainCrs} if principal).`}
+      </p>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <Button
+          size="sm"
+          variant={principal === "main" ? "default" : "outline"}
+          className="h-8 rounded-lg text-xs"
+          onClick={() => onChange("main")}
+        >
+          Client as principal ({mainCrs})
+        </Button>
+        <Button
+          size="sm"
+          variant={principal === "spouse" ? "default" : "outline"}
+          className="h-8 rounded-lg text-xs"
+          onClick={() => onChange("spouse")}
+        >
+          Spouse as principal ({spouseCrs})
+          {recommended === "spouse" && principal !== "spouse" && (
+            <Badge className="ml-1.5 h-4 rounded px-1 text-[9px]">Higher CRS</Badge>
+          )}
+        </Button>
       </div>
     </div>
   );
@@ -1364,8 +1435,9 @@ export function PathwayCalculatorClient({ paramsPromise }: { paramsPromise: Prom
 
   const [step,      setStep]      = useState<1 | 2 | 3>(1);
   const [main,      setMain]      = useState<ExtendedPersonInput>(EXT_DEF_PERSON);
-  const [spouse,    setSpouse]    = useState<SpouseInput & { englishTestType?: "ielts" | "celpip" }>(DEF_SPOUSE);
+  const [spouse,    setSpouse]    = useState<SpouseInput & { age?: number; englishTestType?: "ielts" | "celpip" }>({ ...DEF_SPOUSE, age: 28 });
   const [hasSpouse,         setHasSpouse]         = useState(false);
+  const [principalApplicant, setPrincipalApplicant] = useState<"main" | "spouse">("main");
   const [showCompareModal,  setShowCompareModal]  = useState(false);
   const [showScoreBreakdown, setShowScoreBreakdown] = useState(false);
 
@@ -1407,6 +1479,11 @@ export function PathwayCalculatorClient({ paramsPromise }: { paramsPromise: Prom
         if (data.case_file?.pathway_assessment_ircc_crs_score != null) {
           setIrccCrsScore(String(data.case_file.pathway_assessment_ircc_crs_score));
         }
+        const snap = data.case_file?.pathway_assessment_snapshot as Record<string, unknown> | undefined;
+        if (snap?.has_spouse) setHasSpouse(true);
+        if (snap?.principal_applicant === "spouse" || snap?.principal_applicant === "main") {
+          setPrincipalApplicant(snap.principal_applicant);
+        }
         const c = data.client;
         if (c) setClientName(`${c.first_name ?? ""} ${c.last_name ?? ""}`.trim());
       })
@@ -1424,7 +1501,7 @@ export function PathwayCalculatorClient({ paramsPromise }: { paramsPromise: Prom
     const timer = setTimeout(async () => {
       setCalcLoading(true);
       try {
-        const result = await calculateCrs(toApiPayload(main, spouse, hasSpouse));
+        const result = await calculateCrs(toApiPayload(main, spouse, hasSpouse, principalApplicant));
         if (!cancelled) setApiResult(result);
       } catch {
         if (!cancelled) setApiResult(null);
@@ -1433,7 +1510,7 @@ export function PathwayCalculatorClient({ paramsPromise }: { paramsPromise: Prom
       }
     }, 350);
     return () => { cancelled = true; clearTimeout(timer); };
-  }, [main, spouse, hasSpouse]);
+  }, [main, spouse, hasSpouse, principalApplicant]);
 
   async function loadFromQuestionnaire() {
     setPrefillLoading(true);
@@ -1465,25 +1542,54 @@ export function PathwayCalculatorClient({ paramsPromise }: { paramsPromise: Prom
     }
   }
 
-  async function saveAssessment() {
+  async function saveAssessment(principalOverride?: "main" | "spouse") {
     const token = localStorage.getItem("wtc_consultant_token") ?? "";
     if (!token) return;
+    const principal = principalOverride ?? principalApplicant;
+    const clientAsPrincipalCrs = calcCRS(main, hasSpouse, hasSpouse ? spouse : undefined).total;
+    const spouseAsPrincipalCrs = calcCRS(spouseToExtendedPerson(spouse), false).total;
     setSavingNotes(true);
     setSaveMessage(null);
     try {
+      const payload = toApiPayload(main, spouse, hasSpouse, principal);
+      let crsScore = clientAsPrincipalCrs;
+      try {
+        const result = await calculateCrs(payload);
+        crsScore = result.crs.total;
+        setApiResult(result);
+      } catch {
+        crsScore = principal === "spouse" && hasSpouse ? spouseAsPrincipalCrs : clientAsPrincipalCrs;
+      }
+      const snapshot = {
+        ...payload,
+        comparison: hasSpouse ? {
+          client_as_principal_crs: clientAsPrincipalCrs,
+          spouse_as_principal_crs: spouseAsPrincipalCrs,
+          principal_applicant: principal,
+          recommended: clientAsPrincipalCrs >= spouseAsPrincipalCrs ? "main" : "spouse",
+        } : undefined,
+      };
       await savePathwayAssessment(id, token, {
         notes: assessmentNotes,
-        crs_score: mainCRS.total,
+        crs_score: crsScore,
         ircc_crs_score: irccCrsScore ? parseInt(irccCrsScore, 10) : undefined,
         rules_version: apiResult?.rules_version ?? rulesMeta?.version,
-        assessment_snapshot: toApiPayload(main, spouse, hasSpouse) as Record<string, unknown>,
+        assessment_snapshot: snapshot as Record<string, unknown>,
       });
-      setSaveMessage("Assessment saved to case file.");
+      setPrincipalApplicant(principal);
+      setSaveMessage("Simulation saved to case file.");
     } catch (e) {
       setSaveMessage(e instanceof Error ? e.message : "Save failed.");
     } finally {
       setSavingNotes(false);
     }
+  }
+
+  async function applyPrincipalAndContinue(who: "main" | "spouse") {
+    setPrincipalApplicant(who);
+    await saveAssessment(who);
+    setShowCompareModal(false);
+    setStep(2);
   }
 
   async function assignPathway(backendValue: string, displayName: string) {
@@ -1534,16 +1640,20 @@ export function PathwayCalculatorClient({ paramsPromise }: { paramsPromise: Prom
   const mainCRS: CRSBreakdown = apiResult ? apiToBreakdown(apiResult.crs) : calcCRS(main, hasSpouse, hasSpouse ? spouse : undefined);
   const mainFSW: FSWBreakdown = apiResult ? apiToFsw(apiResult.fsw) : calcFSW(main);
 
-  const spouseAsMain: ExtendedPersonInput = {
-    age: 28, education: spouse.education, canadianEducation: "none",
-    ielts: spouse.ielts,
-    frenchCLB: { speaking: 0, listening: 0, reading: 0, writing: 0 },
-    canadianWorkExp: spouse.canadianWorkExp,
-    foreignWorkExp: 0, jobOffer: "none",
-    provincialNomination: false, siblingInCanada: false, certificateOfQualification: false,
-  };
+  const spouseAsMain = spouseToExtendedPerson(spouse);
   const spouseCRS = calcCRS(spouseAsMain, false);
   const spouseFSW = calcFSW(spouseAsMain);
+
+  const activeCRS = mainCRS;
+  const activeFSW = mainFSW;
+  const activePerson: PersonInput = principalApplicant === "spouse" && hasSpouse ? spouseAsMain : main;
+  const activeHasSpouse = hasSpouse;
+  const activeSpouseForInsights =
+    hasSpouse && principalApplicant === "spouse"
+      ? personToSpouseFields(main)
+      : hasSpouse
+        ? spouse
+        : undefined;
   const canClearPathway = !agreementSentAt;
 
   return (
@@ -1598,12 +1708,15 @@ export function PathwayCalculatorClient({ paramsPromise }: { paramsPromise: Prom
                 <Toggle
                   label="Client has accompanying spouse"
                   checked={hasSpouse}
-                  onChange={setHasSpouse}
+                  onChange={(v) => {
+                    setHasSpouse(v);
+                    if (!v) setPrincipalApplicant("main");
+                  }}
                 />
                 {hasSpouse && (
                   <div className="flex flex-col gap-2 rounded-xl border border-violet-200/50 bg-violet-500/[0.05] px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between">
                     <p className="text-xs text-muted-foreground leading-relaxed">
-                      <strong className="text-foreground">Compare CRS scores</strong> — see if the spouse scores higher as the principal applicant. Whoever has the stronger CRS should usually be listed as the main applicant.
+                      <strong className="text-foreground">Compare CRS scores</strong> — pick who should be principal applicant, save to the case file, and continue to pathway review.
                     </p>
                     <Button
                       variant="outline"
@@ -1612,7 +1725,7 @@ export function PathwayCalculatorClient({ paramsPromise }: { paramsPromise: Prom
                       onClick={() => setShowCompareModal(true)}
                     >
                       <Users className="size-3.5" />
-                      Open comparison
+                      Compare &amp; continue
                     </Button>
                   </div>
                 )}
@@ -1665,17 +1778,25 @@ export function PathwayCalculatorClient({ paramsPromise }: { paramsPromise: Prom
                   Spouse / partner details
                 </p>
                 <SpouseForm data={spouse} onChange={setSpouse} />
+                <div className="mt-4">
+                  <PrincipalApplicantBanner
+                    principal={principalApplicant}
+                    mainCrs={calcCRS(main, true, spouse).total}
+                    spouseCrs={spouseCRS.total}
+                    onChange={setPrincipalApplicant}
+                  />
+                </div>
               </div>
             )}
           </div>
 
           <div className="xl:sticky xl:top-4 xl:self-start">
             <LiveScorePreview
-              crs={mainCRS} fsw={mainFSW} person={main}
+              crs={activeCRS} fsw={activeFSW} person={activePerson}
               assignedPathway={assignedPathway}
               draws={draws}
-              hasSpouse={hasSpouse}
-              spouse={hasSpouse ? spouse : undefined}
+              hasSpouse={activeHasSpouse}
+              spouse={activeSpouseForInsights}
               onNext={() => setStep(2)}
             />
           </div>
@@ -1684,24 +1805,32 @@ export function PathwayCalculatorClient({ paramsPromise }: { paramsPromise: Prom
 
       {step === 2 && (
         <div className="space-y-6">
-          <ReviewStepSummary crs={mainCRS} fsw={mainFSW} assignedPathway={assignedPathway} draws={draws} />
+          {hasSpouse && (
+            <PrincipalApplicantBanner
+              principal={principalApplicant}
+              mainCrs={calcCRS(main, true, spouse).total}
+              spouseCrs={spouseCRS.total}
+              onChange={setPrincipalApplicant}
+            />
+          )}
+          <ReviewStepSummary crs={activeCRS} fsw={activeFSW} assignedPathway={assignedPathway} draws={draws} />
 
           <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
             <PathwayAssignPanel
-              crs={mainCRS}
-              fsw={mainFSW}
-              person={main}
+              crs={activeCRS}
+              fsw={activeFSW}
+              person={activePerson}
               assignedPathway={assignedPathway}
               assigning={assigning}
               onAssign={assignPathway}
               onClear={canClearPathway ? clearPathway : undefined}
-              hasSpouse={hasSpouse}
-              spouse={hasSpouse ? spouse : undefined}
+              hasSpouse={activeHasSpouse}
+              spouse={activeSpouseForInsights}
             />
 
             <aside className="space-y-4 xl:sticky xl:top-4 xl:self-start">
               <IrccVerifyCard
-                mainCrs={mainCRS.total}
+                mainCrs={activeCRS.total}
                 irccCrsScore={irccCrsScore}
                 onIrccChange={setIrccCrsScore}
                 rulesVersion={apiResult?.rules_version ?? rulesMeta?.version}
@@ -1738,7 +1867,7 @@ export function PathwayCalculatorClient({ paramsPromise }: { paramsPromise: Prom
             </button>
             {showScoreBreakdown && (
               <div className="border-t border-border/50 p-5">
-                <ScoreDetailPanel crs={mainCRS} fsw={mainFSW} />
+                <ScoreDetailPanel crs={activeCRS} fsw={activeFSW} />
               </div>
             )}
           </div>
@@ -1783,8 +1912,10 @@ export function PathwayCalculatorClient({ paramsPromise }: { paramsPromise: Prom
       <SpouseCompareModal
         open={showCompareModal && hasSpouse}
         onClose={() => setShowCompareModal(false)}
-        mainCRS={mainCRS}     mainFSW={mainFSW}
+        mainCRS={calcCRS(main, true, spouse)} mainFSW={mainFSW}
         spouseCRS={spouseCRS} spouseFSW={spouseFSW}
+        onChoosePrincipal={(who) => void applyPrincipalAndContinue(who)}
+        saving={savingNotes}
       />
 
     </div>

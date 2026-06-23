@@ -20,6 +20,10 @@ class NotificationPhoneResolver
             return $user->phone;
         }
 
+        if ($user->company_phone) {
+            return $user->company_phone;
+        }
+
         $profile = $user->clientProfile;
         if ($profile) {
             return $this->resolveForClientProfile($profile);

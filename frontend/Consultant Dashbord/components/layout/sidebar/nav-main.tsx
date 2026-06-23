@@ -4,13 +4,14 @@ import { useCallback, useEffect, useState } from "react";
 import {
   SidebarGroup,
   SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarMenu,
+  SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
 import {
   HomeIcon,
   ScaleIcon,
+  MailIcon,
   SquareKanbanIcon,
   UserPlusIcon,
   UsersIcon,
@@ -71,6 +72,14 @@ export const navItems: NavGroup[] = [
         icon: ScaleIcon,
         badge: "New",
         match: (p) => p.startsWith("/dashboard/legislations"),
+      },
+      {
+        title: "Letters",
+        href: "/dashboard/letters",
+        description: "AI letter drafting",
+        icon: MailIcon,
+        badge: "New",
+        match: (p) => p.startsWith("/dashboard/letters"),
       },
     ],
   },
@@ -161,55 +170,41 @@ function NavLink({
 
   return (
     <SidebarMenuItem>
-      <Link
-        href={item.href}
+      <SidebarMenuButton
+        asChild
+        isActive={active}
+        tooltip={item.title}
         className={cn(
-          "group/nav-item relative flex w-full items-center gap-3 rounded-xl px-3 py-2.5 transition-all duration-200",
-          "hover:bg-primary/8 hover:shadow-sm",
-          active
-            ? "bg-primary/12 text-foreground shadow-sm ring-1 ring-primary/15"
-            : "text-muted-foreground hover:text-foreground",
-        )}>
-        {active && (
-          <span className="absolute inset-y-2.5 left-0 w-1 rounded-r-full bg-primary" />
+          "h-10 gap-3 rounded-xl px-2.5 transition-all duration-200",
+          "hover:bg-sidebar-accent/55",
+          "data-[active=true]:bg-sidebar-primary/10 data-[active=true]:font-medium data-[active=true]:text-sidebar-foreground data-[active=true]:shadow-sm",
+          "data-[active=true]:ring-1 data-[active=true]:ring-sidebar-primary/15",
         )}
-        <span
-          className={cn(
-            "relative flex size-9 shrink-0 items-center justify-center rounded-lg border transition-colors",
-            active
-              ? "border-primary/20 bg-primary text-primary-foreground shadow-sm"
-              : "border-border/60 bg-background/80 group-hover/nav-item:border-primary/20 group-hover/nav-item:bg-primary/5",
-          )}>
-          <Icon className="size-4" strokeWidth={active ? 2.25 : 2} />
-          {showUnread && (
-            <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-0.5 text-[9px] font-bold text-white ring-2 ring-background">
-              {unreadCount > 9 ? "9+" : unreadCount}
-            </span>
-          )}
-        </span>
-        <span className="min-w-0 flex-1 group-data-[collapsible=icon]:hidden">
-          <span className="flex items-center gap-2">
-            <span className={cn("truncate text-sm", active ? "font-semibold" : "font-medium")}>
-              {item.title}
-            </span>
-            {item.badge && (
-              <span className="rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-400">
-                {item.badge}
-              </span>
+      >
+        <Link href={item.href} className="min-w-0">
+          <span
+            className={cn(
+              "relative flex size-8 shrink-0 items-center justify-center rounded-lg transition-all duration-200",
+              active
+                ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-sm"
+                : "bg-sidebar-accent/45 text-sidebar-foreground/65 group-hover/menu-item:bg-sidebar-accent group-hover/menu-item:text-sidebar-foreground",
             )}
+          >
+            <Icon className="size-4" strokeWidth={active ? 2.25 : 2} />
             {showUnread && (
-              <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1.5 text-[10px] font-bold text-white">
+              <span className="absolute -right-0.5 -top-0.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-destructive px-0.5 text-[8px] font-bold text-white ring-2 ring-sidebar">
                 {unreadCount > 9 ? "9+" : unreadCount}
               </span>
             )}
           </span>
-          {item.description && (
-            <span className="mt-0.5 block truncate text-[11px] text-muted-foreground/90">
-              {item.description}
+          <span className="min-w-0 flex-1 truncate text-[13px]">{item.title}</span>
+          {item.badge && (
+            <span className="shrink-0 rounded-md bg-emerald-500/12 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-400">
+              {item.badge}
             </span>
           )}
-        </span>
-      </Link>
+        </Link>
+      </SidebarMenuButton>
     </SidebarMenuItem>
   );
 }
@@ -217,24 +212,25 @@ function NavLink({
 function NavGroupBlock({
   group,
   pathname,
-  showDivider,
   unreadByHref,
 }: {
   group: NavGroup;
   pathname: string;
-  showDivider?: boolean;
   unreadByHref?: Record<string, number>;
 }) {
   return (
-    <SidebarGroup className="p-0">
-      <SidebarGroupLabel className="px-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/80">
-        {group.title}
-      </SidebarGroupLabel>
-      <SidebarGroupContent className="mt-1.5">
-        <SidebarMenu className="gap-1">
+    <SidebarGroup className="px-1 py-0">
+      <div className="mb-1.5 flex items-center gap-2 px-2 group-data-[collapsible=icon]:hidden">
+        <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-sidebar-foreground/45">
+          {group.title}
+        </span>
+        <span className="h-px flex-1 bg-gradient-to-r from-sidebar-border/80 to-transparent" />
+      </div>
+      <SidebarGroupContent>
+        <SidebarMenu className="gap-0.5">
           {group.items.map((item) => (
             <NavLink
-              key={item.title}
+              key={item.href}
               item={item}
               pathname={pathname}
               unreadCount={unreadByHref?.[item.href] ?? 0}
@@ -242,9 +238,6 @@ function NavGroupBlock({
           ))}
         </SidebarMenu>
       </SidebarGroupContent>
-      {showDivider && (
-        <div className="mx-3 mt-4 h-px bg-border/60 group-data-[collapsible=icon]:hidden" />
-      )}
     </SidebarGroup>
   );
 }
@@ -310,20 +303,19 @@ export function NavMain() {
   };
 
   return (
-    <div className="flex min-h-full flex-col px-2 py-3">
+    <div className="flex min-h-full flex-col gap-2 px-0.5 py-3">
       <div className="space-y-5">
-        {mainGroups.map((group, i) => (
+        {mainGroups.map((group) => (
           <NavGroupBlock
             key={group.title}
             group={group}
             pathname={pathname}
-            showDivider={i < mainGroups.length - 1}
             unreadByHref={unreadByHref}
           />
         ))}
       </div>
 
-      <div className="mt-auto border-t border-border/60 pt-4">
+      <div className="mt-auto rounded-xl border border-sidebar-border/50 bg-sidebar-accent/15 p-1.5 backdrop-blur-[2px]">
         <NavGroupBlock group={bottomGroup} pathname={pathname} unreadByHref={unreadByHref} />
       </div>
     </div>

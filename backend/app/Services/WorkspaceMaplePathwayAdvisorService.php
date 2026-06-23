@@ -2,76 +2,112 @@
 
 namespace App\Services;
 
+use App\Models\ExpressEntryDraw;
+
 final class WorkspaceMaplePathwayAdvisorService
 {
+    public function __construct(
+        private WorkspaceCaseLegislationService $caseLegislation,
+    ) {}
+
+    /**
+     * Structured pathway review for Maple analyze panel (no duplicate prose blocks).
+     *
+     * @param  array<string, mixed>  $context
+     * @return array<string, mixed>
+     */
+    public function buildStructuredReview(array $context): array
+    {
+        $facts    = $context['case_facts'] ?? [];
+        $name     = $facts['main_applicant']['display_name'] ?? $context['client']['name'] ?? 'This client';
+        $assigned = $context['case_file']['immigration_pathway'] ?? null;
+        $crs      = $context['case_detail']['crs_estimate']['crs_total']
+            ?? $context['case_file']['pathway_assessment_crs_score']
+            ?? null;
+        $main     = $context['case_detail']['questionnaire']['main_data'] ?? [];
+        $step1    = $context['case_detail']['questionnaire']['step1_data'] ?? [];
+        $draws    = $this->resolveDraws($context);
+        $latestCutoff = $draws[0]['minimum_crs_score'] ?? null;
+        $latestDraw   = $draws[0]['draw_name'] ?? null;
+
+        $studiedCanada = strtolower((string) ($main['studiedInCanada'] ?? '')) === 'yes';
+        $canadianWork  = strtolower((string) ($main['canadianWork'] ?? '')) === 'yes';
+        $visaType      = (string) ($step1['visaType'] ?? $main['visaType'] ?? '');
+        $phase         = (string) ($context['workflow_phase'] ?? '');
+
+        $caseFacts = array_values(array_filter([
+            $crs !== null ? 'Estimated CRS: '.$crs : null,
+            $latestCutoff !== null
+                ? 'Latest Express Entry cut-off: '.$latestCutoff.($latestDraw ? " ({$latestDraw})" : '')
+                : null,
+            $studiedCanada
+                ? 'Studied in Canada: Yes'.(($inst = trim((string) ($main['canadaStudyInstitution'] ?? ''))) !== '' ? " — {$inst}" : '')
+                : null,
+            $canadianWork ? 'Canadian work experience: Yes' : null,
+            $visaType !== '' ? 'Intended visa type: '.$visaType : null,
+        ]));
+
+        $assessment = $this->buildAssessment($assigned, $crs, $latestCutoff, $studiedCanada, $canadianWork, $main);
+        $crsNotes   = $this->buildCrsNotes($crs, $latestCutoff);
+        $risks      = $this->buildRisks($assigned, $studiedCanada, $canadianWork, $crs, $latestCutoff);
+        $verdict    = $this->resolveVerdict($assigned, $studiedCanada, $canadianWork, $crs, $latestCutoff);
+        $headline   = $this->buildHeadline($name, $assigned, $verdict);
+
+        $nextTitle = $context['next_action']['title'] ?? 'Continue the case workflow';
+        $rcicStep  = match ($phase) {
+            'case_hub' => 'Document in pathway notes why '.($assigned ?: 'the assigned pathway').' still fits — or schedule a pathway change if client goals shifted.',
+            'post_agreement', 'application_forms' => 'Continue the post-agreement workflow, then confirm whether '.($assigned ?: 'this pathway').' still fits before filing.',
+            default => $this->consultantNextStep($context, $assigned),
+        };
+
+        return [
+            'verdict'            => $verdict,
+            'headline'           => $headline,
+            'assigned_pathway'   => $assigned,
+            'case_facts'         => $caseFacts,
+            'assessment_points'  => $assessment,
+            'crs_notes'          => $crsNotes,
+            'risks'              => $risks,
+            'rcic_next_step'     => $rcicStep,
+            'recommended_pathways' => $this->suggestAlternatives($assigned, $studiedCanada, $canadianWork, $crs, $latestCutoff),
+            'legislation_refs'   => $this->caseLegislation->relevantForCase($context, 5),
+        ];
+    }
+
     /**
      * @param  array<string, mixed>  $context
      * @param  list<array{role: string, content: string}>  $history
      */
     public function advise(array $context, string $message, array $history = []): string
     {
-        $facts   = $context['case_facts'] ?? [];
-        $name    = $facts['main_applicant']['display_name'] ?? 'This client';
-        $assigned = $context['case_file']['immigration_pathway'] ?? null;
-        $crs     = $context['case_detail']['crs_estimate']['crs_total']
-            ?? $context['case_file']['pathway_assessment_crs_score']
-            ?? null;
-        $main    = $context['case_detail']['questionnaire']['main_data'] ?? [];
-        $step1   = $context['case_detail']['questionnaire']['step1_data'] ?? [];
-        $draws   = $context['immigration_knowledge']['express_entry_draws'] ?? [];
-        $latestCutoff = $draws[0]['minimum_crs_score'] ?? null;
-        $latestDraw   = $draws[0]['draw_name'] ?? null;
+        $review = $this->buildStructuredReview($context);
+        $lines  = [$review['headline'] ?? 'Pathway review'];
 
-        $pathway = $assigned ?? $this->pathwayFromHistory($history);
-        $studiedCanada = strtolower((string) ($main['studiedInCanada'] ?? '')) === 'yes';
-        $canadianWork  = strtolower((string) ($main['canadianWork'] ?? '')) === 'yes';
-        $visaType      = (string) ($step1['visaType'] ?? $main['visaType'] ?? '');
-
-        $lines = [];
-        $lines[] = "Pathway review for {$name}";
-
-        if ($pathway) {
+        if (! empty($review['case_facts'])) {
             $lines[] = '';
-            $lines[] = 'Assigned pathway';
-            $lines[] = '• '.$pathway;
-        } else {
+            $lines[] = 'Case facts';
+            foreach ($review['case_facts'] as $fact) {
+                $lines[] = '• '.$fact;
+            }
+        }
+
+        if (! empty($review['assessment_points'])) {
             $lines[] = '';
-            $lines[] = 'No pathway assigned yet — run the pathway calculator after questionnaire review.';
+            $lines[] = 'Assessment';
+            foreach ($review['assessment_points'] as $point) {
+                $lines[] = '• '.$point;
+            }
+        }
+
+        if (! empty($review['crs_notes'])) {
+            $lines[] = '';
+            $lines[] = $review['crs_notes'];
         }
 
         $lines[] = '';
-        $lines[] = 'Case facts I used';
-        if ($crs !== null) {
-            $lines[] = '• Estimated CRS: '.$crs;
-        }
-        if ($latestCutoff !== null) {
-            $lines[] = '• Latest Express Entry cut-off: '.$latestCutoff
-                .($latestDraw ? " ({$latestDraw})" : '');
-        }
-        if ($studiedCanada) {
-            $inst = trim((string) ($main['canadaStudyInstitution'] ?? ''));
-            $lines[] = '• Studied in Canada: Yes'.($inst !== '' ? " — {$inst}" : '');
-        }
-        if ($canadianWork) {
-            $lines[] = '• Canadian work experience: Yes';
-        }
-        if ($visaType !== '') {
-            $lines[] = '• Intended visa type (questionnaire): '.$visaType;
-        }
-
+        $lines[] = 'Next step: '.($review['rcic_next_step'] ?? 'Continue workflow.');
         $lines[] = '';
-        $lines[] = 'My assessment';
-
-        foreach ($this->buildAssessment($pathway, $crs, $latestCutoff, $studiedCanada, $canadianWork, $main) as $point) {
-            $lines[] = '• '.$point;
-        }
-
-        $lines[] = '';
-        $lines[] = 'Next step for you as RCIC';
-        $lines[] = '• '.$this->consultantNextStep($context, $pathway);
-
-        $lines[] = '';
-        $lines[] = 'This is workflow guidance only — confirm eligibility, policy updates, and client goals before advising.';
+        $lines[] = 'Workflow guidance only — confirm eligibility and client goals before advising.';
 
         return implode("\n", $lines);
     }
@@ -90,6 +126,125 @@ final class WorkspaceMaplePathwayAdvisorService
         return false;
     }
 
+    /** @param array<string, mixed> $context @return list<array<string, mixed>> */
+    private function resolveDraws(array $context): array
+    {
+        $draws = $context['immigration_knowledge']['express_entry_draws'] ?? [];
+        if ($draws !== []) {
+            return $draws;
+        }
+
+        return ExpressEntryDraw::orderByDesc('draw_date')
+            ->orderByDesc('draw_number')
+            ->limit(3)
+            ->get()
+            ->map(fn (ExpressEntryDraw $d) => [
+                'draw_name'           => $d->draw_name,
+                'minimum_crs_score'   => $d->minimum_crs_score,
+            ])
+            ->all();
+    }
+
+    private function buildHeadline(string $name, ?string $assigned, string $verdict): string
+    {
+        $pathway = $assigned ?: 'No pathway assigned';
+
+        return match ($verdict) {
+            'review_needed' => "Pathway review for {$name}: {$pathway} is assigned, but the profile suggests you should confirm the route before filing.",
+            'consider_alternatives' => "Pathway review for {$name}: {$pathway} may not be the strongest fit — compare alternatives below.",
+            default => "Pathway review for {$name}: {$pathway} looks reasonable on current data.",
+        };
+    }
+
+    private function resolveVerdict(?string $pathway, bool $studiedCanada, bool $canadianWork, mixed $crs, mixed $cutoff): string
+    {
+        $pathwayLower = strtolower((string) $pathway);
+        $crsInt = is_numeric($crs) ? (int) $crs : null;
+
+        if ($pathwayLower !== '' && str_contains($pathwayLower, 'study') && $studiedCanada && $canadianWork) {
+            return 'review_needed';
+        }
+
+        if ($pathwayLower !== '' && str_contains($pathwayLower, 'study') && $studiedCanada && ! $canadianWork) {
+            return 'review_needed';
+        }
+
+        if ($crsInt !== null && is_numeric($cutoff) && $crsInt >= (int) $cutoff
+            && $pathwayLower !== '' && ! str_contains($pathwayLower, 'express')) {
+            return 'consider_alternatives';
+        }
+
+        return 'reasonable';
+    }
+
+    private function buildCrsNotes(mixed $crs, mixed $latestCutoff): ?string
+    {
+        if (! is_numeric($crs)) {
+            return null;
+        }
+
+        $crsInt = (int) $crs;
+        if (! is_numeric($latestCutoff)) {
+            return "CRS estimate is {$crsInt}. Compare against recent Express Entry draws in the pathway calculator.";
+        }
+
+        $cutoff = (int) $latestCutoff;
+        $gap    = $cutoff - $crsInt;
+
+        if ($gap > 80) {
+            return "CRS {$crsInt} is well below the latest cut-off {$cutoff} (gap {$gap}). Express Entry is unlikely short term — temporary status or PNP may be more realistic while PR is long term.";
+        }
+
+        if ($gap > 0) {
+            return "CRS {$crsInt} is below the latest cut-off {$cutoff} by {$gap} points — language, Canadian experience, or PNP may close the gap.";
+        }
+
+        return "CRS {$crsInt} meets or exceeds the latest cut-off {$cutoff} — Express Entry should stay on the table if eligibility criteria are met.";
+    }
+
+    /** @return list<string> */
+    private function buildRisks(?string $pathway, bool $studiedCanada, bool $canadianWork, mixed $crs, mixed $cutoff): array
+    {
+        $risks = [];
+        $pathwayLower = strtolower((string) $pathway);
+
+        if (str_contains($pathwayLower, 'study') && $studiedCanada) {
+            $risks[] = 'Client already studied in Canada — a new Study Permit may be the wrong tool unless there is a new LOA/program, restoration, or change of status.';
+        }
+
+        if ($canadianWork && str_contains($pathwayLower, 'study')) {
+            $risks[] = 'Canadian work experience is on file — PGWP/CEC or employer-supported routes may fit better than another study permit.';
+        }
+
+        if (is_numeric($crs) && is_numeric($cutoff) && ((int) $cutoff - (int) $crs) > 80) {
+            $risks[] = 'Low CRS vs recent draws — do not rely on Express Entry as the near-term plan unless scores improve.';
+        }
+
+        return $risks;
+    }
+
+    /** @return list<string> */
+    private function suggestAlternatives(?string $pathway, bool $studiedCanada, bool $canadianWork, mixed $crs, mixed $cutoff): array
+    {
+        $alts = [];
+        $pathwayLower = strtolower((string) $pathway);
+
+        if (str_contains($pathwayLower, 'study') && $studiedCanada && $canadianWork) {
+            $alts[] = 'Canadian Experience Class (CEC)';
+            $alts[] = 'PGWP / work permit extension';
+            $alts[] = 'Provincial Nominee Program';
+        } elseif (str_contains($pathwayLower, 'study') && $studiedCanada) {
+            $alts[] = 'Study permit extension or new LOA';
+            $alts[] = 'PGWP (if eligible)';
+        }
+
+        if (is_numeric($crs) && is_numeric($cutoff) && (int) $crs >= (int) $cutoff) {
+            $alts[] = 'Express Entry';
+        }
+
+        return array_values(array_unique($alts));
+    }
+
     /**
      * @param  array<string, mixed>  $main
      * @return list<string>
@@ -102,44 +257,42 @@ final class WorkspaceMaplePathwayAdvisorService
         $cutoff = is_numeric($latestCutoff) ? (int) $latestCutoff : null;
 
         if ($pathwayLower !== '' && str_contains($pathwayLower, 'study')) {
-            if ($studiedCanada) {
-                $points[] = 'Study Permit aligns with the fact that this client already studied in Canada — useful for extensions, compliance, or study-related strategy before PR.';
+            if ($studiedCanada && $canadianWork) {
+                $points[] = 'Profile shows prior Canadian study plus Canadian work — confirm whether the client needs another study permit or should pivot to PGWP/CEC/PNP instead.';
+            } elseif ($studiedCanada) {
+                $points[] = 'Prior Canadian study is on file — verify whether this is an extension, new program (LOA/DLI), or restoration rather than a first-time study permit.';
             } else {
-                $points[] = 'Study Permit is assigned, but the questionnaire does not show completed Canadian study yet — verify study intent, LOA/DLI, and funds before relying on this route.';
+                $points[] = 'Study Permit is assigned, but completed Canadian study is not on file — verify LOA/DLI, funds, and genuine study intent.';
             }
         }
 
         if ($crsInt !== null && $cutoff !== null) {
             $gap = $cutoff - $crsInt;
             if ($gap > 80) {
-                $points[] = "Express Entry is not competitive right now (CRS {$crsInt} vs recent cut-off {$cutoff}). A temporary route (study/work/PNP) may be more realistic short term.";
-            } elseif ($gap > 0) {
-                $points[] = "CRS {$crsInt} is below the latest cut-off {$cutoff}, but not far — language, Canadian work, or PNP could close the gap.";
-            } else {
-                $points[] = "CRS {$crsInt} meets or exceeds the latest cut-off {$cutoff} — Express Entry should stay on the table if eligibility criteria are met.";
+                $points[] = "Express Entry is not competitive now (CRS {$crsInt} vs cut-off {$cutoff}). Keep PR as a longer-term goal via temporary status or PNP.";
             }
-        } elseif ($crsInt !== null) {
+        } elseif ($crsInt !== null && $cutoff === null) {
             $points[] = "CRS estimate is {$crsInt} — compare against recent draws in the pathway calculator.";
         }
 
         if ($canadianWork) {
-            $points[] = 'Canadian work experience supports CEC and some PNP streams after temporary status.';
+            $points[] = 'Canadian work supports CEC and some PNP streams after valid temporary status.';
         }
 
         $foreign = $this->humanizeForeignWork($main['workExperience'] ?? null);
         if ($foreign) {
-            $points[] = "Foreign work on file: {$foreign} — relevant for FSW/CRS if properly documented.";
+            $points[] = "Foreign work on file: {$foreign} — supports FSW/CRS if documented.";
+        }
+
+        if ($crsInt !== null && $cutoff !== null && $crsInt >= $cutoff) {
+            $points[] = "CRS {$crsInt} is at/above cut-off {$cutoff} — Express Entry remains relevant alongside the assigned pathway.";
         }
 
         if ($points === []) {
-            $points[] = 'Complete questionnaire review and pathway calculator to compare Study, Work, Express Entry, and PNP options with full data.';
+            $points[] = 'Run the pathway calculator with full questionnaire data before finalizing strategy.';
         }
 
-        if ($pathway && ! str_contains($pathwayLower, 'express') && $crsInt !== null && $cutoff !== null && $crsInt >= $cutoff) {
-            $points[] = 'Even with another pathway assigned, strong CRS means Express Entry remains worth comparing before you finalize strategy.';
-        }
-
-        return array_slice($points, 0, 5);
+        return array_slice($points, 0, 4);
     }
 
     /** @param array<string, mixed> $context */
@@ -147,26 +300,10 @@ final class WorkspaceMaplePathwayAdvisorService
     {
         $next = $context['next_action']['title'] ?? null;
         if ($next) {
-            return $next.' — then document why '.($pathway ?: 'the chosen pathway').' fits this profile in your assessment notes.';
+            return $next.' — document why '.($pathway ?: 'the chosen pathway').' fits in assessment notes.';
         }
 
         return 'Open the pathway calculator, save assessment notes, and record why the chosen route fits this client.';
-    }
-
-    /** @param list<array{role: string, content: string}> $history */
-    private function pathwayFromHistory(array $history): ?string
-    {
-        foreach (array_reverse(array_slice($history, -6)) as $turn) {
-            $c = $turn['content'] ?? '';
-            if (preg_match('/pathway is\s+([^.]+)/i', $c, $m)) {
-                return trim($m[1]);
-            }
-            if (preg_match('/assigned immigration pathway is\s+([^.]+)/i', $c, $m)) {
-                return trim($m[1]);
-            }
-        }
-
-        return null;
     }
 
     private function humanizeForeignWork(mixed $value): ?string

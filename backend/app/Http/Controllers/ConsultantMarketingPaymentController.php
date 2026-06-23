@@ -4,16 +4,33 @@ namespace App\Http\Controllers;
 
 use App\Models\ConsultantMarketingOrder;
 use App\Models\MarketingService;
-use App\Services\GstHstCalculatorService;
+use App\Services\CanadianBillingTaxService;
 use App\Services\GstHstRatesService;
 use App\Services\GstHstStripeTaxService;
 use App\Services\StripeMarketingService;
+use App\Services\StripePaymentFulfillmentService;
+use App\Services\SubscriptionPaymentRecorder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Stripe\Checkout\Session as StripeSession;
 
 class ConsultantMarketingPaymentController extends Controller
 {
+    /** @return array<string, string> */
+    private function billingRules(): array
+    {
+        return [
+            'marketing_service_id'  => 'required|integer|exists:marketing_services,id',
+            'billing_country'       => 'required|string|max:100',
+            'billing_address_line1' => 'required|string|max:255',
+            'billing_address_line2' => 'nullable|string|max:255',
+            'billing_city'          => 'required|string|max:100',
+            'billing_province'      => 'nullable|string|max:100',
+            'billing_postal_code'   => 'nullable|string|max:20',
+            'province'              => 'nullable|string|max:100',
+        ];
+    }
+
     public function myOrders(Request $request): JsonResponse
     {
         $orders = ConsultantMarketingOrder::where('user_id', $request->user()->id)
@@ -32,17 +49,9 @@ class ConsultantMarketingPaymentController extends Controller
         return response()->json(['data' => $orders]);
     }
 
-    public function taxQuote(Request $request, GstHstRatesService $rates, GstHstCalculatorService $calculator): JsonResponse
+    public function taxQuote(Request $request, CanadianBillingTaxService $taxService): JsonResponse
     {
-        $data = $request->validate([
-            'marketing_service_id' => 'required|integer|exists:marketing_services,id',
-            'province'             => 'required|string|max:100',
-        ]);
-
-        $provinceCode = $rates->normalizeProvinceCode($data['province']);
-        if (! $provinceCode) {
-            return response()->json(['message' => 'Invalid province.'], 422);
-        }
+        $data = $request->validate($this->billingRules());
 
         $service  = MarketingService::where('is_active', true)->findOrFail($data['marketing_service_id']);
         $subtotal = (float) $service->price;
@@ -52,47 +61,65 @@ class ConsultantMarketingPaymentController extends Controller
         }
 
         try {
+            $billingAddress = $taxService->validateBillingAddress($data);
+            $tax            = $taxService->quote($subtotal, $billingAddress);
+
             return response()->json([
-                'province' => $provinceCode,
-                'tax'      => $calculator->calculate($subtotal, $provinceCode),
+                'billing_address' => $billingAddress,
+                'tax'             => $tax,
             ]);
         } catch (\InvalidArgumentException $e) {
             return response()->json(['message' => $e->getMessage()], 422);
         }
     }
 
-    public function createCheckoutSession(
-        Request $request,
-        GstHstRatesService $rates,
-        GstHstCalculatorService $calculator
-    ): JsonResponse {
-        $data = $request->validate([
-            'marketing_service_id' => 'required|integer|exists:marketing_services,id',
-            'province'             => 'required|string|max:100',
-        ]);
+    public function createCheckoutSession(Request $request, CanadianBillingTaxService $taxService): JsonResponse
+    {
+        $data = $request->validate($this->billingRules());
 
-        $provinceCode = $rates->normalizeProvinceCode($data['province']);
-        if (! $provinceCode) {
-            return response()->json(['message' => 'Invalid province.'], 422);
-        }
-
-        $user    = $request->user();
-        $service = MarketingService::where('is_active', true)->findOrFail($data['marketing_service_id']);
+        $user     = $request->user();
+        $service  = MarketingService::where('is_active', true)->findOrFail($data['marketing_service_id']);
         $subtotal = (float) $service->price;
 
         if ($subtotal <= 0) {
             return response()->json(['message' => 'This service has no price configured yet.'], 422);
         }
 
+        $alreadyOwned = ConsultantMarketingOrder::where('user_id', $user->id)
+            ->where('marketing_service_id', $service->id)
+            ->whereIn('status', [ConsultantMarketingOrder::STATUS_PAID, ConsultantMarketingOrder::STATUS_ACTIVE])
+            ->exists();
+
+        if ($alreadyOwned) {
+            return response()->json(['message' => 'You have already purchased this marketing service.'], 422);
+        }
+
         $baseUrl = rtrim(env('CONSULTANT_DASHBOARD_URL', 'http://localhost:3005'), '/');
 
         try {
-            $taxBreakdown = $calculator->calculate($subtotal, $provinceCode);
-            $taxService   = new GstHstStripeTaxService($rates);
-            $taxRateIds   = $taxService->ensureTaxRates($provinceCode);
+            $billingAddress = $taxService->validateBillingAddress($data);
+            $taxBreakdown   = $taxService->quote($subtotal, $billingAddress);
+
+            $taxRateIds   = null;
+            $provinceCode = $billingAddress['province'] ?? null;
+
+            if ($taxBreakdown['tax_applicable'] && $provinceCode) {
+                $ratesService     = new GstHstRatesService();
+                $taxServiceStripe = new GstHstStripeTaxService($ratesService);
+                $taxRateIds       = $taxServiceStripe->ensureTaxRates($provinceCode);
+            }
+
+            $user->fill([
+                'company_address_line1' => $billingAddress['line1'],
+                'company_address_line2' => $billingAddress['line2'] ?: null,
+                'company_city'          => $billingAddress['city'],
+                'company_province'      => $billingAddress['province'] ?? null,
+                'company_postal_code'   => $billingAddress['postal_code'] ?: null,
+                'company_country'       => $billingAddress['country'],
+            ])->save();
 
             $stripeService = new StripeMarketingService();
-            $result = $stripeService->createCheckoutSession(
+            $result        = $stripeService->createCheckoutSession(
                 $service,
                 $user->id,
                 $user->email,
@@ -100,6 +127,7 @@ class ConsultantMarketingPaymentController extends Controller
                 "{$baseUrl}/dashboard/marketing/{$service->slug}?checkout=cancelled",
                 $provinceCode,
                 $taxRateIds,
+                $billingAddress['country'],
             );
 
             ConsultantMarketingOrder::create([
@@ -109,21 +137,26 @@ class ConsultantMarketingPaymentController extends Controller
                 'amount'                     => $subtotal,
                 'billing_type'               => $service->billing_type,
                 'province'                   => $provinceCode,
+                'billing_country'            => $billingAddress['country'],
+                'billing_address'            => $billingAddress,
                 'tax_amount'                 => $taxBreakdown['total_tax'] ?? null,
                 'stripe_checkout_session_id' => $result['session_id'],
             ]);
 
             return response()->json(array_merge($result, [
-                'province' => $provinceCode,
-                'tax'      => $taxBreakdown,
+                'billing_address' => $billingAddress,
+                'tax'             => $taxBreakdown,
             ]));
         } catch (\Throwable $e) {
             return response()->json(['message' => $e->getMessage()], 503);
         }
     }
 
-    public function verifySession(Request $request): JsonResponse
-    {
+    public function verifySession(
+        Request $request,
+        StripePaymentFulfillmentService $fulfillment,
+        SubscriptionPaymentRecorder $recorder,
+    ): JsonResponse {
         $data = $request->validate([
             'session_id' => 'required|string',
         ]);
@@ -132,10 +165,10 @@ class ConsultantMarketingPaymentController extends Controller
             new StripeMarketingService();
             $session = StripeSession::retrieve([
                 'id'     => $data['session_id'],
-                'expand' => ['subscription'],
+                'expand' => ['subscription', 'invoice'],
             ]);
         } catch (\Throwable $e) {
-            return response()->json(['message' => $e->getMessage()], 503);
+            return response()->json(['message' => 'Could not verify payment session.'], 503);
         }
 
         if (($session->payment_status ?? '') !== 'paid' && ($session->status ?? '') !== 'complete') {
@@ -148,48 +181,28 @@ class ConsultantMarketingPaymentController extends Controller
             return response()->json(['message' => 'This checkout session is not for a marketing service.'], 422);
         }
 
-        $serviceId = (int) ($session->metadata['marketing_service_id'] ?? 0);
-        $userId    = (int) ($session->client_reference_id ?? $session->metadata['user_id'] ?? 0);
-
+        $userId = (int) ($session->client_reference_id ?? $session->metadata['user_id'] ?? 0);
         if ($request->user()->id !== $userId) {
             return response()->json(['message' => 'Session does not belong to this user.'], 403);
         }
 
-        $order = ConsultantMarketingOrder::where('stripe_checkout_session_id', $session->id)->first();
+        try {
+            $result = $fulfillment->fulfillMarketingCheckout($session, $request->user());
+        } catch (\Throwable $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
 
-        if ($order && in_array($order->status, [ConsultantMarketingOrder::STATUS_PAID, ConsultantMarketingOrder::STATUS_ACTIVE], true)) {
+        if (! empty($result['already'])) {
             return response()->json([
                 'message' => 'Marketing service already activated.',
-                'order'   => $order->load('service'),
+                'order'   => $result['order'],
             ]);
         }
-
-        if (! $order) {
-            $order = ConsultantMarketingOrder::create([
-                'user_id'                    => $userId,
-                'marketing_service_id'       => $serviceId,
-                'status'                     => ConsultantMarketingOrder::STATUS_PENDING,
-                'amount'                     => 0,
-                'billing_type'               => $session->metadata['billing_type'] ?? MarketingService::BILLING_ONE_TIME,
-                'stripe_checkout_session_id' => $session->id,
-            ]);
-        }
-
-        $billingType = $session->metadata['billing_type'] ?? MarketingService::BILLING_ONE_TIME;
-        $status      = $billingType === MarketingService::BILLING_MONTHLY
-            ? ConsultantMarketingOrder::STATUS_ACTIVE
-            : ConsultantMarketingOrder::STATUS_PAID;
-
-        $order->update([
-            'status'                  => $status,
-            'paid_at'                 => now(),
-            'starts_at'               => now(),
-            'stripe_subscription_id'  => $session->subscription?->id ?? $session->subscription ?? null,
-        ]);
 
         return response()->json([
             'message' => 'Payment confirmed. Our team will reach out to get started.',
-            'order'   => $order->fresh()->load('service'),
+            'order'   => $result['order'],
+            'payment' => isset($result['payment']) ? $recorder->formatRecord($result['payment']) : null,
         ]);
     }
 }

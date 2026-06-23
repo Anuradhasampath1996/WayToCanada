@@ -46,14 +46,14 @@ class SendAgreementReminders extends Command
                 ->send(new AgreementReminderEmail($profile, $caseFile, $consultant));
 
             $phone   = $reminders->resolveClientPhone($profile);
-            $message = $reminders->buildReminderMessage(
+            $structured = $reminders->buildReminderStructured(
                 $caseFile,
                 $profile->user->name ?? 'Client',
-                $consultant->name
+                $consultant,
             );
 
             if ($phone) {
-                $reminders->sendViaTwilio($phone, $message);
+                $reminders->sendWhatsApp($phone, $structured);
             }
 
             $caseFile->update([

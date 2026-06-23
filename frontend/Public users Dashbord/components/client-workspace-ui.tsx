@@ -126,20 +126,92 @@ export function AssessmentWaitingCard() {
   );
 }
 
-export function PathwayAssignedCard({ pathway }: { pathway: string }) {
+export function PathwayAssignedCard({
+  pathway,
+  caseFile,
+}: {
+  pathway: string;
+  caseFile?: {
+    pathway_assessment_at?: string | null;
+    pathway_assessment_notes?: string | null;
+    pathway_assessment_crs_score?: number | null;
+    pathway_assessment_ircc_crs_score?: number | null;
+    pathway_assessment_snapshot?: {
+      principal_applicant?: "main" | "spouse";
+      has_spouse?: boolean;
+      comparison?: { recommendation?: string };
+    } | null;
+    agreement_sent_at?: string | null;
+    agreement_signed_at?: string | null;
+  } | null;
+}) {
+  const crs = caseFile?.pathway_assessment_crs_score;
+  const irccCrs = caseFile?.pathway_assessment_ircc_crs_score;
+  const notes = caseFile?.pathway_assessment_notes?.trim();
+  const assessedAt = caseFile?.pathway_assessment_at;
+  const principal = caseFile?.pathway_assessment_snapshot?.principal_applicant;
+  const recommendation = caseFile?.pathway_assessment_snapshot?.comparison?.recommendation;
+
+  const nextHint = caseFile?.agreement_signed_at
+    ? "Continue with your application forms and document uploads."
+    : caseFile?.agreement_sent_at
+      ? "Your retainer agreement is ready — review and sign it to unlock the next steps."
+      : "Your consultant is preparing your retainer agreement.";
+
   return (
-    <div className="rounded-xl border border-emerald-200/70 bg-emerald-500/[0.06] p-5">
+    <div className="rounded-xl border border-emerald-200/70 bg-emerald-500/[0.06] p-5 space-y-4">
       <div className="flex items-start gap-3">
         <Briefcase className="mt-0.5 size-5 shrink-0 text-emerald-600" />
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold text-emerald-900">Your immigration pathway</p>
           <p className="mt-1 text-lg font-bold text-emerald-950">{pathway}</p>
-          <p className="mt-2 text-sm text-emerald-800/90">
-            Your consultant confirmed this route. Watch for your retainer agreement — signing it unlocks the next steps.
-          </p>
+          {assessedAt && (
+            <p className="mt-1 text-xs text-emerald-800/80">
+              Confirmed {new Date(assessedAt).toLocaleDateString("en-CA", { year: "numeric", month: "short", day: "numeric" })}
+            </p>
+          )}
         </div>
         <Badge className="shrink-0 bg-emerald-600 text-white">Confirmed</Badge>
       </div>
+
+      {(crs != null || irccCrs != null) && (
+        <div className="flex flex-wrap gap-2">
+          {crs != null && (
+            <Badge variant="outline" className="border-emerald-300/60 bg-background/80 text-emerald-900">
+              CRS score: {crs}
+            </Badge>
+          )}
+          {irccCrs != null && irccCrs !== crs && (
+            <Badge variant="outline" className="border-emerald-300/60 bg-background/80 text-emerald-900">
+              IRCC CRS: {irccCrs}
+            </Badge>
+          )}
+          {principal === "spouse" && (
+            <Badge variant="outline" className="border-emerald-300/60 bg-background/80 text-emerald-900">
+              Principal applicant: Spouse
+            </Badge>
+          )}
+        </div>
+      )}
+
+      {recommendation && (
+        <p className="text-sm text-emerald-900/90 rounded-lg border border-emerald-200/50 bg-background/60 px-3 py-2">
+          {recommendation}
+        </p>
+      )}
+
+      {notes && (
+        <div className="rounded-lg border border-emerald-200/40 bg-background/50 px-3 py-2">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-emerald-800/70">Consultant notes</p>
+          <p className="mt-1 text-sm text-emerald-950/90 whitespace-pre-wrap">{notes}</p>
+        </div>
+      )}
+
+      <p className="text-sm text-emerald-800/90">{nextHint}</p>
+
+      <p className="text-[10px] leading-relaxed text-emerald-800/60">
+        Scores and pathway details are for planning only — not legal advice or a guarantee of selection.
+      </p>
     </div>
   );
 }
@@ -163,9 +235,11 @@ export function ClientLockedPage({ step }: { step: JourneyStep | undefined }) {
         <Button asChild>
           <Link href="/user-dashboard">Back to home</Link>
         </Button>
-        <Button variant="outline" asChild>
-          <Link href="/user-dashboard/questionnaire">Go to questionnaire</Link>
-        </Button>
+        {step?.id === "questionnaire" && (
+          <Button variant="outline" asChild>
+            <Link href="/user-dashboard/questionnaire">Go to questionnaire</Link>
+          </Button>
+        )}
       </div>
     </div>
   );

@@ -44,6 +44,8 @@ type IntegrationGroup = {
   secrets: string[];
   values: Record<string, string | null>;
   previews: Record<string, string | null>;
+  hints?: Record<string, string | null>;
+  warnings?: string[];
   configured: boolean;
   source: "database" | "env";
   updated_at: string | null;
@@ -54,6 +56,7 @@ const TAB_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   google_oauth: KeyRound,
   google_meet: Video,
   twilio: MessageCircle,
+  whatsapp_cloud: MessageCircle,
   zoom: Video,
   microsoft: Video,
   aws_s3: Cloud,
@@ -78,6 +81,16 @@ const FIELD_LABELS: Record<string, string> = {
   account_sid: "Account SID",
   auth_token: "Auth token",
   whatsapp_from: "WhatsApp sender number",
+  provider: "Primary provider (meta or twilio)",
+  phone_number_id: "Phone Number ID",
+  waba_id: "WhatsApp Business Account ID",
+  access_token: "Permanent access token",
+  api_version: "Graph API version",
+  language: "Template language code",
+  consultant_template: "Consultant template name",
+  client_template: "Client template name",
+  webhook_verify_token: "Webhook verify token",
+  app_secret: "Meta App Secret (webhook signature)",
   tenant_id: "Tenant ID",
   access_key_id: "Access key ID",
   secret_access_key: "Secret access key",
@@ -93,12 +106,14 @@ const FIELD_LABELS: Record<string, string> = {
 function SecretField({
   label,
   preview,
+  hint,
   value,
   onChange,
   placeholder,
 }: {
   label: string;
   preview: string | null;
+  hint?: string | null;
   value: string;
   onChange: (v: string) => void;
   placeholder: string;
@@ -107,16 +122,23 @@ function SecretField({
     <div className="space-y-2">
       <Label>{label}</Label>
       {preview && (
-        <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-xs text-emerald-700">
-          <CheckCircle2 className="h-3 w-3" />
-          Saved: {preview}
+        <span className="inline-flex flex-wrap items-center gap-2">
+          <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-xs text-emerald-700">
+            <CheckCircle2 className="h-3 w-3" />
+            Saved: {preview}
+          </span>
+          {hint && (
+            <span className="rounded-md bg-muted px-2 py-0.5 font-mono text-[10px] text-muted-foreground">
+              starts {hint}
+            </span>
+          )}
         </span>
       )}
       <Input
         type="password"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        placeholder={preview ? "Leave blank to keep current" : placeholder}
+        placeholder={preview ? "Paste new key to replace saved value" : placeholder}
         className="font-mono text-sm"
       />
     </div>
@@ -134,6 +156,7 @@ function GroupForm({
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [testEmail, setTestEmail] = useState("");
+  const [testPhone, setTestPhone] = useState("");
   const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
@@ -202,6 +225,44 @@ function GroupForm({
     }
   }
 
+  async function sendTestOpenAi() {
+    setTesting(true);
+    setMessage(null);
+    try {
+      const res = await fetch(`${API}/admin/integration-settings/openai/test`, {
+        method: "POST",
+        headers: adminAuthHeaders("application/json"),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message ?? "Test failed");
+      setMessage(data.message);
+    } catch (e: unknown) {
+      setMessage(e instanceof Error ? e.message : "Test failed");
+    } finally {
+      setTesting(false);
+    }
+  }
+
+  async function sendTestWhatsApp() {
+    if (!testPhone) return;
+    setTesting(true);
+    setMessage(null);
+    try {
+      const res = await fetch(`${API}/admin/integration-settings/whatsapp/test`, {
+        method: "POST",
+        headers: adminAuthHeaders("application/json"),
+        body: JSON.stringify({ to: testPhone }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message ?? "Test failed");
+      setMessage(data.message);
+    } catch (e: unknown) {
+      setMessage(e instanceof Error ? e.message : "Test failed");
+    } finally {
+      setTesting(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center gap-2">
@@ -224,15 +285,96 @@ function GroupForm({
         <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
           <p className="font-medium">Maple AI setup</p>
           <ol className="mt-2 list-decimal space-y-1 pl-4 text-emerald-800">
-            <li>Paste your OpenAI API key (<code className="text-xs">sk-...</code>).</li>
-            <li>Turn on <strong>Maple workspace AI</strong> for consultant chat.</li>
-            <li>Click <strong>Save</strong> — no server restart needed.</li>
+            <li>Get a key from <strong>platform.openai.com → API keys</strong> (starts with <code className="text-xs">sk-proj-</code> or <code className="text-xs">sk-</code>).</li>
+            <li><strong>Paste the full key</strong> in API key below — leaving it blank keeps the old saved key.</li>
+            <li>Turn on <strong>Maple workspace AI</strong>, Save, then click <strong>Test OpenAI</strong>.</li>
           </ol>
+        </div>
+      )}
+
+      {(group.warnings ?? []).length > 0 && (
+        <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+          {group.warnings!.map((w) => (
+            <p key={w} className="flex items-start gap-2">
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+              {w}
+            </p>
+          ))}
+        </div>
+      )}
+
+      {group.key === "whatsapp_cloud" && (
+        <div className="rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-950 space-y-3">
+          <p className="font-medium">Meta WhatsApp Cloud setup</p>
+          <ol className="list-decimal space-y-1 pl-4 text-sky-900">
+            <li>Create a Meta Business app with WhatsApp product enabled.</li>
+            <li>Add approved <strong>Utility</strong> templates in Meta Business Manager:</li>
+          </ol>
+          <div className="grid gap-3 sm:grid-cols-2 text-xs">
+            <div className="rounded-md border bg-white p-3">
+              <p className="font-semibold mb-1">Template: wtc_consultant_alert</p>
+              <pre className="whitespace-pre-wrap text-sky-900">{`Hi {{1}},
+
+{{2}}
+
+{{3}}
+
+{{4}}
+
+Please do not reply to this message. Open your consultant dashboard for full details.`}</pre>
+            </div>
+            <div className="rounded-md border bg-white p-3">
+              <p className="font-semibold mb-1">Template: wtc_client_alert</p>
+              <pre className="whitespace-pre-wrap text-sky-900">{`Hi {{1}},
+
+{{2}}
+
+{{3}}
+
+{{4}}
+
+{{5}}
+
+Please do not reply to this message. Contact your consultant directly if you need help.`}</pre>
+            </div>
+          </div>
+          <p className="text-xs text-sky-800">Save Phone Number ID + permanent access token below, then send a test message.</p>
+          <div className="rounded-md border bg-white p-3 text-xs">
+            <p className="font-semibold mb-1">WhatsApp Inbox webhook (receive messages in admin dashboard)</p>
+            <p className="text-sky-900 mb-2">
+              In Meta Developer → WhatsApp → Configuration, set Callback URL and Verify Token:
+            </p>
+            <p className="font-mono break-all rounded bg-sky-50 px-2 py-1">
+              {(process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000") + "/api/v1/webhooks/whatsapp"}
+            </p>
+            <ol className="mt-2 list-decimal space-y-1 pl-4 text-sky-900">
+              <li>Set the same verify token below and in Meta (any random string).</li>
+              <li>Add your Meta App Secret below for webhook signature validation.</li>
+              <li>Subscribe to <strong>messages</strong> webhook field.</li>
+              <li>For local dev, expose your API with ngrok and use the public HTTPS URL.</li>
+              <li>Open <strong>WhatsApp Inbox</strong> in the admin sidebar to chat.</li>
+            </ol>
+          </div>
         </div>
       )}
 
       <div className="grid gap-4 sm:grid-cols-2">
         {group.fields.map((field) => {
+          if (field === "provider") {
+            return (
+              <div key={field} className="space-y-2 sm:col-span-2">
+                <Label>Primary WhatsApp provider</Label>
+                <Select value={form.provider || "meta"} onValueChange={(v) => setForm({ ...form, provider: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="meta">Meta Cloud API (recommended)</SelectItem>
+                    <SelectItem value="twilio">Twilio (legacy fallback)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            );
+          }
+
           if (field === "mailer") {
             return (
               <div key={field} className="space-y-2 sm:col-span-2">
@@ -268,6 +410,7 @@ function GroupForm({
                 key={field}
                 label={FIELD_LABELS[field] ?? field}
                 preview={group.previews[field] ?? null}
+                hint={group.hints?.[field] ?? null}
                 value={form[field] ?? ""}
                 onChange={(v) => setForm({ ...form, [field]: v })}
                 placeholder="Enter secret value"
@@ -336,6 +479,26 @@ function GroupForm({
               className="h-9 w-48"
             />
             <Button variant="secondary" size="sm" onClick={sendTestMail} disabled={testing || !testEmail}>
+              {testing ? <Loader2 className="h-4 w-4 animate-spin" /> : "Send test"}
+            </Button>
+          </div>
+        )}
+
+        {group.key === "openai" && (
+          <Button variant="secondary" size="sm" className="ml-auto" onClick={sendTestOpenAi} disabled={testing}>
+            {testing ? <Loader2 className="h-4 w-4 animate-spin" /> : "Test OpenAI"}
+          </Button>
+        )}
+
+        {group.key === "whatsapp_cloud" && (
+          <div className="flex items-center gap-2 ml-auto">
+            <Input
+              placeholder="+14165551234"
+              value={testPhone}
+              onChange={(e) => setTestPhone(e.target.value)}
+              className="h-9 w-44"
+            />
+            <Button variant="secondary" size="sm" onClick={sendTestWhatsApp} disabled={testing || !testPhone}>
               {testing ? <Loader2 className="h-4 w-4 animate-spin" /> : "Send test"}
             </Button>
           </div>

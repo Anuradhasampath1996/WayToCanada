@@ -83,6 +83,22 @@ return [
         'whatsapp_from'  => env('TWILIO_WHATSAPP_FROM'),
     ],
 
+    'whatsapp' => [
+        'provider' => env('WHATSAPP_PROVIDER', 'meta'),
+    ],
+
+    'whatsapp_cloud' => [
+        'phone_number_id'       => env('WHATSAPP_CLOUD_PHONE_NUMBER_ID'),
+        'waba_id'               => env('WHATSAPP_CLOUD_WABA_ID'),
+        'access_token'          => env('WHATSAPP_CLOUD_ACCESS_TOKEN'),
+        'api_version'           => env('WHATSAPP_CLOUD_API_VERSION', 'v21.0'),
+        'language'              => env('WHATSAPP_CLOUD_LANGUAGE', 'en'),
+        'consultant_template'   => env('WHATSAPP_CLOUD_CONSULTANT_TEMPLATE', 'wtc_consultant_alert'),
+        'client_template'       => env('WHATSAPP_CLOUD_CLIENT_TEMPLATE', 'wtc_client_alert'),
+        'webhook_verify_token'  => env('WHATSAPP_CLOUD_WEBHOOK_VERIFY_TOKEN'),
+        'app_secret'            => env('WHATSAPP_CLOUD_APP_SECRET'),
+    ],
+
     'google_meet' => [
         'client_id'     => env('GOOGLE_MEET_CLIENT_ID', env('GOOGLE_CLIENT_ID')),
         'client_secret' => env('GOOGLE_MEET_CLIENT_SECRET', env('GOOGLE_CLIENT_SECRET')),

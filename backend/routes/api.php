@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\WhatsAppWebhookController;
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\Auth\ConsultantRegisterController;
 use App\Http\Controllers\Auth\ConsultantOnboardingController;
@@ -10,6 +11,7 @@ use App\Http\Controllers\Admin\AdminLegislationController;
 use App\Http\Controllers\LegislationController;
 use App\Http\Controllers\Admin\AdminApplicationPackageController;
 use App\Http\Controllers\Admin\AdminIrccInteractiveFormController;
+use App\Http\Controllers\Admin\AdminWhatsAppInboxController;
 use App\Http\Controllers\Admin\AdminStatsController;
 use App\Http\Controllers\Admin\AdminUsersController;
 use App\Http\Controllers\Admin\AdminRcicController;
@@ -17,7 +19,11 @@ use App\Http\Controllers\Admin\AdminImmigrationConsultantController;
 use App\Http\Controllers\Admin\AdminPaymentGatewayController;
 use App\Http\Controllers\Admin\AdminStripeTestController;
 use App\Http\Controllers\Admin\AdminSubscriptionPackageController;
+use App\Http\Controllers\Admin\AdminMarketingOrdersController;
+use App\Http\Controllers\Admin\AdminClientPaymentRequestsController;
+use App\Http\Controllers\Admin\AdminStorageSubscriptionsController;
 use App\Http\Controllers\Admin\AdminSubscriptionPaymentsController;
+use App\Http\Controllers\Admin\AdminPlatformCompanyController;
 use App\Http\Controllers\Admin\AdminLmsController;
 use App\Http\Controllers\Consultant\ConsultantLmsController;
 use App\Http\Controllers\Consultant\ConsultantPaymentAccountController;
@@ -26,13 +32,18 @@ use App\Http\Controllers\Consultant\ConsultantMeetingAccountController;
 use App\Http\Controllers\Consultant\ConsultantMeetingOAuthController;
 use App\Http\Controllers\Consultant\ConsultantCalendarController;
 use App\Http\Controllers\Consultant\ConsultantClientMeetingController;
+use App\Http\Controllers\Consultant\ConsultantLettersController;
 use App\Http\Controllers\Consultant\ConsultantWorkspaceAiAdvisorController;
+use App\Http\Controllers\Consultant\ConsultantLegislationController;
 use App\Http\Controllers\Consultant\ConsultantRcicCommunityController;
 use App\Http\Controllers\Consultant\ConsultantSupportTicketController;
 use App\Http\Controllers\Consultant\ConsultantClientRequestController;
 use App\Http\Controllers\Client\ClientConsultantRequestController;
 use App\Http\Controllers\Consultant\ConsultantClientActivityController;
+use App\Http\Controllers\Consultant\ConsultantClientComplianceController;
 use App\Http\Controllers\Consultant\ConsultantClientTrustController;
+use App\Http\Controllers\Client\ClientMeetingController;
+use App\Http\Controllers\Client\ClientPaymentRequestController;
 use App\Http\Controllers\Client\ClientTrustController;
 use App\Http\Controllers\Client\ClientLmsController;
 use App\Http\Controllers\PublicPaymentRequestController;
@@ -73,6 +84,7 @@ use App\Http\Controllers\NotificationPreferenceController;
 use App\Http\Controllers\Admin\AdminRcicCommunityController;
 use App\Http\Controllers\Admin\AdminSupportTicketController;
 use App\Http\Controllers\Admin\AdminBroadcastController;
+use App\Http\Controllers\Admin\AdminEmailTemplateController;
 use App\Http\Controllers\Admin\AdminIntegrationSettingsController;
 use Illuminate\Support\Facades\Route;
 
@@ -120,11 +132,11 @@ Route::prefix('crs')->name('crs.')->group(function () {
 });
 
 // ── Public: Client payment requests (token-secured, no auth) ─────────────────
-Route::prefix('payment-request')->name('payment-request.public.')->group(function () {
+Route::prefix('payment-request')->middleware('throttle:30,1')->name('payment-request.public.')->group(function () {
     Route::get('{token}',                [PublicPaymentRequestController::class, 'show'])->name('show');
-    Route::post('{token}/checkout',      [PublicPaymentRequestController::class, 'checkout'])->name('checkout');
-    Route::post('{token}/confirm-sent', [PublicPaymentRequestController::class, 'confirmSent'])->name('confirm-sent');
-    Route::post('{token}/verify',        [PublicPaymentRequestController::class, 'verify'])->name('verify');
+    Route::post('{token}/checkout',      [PublicPaymentRequestController::class, 'checkout'])->middleware('throttle:10,1')->name('checkout');
+    Route::post('{token}/confirm-sent', [PublicPaymentRequestController::class, 'confirmSent'])->middleware('throttle:10,1')->name('confirm-sent');
+    Route::post('{token}/verify',        [PublicPaymentRequestController::class, 'verify'])->middleware('throttle:10,1')->name('verify');
 });
 
 // ── Public: Client meetings (token-secured, no auth) ───────────────────────────
@@ -146,6 +158,12 @@ Route::prefix('case-file')->name('case-file.public.')->group(function () {
 // ── Public: Stripe webhook (no auth — verified via Stripe signature) ────────────
 Route::post('webhooks/stripe', [StripeWebhookController::class, 'handle'])
     ->name('webhooks.stripe');
+
+// ── Public: Meta WhatsApp webhook (no auth — verified via verify token + signature) ─
+Route::get('webhooks/whatsapp', [WhatsAppWebhookController::class, 'verify'])
+    ->name('webhooks.whatsapp.verify');
+Route::post('webhooks/whatsapp', [WhatsAppWebhookController::class, 'handle'])
+    ->name('webhooks.whatsapp.handle');
 
 // ── Authentication (Google OAuth + email/password) ───────────────────────────
 Route::prefix('auth')->group(function () {
@@ -246,6 +264,24 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('{template}',        [AgreementTemplateController::class, 'destroy'])->name('destroy');
     });
 
+    // ── Consultant letters (AI drafting + templates) ───────────────────────────
+    Route::prefix('consultant/letters')->name('consultant.letters.')->group(function () {
+        Route::get('meta',                          [ConsultantLettersController::class, 'meta'])->name('meta');
+        Route::get('context/{profile}',               [ConsultantLettersController::class, 'clientContext'])->name('context');
+        Route::get('templates',                       [ConsultantLettersController::class, 'templatesIndex'])->name('templates.index');
+        Route::post('templates',                      [ConsultantLettersController::class, 'templatesStore'])->name('templates.store');
+        Route::put('templates/{template}',            [ConsultantLettersController::class, 'templatesUpdate'])->name('templates.update');
+        Route::delete('templates/{template}',         [ConsultantLettersController::class, 'templatesDestroy'])->name('templates.destroy');
+        Route::post('generate',                       [ConsultantLettersController::class, 'generate'])->name('generate');
+        Route::get('/',                               [ConsultantLettersController::class, 'index'])->name('index');
+        Route::post('/',                              [ConsultantLettersController::class, 'store'])->name('store');
+        Route::get('{letter}',                        [ConsultantLettersController::class, 'show'])->name('show');
+        Route::put('{letter}',                        [ConsultantLettersController::class, 'update'])->name('update');
+        Route::delete('{letter}',                       [ConsultantLettersController::class, 'destroy'])->name('destroy');
+        Route::post('{letter}/export-pdf',            [ConsultantLettersController::class, 'exportPdf'])->name('export-pdf');
+        Route::post('{letter}/save-as-template',      [ConsultantLettersController::class, 'saveAsTemplate'])->name('save-as-template');
+    });
+
     // ── Consultant RCIC onboarding ────────────────────────────────────────────
     Route::post('consultant/onboarding', [ConsultantOnboardingController::class, 'submit'])
         ->name('consultant.onboarding');
@@ -255,14 +291,19 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('consultant/subscription/start-trial', [ConsultantSubscriptionController::class, 'startTrial'])->name('consultant.subscription.start-trial');
     Route::post('consultant/subscription/subscribe',   [ConsultantSubscriptionController::class, 'subscribe'])->name('consultant.subscription.subscribe');
 
-    Route::prefix('consultant/billing')->name('consultant.billing.')->group(function () {
+    Route::prefix('consultant/billing')->middleware('role:rcic,super-admin,admin')->name('consultant.billing.')->group(function () {
         Route::get('/',           [ConsultantBillingController::class, 'show'])->name('show');
         Route::get('invoices',    [ConsultantBillingController::class, 'invoices'])->name('invoices');
+        Route::get('payments/{subscriptionPaymentRecord}', [ConsultantBillingController::class, 'showPayment'])->name('payments.show');
+        Route::get('payments/{subscriptionPaymentRecord}/invoice', [ConsultantBillingController::class, 'downloadInvoice'])->name('payments.invoice');
         Route::post('cancel',     [ConsultantBillingController::class, 'cancel'])->name('cancel');
+        Route::post('auto-renew', [ConsultantBillingController::class, 'updateAutoRenew'])->name('auto-renew');
+        Route::post('marketing/{order}/cancel', [ConsultantBillingController::class, 'cancelMarketingOrder'])->name('marketing.cancel');
+        Route::post('marketing/{order}/auto-renew', [ConsultantBillingController::class, 'updateMarketingAutoRenew'])->name('marketing.auto-renew');
     });
 
     // ── Consultant Stripe payment ─────────────────────────────────────────────
-    Route::prefix('consultant/payment/stripe')->name('consultant.payment.stripe.')->group(function () {
+    Route::prefix('consultant/payment/stripe')->middleware('role:rcic,super-admin,admin')->name('consultant.payment.stripe.')->group(function () {
         Route::get('config',              [StripePaymentController::class, 'config'])->name('config');
         Route::get('tax-quote',           [StripePaymentController::class, 'taxQuote'])->name('tax-quote');
         Route::post('checkout-session',   [StripePaymentController::class, 'createCheckoutSession'])->name('checkout-session');
@@ -281,7 +322,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('files/{file}/download',          [ConsultantStorageController::class, 'downloadFile'])->name('files.download');
         Route::patch('files/{file}',                 [ConsultantStorageController::class, 'renameFile'])->name('files.update');
         Route::delete('files/{file}',                [ConsultantStorageController::class, 'deleteFile'])->name('files.destroy');
-        Route::prefix('payment')->name('payment.')->group(function () {
+        Route::prefix('payment')->middleware('role:rcic,super-admin,admin')->name('payment.')->group(function () {
             Route::get('tax-quote',                  [ConsultantStoragePaymentController::class, 'taxQuote'])->name('tax-quote');
             Route::post('checkout-session',           [ConsultantStoragePaymentController::class, 'createCheckoutSession'])->name('checkout-session');
             Route::post('verify-session',             [ConsultantStoragePaymentController::class, 'verifySession'])->name('verify-session');
@@ -291,7 +332,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // ── Marketing services (consultant purchases) ───────────────────────────
     Route::prefix('consultant/marketing')->name('consultant.marketing.')->group(function () {
         Route::get('orders', [ConsultantMarketingPaymentController::class, 'myOrders'])->name('orders');
-        Route::prefix('payment')->name('payment.')->group(function () {
+        Route::prefix('payment')->middleware('role:rcic,super-admin,admin')->name('payment.')->group(function () {
             Route::get('tax-quote',        [ConsultantMarketingPaymentController::class, 'taxQuote'])->name('tax-quote');
             Route::post('checkout-session', [ConsultantMarketingPaymentController::class, 'createCheckoutSession'])->name('checkout-session');
             Route::post('verify-session',   [ConsultantMarketingPaymentController::class, 'verifySession'])->name('verify-session');
@@ -304,6 +345,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('client/consultant-request', [ClientConsultantRequestController::class, 'current'])->name('client.consultant-request.current');
     Route::post('client/consultant-request', [ClientConsultantRequestController::class, 'store'])->name('client.consultant-request.store');
     Route::post('client/consultant-request/{consultantClientRequest}/cancel', [ClientConsultantRequestController::class, 'cancel'])->name('client.consultant-request.cancel');
+    Route::get('client/payment-requests', [ClientPaymentRequestController::class, 'index'])->name('client.payment-requests.index');
+    Route::get('client/meetings', [ClientMeetingController::class, 'index'])->name('client.meetings.index');
     Route::get('client/trust', [ClientTrustController::class, 'show'])->name('client.trust.show');
     Route::post('client/trust/invoices/{invoice}/approve', [ClientTrustController::class, 'approveInvoice'])->name('client.trust.invoices.approve');
     Route::get('client/case-management-hub', [CaseManagementHubController::class, 'clientShow'])->name('client.case-management-hub');
@@ -335,6 +378,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('documents/{submission}/stream', [SecurePdfController::class, 'clientSubmission'])->name('documents.stream');
         Route::post('documents/upload',[DocumentSubmissionController::class, 'clientUpload'])->name('documents.upload');
         Route::get('messages',         [CaseMessagingController::class, 'clientIndex'])->name('messages.index');
+        Route::get('messages/unread-count', [CaseMessagingController::class, 'clientUnreadCount'])->name('messages.unread-count');
         Route::post('messages',        [CaseMessagingController::class, 'clientSend'])->name('messages.send');
         Route::patch('messages/mark-read', [CaseMessagingController::class, 'clientMarkRead'])->name('messages.mark-read');
     });
@@ -349,10 +393,20 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // ── Consultant: Legislation Hub ───────────────────────────────────────────
     Route::prefix('legislation')->name('legislation.')->group(function () {
+        Route::get('hub', [LegislationController::class, 'hub'])->name('hub');
         Route::get('documents', [LegislationController::class, 'documents'])->name('documents');
+        Route::get('search', [LegislationController::class, 'search'])->name('search');
+        Route::get('capabilities', [LegislationController::class, 'capabilities'])->name('capabilities');
         Route::get('documents/{document}', [LegislationController::class, 'show'])->name('documents.show');
         Route::get('documents/{document}/download', [LegislationController::class, 'download'])->name('documents.download');
         Route::get('resolve', [LegislationController::class, 'resolve'])->name('resolve');
+        Route::post('explain', [LegislationController::class, 'explain'])->name('explain');
+    });
+
+    Route::prefix('consultant/legislation')->name('consultant.legislation.')->group(function () {
+        Route::get('bookmarks', [ConsultantLegislationController::class, 'bookmarksIndex'])->name('bookmarks.index');
+        Route::post('bookmarks', [ConsultantLegislationController::class, 'bookmarksStore'])->name('bookmarks.store');
+        Route::delete('bookmarks/{bookmark}', [ConsultantLegislationController::class, 'bookmarksDestroy'])->name('bookmarks.destroy');
     });
 
     // ── Consultant: Case Pipeline (Kanban — all signed clients) ──────────────
@@ -374,6 +428,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('{profile}',                   [ClientController::class, 'destroy'])->name('destroy');
         Route::post('{profile}/resend-invite',        [ClientController::class, 'resendInvite'])->name('resend-invite');
         Route::patch('{profile}/toggle-status',         [ClientController::class, 'toggleStatus'])->name('toggle-status');
+        Route::get('{profile}/command-center',        [ClientController::class, 'commandCenter'])->name('command-center');
 
         // ── Case File / Workspace ──────────────────────────────────────────────
         Route::get('{profile}/case-file',                          [CaseFileController::class, 'show'])->name('case-file.show');
@@ -414,8 +469,14 @@ Route::middleware('auth:sanctum')->group(function () {
 
         // ── Questionnaire Review (consultant verifies client answers) ──────────
         Route::get('{profile}/questionnaire',                         [QuestionnaireReviewController::class, 'show'])->name('questionnaire.show');
+        Route::get('{profile}/ai-advisor/state',                     [ConsultantWorkspaceAiAdvisorController::class, 'state'])->name('ai-advisor.state');
         Route::post('{profile}/ai-advisor/analyze',                   [ConsultantWorkspaceAiAdvisorController::class, 'analyze'])->name('ai-advisor.analyze');
         Route::post('{profile}/ai-advisor/chat',                     [ConsultantWorkspaceAiAdvisorController::class, 'chat'])->name('ai-advisor.chat');
+        Route::get('{profile}/ai-advisor/documents',                  [ConsultantWorkspaceAiAdvisorController::class, 'documentsIndex'])->name('ai-advisor.documents.index');
+        Route::post('{profile}/ai-advisor/documents',                 [ConsultantWorkspaceAiAdvisorController::class, 'documentsUpload'])->name('ai-advisor.documents.upload');
+        Route::delete('{profile}/ai-advisor/documents/{document}',    [ConsultantWorkspaceAiAdvisorController::class, 'documentsDestroy'])->name('ai-advisor.documents.destroy');
+
+        Route::get('{profile}/legislation/relevant', [ConsultantLegislationController::class, 'relevant'])->name('legislation.relevant');
         Route::get('{profile}/questionnaire/document/stream',         [QuestionnaireReviewController::class, 'streamDocument'])->name('questionnaire.document-stream');
         Route::patch('{profile}/questionnaire/verify',               [QuestionnaireReviewController::class, 'verify'])->name('questionnaire.verify');
         Route::patch('{profile}/questionnaire/field',                [QuestionnaireReviewController::class, 'updateField'])->name('questionnaire.update-field');
@@ -444,6 +505,10 @@ Route::middleware('auth:sanctum')->group(function () {
         // ── Activity & compliance audit log ─────────────────────────────────────
         Route::get('{profile}/activity-log', [ConsultantClientActivityController::class, 'index'])->name('activity-log');
         Route::get('{profile}/activity-log/pdf', [ConsultantClientActivityController::class, 'downloadPdf'])->name('activity-log.pdf');
+
+        // ── Compliance packet (agreement + trust + docs + activity) ─────────────
+        Route::get('{profile}/compliance-packet', [ConsultantClientComplianceController::class, 'preview'])->name('compliance-packet');
+        Route::get('{profile}/compliance-packet/pdf', [ConsultantClientComplianceController::class, 'downloadPdf'])->name('compliance-packet.pdf');
     });
 
     Route::get('consultant/lms/courses', [ConsultantLmsController::class, 'availableCourses'])->name('consultant.lms.courses');
@@ -485,6 +550,16 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::post('{broadcast}/send', [AdminBroadcastController::class, 'send'])->name('send');
         });
 
+        Route::prefix('email-templates')->name('email-templates.')->group(function () {
+            Route::get('/', [AdminEmailTemplateController::class, 'index'])->name('index');
+            Route::get('{key}/preview-bundle', [AdminEmailTemplateController::class, 'previewBundle'])
+                ->where('key', '.*')
+                ->name('preview-bundle');
+            Route::get('{key}/preview', [AdminEmailTemplateController::class, 'preview'])
+                ->where('key', '.*')
+                ->name('preview');
+        });
+
         Route::prefix('rcic-community')->name('rcic-community.')->group(function () {
             Route::get('posts', [AdminRcicCommunityController::class, 'posts'])->name('posts.index');
             Route::post('posts', [AdminRcicCommunityController::class, 'store'])->name('posts.store');
@@ -501,6 +576,14 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('{ticket}', [AdminSupportTicketController::class, 'show'])->name('show');
             Route::post('{ticket}/messages', [AdminSupportTicketController::class, 'storeMessage'])->name('messages.store');
             Route::patch('{ticket}', [AdminSupportTicketController::class, 'update'])->name('update');
+        });
+
+        Route::prefix('whatsapp')->name('whatsapp.')->group(function () {
+            Route::get('setup-status', [AdminWhatsAppInboxController::class, 'setupStatus'])->name('setup-status');
+            Route::get('conversations', [AdminWhatsAppInboxController::class, 'index'])->name('conversations.index');
+            Route::get('conversations/{conversation}', [AdminWhatsAppInboxController::class, 'show'])->name('conversations.show');
+            Route::post('conversations/{conversation}/messages', [AdminWhatsAppInboxController::class, 'storeMessage'])->name('conversations.messages.store');
+            Route::post('conversations/{conversation}/read', [AdminWhatsAppInboxController::class, 'markRead'])->name('conversations.read');
         });
 
         // User management
@@ -549,6 +632,8 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::put('{group}',              [AdminIntegrationSettingsController::class, 'update'])->name('update');
             Route::delete('{group}',           [AdminIntegrationSettingsController::class, 'clear'])->name('clear');
             Route::post('mail/test',           [AdminIntegrationSettingsController::class, 'testMail'])->name('mail.test');
+            Route::post('openai/test',         [AdminIntegrationSettingsController::class, 'testOpenAi'])->name('openai.test');
+            Route::post('whatsapp/test',       [AdminIntegrationSettingsController::class, 'testWhatsApp'])->name('whatsapp.test');
         });
 
         // Subscription packages
@@ -589,6 +674,22 @@ Route::middleware('auth:sanctum')->group(function () {
 
         // Subscription payments
         Route::get('subscription-payments', [AdminSubscriptionPaymentsController::class, 'index'])->name('subscription-payments.index');
+        Route::get('subscription-payments/export', [AdminSubscriptionPaymentsController::class, 'export'])->name('subscription-payments.export');
+        Route::get('subscription-payments/{subscriptionPaymentRecord}', [AdminSubscriptionPaymentsController::class, 'show'])->name('subscription-payments.show');
+        Route::get('subscription-payments/{subscriptionPaymentRecord}/invoice', [AdminSubscriptionPaymentsController::class, 'downloadInvoice'])->name('subscription-payments.invoice');
+        Route::get('marketing-orders', [AdminMarketingOrdersController::class, 'index'])->name('marketing-orders.index');
+        Route::get('marketing-orders/export', [AdminMarketingOrdersController::class, 'export'])->name('marketing-orders.export');
+        Route::get('client-payment-requests', [AdminClientPaymentRequestsController::class, 'index'])->name('client-payment-requests.index');
+        Route::get('client-payment-requests/export', [AdminClientPaymentRequestsController::class, 'export'])->name('client-payment-requests.export');
+        Route::get('storage-subscriptions', [AdminStorageSubscriptionsController::class, 'index'])->name('storage-subscriptions.index');
+        Route::get('storage-subscriptions/export', [AdminStorageSubscriptionsController::class, 'export'])->name('storage-subscriptions.export');
+
+        Route::prefix('platform-company')->name('platform-company.')->group(function () {
+            Route::get('/',              [AdminPlatformCompanyController::class, 'show'])->name('show');
+            Route::put('/',              [AdminPlatformCompanyController::class, 'update'])->name('update');
+            Route::post('logo',          [AdminPlatformCompanyController::class, 'uploadLogo'])->name('logo.upload');
+            Route::delete('logo',         [AdminPlatformCompanyController::class, 'removeLogo'])->name('logo.remove');
+        });
 
         // Stripe Test Clock — recurring billing simulation (test mode only)
         Route::prefix('stripe-test')->name('stripe-test.')->group(function () {
@@ -607,7 +708,12 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::post('discover-catalog', [AdminLegislationController::class, 'discoverCatalog'])->name('discover-catalog');
             Route::post('catalog/{entry}/sync', [AdminLegislationController::class, 'syncCatalogEntry'])->name('catalog.sync');
             Route::get('sync-runs/{run}', [AdminLegislationController::class, 'syncRun'])->name('sync-run');
+            Route::post('sync-runs/{run}/pause', [AdminLegislationController::class, 'pauseSyncRun'])->name('sync-run.pause');
+            Route::post('sync-runs/{run}/resume', [AdminLegislationController::class, 'resumeSyncRun'])->name('sync-run.resume');
+            Route::post('sync-runs/{run}/cancel', [AdminLegislationController::class, 'cancelSyncRun'])->name('sync-run.cancel');
             Route::post('sync', [AdminLegislationController::class, 'sync'])->name('sync');
+            Route::post('clear', [AdminLegislationController::class, 'clearData'])->name('clear');
+            Route::post('amendments/{alert}/acknowledge', [AdminLegislationController::class, 'acknowledgeAmendment'])->name('amendments.acknowledge');
             Route::get('resolve', [AdminLegislationController::class, 'resolve'])->name('resolve');
             Route::get('references/preview', [AdminLegislationController::class, 'previewReference'])->name('references.preview');
             Route::get('documents', [AdminLegislationController::class, 'documents'])->name('documents');

@@ -61,39 +61,91 @@ export type ExtendedPersonInput = PersonInput & {
   provincialNominationInterest?: boolean;
 };
 
-export function toApiPayload(
-  main: ExtendedPersonInput,
+export function spouseToExtendedPerson(
+  spouse: SpouseInput & { age?: number; englishTestType?: "ielts" | "celpip" },
+): ExtendedPersonInput {
+  return {
+    age: spouse.age ?? 28,
+    education: spouse.education,
+    canadianEducation: "none",
+    ielts: spouse.ielts,
+    englishTestType: spouse.englishTestType ?? "ielts",
+    frenchTestType: "none",
+    frenchScores: { speaking: 0, listening: 0, reading: 0, writing: 0 },
+    frenchCLB: { speaking: 0, listening: 0, reading: 0, writing: 0 },
+    canadianWorkExp: spouse.canadianWorkExp,
+    foreignWorkExp: 0,
+    jobOffer: "none",
+    provincialNomination: false,
+    siblingInCanada: false,
+    certificateOfQualification: false,
+    nocCode: "",
+    nocTeer: "",
+    nocTitle: "",
+  };
+}
+
+export function personToSpouseFields(
+  person: ExtendedPersonInput,
+): SpouseInput & { age?: number; englishTestType?: "ielts" | "celpip" } {
+  return {
+    age: person.age,
+    education: person.education,
+    ielts: person.ielts,
+    canadianWorkExp: person.canadianWorkExp,
+    englishTestType: person.englishTestType,
+  };
+}
+
+function mapMainToApi(main: ExtendedPersonInput): Record<string, unknown> {
+  return {
+    age: main.age,
+    education: main.education,
+    canadian_education: main.canadianEducation,
+    english_test_type: main.englishTestType ?? "ielts",
+    english_scores: main.ielts,
+    french_test_type: main.frenchTestType ?? (Math.max(...Object.values(main.frenchCLB)) > 0 ? "tef" : "none"),
+    french_clb: main.frenchCLB,
+    french_scores: main.frenchScores,
+    canadian_work_years: main.canadianWorkExp,
+    foreign_work_years: main.foreignWorkExp,
+    job_offer: main.jobOffer,
+    provincial_nomination: main.provincialNomination,
+    sibling_in_canada: main.siblingInCanada,
+    trade_certificate: main.tradeCertificate ?? main.certificateOfQualification,
+  };
+}
+
+function mapSpouseToApi(
   spouse: SpouseInput & { englishTestType?: "ielts" | "celpip" },
-  hasSpouse: boolean,
 ): Record<string, unknown> {
   return {
+    education: spouse.education,
+    english_test_type: spouse.englishTestType ?? "ielts",
+    english_scores: spouse.ielts,
+    canadian_work_years: spouse.canadianWorkExp,
+  };
+}
+
+export function toApiPayload(
+  main: ExtendedPersonInput,
+  spouse: SpouseInput & { age?: number; englishTestType?: "ielts" | "celpip" },
+  hasSpouse: boolean,
+  principalApplicant: "main" | "spouse" = "main",
+): Record<string, unknown> {
+  const spouseAsPrincipal = hasSpouse && principalApplicant === "spouse";
+  const principalPerson = spouseAsPrincipal ? spouseToExtendedPerson(spouse) : main;
+  const accompanyingSpouse = spouseAsPrincipal ? personToSpouseFields(main) : spouse;
+
+  return {
     has_spouse: hasSpouse,
-    main: {
-      age: main.age,
-      education: main.education,
-      canadian_education: main.canadianEducation,
-      english_test_type: main.englishTestType ?? "ielts",
-      english_scores: main.ielts,
-      french_test_type: main.frenchTestType ?? (Math.max(...Object.values(main.frenchCLB)) > 0 ? "tef" : "none"),
-      french_clb: main.frenchCLB,
-      french_scores: main.frenchScores,
-      canadian_work_years: main.canadianWorkExp,
-      foreign_work_years: main.foreignWorkExp,
-      job_offer: main.jobOffer,
-      provincial_nomination: main.provincialNomination,
-      sibling_in_canada: main.siblingInCanada,
-      trade_certificate: main.tradeCertificate ?? main.certificateOfQualification,
-    },
-    spouse: hasSpouse ? {
-      education: spouse.education,
-      english_test_type: spouse.englishTestType ?? "ielts",
-      english_scores: spouse.ielts,
-      canadian_work_years: spouse.canadianWorkExp,
-    } : undefined,
+    principal_applicant: hasSpouse ? principalApplicant : "main",
+    main: mapMainToApi(principalPerson),
+    spouse: hasSpouse ? mapSpouseToApi(accompanyingSpouse) : undefined,
     noc: {
-      code: main.nocCode ?? "",
-      teer: main.nocTeer === "" ? null : main.nocTeer,
-      title: main.nocTitle ?? "",
+      code: principalPerson.nocCode ?? main.nocCode ?? "",
+      teer: principalPerson.nocTeer === "" ? null : principalPerson.nocTeer ?? main.nocTeer,
+      title: principalPerson.nocTitle ?? main.nocTitle ?? "",
     },
   };
 }

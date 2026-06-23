@@ -30,6 +30,17 @@ class LegislationSyncService
             'configured_sources' => array_keys(config('legislation_sources.sources', [])),
             'openai_enabled'     => (bool) config('legislation_sources.openai.enabled'),
             'catalog_index_url'  => 'https://laws.justice.gc.ca/eng/acts/',
+            'batch'              => [
+                'default_size'     => (int) config('legislation_sources.batch.default_size', 10),
+                'max_size'         => (int) config('legislation_sources.batch.max_size', 30),
+                'request_delay_ms' => (int) config('legislation_sources.batch.request_delay_ms', 300),
+            ],
+            'immigration_tier_count' => count($this->immigrationTierEntries()),
+            'catalog_pending'        => [
+                'acts'        => $this->countPendingCatalog('act', true),
+                'regulations' => $this->countPendingCatalog('regulation', true),
+                'total'       => $this->countPendingCatalog(null, true),
+            ],
             'latest_run'         => $latestRun ? $this->formatSyncRun($latestRun) : null,
             'recent_documents' => LegislationDocument::orderByDesc('last_synced_at')
                 ->limit(12)
@@ -38,16 +49,29 @@ class LegislationSyncService
         ];
     }
 
-    public function startSyncRun(string $scope = 'all', ?string $sourceSlug = null, ?string $category = null): LegislationSyncRun
-    {
+    public function startSyncRun(
+        string $scope = 'all',
+        ?string $sourceSlug = null,
+        ?string $category = null,
+        bool $onlyUnsynced = true,
+    ): LegislationSyncRun {
         $totalSteps = 0;
+        $stats      = ['category' => $category, 'only_unsynced' => $onlyUnsynced];
 
         if ($scope === 'catalog' || $scope === 'catalog_batch') {
-            $query = LegislationCatalogEntry::where('is_active', true)->whereNull('last_synced_at');
-            if ($category) {
-                $query->where('category', $category);
+            $pendingCount           = $this->countPendingCatalog($category, $onlyUnsynced);
+            $totalSteps             = max($pendingCount, 1);
+            $stats['pending_total'] = $pendingCount;
+        } elseif ($scope === 'immigration_tier') {
+            $totalSteps = count($this->immigrationTierEntries()) * 6;
+        } elseif ($scope === 'sync_and_linkify') {
+            foreach (array_keys(config('legislation_sources.sources', [])) as $slug) {
+                $cfg = config("legislation_sources.sources.{$slug}");
+                if ($cfg) {
+                    $totalSteps += count($cfg['formats'] ?? []) * 2;
+                }
             }
-            $totalSteps = $query->count() * 6;
+            $totalSteps += 20;
         } elseif ($sourceSlug) {
             $cfg = config("legislation_sources.sources.{$sourceSlug}")
                 ?? $this->catalog->buildActSourceConfig($sourceSlug, $sourceSlug);
@@ -70,8 +94,21 @@ class LegislationSyncService
             'total_steps'     => max($totalSteps, 1),
             'completed_steps' => 0,
             'current_step'    => 'Queued',
-            'stats'           => ['category' => $category],
+            'stats'           => $stats,
         ]);
+    }
+
+    public function countPendingCatalog(?string $category = null, bool $onlyUnsynced = true): int
+    {
+        $query = LegislationCatalogEntry::query()->where('is_active', true);
+        if ($onlyUnsynced) {
+            $query->whereNull('last_synced_at');
+        }
+        if ($category) {
+            $query->where('category', $category);
+        }
+
+        return $query->count();
     }
 
     /** @return array<string, mixed> */
@@ -136,6 +173,7 @@ class LegislationSyncService
                 }
 
                 try {
+                    $this->throttleJusticeRequest();
                     $response = Http::timeout(120)->get($url);
                     if (! $response->successful()) {
                         $errors[] = "{$slug}/{$format}/{$lang}: HTTP {$response->status()}";
@@ -148,6 +186,7 @@ class LegislationSyncService
 
                     $existing = LegislationDocument::where('slug', $docSlug)->first();
                     $isNew    = ! $existing;
+                    $prevHash = $existing?->content_hash;
 
                     $storagePath = "legislation/{$docSlug}".($format === 'xml' ? '.xml' : ($format === 'pdf' ? '.pdf' : '.html'));
                     Storage::disk('local')->put($storagePath, $content);
@@ -193,6 +232,10 @@ class LegislationSyncService
                         app(LegislationReferenceRenderService::class)->refreshDocumentReferences($doc->fresh());
                     }
 
+                    if (! $isNew && $prevHash && $prevHash !== $hash) {
+                        app(LegislationAmendmentService::class)->recordAmendment($doc->fresh(), $prevHash, $hash);
+                    }
+
                     $isNew ? $created++ : $updated++;
                 } catch (\Throwable $e) {
                     $errors[] = "{$slug}/{$format}/{$lang}: {$e->getMessage()}";
@@ -224,7 +267,79 @@ class LegislationSyncService
             return $this->catalog->catalogSourcesMap();
         }
 
+        if ($run->scope === 'immigration_tier') {
+            return $this->immigrationTierSources();
+        }
+
         return config('legislation_sources.sources', []);
+    }
+
+    /** @return list<array{act_code: string, title: string, category: string}> */
+    public function immigrationTierEntries(): array
+    {
+        $skip = ['I-2.5', 'SOR-2002-227', 'DORS-2002-227'];
+
+        return array_values(array_filter(
+            config('legislation_sources.immigration_tier', []),
+            fn (array $row) => ! in_array($row['act_code'] ?? '', $skip, true),
+        ));
+    }
+
+    /** @return array<string, array> */
+    public function immigrationTierSources(): array
+    {
+        $map = [];
+        foreach ($this->immigrationTierEntries() as $row) {
+            $code = $row['act_code'];
+            $slug = ($row['category'] === 'regulation' ? 'reg' : 'act').'-'.Str::lower(str_replace('.', '-', $code));
+            $map[$slug] = $row['category'] === 'regulation'
+                ? $this->catalog->buildRegulationSourceConfig($code, $row['title'])
+                : $this->catalog->buildActSourceConfig($code, $row['title']);
+        }
+
+        return $map;
+    }
+
+    /** @return array{created: int, updated: int, errors: array<int, string>, synced_entries: int} */
+    public function runImmigrationTierSync(LegislationSyncRun $run): array
+    {
+        $run->update(['status' => 'running', 'started_at' => now(), 'current_step' => 'Immigration tier sync']);
+
+        $stats = ['created' => 0, 'updated' => 0, 'errors' => [], 'synced_entries' => 0];
+
+        foreach ($this->immigrationTierSources() as $slug => $cfg) {
+            $run->update(['current_step' => "Tier: {$slug}"]);
+            $result = $this->syncSource($slug, $cfg, $run);
+            $stats['created'] += $result['created'];
+            $stats['updated'] += $result['updated'];
+            $stats['errors']  = array_merge($stats['errors'], $result['errors']);
+            $stats['synced_entries']++;
+
+            $entry = LegislationCatalogEntry::where('act_code', $cfg['act_code'])->first();
+            if ($entry) {
+                $docCount = LegislationDocument::where('source_slug', $slug)->count();
+                $entry->update(['last_synced_at' => now(), 'documents_synced' => $docCount]);
+            }
+        }
+
+        $this->pairLanguageDocuments();
+        $run->update([
+            'status'          => empty($stats['errors']) ? 'completed' : 'completed',
+            'finished_at'     => now(),
+            'current_step'    => 'Immigration tier complete',
+            'stats'           => $stats,
+            'completed_steps' => $run->total_steps,
+        ]);
+
+        return $stats;
+    }
+
+    private function throttleJusticeRequest(): void
+    {
+        $delayMs = (int) config('legislation_sources.batch.request_delay_ms', 300);
+        if ($delayMs > 0) {
+            usleep($delayMs * 1000);
+        }
     }
 
     /** @return array{created: int, updated: int, errors: array<int, string>} */
@@ -259,23 +374,75 @@ class LegislationSyncService
         return $query->limit($limit)->get()->all();
     }
 
+    public function isRunHalted(LegislationSyncRun $run): bool
+    {
+        return in_array($run->fresh()->status, ['cancelled', 'paused'], true);
+    }
+
     /** @param array<int, LegislationCatalogEntry> $entries */
     public function runCatalogBatch(LegislationSyncRun $run, array $entries): array
     {
         $stats = ['created' => 0, 'updated' => 0, 'errors' => [], 'synced_entries' => 0];
 
         foreach ($entries as $entry) {
-            $run->update(['current_step' => "Catalog: {$entry->act_code} ({$entry->title})"]);
+            $run->refresh();
+            if ($this->isRunHalted($run)) {
+                break;
+            }
+
+            $run->update(['current_step' => "Downloading: {$entry->act_code} — {$entry->title}"]);
             $result = $this->syncCatalogEntry($entry, $run);
             $stats['created'] += $result['created'];
             $stats['updated'] += $result['updated'];
             $stats['errors']  = array_merge($stats['errors'], $result['errors']);
             $stats['synced_entries']++;
+            $run->increment('completed_steps');
+            $this->persistCatalogEntryProgress($run, $result);
+            $this->throttleJusticeRequest();
         }
 
-        $this->pairLanguageDocuments();
+        $run->refresh();
+        if ($this->isRunHalted($run) && $run->status === 'paused') {
+            $existing = $run->stats ?? [];
+            $synced   = (int) ($existing['synced_entries'] ?? $run->completed_steps);
+            $pending  = (int) ($existing['pending_total'] ?? $run->total_steps);
+            $run->update([
+                'current_step' => $pending > 0
+                    ? sprintf('Paused at %d / %d — click Resume to continue', $synced, $pending)
+                    : 'Paused — click Resume to continue',
+            ]);
+        }
+
+        if ($stats['synced_entries'] > 0) {
+            $this->pairLanguageDocuments();
+        }
 
         return $stats;
+    }
+
+    /** @param array{created: int, updated: int, errors: array<int, string>} $entryResult */
+    private function persistCatalogEntryProgress(LegislationSyncRun $run, array $entryResult): void
+    {
+        $run->refresh();
+        $existing = $run->stats ?? [];
+        $synced   = (int) ($existing['synced_entries'] ?? 0) + 1;
+        $pending  = (int) ($existing['pending_total'] ?? $run->total_steps);
+        $pct      = $pending > 0 ? min(100, (int) round(($synced / $pending) * 100)) : 0;
+
+        $run->update([
+            'stats' => [
+                'created'        => ($existing['created'] ?? 0) + $entryResult['created'],
+                'updated'        => ($existing['updated'] ?? 0) + $entryResult['updated'],
+                'errors'         => array_merge($existing['errors'] ?? [], $entryResult['errors']),
+                'synced_entries' => $synced,
+                'pending_total'  => $pending,
+                'category'       => $existing['category'] ?? null,
+                'only_unsynced'  => $existing['only_unsynced'] ?? true,
+            ],
+            'current_step' => $pending > 0
+                ? sprintf('Downloaded %d / %d catalog entries (%d%%)', $synced, $pending, $pct)
+                : $run->current_step,
+        ]);
     }
 
     private function pairLanguageDocuments(): void

@@ -4,8 +4,8 @@ import { use, useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import {
   ArrowLeft, Loader2, AlertCircle, Send, CheckCircle2, Clock, Lock,
-  ChevronRight, FileText, ClipboardList, Briefcase, UserCheck,
-  Check, RefreshCw, FormInput, Eye, ExternalLink, GraduationCap,
+  ChevronRight, FileText, ClipboardList, Briefcase, Calculator,
+  Check, RefreshCw, FormInput, Eye, ExternalLink, GraduationCap, Mail, UserCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -14,7 +14,7 @@ import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { PathwayRecommendationPanel } from "./pathway-recommendation-panel";
+import { PathwayAssessmentEntry } from "./pathway-assessment-entry";
 import { ConsultantInteractiveFormsPanel } from "./case-management/consultant-interactive-forms-panel";
 import {
   SignedRetainerAgreementPreview,
@@ -385,7 +385,6 @@ export function WorkspacePageClient({ paramsPromise }: { paramsPromise: Promise<
 
   const [caseFile, setCaseFile] = useState<CaseFile | null>(null);
   const [client,   setClient]   = useState<ClientData | null>(null);
-  const [consultantName, setConsultantName] = useState("Consultant");
   const [verification, setVerification] = useState<FormsVerification | null>(null);
   const [hubPreview, setHubPreview] = useState<{
     progress?: { overall_percent: number; documents: { approved: number; total: number } };
@@ -422,7 +421,6 @@ export function WorkspacePageClient({ paramsPromise }: { paramsPromise: Promise<
       if (!res.ok) throw new Error(json?.message ?? "Failed to load workspace.");
       setCaseFile(json.case_file);
       setClient(json.client);
-      setConsultantName(json.consultant?.name ?? "Consultant");
       setVerification(json.application_forms_verification ?? null);
       await loadQuestionnaireStats();
     } catch (e: unknown) {
@@ -546,6 +544,8 @@ export function WorkspacePageClient({ paramsPromise }: { paramsPromise: Promise<
   const agreementStepState = !caseFile.immigration_pathway ? "locked" : stepUiState(1, activeStep);
   const formsStepState = !caseFile.agreement_signed_at ? "locked" : stepUiState(2, activeStep);
   const caseHubStepState = stepUiState(3, activeStep);
+  const lmsUnlocked = Boolean(caseFile.immigration_pathway);
+  const lmsStepState: WorkflowStepState = lmsUnlocked ? "current" : "locked";
 
   const nextAction = resolveNextAction(id, caseFile, qStats, verification);
   const activityEvents = buildClientActivity(qStats, caseFile, verification);
@@ -611,6 +611,12 @@ export function WorkspacePageClient({ paramsPromise }: { paramsPromise: Promise<
                 {caseFile.immigration_pathway}
               </Badge>
             )}
+            <Button variant="outline" size="sm" className="gap-1.5 rounded-xl" asChild>
+              <Link href={`/dashboard/letters?client=${id}`}>
+                <Mail className="size-3.5" />
+                Draft letter
+              </Link>
+            </Button>
             <Button variant="outline" size="icon" className="size-8 rounded-xl" onClick={load} disabled={loading || acting}>
               <RefreshCw className={cn("size-4", loading && "animate-spin")} />
             </Button>
@@ -643,10 +649,10 @@ export function WorkspacePageClient({ paramsPromise }: { paramsPromise: Promise<
         state={pathwayStepState}
         headerActions={
           <>
-            <Button variant="outline" size="sm" className="gap-1.5 rounded-xl" asChild>
+            <Button size="sm" className="gap-1.5 rounded-xl" asChild>
               <Link href={`/dashboard/clients/${id}/workspace/pathway-calculator`}>
-                <UserCheck className="size-3.5" />
-                Full calculator
+                <Calculator className="size-3.5" />
+                Pathway calculator
               </Link>
             </Button>
             <Button variant="outline" size="sm" className="gap-1.5 rounded-xl" asChild>
@@ -696,23 +702,7 @@ export function WorkspacePageClient({ paramsPromise }: { paramsPromise: Promise<
           </div>
         )}
 
-        <PathwayRecommendationPanel
-          profileId={id}
-          caseFile={caseFile}
-          clientName={client.user.name}
-          consultantName={consultantName}
-          onPathwaySelected={(pathway) => {
-            setCaseFile((prev) => (prev ? { ...prev, immigration_pathway: pathway, status: "PATHWAY_SELECTED" } : prev));
-            showToast("Pathway assigned.");
-          }}
-          onPathwayCleared={() => {
-            setCaseFile((prev) =>
-              prev ? { ...prev, immigration_pathway: null, status: "PENDING_ASSESSMENT" } : prev,
-            );
-            showToast("Pathway selection cleared.");
-          }}
-          onAssessmentSaved={load}
-        />
+        <PathwayAssessmentEntry profileId={id} caseFile={caseFile} qStats={qStats} />
       </WorkflowSection>
 
       <WorkflowSection
@@ -880,20 +870,44 @@ export function WorkspacePageClient({ paramsPromise }: { paramsPromise: Promise<
         step={5}
         title="Exam prep courses (LMS)"
         subtitle="Assign IELTS, PTE, NCLEX, or TEF master courses and track lesson progress and quiz scores."
-        state="current"
+        state={lmsStepState}
         headerActions={
-          <Button className="gap-2 rounded-xl" variant="outline" asChild>
-            <Link href={`/dashboard/clients/${id}/workspace/lms`}>
-              <GraduationCap className="size-4" />
+          lmsUnlocked ? (
+            <Button className="gap-2 rounded-xl" variant="outline" asChild>
+              <Link href={`/dashboard/clients/${id}/workspace/lms`}>
+                <GraduationCap className="size-4" />
+                Manage courses
+                <ChevronRight className="size-4" />
+              </Link>
+            </Button>
+          ) : (
+            <Button className="gap-2 rounded-xl" variant="outline" disabled>
+              <Lock className="size-4" />
               Manage courses
-              <ChevronRight className="size-4" />
-            </Link>
-          </Button>
+            </Button>
+          )
         }
       >
-        <p className="text-sm text-muted-foreground">
-          Assign published courses from the admin catalog, then monitor completion percentage and MCQ quiz pass/fail results here.
-        </p>
+        {lmsUnlocked ? (
+          <p className="text-sm text-muted-foreground">
+            Assign published courses from the admin catalog, then monitor completion percentage and MCQ quiz pass/fail results here.
+          </p>
+        ) : (
+          <div className="flex items-start gap-3 rounded-xl border border-amber-200/70 bg-amber-500/[0.06] px-4 py-3.5">
+            <Lock className="mt-0.5 size-4 shrink-0 text-amber-700" />
+            <div className="min-w-0 text-sm">
+              <p className="font-semibold text-amber-900">Unlocks after pathway assignment</p>
+              <p className="mt-1 text-xs text-amber-800">
+                Exam prep courses are tied to the client&apos;s immigration pathway. Complete Step 1 and assign a pathway first.
+              </p>
+              <Button variant="outline" size="sm" className="mt-3 rounded-xl" asChild>
+                <Link href={`/dashboard/clients/${id}/workspace/pathway-calculator`}>
+                  Open pathway calculator
+                </Link>
+              </Button>
+            </div>
+          </div>
+        )}
       </WorkflowSection>
 
         </div>

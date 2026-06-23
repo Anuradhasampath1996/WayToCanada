@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\ClientProfile;
 use App\Models\User;
 use App\Services\ClientActivity\ClientActivityTriggers;
+use App\Services\ClientCommandCenterService;
+use App\Services\ConsultantClientListService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -18,6 +20,8 @@ class ClientController extends Controller
 {
     public function __construct(
         private ClientActivityTriggers $activity,
+        private ConsultantClientListService $clientList,
+        private ClientCommandCenterService $commandCenter,
     ) {}
 
     // ── List clients ───────────────────────────────────────────────────────────
@@ -42,6 +46,19 @@ class ClientController extends Controller
             });
         }
 
+        if ($email = $request->query('email')) {
+            $query->whereHas('user', function ($q) use ($email) {
+                $q->where('email', 'ilike', "%{$email}%");
+            });
+        }
+
+        if ($phone = $request->query('phone')) {
+            $query->where(function ($q) use ($phone) {
+                $q->where('phone', 'ilike', "%{$phone}%")
+                    ->orWhereHas('user', fn ($uq) => $uq->where('phone', 'ilike', "%{$phone}%"));
+            });
+        }
+
         // Optional filter by immigration pathway
         if ($pathway = $request->query('pathway')) {
             $query->where('immigration_pathway', $pathway);
@@ -49,7 +66,7 @@ class ClientController extends Controller
 
         $clients = $query->paginate(min((int) $request->query('per_page', 20), 200));
 
-        return response()->json($clients);
+        return response()->json($this->clientList->transformPaginated($clients));
     }
 
     // ── Create client ──────────────────────────────────────────────────────────
@@ -145,6 +162,17 @@ class ClientController extends Controller
         return response()->json([
             'client' => $profile->load('user:id,name,email,phone,is_verified,email_verified_at,created_at'),
         ]);
+    }
+
+    /**
+     * GET /api/v1/consultant/clients/{profile}/command-center
+     * Unified workspace summary for the client profile command center.
+     */
+    public function commandCenter(Request $request, ClientProfile $profile): JsonResponse
+    {
+        $this->authorizeConsultant($request, $profile);
+
+        return response()->json($this->commandCenter->build($profile));
     }
 
     // ── Update client profile ──────────────────────────────────────────────────

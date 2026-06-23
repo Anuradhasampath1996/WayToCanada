@@ -5,13 +5,19 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Jobs\RunLegislationSyncJob;
 use App\Jobs\SyncLegislationCatalogBatchJob;
+use App\Models\LegislationAmendmentAlert;
 use App\Models\LegislationCatalogEntry;
 use App\Models\LegislationDocument;
 use App\Models\LegislationReference;
 use App\Models\LegislationSyncRun;
+use App\Services\LegislationAmendmentService;
 use App\Services\LegislationCatalogService;
+use App\Services\LegislationClearService;
+use App\Services\LegislationHubHealthService;
+use App\Services\LegislationLinkCoverageService;
 use App\Services\LegislationReferenceAiService;
 use App\Services\LegislationReferenceRenderService;
+use App\Services\LegislationSyncControlService;
 use App\Services\LegislationSyncService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -21,9 +27,17 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 class AdminLegislationController extends Controller
 {
     /** GET /api/v1/admin/legislation/sync-status */
-    public function syncStatus(LegislationSyncService $sync): JsonResponse
-    {
-        return response()->json($sync->syncStatus());
+    public function syncStatus(
+        LegislationSyncService $sync,
+        LegislationHubHealthService $health,
+        LegislationLinkCoverageService $coverage,
+        LegislationAmendmentService $amendments,
+    ): JsonResponse {
+        return response()->json(array_merge($sync->syncStatus(), [
+            'queue_health'       => $health->queueHealth(),
+            'link_coverage'      => $coverage->aggregateCoverage(),
+            'amendment_alerts'   => $amendments->recentUnacknowledged(8),
+        ]));
     }
 
     /** GET /api/v1/admin/legislation/catalog */
@@ -56,7 +70,52 @@ class AdminLegislationController extends Controller
     /** GET /api/v1/admin/legislation/sync-runs/{run} */
     public function syncRun(LegislationSyncRun $run, LegislationSyncService $sync): JsonResponse
     {
-        return response()->json(['data' => $sync->formatSyncRun($run)]);
+        return response()->json(['data' => $sync->formatSyncRun($run->fresh())]);
+    }
+
+    /** POST /api/v1/admin/legislation/sync-runs/{run}/pause */
+    public function pauseSyncRun(LegislationSyncRun $run, LegislationSyncControlService $control, LegislationSyncService $sync): JsonResponse
+    {
+        try {
+            $run = $control->pause($run);
+        } catch (\RuntimeException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
+
+        return response()->json([
+            'message' => 'Download paused.',
+            'run'     => $sync->formatSyncRun($run),
+        ]);
+    }
+
+    /** POST /api/v1/admin/legislation/sync-runs/{run}/resume */
+    public function resumeSyncRun(LegislationSyncRun $run, LegislationSyncControlService $control, LegislationSyncService $sync): JsonResponse
+    {
+        try {
+            $run = $control->resume($run);
+        } catch (\RuntimeException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
+
+        return response()->json([
+            'message' => 'Download resumed.',
+            'run'     => $sync->formatSyncRun($run),
+        ], 202);
+    }
+
+    /** POST /api/v1/admin/legislation/sync-runs/{run}/cancel */
+    public function cancelSyncRun(LegislationSyncRun $run, LegislationSyncControlService $control, LegislationSyncService $sync): JsonResponse
+    {
+        try {
+            $run = $control->cancel($run);
+        } catch (\RuntimeException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
+
+        return response()->json([
+            'message' => 'Download stopped.',
+            'run'     => $sync->formatSyncRun($run),
+        ]);
     }
 
     /** POST /api/v1/admin/legislation/discover-catalog */
@@ -88,27 +147,62 @@ class AdminLegislationController extends Controller
     {
         $data = $request->validate([
             'source'       => 'nullable|string|max:80',
-            'scope'        => 'nullable|string|in:all,catalog,catalog_batch,source',
+            'scope'        => 'nullable|string|in:all,catalog,catalog_batch,source,immigration_tier,sync_and_linkify',
             'category'     => 'nullable|string|in:act,regulation',
-            'batch_size'   => 'nullable|integer|min:1|max:20',
+            'batch_size'   => 'nullable|integer|min:1|max:30',
             'only_unsynced'=> 'nullable|boolean',
             'async'        => 'nullable|boolean',
             'run_ai'       => 'nullable|boolean',
+            'run_linkify'  => 'nullable|boolean',
         ]);
 
-        $sourceSlug   = $data['source'] ?? null;
-        $scope        = $data['scope'] ?? ($sourceSlug ? 'source' : 'all');
+        $sourceSlug = $data['source'] ?? null;
+        $scope      = $data['scope'] ?? ($sourceSlug ? 'source' : 'all');
+        if (($data['run_linkify'] ?? false) && $scope === 'all') {
+            $scope = 'sync_and_linkify';
+        }
         $category     = $data['category'] ?? null;
-        $batchSize    = $data['batch_size'] ?? 5;
+        $batchSize = min(
+            (int) ($data['batch_size'] ?? config('legislation_sources.batch.default_size', 10)),
+            (int) config('legislation_sources.batch.max_size', 30),
+        );
         $onlyUnsynced = $data['only_unsynced'] ?? true;
-        $run          = $sync->startSyncRun($scope, $sourceSlug, $category);
+        $runLinkify   = (bool) ($data['run_linkify'] ?? false);
+        $runAi        = (bool) ($data['run_ai'] ?? false);
+        if ($scope === 'sync_and_linkify') {
+            $runLinkify = true;
+        }
+        $run          = $sync->startSyncRun($scope, $sourceSlug, $category, $onlyUnsynced);
 
         if ($scope === 'catalog_batch') {
+            $pending = (int) ($run->stats['pending_total'] ?? 0);
+            if ($pending === 0) {
+                $run->update([
+                    'status'       => 'completed',
+                    'finished_at'  => now(),
+                    'current_step' => $onlyUnsynced
+                        ? 'Nothing to download — all catalog entries already synced.'
+                        : 'No catalog entries found.',
+                ]);
+
+                return response()->json([
+                    'message' => $onlyUnsynced
+                        ? 'All catalog entries are already downloaded. Uncheck “Skip already downloaded” to re-fetch.'
+                        : 'No catalog entries to download.',
+                    'run'     => $sync->formatSyncRun($run->fresh()),
+                ]);
+            }
+
+            $queueWarning = config('queue.default') === 'sync'
+                ? 'Queue driver is "sync". For bulk download set QUEUE_CONNECTION=database in backend/.env and run: php artisan queue:work'
+                : null;
+
             if ($data['async'] ?? true) {
                 SyncLegislationCatalogBatchJob::dispatch($run->id, $category, $batchSize, $onlyUnsynced);
 
                 return response()->json([
-                    'message' => "Catalog batch sync started ({$batchSize} entries per batch).",
+                    'message' => "Download started — {$pending} pending catalog entries (batch size {$batchSize}).",
+                    'warning' => $queueWarning,
                     'run'     => $sync->formatSyncRun($run->fresh()),
                 ], 202);
             }
@@ -124,23 +218,55 @@ class AdminLegislationController extends Controller
         }
 
         if ($data['async'] ?? true) {
-            RunLegislationSyncJob::dispatch($run->id, $sourceSlug, (bool) ($data['run_ai'] ?? false));
+            RunLegislationSyncJob::dispatch(
+                $run->id,
+                $sourceSlug,
+                $runLinkify || $scope === 'sync_and_linkify',
+                $runAi,
+            );
+
+            $message = match ($scope) {
+                'immigration_tier' => 'Immigration tier sync started in background.',
+                'sync_and_linkify' => 'Sync + Linkify started (sync → regex linkify → optional AI → coverage report).',
+                default => 'Legislation sync started in background.',
+            };
 
             return response()->json([
-                'message' => 'Legislation sync started in background.',
+                'message' => $message,
+                'warning' => config('queue.default') === 'sync'
+                    ? 'Queue driver is "sync". Set QUEUE_CONNECTION=database and run php artisan queue:work'
+                    : null,
                 'run'     => $sync->formatSyncRun($run->fresh()),
             ], 202);
         }
 
-        $sync->runSync($run, $sourceSlug);
-        if ($data['run_ai'] ?? false) {
-            foreach (LegislationDocument::where('format', 'xml')->cursor() as $doc) {
-                app(LegislationReferenceAiService::class)->analyzeDocument($doc);
-            }
+        if ($scope === 'immigration_tier') {
+            $stats = $sync->runImmigrationTierSync($run);
+        } else {
+            $sync->runSync($run, $sourceSlug);
+            $stats = $run->fresh()->stats ?? [];
+        }
+
+        $coverage = null;
+        if ($runLinkify || $scope === 'sync_and_linkify') {
+            $stats['linkify'] = app(LegislationLinkCoverageService::class)->relinkifyAllXml();
+        }
+        if ($runAi) {
+            $stats['ai'] = app(LegislationLinkCoverageService::class)->runAiLinkifyAll(
+                app(LegislationReferenceAiService::class),
+                $run,
+            );
+        }
+        if ($runLinkify || $runAi || $scope === 'sync_and_linkify') {
+            $coverage = app(LegislationLinkCoverageService::class)->aggregateCoverage();
+            $stats['coverage'] = $coverage;
+            $run->update(['stats' => $stats]);
         }
 
         return response()->json([
-            'message' => 'Legislation sync completed.',
+            'message' => $coverage
+                ? sprintf('Sync complete. Link coverage: %.1f%%', $coverage['coverage_percent'])
+                : 'Legislation sync completed.',
             'run'     => $sync->formatSyncRun($run->fresh()),
         ]);
     }
@@ -154,7 +280,7 @@ class AdminLegislationController extends Controller
 
         if ($data['async'] ?? false) {
             $run = $sync->startSyncRun('source', $entry->act_code);
-            RunLegislationSyncJob::dispatch($run->id, $entry->act_code, false);
+            RunLegislationSyncJob::dispatch($run->id, $entry->act_code, false, false);
 
             return response()->json([
                 'message' => "Sync queued for {$entry->act_code}.",
@@ -465,6 +591,65 @@ class AdminLegislationController extends Controller
         $render->refreshDocumentReferences($document);
 
         return response()->json(['message' => 'Reference deleted.']);
+    }
+
+    /** POST /api/v1/admin/legislation/clear */
+    public function clearData(Request $request, LegislationClearService $clear): JsonResponse
+    {
+        $data = $request->validate([
+            'confirm'              => 'required|string|in:CLEAR',
+            'clear_documents'    => 'nullable|boolean',
+            'clear_catalog'      => 'nullable|boolean',
+            'clear_sync_history' => 'nullable|boolean',
+            'force'              => 'nullable|boolean',
+        ]);
+
+        $clearDocuments   = $data['clear_documents'] ?? true;
+        $clearCatalog     = $data['clear_catalog'] ?? false;
+        $clearSyncHistory = $data['clear_sync_history'] ?? true;
+
+        if ($clear->hasActiveSync() && ! ($data['force'] ?? false)) {
+            return response()->json([
+                'message' => 'A sync is still running. Wait for it to finish, or send force: true with confirm CLEAR.',
+            ], 409);
+        }
+
+        $counts = $clear->clear($clearDocuments, $clearCatalog, $clearSyncHistory);
+
+        $parts = [];
+        if ($counts['documents'] > 0) {
+            $parts[] = "{$counts['documents']} documents";
+        }
+        if ($counts['catalog_entries'] > 0) {
+            $parts[] = "{$counts['catalog_entries']} catalog entries";
+        }
+        if ($counts['sync_runs'] > 0) {
+            $parts[] = "{$counts['sync_runs']} sync runs";
+        }
+        if ($counts['amendment_alerts'] > 0) {
+            $parts[] = "{$counts['amendment_alerts']} amendment alerts";
+        }
+        if ($counts['catalog_reset']) {
+            $parts[] = 'catalog sync flags reset';
+        }
+
+        return response()->json([
+            'message' => $parts === []
+                ? 'Legislation data cleared.'
+                : 'Cleared: '.implode(', ', $parts).'.',
+            'counts'  => $counts,
+        ]);
+    }
+
+    /** POST /api/v1/admin/legislation/amendments/{alert}/acknowledge */
+    public function acknowledgeAmendment(
+        LegislationAmendmentAlert $alert,
+        Request $request,
+        LegislationAmendmentService $amendments,
+    ): JsonResponse {
+        $amendments->acknowledge($alert, (int) $request->user()->id);
+
+        return response()->json(['message' => 'Amendment alert acknowledged.']);
     }
 
     /** @param  array<string, mixed>  $result */

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import {
-  Video, Loader2, Plus, Copy, CheckCircle2, XCircle, ExternalLink, Calendar, AlertCircle,
+  Video, Loader2, Plus, Copy, CheckCircle2, XCircle, ExternalLink, Calendar, AlertCircle, Send,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -73,6 +73,8 @@ export function ClientMeetingsPanel({
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
   const [copiedId, setCopiedId] = useState<number | null>(null);
+  const [resendingId, setResendingId] = useState<number | null>(null);
+  const [actionMsg, setActionMsg] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const [meetingsRes, accountRes] = await Promise.all([
@@ -104,6 +106,26 @@ export function ClientMeetingsPanel({
     setTimeout(() => setCopiedId(null), 2000);
   }
 
+  async function resendInvite(meetingId: number) {
+    setResendingId(meetingId);
+    setActionMsg(null);
+    try {
+      const res = await fetch(`${API}/consultant/clients/${clientId}/meetings/${meetingId}/resend`, {
+        method: "POST",
+        headers: authHeaders(),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.message ?? "Failed to resend invite.");
+      setActionMsg(json.message ?? "Meeting invite sent.");
+      await load();
+    } catch (e: unknown) {
+      setActionMsg(e instanceof Error ? e.message : "Failed to resend invite.");
+    } finally {
+      setResendingId(null);
+      setTimeout(() => setActionMsg(null), 3500);
+    }
+  }
+
   const scheduleButton = (
     <Button
       size="sm"
@@ -117,6 +139,11 @@ export function ClientMeetingsPanel({
 
   const list = (
     <>
+        {actionMsg && (
+          <p className="text-xs text-muted-foreground rounded-lg border border-border/60 bg-muted/20 px-3 py-2">
+            {actionMsg}
+          </p>
+        )}
         {!loading && !anyReady && (
           <div className="flex items-start gap-2 text-xs text-amber-800 bg-amber-50 dark:bg-amber-950/30 rounded-lg p-3 border border-amber-200/60">
             <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
@@ -164,6 +191,16 @@ export function ClientMeetingsPanel({
                 </Button>
                 <Button size="sm" variant="outline" className="h-7 text-xs px-2" asChild>
                   <a href={m.meeting_url} target="_blank" rel="noreferrer"><ExternalLink className="h-3 w-3" /></a>
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-xs gap-1 px-2"
+                  disabled={resendingId === m.id}
+                  onClick={() => void resendInvite(m.id)}
+                  title="Resend invite email"
+                >
+                  {resendingId === m.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />}
                 </Button>
                 <Button size="sm" variant="ghost" className="h-7 text-xs text-red-600 px-2" onClick={async () => {
                   await fetch(`${API}/consultant/clients/${clientId}/meetings/${m.id}/cancel`, { method: "POST", headers: authHeaders() });

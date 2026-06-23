@@ -317,8 +317,8 @@ class CaseFileController extends Controller
         $request->validate(['send_email' => 'boolean']);
 
         $clientName     = $profile->user->name ?? 'Client';
-        $consultantName = $request->user()->name;
-        $message        = $this->reminderService->buildReminderMessage($caseFile, $clientName, $consultantName);
+        $message        = $this->reminderService->buildReminderMessage($caseFile, $clientName, $request->user());
+        $structured     = $this->reminderService->buildReminderStructured($caseFile, $clientName, $request->user());
         $whatsappUrl    = $this->reminderService->toWhatsAppUrl($phone, $message);
 
         $emailSent  = false;
@@ -331,7 +331,7 @@ class CaseFileController extends Controller
             $emailSent = true;
         }
 
-        $twilio = $this->reminderService->sendViaTwilio($phone, $message);
+        $twilio = $this->reminderService->sendWhatsApp($phone, $structured);
         $twilioSent  = $twilio['sent'];
         $twilioError = $twilio['error'];
 

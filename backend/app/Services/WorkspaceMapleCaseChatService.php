@@ -144,6 +144,11 @@ final class WorkspaceMapleCaseChatService
             return $this->caseSummary($context, $facts);
         }
 
+        $docAnswer = $this->answerFromUploadedDocuments($context, $message);
+        if ($docAnswer !== null) {
+            return $docAnswer;
+        }
+
         return $this->smartFallback($context, $facts, $q, $history);
     }
 
@@ -565,12 +570,21 @@ final class WorkspaceMapleCaseChatService
             $chunks[] = $label.': '.mb_substr((string) ($ex['excerpt'] ?? ''), 0, 280);
         }
 
+        $linkLines = [];
+        foreach (array_slice($k['legislation_links'] ?? [], 0, 3) as $link) {
+            if (! empty($link['hub_path'])) {
+                $linkLines[] = ($link['citation'] ?? 'Section').' → open in Legislation Hub';
+            }
+        }
+
         if ($chunks === []) {
             return null;
         }
 
+        $tail = $linkLines !== [] ? ' Related sections are linked below in Maple.' : '';
+
         return 'On Canadian immigration rules: '.implode(' ', array_slice($chunks, 0, 3))
-            .' Verify against current IRCC guidance and your RCIC judgment.';
+            .$tail.' Verify against current IRCC guidance and your RCIC judgment.';
     }
 
     /** @param array<string, mixed> $context */
@@ -578,8 +592,13 @@ final class WorkspaceMapleCaseChatService
     {
         $status = $context['case_file']['status'] ?? 'unknown';
         $next   = $context['next_action']['title'] ?? 'continue the workflow';
+        $phase  = $context['workflow_phase'] ?? null;
 
-        return "This case is at stage {$status}. Right now I'd focus on: {$next}.";
+        $phaseNote = $phase
+            ? ' Workflow phase: '.str_replace('_', ' ', $phase).'.'
+            : '';
+
+        return "This case is at stage {$status}.{$phaseNote} Right now I'd focus on: {$next}.";
     }
 
     /** @param array<string, mixed> $context */
@@ -730,6 +749,85 @@ final class WorkspaceMapleCaseChatService
         $crsBit = $crs !== null ? "; estimated CRS {$crs}" : '';
 
         return "{$lead} stage {$stage}; pathway {$pathway}{$crsBit}; next focus: {$next}. "
-            .'Ask about any questionnaire field, CRS, Express Entry draws, pathways, or admissibility.';
+            .'Ask about any questionnaire field, CRS, Express Entry draws, pathways, admissibility, or uploaded documents.';
+    }
+
+    /**
+     * @param  array<string, mixed>  $context
+     */
+    private function answerFromUploadedDocuments(array $context, string $message): ?string
+    {
+        /** @var list<array{filename: string, text: string, char_count?: int}> $docs */
+        $docs = $context['uploaded_documents'] ?? [];
+        if ($docs === []) {
+            return null;
+        }
+
+        $q = $this->normalize($message);
+        $mentionsDoc = $this->asksAny($q, [
+            'file', 'upload', 'document', 'pdf', 'letter', 'scan', 'attached', 'passport', 'notice',
+            'ගොනු', 'ලිපි', 'උඩුගත', 'පාස්පෝට්',
+        ]);
+
+        $best = $this->findBestDocumentExcerpt($docs, $message);
+        if ($best === null) {
+            if (! $mentionsDoc) {
+                return null;
+            }
+
+            $names = collect($docs)->pluck('filename')->filter()->join(', ');
+
+            return "I have these files attached: {$names}. I couldn't find a section matching your question — try naming a specific detail from the document.";
+        }
+
+        return "From «{$best['filename']}»:\n\n{$best['excerpt']}\n\n"
+            .'This is from the uploaded file text — verify important details before advising the client.';
+    }
+
+    /**
+     * @param  list<array{filename: string, text: string}>  $docs
+     * @return array{filename: string, excerpt: string}|null
+     */
+    private function findBestDocumentExcerpt(array $docs, string $message): ?array
+    {
+        $terms = array_values(array_filter(preg_split('/\s+/u', $this->normalize($message)) ?: [], fn ($t) => strlen($t) >= 3));
+        if ($terms === []) {
+            return null;
+        }
+
+        $bestScore = 0;
+        $best      = null;
+
+        foreach ($docs as $doc) {
+            $filename = (string) ($doc['filename'] ?? 'document');
+            $text     = (string) ($doc['text'] ?? '');
+            if ($text === '') {
+                continue;
+            }
+
+            $paragraphs = preg_split('/\n{2,}/u', $text) ?: [$text];
+            foreach ($paragraphs as $paragraph) {
+                $paragraph = trim($paragraph);
+                if ($paragraph === '') {
+                    continue;
+                }
+
+                $haystack = $this->normalize($paragraph);
+                $score    = 0;
+                foreach ($terms as $term) {
+                    if (str_contains($haystack, $term)) {
+                        $score++;
+                    }
+                }
+
+                if ($score > $bestScore) {
+                    $bestScore = $score;
+                    $excerpt   = strlen($paragraph) > 900 ? substr($paragraph, 0, 900).'…' : $paragraph;
+                    $best      = ['filename' => $filename, 'excerpt' => $excerpt];
+                }
+            }
+        }
+
+        return $bestScore >= 1 ? $best : null;
     }
 }

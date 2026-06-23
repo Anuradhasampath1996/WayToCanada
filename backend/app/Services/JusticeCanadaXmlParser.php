@@ -366,6 +366,8 @@ class JusticeCanadaXmlParser
     /** Subsection number inside parentheses: 1, 1.01, 1.1, 1.2 */
     private const SUB_NUM = '[\d.]+';
 
+    private const PAR_LABEL = '[a-z][a-z0-9.]*';
+
     /** Re-run text linkify on HTML while preserving existing leg-ref anchors. */
     public function linkifyHtmlPreservingAnchors(string $html, string $actCode, ?string $parentActCode = null, string $language = 'en'): string
     {
@@ -561,6 +563,42 @@ class JusticeCanadaXmlParser
         ) ?? $html;
     }
 
+    /**
+     * Link letter-paragraph shorthand after a leg-ref anchor:
+     * "190(3)(b), (b.1), (c), (d), (f), (g) or (h)".
+     */
+    public function linkifyParagraphListRemainders(string $html, string $actCode, string $language = 'en'): string
+    {
+        $orWord  = LegislationLinkifyTerms::isFrench($language) ? '(?:or|ou)' : 'or';
+        $andWord = LegislationLinkifyTerms::isFrench($language) ? '(?:and|et)' : 'and';
+        $pattern = '/(<a\s+[^>]*class="[^"]*leg-ref[^"]*"[^>]*data-act="([^"]+)"[^>]*data-key="([^"]+)"[^>]*>[^<]*<\/a>)'
+            .'(\s*,\s*|\s+'.$orWord.'\s+|\s+'.$andWord.'\s+)\(('
+            .self::PAR_LABEL.')\)(?![^<]*<\/a>)/iu';
+
+        for ($i = 0; $i < 24; $i++) {
+            $next = preg_replace_callback(
+                $pattern,
+                function (array $m) {
+                    $newKey = $this->siblingParagraphKey($m[3], $m[5]);
+                    if ($newKey === null) {
+                        return $m[0];
+                    }
+
+                    return $m[1].$m[4].$this->refAnchor($m[2], $newKey, '('.$m[5].')');
+                },
+                $html
+            );
+
+            if ($next === null || $next === $html) {
+                break;
+            }
+
+            $html = $next;
+        }
+
+        return $html;
+    }
+
     /** Link "or 10.2" / "to 10.3" (or FR ou/à) after a prior section-level leg-ref anchor. */
     public function linkifySectionShorthandRefs(string $html, string $actCode, string $language = 'en'): string
     {
@@ -595,6 +633,25 @@ class JusticeCanadaXmlParser
         }
         if (preg_match('/^(\d+(?:\.\d+)?)$/', $prevKey, $m)) {
             return $m[1].'('.$subNum.')';
+        }
+
+        return null;
+    }
+
+    /** Build sibling paragraph key: 190(3)(b) + c → 190(3)(c); 190(3)(b.1) + c → 190(3)(c). */
+    private function siblingParagraphKey(string $prevKey, string $parLabel): ?string
+    {
+        $parLabel = trim($parLabel);
+        if ($parLabel === '') {
+            return null;
+        }
+
+        if (preg_match('/^(.+)\('.self::PAR_LABEL.'\)$/iu', $prevKey, $m)) {
+            return $m[1].'('.$parLabel.')';
+        }
+
+        if (preg_match('/^(.+\([\d.]+\))$/', $prevKey, $m)) {
+            return $m[1].'('.$parLabel.')';
         }
 
         return null;

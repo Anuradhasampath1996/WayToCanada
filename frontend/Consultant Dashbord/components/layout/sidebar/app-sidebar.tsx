@@ -11,6 +11,9 @@ import {
   SidebarContent,
   SidebarFooter,
   SidebarHeader,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar";
 import { NavMain } from "@/components/layout/sidebar/nav-main";
@@ -33,25 +36,33 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
   return (
     <Sidebar collapsible="icon" {...props}>
-      <SidebarHeader className="border-b border-sidebar-border/70 bg-gradient-to-br from-primary/5 via-transparent to-transparent p-3">
-        <Link
-          href="/consultantdashboard"
-          className="flex items-center gap-3 rounded-xl border border-sidebar-border/60 bg-background/70 p-2.5 shadow-sm transition-colors hover:border-primary/25 hover:bg-background">
-          <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 ring-1 ring-primary/15">
-            <Logo />
-          </div>
-          <div className="min-w-0 flex-1 group-data-[collapsible=icon]:hidden">
-            <p className="truncate text-sm font-bold tracking-tight text-foreground">RCICMASTER</p>
-            <p className="truncate text-[11px] text-muted-foreground">Consultant Portal</p>
-          </div>
-        </Link>
+      <SidebarHeader className="border-b border-sidebar-border/40 bg-gradient-to-br from-sidebar-primary/[0.07] via-transparent to-transparent p-3">
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              size="lg"
+              asChild
+              className="h-[52px] rounded-xl bg-sidebar/60 px-2.5 shadow-sm ring-1 ring-sidebar-border/50 transition-all hover:bg-sidebar-accent/40 hover:ring-sidebar-primary/20"
+            >
+              <Link href="/consultantdashboard">
+                <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-sidebar-primary to-sidebar-primary/85 text-sidebar-primary-foreground shadow-md">
+                  <Logo />
+                </div>
+                <div className="grid min-w-0 flex-1 text-left text-sm leading-tight">
+                  <span className="truncate font-semibold tracking-tight">RCICMASTER</span>
+                  <span className="truncate text-xs text-sidebar-foreground/55">Consultant Portal</span>
+                </div>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
       </SidebarHeader>
-      <SidebarContent className="bg-sidebar/50">
-        <ScrollArea className="h-full [&>[data-radix-scroll-area-viewport]>div]:!flex [&>[data-radix-scroll-area-viewport]>div]:min-h-full">
+      <SidebarContent className="px-1.5">
+        <ScrollArea className="h-full [&>[data-radix-scroll-area-viewport]>div]:!block">
           <NavMain />
         </ScrollArea>
       </SidebarContent>
-      <SidebarFooter className="border-t border-sidebar-border/70 bg-muted/20 p-2">
+      <SidebarFooter className="border-t border-sidebar-border/40 bg-sidebar-accent/10 p-2.5">
         <NavUser />
       </SidebarFooter>
     </Sidebar>

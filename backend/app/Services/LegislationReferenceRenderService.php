@@ -88,6 +88,7 @@ class LegislationReferenceRenderService
         $html = $this->parser->linkifySectionOrRangeRemainders($html, $document->act_code, $lang);
         $html = $this->parser->linkifySubsectionAndListRemainders($html, $document->act_code);
         $html = $this->parser->linkifyContextualSubsections($html, $document->act_code, $lang);
+        $html = $this->parser->linkifyParagraphListRemainders($html, $document->act_code, $lang);
         $html = $this->parser->linkifyShorthandOrRefs($html, $document->act_code, $lang);
         $html = $this->parser->linkifySectionShorthandRefs($html, $document->act_code, $lang);
         $result = $this->expandPrefixLinks($html);
@@ -95,6 +96,8 @@ class LegislationReferenceRenderService
         $html = $this->parser->linkifySectionListRemainders($html, $document->act_code);
         $html = $this->parser->linkifySectionOrRangeRemainders($html, $document->act_code, $lang);
         $html = $this->parser->linkifySubsectionAndListRemainders($html, $document->act_code);
+        $html = $this->parser->linkifyContextualSubsections($html, $document->act_code, $lang);
+        $html = $this->parser->linkifyParagraphListRemainders($html, $document->act_code, $lang);
         $html = $this->parser->linkifyShorthandOrRefs($html, $document->act_code, $lang);
         $html = $this->parser->linkifySectionShorthandRefs($html, $document->act_code, $lang);
 

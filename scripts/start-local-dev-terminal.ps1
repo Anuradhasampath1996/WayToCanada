@@ -19,7 +19,7 @@ Write-Host ">>> WayToCanada - single terminal mode" -ForegroundColor Cyan
 
 & powershell -ExecutionPolicy Bypass -File (Join-Path $Root "scripts\verify-local-database.ps1")
 if ($LASTEXITCODE -ne 0) {
-    Write-Host ">>> Fix backend/.env — see scripts/LOCAL-DEV-DATABASE.md" -ForegroundColor Red
+    Write-Host ">>> Fix backend/.env - see scripts/LOCAL-DEV-DATABASE.md" -ForegroundColor Red
     exit 1
 }
 
@@ -83,7 +83,7 @@ Write-Host "  Consultant website: http://localhost:3003"
 Write-Host "  Consultant dash:    http://localhost:3005"
 Write-Host ""
 Write-Host ">>> Starting all services (Ctrl+C to stop)..." -ForegroundColor Yellow
-Write-Host ">>> DB: Windows PostgreSQL db_cws :5432 — scripts/LOCAL-DEV-DATABASE.md" -ForegroundColor DarkGray
+Write-Host ">>> DB: Windows PostgreSQL db_cws :5432 - scripts/LOCAL-DEV-DATABASE.md" -ForegroundColor DarkGray
 
 $apiBat = New-WtcBat "api" $Backend @(
     "php artisan serve --host=127.0.0.1 --port=8000"
@@ -113,14 +113,4 @@ $consDashBat = New-FrontendBat "cons-dash" (Join-Path $Fe "Consultant Dashbord")
     "set NEXT_PUBLIC_CONSULTANT_WEBSITE_URL=http://localhost:3003"
 )
 
-& $Concurrently `
-  --kill-others-on-fail `
-  -n "api,queue,web,admin,users,cons-site,cons-dash" `
-  -c "blue,magenta,green,yellow,cyan,red,white" `
-  $apiBat `
-  $queueBat `
-  $webBat `
-  $adminBat `
-  $usersBat `
-  $consSiteBat `
-  $consDashBat
+& $Concurrently --kill-others-on-fail -n "api,queue,web,admin,users,cons-site,cons-dash" -c "blue,magenta,green,yellow,cyan,red,white" $apiBat $queueBat $webBat $adminBat $usersBat $consSiteBat $consDashBat

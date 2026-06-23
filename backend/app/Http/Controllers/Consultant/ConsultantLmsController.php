@@ -8,6 +8,7 @@ use App\Models\Lms\LmsCourse;
 use App\Models\Lms\LmsCourseAssignment;
 use App\Models\Lms\LmsQuizAttempt;
 use App\Services\LmsProgressService;
+use App\Services\LmsPathwayGate;
 use App\Services\ClientActivity\ClientActivityTriggers;
 use App\Services\Notifications\WorkspaceNotificationTriggers;
 use Illuminate\Http\JsonResponse;
@@ -31,6 +32,7 @@ class ConsultantLmsController extends Controller
     public function index(Request $request, ClientProfile $profile): JsonResponse
     {
         $this->authorizeClient($request, $profile);
+        LmsPathwayGate::assertForProfile($profile);
 
         $assignments = LmsCourseAssignment::with(['course.category', 'quizAttempts.quiz'])
             ->where('client_user_id', $profile->user_id)
@@ -68,6 +70,7 @@ class ConsultantLmsController extends Controller
     public function assign(Request $request, ClientProfile $profile): JsonResponse
     {
         $this->authorizeClient($request, $profile);
+        LmsPathwayGate::assertForProfile($profile);
 
         $data = $request->validate([
             'course_id' => 'required|exists:lms.lms_courses,id',
@@ -91,6 +94,7 @@ class ConsultantLmsController extends Controller
     public function unassign(Request $request, ClientProfile $profile, LmsCourseAssignment $assignment): JsonResponse
     {
         $this->authorizeClient($request, $profile);
+        LmsPathwayGate::assertForProfile($profile);
         if ($assignment->client_user_id !== $profile->user_id) {
             abort(403);
         }

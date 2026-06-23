@@ -16,10 +16,10 @@ import {
   Pencil,
   Check,
   X,
-  Briefcase,
   MessageCircle,
   ShieldCheck,
-  Clock,
+  ArrowRight,
+  Briefcase,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -38,9 +38,12 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { ClientActivityReport } from "./client-activity-report";
 import { ClientTrustLedgerPanel } from "./client-trust-ledger-panel";
+import { ClientCommandCenter } from "./client-command-center";
+import { ClientCompliancePacketExport } from "./client-compliance-packet-export";
 
 const API = (process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000") + "/api/v1";
 
@@ -187,6 +190,7 @@ export function ClientProfilePageClient({ paramsPromise }: { paramsPromise: Prom
   const [editingNotes, setEditingNotes] = useState(false);
   const [notesValue, setNotesValue] = useState("");
   const [savingNotes, setSavingNotes] = useState(false);
+  const [activeTab, setActiveTab] = useState("overview");
 
   const [editName, setEditName] = useState("");
   const [editPhone, setEditPhone] = useState("");
@@ -213,6 +217,14 @@ export function ClientProfilePageClient({ paramsPromise }: { paramsPromise: Prom
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
   }, [id]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const hash = window.location.hash;
+    if (hash === "#tab-money") setActiveTab("money");
+    if (hash === "#tab-activity") setActiveTab("activity");
+    if (hash === "#tab-settings") setActiveTab("settings");
+  }, []);
 
   const startEdit = () => {
     if (!client) return;
@@ -366,9 +378,10 @@ export function ClientProfilePageClient({ paramsPromise }: { paramsPromise: Prom
   }
 
   const phone = clientPhone(client);
+  const workspaceHref = `/dashboard/clients/${client.id}/workspace`;
 
   return (
-    <div className="w-full space-y-6 pb-10">
+    <div className="w-full space-y-5 pb-10">
       <div className="fixed top-4 right-4 z-50 flex flex-col gap-2 pointer-events-none">
         {toasts.map((t) => (
           <div
@@ -390,29 +403,31 @@ export function ClientProfilePageClient({ paramsPromise }: { paramsPromise: Prom
         ))}
       </div>
 
-      <section className="rounded-2xl border border-border/70 bg-gradient-to-br from-background via-background to-primary/5 p-5 shadow-sm md:p-6">
+      <section className="rounded-2xl border border-border/70 bg-card p-5 shadow-sm md:p-6">
         <Button variant="ghost" size="sm" asChild className="-ml-2 mb-4 h-8 px-2 text-muted-foreground">
           <Link href="/dashboard/clients">
             <ArrowLeft className="mr-1.5 size-4" />
-            Back to clients
+            All clients
           </Link>
         </Button>
 
-        <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
-          <div className="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-start">
-            <div className="flex size-16 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-xl font-bold text-primary">
-              {initials(client.user.name) || <UserCircle2 className="size-8" />}
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+          <div className="flex min-w-0 gap-4">
+            <div className="flex size-14 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-lg font-bold text-primary">
+              {initials(client.user.name) || <UserCircle2 className="size-7" />}
             </div>
-            <div className="min-w-0 space-y-3">
-              <div>
-                <h1 className="text-2xl font-bold tracking-tight md:text-3xl">{client.user.name}</h1>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Client since {formatDate(client.created_at)}
-                  {client.passport_number ? ` · Passport ${client.passport_number}` : ""}
-                </p>
+            <div className="min-w-0 space-y-2">
+              <h1 className="text-2xl font-bold tracking-tight md:text-3xl">{client.user.name}</h1>
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
+                <EmailLink email={client.user.email} className="text-muted-foreground hover:text-primary" />
+                {phone ? (
+                  <>
+                    <span className="hidden sm:inline">·</span>
+                    <PhoneLink phone={phone} />
+                  </>
+                ) : null}
               </div>
-
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-2 pt-1">
                 {client.immigration_pathway && (
                   <Badge
                     variant="outline"
@@ -427,235 +442,223 @@ export function ClientProfilePageClient({ paramsPromise }: { paramsPromise: Prom
                     "text-xs",
                     client.user.is_verified
                       ? "border-emerald-200/60 bg-emerald-500/10 text-emerald-700"
-                      : "border-red-200/60 bg-red-500/10 text-red-700",
+                      : "border-amber-200/60 bg-amber-500/10 text-amber-800",
                   )}
                 >
-                  {client.user.is_verified ? "Active" : "Inactive"}
+                  {client.user.is_verified ? "Portal active" : "Portal inactive"}
                 </Badge>
-                <Badge
-                  variant="outline"
-                  className={cn(
-                    "text-xs",
-                    client.user.email_verified_at
-                      ? "border-blue-200/60 bg-blue-500/10 text-blue-700"
-                      : "border-amber-200/60 bg-amber-500/10 text-amber-700",
-                  )}
-                >
-                  {client.user.email_verified_at ? "Email verified" : "Email not verified"}
-                </Badge>
-              </div>
-
-              <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
-                <EmailLink email={client.user.email} />
-                {phone ? <PhoneLink phone={phone} /> : null}
               </div>
             </div>
           </div>
 
-          <div className="flex shrink-0 flex-col gap-3 sm:items-end">
-            <div className="flex items-center gap-2 rounded-xl border border-border/70 bg-background/80 px-3 py-2 text-sm">
-              <span
-                className={cn(
-                  "text-xs font-medium",
-                  client.user.is_verified ? "text-emerald-700" : "text-red-600",
-                )}
-              >
-                {client.user.is_verified ? "Portal active" : "Portal inactive"}
-              </span>
-              <Switch
-                checked={client.user.is_verified}
-                onCheckedChange={toggleStatus}
-                disabled={toggling}
-                aria-label="Toggle client active status"
-              />
-            </div>
-
-            <div className="flex flex-wrap gap-2">
-              <Button variant="outline" size="sm" className="rounded-xl" onClick={resendInvite} disabled={resending}>
-                {resending ? (
-                  <Loader2 className="mr-1.5 size-3.5 animate-spin" />
-                ) : (
-                  <Send className="mr-1.5 size-3.5" />
-                )}
+          <div className="flex shrink-0 flex-col gap-2 sm:flex-row lg:flex-col">
+            <Button size="lg" className="h-11 rounded-xl px-6" asChild>
+              <Link href={workspaceHref}>
+                <Briefcase className="mr-2 size-4" />
+                Open case workspace
+                <ArrowRight className="ml-2 size-4" />
+              </Link>
+            </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" className="flex-1 rounded-xl" onClick={resendInvite} disabled={resending}>
+                {resending ? <Loader2 className="size-3.5 animate-spin" /> : <Send className="mr-1.5 size-3.5" />}
                 Resend invite
               </Button>
-              <Button variant="outline" size="sm" className="rounded-xl" onClick={startEdit} disabled={editing}>
+              <Button
+                variant="outline"
+                size="sm"
+                className="flex-1 rounded-xl"
+                onClick={() => {
+                  setActiveTab("settings");
+                  startEdit();
+                }}
+              >
                 <Pencil className="mr-1.5 size-3.5" />
-                Edit profile
+                Edit
               </Button>
             </div>
           </div>
         </div>
       </section>
 
-      {editing && (
-        <Card className="border-primary/30 bg-primary/[0.03] shadow-sm">
-          <CardHeader className="border-b border-border/50 pb-4">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-base">Edit client profile</CardTitle>
-              <Button variant="ghost" size="icon" className="size-8" onClick={cancelEdit}>
-                <X className="size-4" />
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-4 pt-6">
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-              <div className="space-y-2">
-                <Label htmlFor="edit-name">Full name</Label>
-                <Input id="edit-name" className="rounded-xl bg-background" value={editName} onChange={(e) => setEditName(e.target.value)} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="edit-phone">Phone</Label>
-                <Input
-                  id="edit-phone"
-                  className="rounded-xl bg-background"
-                  value={editPhone}
-                  onChange={(e) => setEditPhone(e.target.value)}
-                  placeholder="+1 (555) 000-0000"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="edit-passport">Passport number</Label>
-                <Input
-                  id="edit-passport"
-                  className="rounded-xl bg-background"
-                  value={editPassport}
-                  onChange={(e) => setEditPassport(e.target.value)}
-                  placeholder="e.g. AB1234567"
-                />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit-notes">Private notes</Label>
-              <Textarea
-                id="edit-notes"
-                rows={3}
-                className="rounded-xl bg-background"
-                value={editNotes}
-                onChange={(e) => setEditNotes(e.target.value)}
-              />
-            </div>
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" size="sm" className="rounded-xl" onClick={cancelEdit}>
-                Cancel
-              </Button>
-              <Button size="sm" className="rounded-xl" onClick={saveEdit} disabled={saving}>
-                {saving ? (
-                  <>
-                    <Loader2 className="mr-1.5 size-3.5 animate-spin" />
-                    Saving…
-                  </>
-                ) : (
-                  <>
-                    <Check className="mr-1.5 size-3.5" />
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="h-auto w-full flex-wrap justify-start gap-1 p-1 sm:w-auto">
+          <TabsTrigger value="overview" className="rounded-lg px-4 py-2">
+            Case overview
+          </TabsTrigger>
+          <TabsTrigger value="money" className="rounded-lg px-4 py-2" id="tab-money">
+            Trust &amp; compliance
+          </TabsTrigger>
+          <TabsTrigger value="activity" className="rounded-lg px-4 py-2">
+            Activity log
+          </TabsTrigger>
+          <TabsTrigger value="settings" className="rounded-lg px-4 py-2">
+            Client settings
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="overview" className="mt-4 space-y-4">
+          <ClientCommandCenter clientId={client.id} onNavigateTab={setActiveTab} />
+        </TabsContent>
+
+        <TabsContent value="money" className="mt-4 space-y-4">
+          <ClientCompliancePacketExport clientId={client.id} />
+          <div id="client-trust-ledger">
+            <ClientTrustLedgerPanel clientId={client.id} />
+          </div>
+        </TabsContent>
+
+        <TabsContent value="activity" className="mt-4">
+          <ClientActivityReport clientId={client.id} />
+        </TabsContent>
+
+        <TabsContent value="settings" className="mt-4 space-y-4">
+          {editing && (
+            <Card className="border-primary/30 bg-primary/[0.03] shadow-sm">
+              <CardHeader className="border-b border-border/50 pb-4">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-base">Edit client profile</CardTitle>
+                  <Button variant="ghost" size="icon" className="size-8" onClick={cancelEdit}>
+                    <X className="size-4" />
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4 pt-6">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-name">Full name</Label>
+                    <Input id="edit-name" className="rounded-xl bg-background" value={editName} onChange={(e) => setEditName(e.target.value)} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-phone">Phone</Label>
+                    <Input
+                      id="edit-phone"
+                      className="rounded-xl bg-background"
+                      value={editPhone}
+                      onChange={(e) => setEditPhone(e.target.value)}
+                      placeholder="+1 (555) 000-0000"
+                    />
+                  </div>
+                  <div className="space-y-2 sm:col-span-2">
+                    <Label htmlFor="edit-passport">Passport number</Label>
+                    <Input
+                      id="edit-passport"
+                      className="rounded-xl bg-background"
+                      value={editPassport}
+                      onChange={(e) => setEditPassport(e.target.value)}
+                      placeholder="e.g. AB1234567"
+                    />
+                  </div>
+                </div>
+                <div className="flex justify-end gap-2">
+                  <Button variant="outline" size="sm" className="rounded-xl" onClick={cancelEdit}>
+                    Cancel
+                  </Button>
+                  <Button size="sm" className="rounded-xl" onClick={saveEdit} disabled={saving}>
+                    {saving ? <Loader2 className="mr-1.5 size-3.5 animate-spin" /> : <Check className="mr-1.5 size-3.5" />}
                     Save changes
-                  </>
-                )}
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
-      <div className="grid w-full gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
-        <div className="space-y-6">
-          <Card className="border-border/70 shadow-sm">
-            <CardHeader className="border-b border-border/50 pb-4">
-              <CardTitle className="text-base">Contact &amp; account</CardTitle>
-              <CardDescription>Reach the client directly or review portal account details.</CardDescription>
-            </CardHeader>
-            <CardContent className="grid gap-3 pt-6 sm:grid-cols-2">
-              <DetailItem icon={Mail} label="Email">
-                <EmailLink email={client.user.email} />
-              </DetailItem>
-              <DetailItem icon={Phone} label="Phone / WhatsApp">
-                {phone ? (
-                  <PhoneLink phone={phone} />
-                ) : (
-                  <span className="text-sm text-muted-foreground">—</span>
-                )}
-              </DetailItem>
-              <DetailItem icon={CalendarDays} label="Member since">
-                <span className="text-sm font-medium">{formatDate(client.created_at)}</span>
-              </DetailItem>
-              <DetailItem icon={Send} label="Invite sent">
-                <span className="text-sm font-medium">{formatDate(client.invited_at)}</span>
-              </DetailItem>
-              <DetailItem icon={ShieldCheck} label="Email verification">
-                <span className="text-sm font-medium">
-                  {client.user.email_verified_at ? formatDate(client.user.email_verified_at) : "Not verified yet"}
-                </span>
-              </DetailItem>
-              <DetailItem icon={Clock} label="Portal status">
-                <span className="text-sm font-medium">{client.user.is_verified ? "Active" : "Inactive"}</span>
-              </DetailItem>
-            </CardContent>
-          </Card>
-        </div>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <Card className="border-border/70 shadow-sm">
+              <CardHeader className="border-b border-border/50 pb-3">
+                <CardTitle className="text-base">Portal access</CardTitle>
+                <CardDescription>Control whether this client can sign in to their portal.</CardDescription>
+              </CardHeader>
+              <CardContent className="flex items-center justify-between gap-4 pt-5">
+                <div>
+                  <p className="text-sm font-medium">
+                    {client.user.is_verified ? "Client can access portal" : "Portal access disabled"}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {client.user.email_verified_at
+                      ? `Email verified ${formatDate(client.user.email_verified_at)}`
+                      : "Email not verified yet"}
+                  </p>
+                </div>
+                <Switch
+                  checked={client.user.is_verified}
+                  onCheckedChange={toggleStatus}
+                  disabled={toggling}
+                  aria-label="Toggle portal access"
+                />
+              </CardContent>
+            </Card>
 
-        <aside className="space-y-4 xl:sticky xl:top-4 xl:self-start">
+            <Card className="border-border/70 shadow-sm">
+              <CardHeader className="border-b border-border/50 pb-3">
+                <CardTitle className="text-base">Account details</CardTitle>
+              </CardHeader>
+              <CardContent className="grid gap-3 pt-5 sm:grid-cols-2">
+                <DetailItem icon={CalendarDays} label="Member since">
+                  <span className="text-sm font-medium">{formatDate(client.created_at)}</span>
+                </DetailItem>
+                <DetailItem icon={Send} label="Invite sent">
+                  <span className="text-sm font-medium">{formatDate(client.invited_at)}</span>
+                </DetailItem>
+                <DetailItem icon={ShieldCheck} label="Email">
+                  <EmailLink email={client.user.email} />
+                </DetailItem>
+                <DetailItem icon={Phone} label="Phone">
+                  {phone ? <PhoneLink phone={phone} /> : <span className="text-sm text-muted-foreground">—</span>}
+                </DetailItem>
+              </CardContent>
+            </Card>
+          </div>
+
           <Card className="border-border/70 shadow-sm">
             <CardHeader className="border-b border-border/50 pb-3">
               <div className="flex items-center justify-between gap-2">
-                <CardTitle className="text-base">Private notes</CardTitle>
+                <div>
+                  <CardTitle className="text-base">Private notes</CardTitle>
+                  <CardDescription>Only you can see these — not shared with the client.</CardDescription>
+                </div>
                 {!editingNotes && (
-                  <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={startNotesEdit}>
-                    <Pencil className="mr-1 size-3" />
+                  <Button variant="outline" size="sm" className="h-8 rounded-lg" onClick={startNotesEdit}>
+                    <Pencil className="mr-1.5 size-3.5" />
                     {client.notes ? "Edit" : "Add note"}
                   </Button>
                 )}
               </div>
-              <CardDescription>Only visible to you — not shared with the client.</CardDescription>
             </CardHeader>
             <CardContent className="pt-4">
               {editingNotes ? (
                 <div className="space-y-3">
                   <Textarea
-                    rows={8}
+                    rows={6}
                     value={notesValue}
                     onChange={(e) => setNotesValue(e.target.value)}
                     placeholder="Write private notes about this client…"
-                    className="min-h-[180px] resize-y rounded-xl bg-muted/15 text-sm"
+                    className="min-h-[140px] resize-y rounded-xl bg-muted/15 text-sm"
                     autoFocus
                   />
                   <div className="flex justify-end gap-2">
                     <Button variant="outline" size="sm" className="rounded-xl" onClick={cancelNotesEdit} disabled={savingNotes}>
-                      <X className="mr-1 size-3.5" />
                       Cancel
                     </Button>
                     <Button size="sm" className="rounded-xl" onClick={saveNotes} disabled={savingNotes}>
-                      {savingNotes ? (
-                        <>
-                          <Loader2 className="mr-1 size-3.5 animate-spin" />
-                          Saving…
-                        </>
-                      ) : (
-                        <>
-                          <Check className="mr-1 size-3.5" />
-                          Save
-                        </>
-                      )}
+                      {savingNotes ? <Loader2 className="mr-1.5 size-3.5 animate-spin" /> : "Save note"}
                     </Button>
                   </div>
                 </div>
               ) : (
-                <div className="space-y-3">
+                <div className="space-y-2">
                   {client.notes ? (
                     <p className="whitespace-pre-wrap text-sm leading-relaxed">{client.notes}</p>
                   ) : (
-                    <p className="text-sm italic text-muted-foreground">
-                      No notes added yet. Click &ldquo;Add note&rdquo; to get started.
-                    </p>
+                    <p className="text-sm italic text-muted-foreground">No notes yet.</p>
                   )}
                   {client.notes_updated_at && (
-                    <p className="border-t border-border/50 pt-3 text-xs text-muted-foreground">
-                      Last updated{" "}
+                    <p className="text-xs text-muted-foreground">
+                      Updated{" "}
                       {new Date(client.notes_updated_at).toLocaleString("en-CA", {
-                        year: "numeric",
                         month: "short",
                         day: "numeric",
-                        hour: "2-digit",
-                        minute: "2-digit",
+                        year: "numeric",
                       })}
                     </p>
                   )}
@@ -664,40 +667,25 @@ export function ClientProfilePageClient({ paramsPromise }: { paramsPromise: Prom
             </CardContent>
           </Card>
 
-          <Card className="overflow-hidden border-violet-200/60 bg-gradient-to-br from-violet-500/[0.06] to-background shadow-sm">
-            <CardContent className="space-y-3 p-4">
-              <Button
-                asChild
-                size="lg"
-                className="h-12 w-full rounded-xl bg-violet-600 text-base font-semibold shadow-md hover:bg-violet-700"
-              >
-                <Link href={`/dashboard/clients/${client.id}/workspace`}>
-                  <Briefcase className="mr-2 size-4" />
-                  Open workspace
-                </Link>
-              </Button>
-              <p className="text-center text-[11px] text-muted-foreground">
-                Review questionnaire, pathway, and case files
-              </p>
-              <div className="border-t border-border/50 pt-3">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-9 w-full rounded-xl border-red-200/80 text-red-700 hover:bg-red-50 hover:text-red-800"
-                  onClick={() => setDeleting(true)}
-                >
-                  <Trash2 className="mr-1.5 size-3.5" />
-                  Remove client
-                </Button>
+          <Card className="border-red-200/60 shadow-sm">
+            <CardContent className="flex flex-wrap items-center justify-between gap-4 p-5">
+              <div>
+                <p className="text-sm font-semibold text-red-800">Remove client</p>
+                <p className="text-xs text-muted-foreground">Permanently deletes this client and all case data.</p>
               </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="rounded-xl border-red-200 text-red-700 hover:bg-red-50"
+                onClick={() => setDeleting(true)}
+              >
+                <Trash2 className="mr-1.5 size-3.5" />
+                Remove client
+              </Button>
             </CardContent>
           </Card>
-        </aside>
-      </div>
-
-      <ClientTrustLedgerPanel clientId={client.id} />
-
-      <ClientActivityReport clientId={client.id} />
+        </TabsContent>
+      </Tabs>
 
       <AlertDialog open={deleting} onOpenChange={setDeleting}>
         <AlertDialogContent>

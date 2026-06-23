@@ -1,24 +1,30 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>{{ $notification->title }}</title>
-</head>
-<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #1a1a1a; max-width: 600px; margin: 0 auto; padding: 24px;">
-    <h2 style="color: #047857; margin-top: 0;">{{ $notification->title }}</h2>
-    <p style="white-space: pre-line;">{{ $notification->body }}</p>
-    @if($notification->action_url)
-        <p style="margin-top: 24px;">
-            <a href="{{ $notification->action_url }}"
-               style="display: inline-block; background: #047857; color: #fff; text-decoration: none; padding: 12px 24px; border-radius: 8px; font-weight: 600;">
-                View details
-            </a>
+@extends('emails.layouts.master')
+
+@section('content')
+    <h1 style="margin:0 0 12px;font-size:20px;font-weight:700;color:#0f172a;line-height:1.3;">
+        {{ $notification->title }}
+    </h1>
+    @if(!empty($categoryLabel))
+        <p style="margin:0 0 16px;">
+            <span style="display:inline-block;background:#ecfdf5;color:#047857;font-size:11px;font-weight:600;padding:4px 10px;border-radius:999px;text-transform:uppercase;letter-spacing:0.04em;">
+                {{ $categoryLabel }}
+            </span>
         </p>
-        <p style="font-size: 12px; color: #666; margin-top: 16px;">
+    @endif
+    <p style="margin:0;font-size:15px;line-height:1.65;color:#334155;white-space:pre-line;">{{ $notification->body }}</p>
+    @if($notification->action_url)
+        <table role="presentation" cellspacing="0" cellpadding="0" style="margin-top:28px;">
+            <tr>
+                <td style="border-radius:10px;background:#059669;">
+                    <a href="{{ $notification->action_url }}"
+                       style="display:inline-block;padding:14px 28px;font-size:15px;font-weight:600;color:#ffffff;text-decoration:none;">
+                        {{ $actionLabel ?? 'View details' }}
+                    </a>
+                </td>
+            </tr>
+        </table>
+        <p style="margin:16px 0 0;font-size:12px;color:#94a3b8;word-break:break-all;">
             Or copy this link: {{ $notification->action_url }}
         </p>
     @endif
-    <hr style="border: none; border-top: 1px solid #e5e5e5; margin: 32px 0;">
-    <p style="font-size: 12px; color: #888;">RCICMASTER — Immigration case management</p>
-</body>
-</html>
+@endsection

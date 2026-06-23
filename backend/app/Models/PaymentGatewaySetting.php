@@ -16,13 +16,17 @@ class PaymentGatewaySetting extends Model
         'publishable_key',
         'secret_key',
         'webhook_id',
+        'last_webhook_at',
+        'last_webhook_type',
+        'last_webhook_account',
         'stripe_test_clock_id',
         'use_test_clock',
     ];
 
     protected $casts = [
-        'is_active'      => 'boolean',
-        'use_test_clock' => 'boolean',
+        'is_active'       => 'boolean',
+        'use_test_clock'  => 'boolean',
+        'last_webhook_at' => 'datetime',
     ];
 
     /**

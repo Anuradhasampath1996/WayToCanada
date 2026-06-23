@@ -422,6 +422,11 @@ export function StorageClient() {
   const [packages, setPackages] = useState<StoragePackage[]>([]);
   const [selectedPkg, setSelectedPkg] = useState<StoragePackage | null>(null);
   const [billingCycle, setBillingCycle] = useState<"monthly" | "yearly">("monthly");
+  const [billingCountry, setBillingCountry] = useState("CA");
+  const [addressLine1, setAddressLine1] = useState("");
+  const [addressLine2, setAddressLine2] = useState("");
+  const [city, setCity] = useState("");
+  const [postalCode, setPostalCode] = useState("");
   const [province, setProvince] = useState("ON");
   const [checkoutLoading, setCheckoutLoading] = useState(false);
 
@@ -488,6 +493,25 @@ export function StorageClient() {
   useEffect(() => {
     void loadPackages();
   }, [loadPackages]);
+
+  useEffect(() => {
+    if (!upgradeOpen) return;
+    void (async () => {
+      try {
+        const res = await fetch(`${API}/consultant/profile`, { headers: authHeaders() });
+        const json = await res.json();
+        if (!res.ok) return;
+        setBillingCountry(json.company_country === "Canada" || json.company_country === "CA" ? "CA" : (json.company_country ?? "CA"));
+        setAddressLine1(json.company_address_line1 ?? "");
+        setAddressLine2(json.company_address_line2 ?? "");
+        setCity(json.company_city ?? "");
+        setPostalCode(json.company_postal_code ?? "");
+        if (json.company_province) setProvince(String(json.company_province).toUpperCase().slice(0, 2));
+      } catch {
+        /* optional */
+      }
+    })();
+  }, [upgradeOpen]);
 
   useEffect(() => {
     if (searchParams.get("upgrade") === "1" || searchParams.get("upgrade") === "cancelled") {
@@ -717,6 +741,10 @@ export function StorageClient() {
 
   async function startCheckout() {
     if (!selectedPkg) return;
+    if (!addressLine1.trim() || !city.trim()) {
+      setError("Billing address and city are required.");
+      return;
+    }
     setCheckoutLoading(true);
     setError("");
     try {
@@ -726,7 +754,13 @@ export function StorageClient() {
         body: JSON.stringify({
           storage_addon_package_id: selectedPkg.id,
           billing_cycle: billingCycle,
-          province,
+          billing_country: billingCountry,
+          billing_address_line1: addressLine1.trim(),
+          billing_address_line2: addressLine2.trim() || undefined,
+          billing_city: city.trim(),
+          billing_postal_code: postalCode.trim() || undefined,
+          billing_province: billingCountry === "CA" ? province : undefined,
+          province: billingCountry === "CA" ? province : undefined,
         }),
       });
       const json = await res.json();
@@ -1043,9 +1077,16 @@ export function StorageClient() {
                   Yearly
                 </Button>
               </div>
-              <div className="space-y-1">
-                <Label>Province (for tax)</Label>
-                <Input value={province} onChange={(e) => setProvince(e.target.value.toUpperCase())} maxLength={2} />
+              <div className="space-y-2 pt-1">
+                <Label>Billing address</Label>
+                <Input placeholder="Street address" value={addressLine1} onChange={(e) => setAddressLine1(e.target.value)} />
+                <Input placeholder="City" value={city} onChange={(e) => setCity(e.target.value)} />
+                <Input placeholder="Postal code" value={postalCode} onChange={(e) => setPostalCode(e.target.value)} />
+                <div className="space-y-1">
+                  <Label>Province (Canada)</Label>
+                  <Input value={province} onChange={(e) => setProvince(e.target.value.toUpperCase())} maxLength={2} />
+                </div>
+                <p className="text-[11px] text-muted-foreground">GST/HST calculated from your billing address, same as subscription checkout.</p>
               </div>
             </div>
           )}

@@ -16,8 +16,15 @@ import {
   Trash2,
   CheckCircle2,
   AlertCircle,
+  Pause,
+  Play,
+  Square,
   Link2,
   Pencil,
+  HelpCircle,
+  ChevronDown,
+  ChevronRight,
+  Info,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -56,6 +63,27 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Pagination,
   PaginationContent,
   PaginationItem,
@@ -71,9 +99,20 @@ const API = (process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000") + "/api
 type SyncRun = {
   id: number;
   status: string;
+  scope?: string;
   progress_percent: number;
+  completed_steps?: number;
+  total_steps?: number;
   current_step: string | null;
-  stats: { created?: number; updated?: number; errors?: string[]; synced_entries?: number } | null;
+  stats: {
+    created?: number;
+    updated?: number;
+    errors?: string[];
+    synced_entries?: number;
+    pending_total?: number;
+    only_unsynced?: boolean;
+    coverage?: LinkCoverage;
+  } | null;
   error_message: string | null;
 };
 
@@ -102,11 +141,42 @@ type SyncStatus = {
   provision_count: number;
   xml_documents: number;
   catalog?: CatalogStats;
+  catalog_pending?: { acts: number; regulations: number; total: number };
   catalog_act_count?: number;
   configured_sources: string[];
   openai_enabled: boolean;
+  immigration_tier_count?: number;
+  batch?: { default_size: number; max_size: number; request_delay_ms: number };
+  queue_health?: QueueHealth;
+  link_coverage?: LinkCoverage;
+  amendment_alerts?: AmendmentAlert[];
   latest_run: SyncRun | null;
   recent_documents: DocRow[];
+};
+
+type QueueHealth = {
+  driver: string;
+  pending_jobs: number;
+  worker_likely_active: boolean;
+  worker_warning: string | null;
+  setup_steps?: string[];
+  last_failed: { at: string; job: string; message: string } | null;
+};
+
+type LinkCoverage = {
+  documents: number;
+  linked: number;
+  gaps: number;
+  coverage_percent: number;
+};
+
+type AmendmentAlert = {
+  id: number;
+  act_code: string;
+  language: string;
+  format: string;
+  title?: string | null;
+  detected_at: string;
 };
 
 type CatalogEntry = {
@@ -139,6 +209,129 @@ const emptyRefForm = {
   admin_notes: "",
 };
 
+type HubAction = {
+  id: string;
+  title: string;
+  summary: string;
+  when: string;
+  note?: string;
+};
+
+const HUB_ACTIONS: Record<string, HubAction> = {
+  refresh: {
+    id: "refresh",
+    title: "Refresh",
+    summary: "Reload sync status, document list, and catalog counts from the database — does not fetch anything from Justice Canada.",
+    when: "After a sync finishes, or when another admin may have changed data.",
+  },
+  discoverActs: {
+    id: "discoverActs",
+    title: "Discover Acts",
+    summary: "Scrape the federal Acts index on laws.justice.gc.ca and save act codes + titles into the local catalog table.",
+    when: "First-time setup, or when you need to refresh the list of available Acts. Does not download document content.",
+    note: "Number in parentheses = acts currently stored in catalog.",
+  },
+  discoverRegs: {
+    id: "discoverRegs",
+    title: "Discover Regs",
+    summary: "Same as Discover Acts, but for Regulations (SOR/DORS codes). Builds the catalog only — no XML/HTML/PDF yet.",
+    when: "Before Batch Sync Regs. Required once before bulk regulation import.",
+    note: "Number in parentheses = regulations in catalog.",
+  },
+  syncPriority: {
+    id: "syncPriority",
+    title: "Sync Priority",
+    summary: "Download IRPA (I-2.5) + IRPR (SOR-2002-227) in EN + FR — XML, HTML, and PDF. Parses provisions, builds interactive viewer HTML, and runs cross-reference linkify.",
+    when: "Daily use for immigration consultants. This is the minimum set needed for Maple + Legislation Hub.",
+    note: "Runs in background via queue worker. Does not require catalog discovery.",
+  },
+  downloadAllActs: {
+    id: "downloadAllActs",
+    title: "Download All Pending Acts",
+    summary: "Download every unsynced Act in the catalog (XML + HTML + PDF per entry). Chains batches automatically until done — shows % progress.",
+    when: "After Discover Acts. Skips entries already downloaded unless you uncheck “Skip already downloaded”.",
+    note: "Requires QUEUE_CONNECTION=database and php artisan queue:work running.",
+  },
+  downloadAllRegs: {
+    id: "downloadAllRegs",
+    title: "Download All Pending Regs",
+    summary: "Download every unsynced Regulation in the catalog. Same auto-chain + progress % as acts.",
+    when: "After Discover Regs. 4,000+ regulations — keep queue worker running.",
+    note: "Already-downloaded regs are skipped by default.",
+  },
+  downloadAll: {
+    id: "downloadAll",
+    title: "Download All Pending",
+    summary: "Download all unsynced Acts + Regulations in one run. Progress bar shows documents completed vs total pending.",
+    when: "Full catalog import after discovery. One click starts the entire queue chain.",
+    note: "Uncheck “Skip already downloaded” only if you need to re-fetch everything from Justice Canada.",
+  },
+  batchActs: {
+    id: "batchActs",
+    title: "Batch Sync Acts",
+    summary: "Alias for Download All Pending Acts — processes N entries per queue job, then auto-continues until catalog is empty.",
+    when: "Same as Download All Pending Acts.",
+    note: "Batch size = entries per queue job chunk (not total limit).",
+  },
+  batchRegs: {
+    id: "batchRegs",
+    title: "Batch Sync Regs",
+    summary: "Alias for Download All Pending Regs.",
+    when: "Same as Download All Pending Regs.",
+    note: "Rate-limited requests to Justice Canada.",
+  },
+  syncAi: {
+    id: "syncAi",
+    title: "Sync + Linkify",
+    summary: "One-click pipeline: sync IRPA + IRPR → regex re-linkify all XML → optional OpenAI pass → coverage % report in sync stats.",
+    when: "After Justice Canada updates, or when link coverage is low. Best all-in-one maintenance button.",
+    note: "Enable “AI pass” checkbox for OpenAI (costs tokens). Regex linkify always runs.",
+  },
+  syncTier: {
+    id: "syncTier",
+    title: "Sync Immigration Tier",
+    summary: "Sync ~15 immigration-relevant acts/regs (Citizenship Act, Criminal Code, RPD/RAD rules, etc.) — excludes IRPA/IRPR already in priority.",
+    when: "After Sync Priority, to expand consultant-relevant federal law without full catalog batch.",
+    note: "Configured in legislation_sources.php immigration_tier list.",
+  },
+  clearAll: {
+    id: "clearAll",
+    title: "Clear All",
+    summary: "Delete downloaded legislation files, documents, provisions, references, and sync history. Catalog index can be kept or removed.",
+    when: "Fresh start, corrupted data, or before a full re-download. Cannot be undone.",
+    note: "Type CLEAR to confirm. Default keeps catalog list (Discover not needed again).",
+  },
+};
+
+function ActionButton({
+  action,
+  children,
+  onClick,
+  disabled,
+  variant = "outline",
+}: {
+  action: HubAction;
+  children: React.ReactNode;
+  onClick?: () => void;
+  disabled?: boolean;
+  variant?: "default" | "outline" | "secondary" | "ghost";
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button variant={variant} size="sm" onClick={onClick} disabled={disabled}>
+          {children}
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent side="bottom" className="max-w-xs text-left leading-relaxed">
+        <p className="font-semibold">{action.title}</p>
+        <p className="mt-1 opacity-90">{action.summary}</p>
+        {action.note && <p className="mt-1.5 text-[10px] opacity-75">{action.note}</p>}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
 export default function LegislationsHubPage() {
   const [status, setStatus] = React.useState<SyncStatus | null>(null);
   const [documents, setDocuments] = React.useState<DocRow[]>([]);
@@ -168,6 +361,18 @@ export default function LegislationsHubPage() {
   const [previewHtml, setPreviewHtml] = React.useState<string | null>(null);
   const [previewLoading, setPreviewLoading] = React.useState(false);
   const [savingRef, setSavingRef] = React.useState(false);
+  const [guideOpen, setGuideOpen] = React.useState(false);
+  const [batchSize, setBatchSize] = React.useState(10);
+  const [syncWithAi, setSyncWithAi] = React.useState(false);
+  const [skipAlreadyDownloaded, setSkipAlreadyDownloaded] = React.useState(true);
+  const [clearOpen, setClearOpen] = React.useState(false);
+  const [clearConfirm, setClearConfirm] = React.useState("");
+  const [clearDocuments, setClearDocuments] = React.useState(true);
+  const [clearCatalog, setClearCatalog] = React.useState(false);
+  const [clearSyncHistory, setClearSyncHistory] = React.useState(true);
+  const [clearForce, setClearForce] = React.useState(false);
+  const [clearing, setClearing] = React.useState(false);
+  const [controllingDownload, setControllingDownload] = React.useState(false);
 
   const catalogCounts = status?.catalog ?? {
     acts: status?.catalog_act_count ?? 0,
@@ -185,9 +390,15 @@ export default function LegislationsHubPage() {
       ]);
       setStatus(st);
       setDocuments(docs.data ?? []);
+      if (st.batch?.default_size) {
+        setBatchSize(st.batch.default_size);
+      }
       if (st.latest_run && ["pending", "running"].includes(st.latest_run.status)) {
         setActiveRun(st.latest_run);
         setSyncing(true);
+      } else if (st.latest_run?.status === "paused") {
+        setActiveRun(st.latest_run);
+        setSyncing(false);
       }
     } catch {
       setMessage("Could not load legislation sync status.");
@@ -240,21 +451,40 @@ export default function LegislationsHubPage() {
   React.useEffect(() => { loadCatalog(catalogPage); }, [catalogPage, catalogCategory, loadCatalog]);
 
   React.useEffect(() => {
-    if (!activeRun || !syncing) return;
-    const id = setInterval(async () => {
-      const res = await fetch(`${API}/admin/legislation/sync-runs/${activeRun.id}`, { headers: adminAuthHeaders() });
-      const json = await res.json();
-      const run = json.data as SyncRun;
-      setActiveRun(run);
-      if (["completed", "failed"].includes(run.status)) {
-        setSyncing(false);
-        setMessage(run.status === "completed" ? "Sync completed." : run.error_message ?? "Sync failed.");
-        load();
-        loadCatalog(catalogPage);
+    if (!activeRun?.id) return;
+    if (!["pending", "running"].includes(activeRun.status)) return;
+
+    const poll = async () => {
+      try {
+        const res = await fetch(`${API}/admin/legislation/sync-runs/${activeRun.id}`, { headers: adminAuthHeaders() });
+        const json = await res.json();
+        const run = json.data as SyncRun;
+        setActiveRun(run);
+        if (["completed", "failed", "cancelled", "paused"].includes(run.status)) {
+          setSyncing(false);
+          if (run.status === "completed") {
+            const coverage = run.stats?.coverage;
+            const coverageNote = coverage ? ` Link coverage: ${coverage.coverage_percent}%` : "";
+            setMessage(`${run.current_step ?? "Sync completed."}${coverageNote}`);
+          } else if (run.status === "cancelled") {
+            setMessage(run.current_step ?? "Download stopped.");
+          } else if (run.status === "paused") {
+            setMessage(run.current_step ?? "Download paused.");
+          } else {
+            setMessage(run.error_message ?? "Sync failed.");
+          }
+          load();
+          loadCatalog(catalogPage);
+        }
+      } catch {
+        // keep polling on transient errors
       }
-    }, 2000);
+    };
+
+    void poll();
+    const id = setInterval(() => void poll(), 1000);
     return () => clearInterval(id);
-  }, [activeRun, syncing, load, loadCatalog, catalogPage]);
+  }, [activeRun?.id, activeRun?.status, load, loadCatalog, catalogPage]);
 
   React.useEffect(() => {
     if (refDocId) loadReferences(refDocId);
@@ -284,9 +514,12 @@ export default function LegislationsHubPage() {
     category?: string;
     batchSize?: number;
     runAi?: boolean;
+    runLinkify?: boolean;
+    onlyUnsynced?: boolean;
   }) => {
     setSyncing(true);
     setMessage(null);
+    const onlyUnsynced = opts?.onlyUnsynced ?? skipAlreadyDownloaded;
     try {
       const res = await fetch(`${API}/admin/legislation/sync`, {
         method: "POST",
@@ -295,19 +528,69 @@ export default function LegislationsHubPage() {
           source: opts?.source,
           scope: opts?.scope ?? (opts?.source ? "source" : "all"),
           category: opts?.category,
-          batch_size: opts?.batchSize ?? 5,
-          only_unsynced: true,
+          batch_size: opts?.batchSize ?? batchSize,
+          only_unsynced: onlyUnsynced,
           async: true,
           run_ai: opts?.runAi ?? false,
+          run_linkify: opts?.runLinkify ?? false,
         }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.message ?? "Sync failed");
       setActiveRun(json.run);
-      setMessage(json.message);
+      const warning = json.warning as string | undefined;
+      setMessage(warning ? `${json.message} — ${warning}` : json.message);
+      if (json.run?.status === "completed") {
+        setSyncing(false);
+      }
     } catch (e) {
       setSyncing(false);
       setMessage(e instanceof Error ? e.message : "Sync failed");
+    }
+  };
+
+  const pendingActs = status?.catalog_pending?.acts ?? catalogCounts.pending;
+  const pendingRegs = status?.catalog_pending?.regulations ?? 0;
+  const pendingTotal = status?.catalog_pending?.total ?? catalogCounts.pending;
+
+  const catalogSyncedCount = (run: SyncRun) =>
+    Math.max(run.stats?.synced_entries ?? 0, run.completed_steps ?? 0);
+
+  const catalogProgressLabel = (run: SyncRun) => {
+    const total = run.stats?.pending_total ?? run.total_steps ?? 0;
+    const synced = catalogSyncedCount(run);
+    if (total > 0) {
+      return `${synced} / ${total} documents (${run.progress_percent}%)`;
+    }
+    return `${run.progress_percent}% complete`;
+  };
+
+  const controlDownload = async (action: "pause" | "resume" | "cancel") => {
+    if (!activeRun) return;
+    setControllingDownload(true);
+    setMessage(null);
+    try {
+      const res = await fetch(`${API}/admin/legislation/sync-runs/${activeRun.id}/${action}`, {
+        method: "POST",
+        headers: adminAuthHeaders(),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.message ?? "Request failed");
+      setActiveRun(json.run as SyncRun);
+      if (action === "resume") {
+        setSyncing(true);
+      } else {
+        setSyncing(false);
+      }
+      setMessage(json.message ?? (action === "cancel" ? "Download stopped." : "Download paused."));
+      if (action === "cancel") {
+        load();
+        loadCatalog(catalogPage);
+      }
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : "Could not update download.");
+    } finally {
+      setControllingDownload(false);
     }
   };
 
@@ -493,6 +776,52 @@ export default function LegislationsHubPage() {
     }
   };
 
+  const acknowledgeAmendment = async (id: number) => {
+    try {
+      await fetch(`${API}/admin/legislation/amendments/${id}/acknowledge`, {
+        method: "POST",
+        headers: adminAuthHeaders(),
+      });
+      load();
+    } catch {
+      setMessage("Could not acknowledge alert.");
+    }
+  };
+
+  const clearLegislationData = async () => {
+    if (clearConfirm !== "CLEAR") return;
+    setClearing(true);
+    setMessage(null);
+    try {
+      const res = await fetch(`${API}/admin/legislation/clear`, {
+        method: "POST",
+        headers: adminAuthHeaders("application/json"),
+        body: JSON.stringify({
+          confirm: "CLEAR",
+          clear_documents: clearDocuments,
+          clear_catalog: clearCatalog,
+          clear_sync_history: clearSyncHistory,
+          force: clearForce,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.message ?? "Clear failed");
+      setClearOpen(false);
+      setClearConfirm("");
+      setClearForce(false);
+      setActiveRun(null);
+      setSyncing(false);
+      setMessage(json.message ?? "Legislation data cleared.");
+      load();
+      loadCatalog(1);
+      setCatalogPage(1);
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : "Clear failed");
+    } finally {
+      setClearing(false);
+    }
+  };
+
   const handleCatalogSearch = (e: React.FormEvent) => {
     e.preventDefault();
     setCatalogPage(1);
@@ -500,6 +829,7 @@ export default function LegislationsHubPage() {
   };
 
   return (
+    <TooltipProvider>
     <div className="space-y-6 p-4 md:p-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
@@ -516,46 +846,215 @@ export default function LegislationsHubPage() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button variant="outline" size="sm" onClick={load} disabled={loading}>
+          <ActionButton action={HUB_ACTIONS.refresh} onClick={load} disabled={loading}>
             <RefreshCw className={`h-4 w-4 mr-1 ${loading ? "animate-spin" : ""}`} />
             Refresh
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => discoverCatalog("acts")} disabled={!!discovering || syncing}>
+          </ActionButton>
+          <ActionButton
+            action={HUB_ACTIONS.discoverActs}
+            onClick={() => discoverCatalog("acts")}
+            disabled={!!discovering || syncing}
+          >
             {discovering === "acts" ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <BookOpen className="h-4 w-4 mr-1" />}
             Discover Acts ({catalogCounts.acts})
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => discoverCatalog("regulations")} disabled={!!discovering || syncing}>
+          </ActionButton>
+          <ActionButton
+            action={HUB_ACTIONS.discoverRegs}
+            onClick={() => discoverCatalog("regulations")}
+            disabled={!!discovering || syncing}
+          >
             {discovering === "regulations" ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <FileText className="h-4 w-4 mr-1" />}
             Discover Regs ({catalogCounts.regulations})
-          </Button>
-          <Button size="sm" onClick={() => startSync()} disabled={syncing}>
+          </ActionButton>
+          <ActionButton action={HUB_ACTIONS.syncPriority} onClick={() => startSync()} disabled={syncing} variant="outline">
             {syncing ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <CloudDownload className="h-4 w-4 mr-1" />}
             Sync Priority
-          </Button>
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => startSync({ scope: "catalog_batch", category: "act", batchSize: 5 })}
-            disabled={syncing || !catalogCounts.acts}
+          </ActionButton>
+          <ActionButton
+            action={HUB_ACTIONS.syncTier}
+            onClick={() => startSync({ scope: "immigration_tier" })}
+            disabled={syncing}
+            variant="outline"
           >
             <CloudDownload className="h-4 w-4 mr-1" />
-            Batch Sync Acts
-          </Button>
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => startSync({ scope: "catalog_batch", category: "regulation", batchSize: 5 })}
-            disabled={syncing || !catalogCounts.regulations}
+            Immigration Tier ({status?.immigration_tier_count ?? "—"})
+          </ActionButton>
+          <ActionButton
+            action={HUB_ACTIONS.syncAi}
+            onClick={() => startSync({ scope: "sync_and_linkify", runAi: syncWithAi, runLinkify: true })}
+            disabled={syncing}
+            variant="default"
           >
-            <CloudDownload className="h-4 w-4 mr-1" />
-            Batch Sync Regs
-          </Button>
-          <Button variant="secondary" size="sm" onClick={() => startSync({ runAi: true })} disabled={syncing}>
             <Sparkles className="h-4 w-4 mr-1" />
-            Sync + AI
-          </Button>
+            Sync + Linkify
+          </ActionButton>
+          <ActionButton
+            action={HUB_ACTIONS.downloadAll}
+            onClick={() => startSync({ scope: "catalog_batch", batchSize })}
+            disabled={syncing || pendingTotal === 0}
+            variant="default"
+          >
+            {syncing ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <CloudDownload className="h-4 w-4 mr-1" />}
+            Download All ({pendingTotal})
+          </ActionButton>
+          <ActionButton
+            action={HUB_ACTIONS.downloadAllActs}
+            onClick={() => startSync({ scope: "catalog_batch", category: "act", batchSize })}
+            disabled={syncing || pendingActs === 0}
+            variant="secondary"
+          >
+            <CloudDownload className="h-4 w-4 mr-1" />
+            All Acts ({pendingActs})
+          </ActionButton>
+          <ActionButton
+            action={HUB_ACTIONS.downloadAllRegs}
+            onClick={() => startSync({ scope: "catalog_batch", category: "regulation", batchSize })}
+            disabled={syncing || pendingRegs === 0}
+            variant="secondary"
+          >
+            <CloudDownload className="h-4 w-4 mr-1" />
+            All Regs ({pendingRegs})
+          </ActionButton>
+          <ActionButton
+            action={HUB_ACTIONS.batchActs}
+            onClick={() => startSync({ scope: "catalog_batch", category: "act", batchSize })}
+            disabled={syncing || pendingActs === 0}
+            variant="outline"
+          >
+            <CloudDownload className="h-4 w-4 mr-1" />
+            Batch Acts
+          </ActionButton>
+          <ActionButton
+            action={HUB_ACTIONS.batchRegs}
+            onClick={() => startSync({ scope: "catalog_batch", category: "regulation", batchSize })}
+            disabled={syncing || pendingRegs === 0}
+            variant="outline"
+          >
+            <CloudDownload className="h-4 w-4 mr-1" />
+            Batch Regs
+          </ActionButton>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => setClearOpen(true)}
+                disabled={syncing || clearing}
+              >
+                {clearing ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Trash2 className="h-4 w-4 mr-1" />}
+                Clear All
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className="max-w-xs text-left leading-relaxed">
+              <p className="font-semibold">{HUB_ACTIONS.clearAll.title}</p>
+              <p className="mt-1 opacity-90">{HUB_ACTIONS.clearAll.summary}</p>
+              <p className="mt-1.5 text-[10px] opacity-75">{HUB_ACTIONS.clearAll.note}</p>
+            </TooltipContent>
+          </Tooltip>
+        </div>
+        <div className="flex flex-wrap items-center gap-3 w-full lg:justify-end">
+          <label className="flex items-center gap-2 text-xs text-muted-foreground">
+            Batch size
+            <Input
+              type="number"
+              min={1}
+              max={status?.batch?.max_size ?? 30}
+              value={batchSize}
+              onChange={(e) => setBatchSize(Math.min(30, Math.max(1, Number(e.target.value) || 10)))}
+              className="h-8 w-16"
+            />
+          </label>
+          <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
+            <input
+              type="checkbox"
+              checked={skipAlreadyDownloaded}
+              onChange={(e) => setSkipAlreadyDownloaded(e.target.checked)}
+              className="rounded border-input"
+            />
+            Skip already downloaded (only fetch remaining)
+          </label>
+          <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
+            <input
+              type="checkbox"
+              checked={syncWithAi}
+              onChange={(e) => setSyncWithAi(e.target.checked)}
+              className="rounded border-input"
+            />
+            AI pass on Sync + Linkify
+          </label>
         </div>
       </div>
+
+      <Collapsible open={guideOpen} onOpenChange={setGuideOpen}>
+        <Card className="border-primary/20 bg-primary/5">
+          <CollapsibleTrigger asChild>
+            <button
+              type="button"
+              className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-primary/5 rounded-lg transition-colors"
+            >
+              <span className="flex items-center gap-2 text-sm font-medium">
+                <HelpCircle className="h-4 w-4 text-primary shrink-0" />
+                Sync workflow guide — what each button does &amp; how to improve this flow
+              </span>
+              {guideOpen ? <ChevronDown className="h-4 w-4 shrink-0" /> : <ChevronRight className="h-4 w-4 shrink-0" />}
+            </button>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <CardContent className="pt-0 space-y-5 text-sm">
+              <div>
+                <p className="font-medium flex items-center gap-1.5 mb-2">
+                  <Info className="h-3.5 w-3.5 text-primary" />
+                  Recommended order
+                </p>
+                <ol className="list-decimal list-inside space-y-1.5 text-muted-foreground ml-1">
+                  <li><strong className="text-foreground">Sync Priority</strong> — IRPA + IRPR for consultant dashboard (enough for most immigration work).</li>
+                  <li><strong className="text-foreground">Discover Acts / Regs</strong> — build catalog index only (metadata, no files).</li>
+                  <li><strong className="text-foreground">Batch Sync</strong> — import more documents 5 at a time (queue worker must be running).</li>
+                  <li>Open a synced <strong className="text-foreground">XML document</strong> → <strong className="text-foreground">Analyze &amp; Linkify</strong> for clickable cross-references + popup content.</li>
+                  <li><strong className="text-foreground">Sync + AI</strong> — optional; re-syncs priority sources and runs AI link detection on all XML docs.</li>
+                </ol>
+              </div>
+
+              <div className="grid gap-3 md:grid-cols-2">
+                {Object.values(HUB_ACTIONS).map((action) => (
+                  <div key={action.id} className="rounded-lg border bg-background/80 p-3 space-y-1">
+                    <p className="font-medium">{action.title}</p>
+                    <p className="text-xs text-muted-foreground leading-relaxed">{action.summary}</p>
+                    <p className="text-[11px] text-muted-foreground"><span className="font-medium text-foreground">When:</span> {action.when}</p>
+                    {action.note && (
+                      <p className="text-[11px] text-primary/80">{action.note}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-4 space-y-2">
+                <p className="font-medium text-amber-900 dark:text-amber-200">Weaknesses vs. professional legislation platforms</p>
+                <ul className="text-xs text-muted-foreground space-y-1.5 list-disc list-inside">
+                  <li><strong className="text-foreground">Queue dependency</strong> — Batch sync silently stalls if <code className="text-[10px]">queue:work</code> is not running.</li>
+                  <li><strong className="text-foreground">Slow bulk import</strong> — 5 entries per batch × 5,000+ regs = days of background jobs; no immigration-priority queue beyond IRPA/IRPR.</li>
+                  <li><strong className="text-foreground">Discovery is EN-only index scrape</strong> — no amendment/version diff; re-sync replaces all provisions instead of showing what changed.</li>
+                  <li><strong className="text-foreground">Linkify split across steps</strong> — regex runs on sync; AI is separate (Analyze &amp; Linkify per doc or Sync + AI). Easy to forget the second step.</li>
+                  <li><strong className="text-foreground">No link health dashboard</strong> — broken/stripped links are not surfaced in this hub UI.</li>
+                  <li><strong className="text-foreground">Interactive viewer = XML only</strong> — HTML/PDF are download/view only; consultants need XML for smart popups.</li>
+                </ul>
+              </div>
+
+              <div className="rounded-lg border p-4 space-y-2">
+                <p className="font-medium">Suggested improvements (higher impact first)</p>
+                <ul className="text-xs text-muted-foreground space-y-1.5 list-disc list-inside">
+                  <li><strong className="text-foreground">Auto linkify on every sync</strong> — call <code className="text-[10px]">legislation:relinkify</code> after sync (already partially done); surface stripped-link count in UI.</li>
+                  <li><strong className="text-foreground">Immigration tier list</strong> — sync ~20 high-value acts/regs (Citizenship Act, LMIA regs, etc.) before full catalog batch.</li>
+                  <li><strong className="text-foreground">Queue health indicator</strong> — show worker status + last job error on this page.</li>
+                  <li><strong className="text-foreground">Larger batch size + rate limiting</strong> — configurable batch (e.g. 20) with Justice Canada polite delays.</li>
+                  <li><strong className="text-foreground">Consolidated “Sync + Linkify”</strong> — one button: sync → regex linkify → optional AI → report coverage %.</li>
+                  <li><strong className="text-foreground">Amendment tracking</strong> — store <code className="text-[10px]">last_synced_at</code> + provision hash; notify when Justice Canada updates IRPA/IRPR.</li>
+                </ul>
+              </div>
+            </CardContent>
+          </CollapsibleContent>
+        </Card>
+      </Collapsible>
 
       {message && (
         <div className="rounded-lg border px-4 py-2 text-sm flex items-center gap-2">
@@ -568,29 +1067,143 @@ export default function LegislationsHubPage() {
         </div>
       )}
 
-      {syncing && activeRun && (
+      {(syncing || activeRun?.status === "paused") && activeRun && (
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-base">Sync in progress</CardTitle>
+            <CardTitle className="text-base flex items-center justify-between gap-2 flex-wrap">
+              <span>
+                {activeRun.status === "paused" ? "Download paused" : "Download in progress"}
+              </span>
+              <Badge variant="secondary">{catalogProgressLabel(activeRun)}</Badge>
+            </CardTitle>
             <CardDescription>{activeRun.current_step ?? "Running…"}</CardDescription>
           </CardHeader>
-          <CardContent>
-            <Progress value={activeRun.progress_percent} className="h-2" />
-            <p className="text-xs text-muted-foreground mt-2">
-              {activeRun.progress_percent}% complete
-              {activeRun.stats?.synced_entries != null && ` · ${activeRun.stats.synced_entries} catalog entries processed`}
+          <CardContent className="space-y-3">
+            <Progress value={activeRun.progress_percent} className="h-3" />
+            <p className="text-xs text-muted-foreground">
+              {activeRun.stats?.pending_total != null && activeRun.stats.pending_total > 0
+                ? `${catalogSyncedCount(activeRun)} of ${activeRun.stats.pending_total} catalog entries downloaded`
+                : `${activeRun.progress_percent}% complete`}
+              {activeRun.stats?.only_unsynced === false && " · re-downloading all entries"}
+              {(activeRun.stats as { coverage?: LinkCoverage })?.coverage && (
+                <> · Link coverage {(activeRun.stats as { coverage: LinkCoverage }).coverage.coverage_percent}%</>
+              )}
             </p>
+            {(activeRun.scope === "catalog_batch" || activeRun.scope === "catalog") && (
+              <div className="flex flex-wrap gap-2">
+                {activeRun.status === "paused" ? (
+                  <Button
+                    size="sm"
+                    variant="default"
+                    onClick={() => controlDownload("resume")}
+                    disabled={controllingDownload}
+                  >
+                    {controllingDownload ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Play className="h-4 w-4 mr-1" />}
+                    Resume
+                  </Button>
+                ) : (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => controlDownload("pause")}
+                    disabled={controllingDownload || !["pending", "running"].includes(activeRun.status)}
+                  >
+                    {controllingDownload ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Pause className="h-4 w-4 mr-1" />}
+                    Pause
+                  </Button>
+                )}
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  onClick={() => controlDownload("cancel")}
+                  disabled={controllingDownload || activeRun.status === "cancelled"}
+                >
+                  {controllingDownload ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Square className="h-4 w-4 mr-1" />}
+                  Stop
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
-        <Card><CardHeader className="pb-2"><CardDescription>Acts</CardDescription><CardTitle>{catalogStats?.acts ?? catalogCounts.acts}</CardTitle></CardHeader></Card>
-        <Card><CardHeader className="pb-2"><CardDescription>Regulations</CardDescription><CardTitle>{catalogStats?.regulations ?? catalogCounts.regulations}</CardTitle></CardHeader></Card>
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <Card><CardHeader className="pb-2"><CardDescription>Pending download</CardDescription><CardTitle className="text-amber-700 dark:text-amber-300">{pendingTotal}</CardTitle></CardHeader></Card>
+        <Card><CardHeader className="pb-2"><CardDescription>Acts pending</CardDescription><CardTitle>{pendingActs}</CardTitle></CardHeader></Card>
+        <Card><CardHeader className="pb-2"><CardDescription>Regs pending</CardDescription><CardTitle>{pendingRegs}</CardTitle></CardHeader></Card>
         <Card><CardHeader className="pb-2"><CardDescription>Catalog synced</CardDescription><CardTitle>{catalogStats?.synced ?? catalogCounts.synced}</CardTitle></CardHeader></Card>
         <Card><CardHeader className="pb-2"><CardDescription>Documents</CardDescription><CardTitle>{status?.document_count ?? "—"}</CardTitle></CardHeader></Card>
         <Card><CardHeader className="pb-2"><CardDescription>Provisions</CardDescription><CardTitle>{status?.provision_count ?? "—"}</CardTitle></CardHeader></Card>
+        <Card className="border-primary/30">
+          <CardHeader className="pb-2">
+            <CardDescription>Link coverage</CardDescription>
+            <CardTitle>
+              {status?.link_coverage?.coverage_percent != null
+                ? `${status.link_coverage.coverage_percent}%`
+                : "—"}
+            </CardTitle>
+          </CardHeader>
+        </Card>
       </div>
+
+      {(status?.queue_health || (status?.amendment_alerts?.length ?? 0) > 0) && (
+        <div className="grid gap-4 md:grid-cols-2">
+          {status?.queue_health && (
+            <Card className={status.queue_health.worker_likely_active ? "border-green-500/30" : "border-amber-500/40"}>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base flex items-center gap-2">
+                  Queue health
+                  <Badge variant={status.queue_health.worker_likely_active ? "secondary" : "destructive"}>
+                    {status.queue_health.worker_likely_active ? "OK" : "Check worker"}
+                  </Badge>
+                </CardTitle>
+                <CardDescription>
+                  Driver: {status.queue_health.driver} · Pending jobs: {status.queue_health.pending_jobs}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="text-xs text-muted-foreground space-y-2">
+                {status.queue_health.worker_warning && (
+                  <p className="text-amber-700 dark:text-amber-300">{status.queue_health.worker_warning}</p>
+                )}
+                {(status.queue_health.setup_steps?.length ?? 0) > 0 && (
+                  <ol className="list-decimal list-inside space-y-1 font-mono text-[10px]">
+                    {status.queue_health.setup_steps?.map((step) => (
+                      <li key={step}>{step}</li>
+                    ))}
+                  </ol>
+                )}
+                {status.queue_health.last_failed && (
+                  <p>
+                    Last failed: {status.queue_health.last_failed.job} — {status.queue_health.last_failed.message}
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          )}
+          {(status?.amendment_alerts?.length ?? 0) > 0 && (
+            <Card className="border-amber-500/40">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base">Amendment alerts</CardTitle>
+                <CardDescription>IRPA/IRPR content changed on Justice Canada — re-run Sync + Linkify</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {status?.amendment_alerts?.map((alert) => (
+                  <div key={alert.id} className="flex items-start justify-between gap-2 rounded-lg border p-2 text-xs">
+                    <div>
+                      <p className="font-medium">{alert.act_code} · {alert.language}/{alert.format}</p>
+                      <p className="text-muted-foreground truncate">{alert.title}</p>
+                      <p className="text-muted-foreground">{new Date(alert.detected_at).toLocaleString()}</p>
+                    </div>
+                    <Button size="sm" variant="outline" onClick={() => acknowledgeAmendment(alert.id)}>
+                      Dismiss
+                    </Button>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
 
       <Tabs defaultValue="documents">
         <TabsList className="flex-wrap h-auto">
@@ -998,6 +1611,83 @@ export default function LegislationsHubPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={clearOpen} onOpenChange={setClearOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Clear legislation data?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3 text-sm text-muted-foreground">
+                <p>This permanently deletes selected data. You cannot undo this action.</p>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={clearDocuments}
+                    onChange={(e) => setClearDocuments(e.target.checked)}
+                    className="rounded border-input"
+                  />
+                  Downloaded documents, provisions, references &amp; files
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={clearCatalog}
+                    onChange={(e) => setClearCatalog(e.target.checked)}
+                    className="rounded border-input"
+                  />
+                  Catalog index (acts/regs list — run Discover again)
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={clearSyncHistory}
+                    onChange={(e) => setClearSyncHistory(e.target.checked)}
+                    className="rounded border-input"
+                  />
+                  Sync run history &amp; amendment alerts
+                </label>
+                {syncing && (
+                  <label className="flex items-center gap-2 cursor-pointer text-amber-700 dark:text-amber-300">
+                    <input
+                      type="checkbox"
+                      checked={clearForce}
+                      onChange={(e) => setClearForce(e.target.checked)}
+                      className="rounded border-input"
+                    />
+                    Force clear while sync is running (cancels active job)
+                  </label>
+                )}
+                <div className="space-y-1.5 pt-1">
+                  <Label htmlFor="clear-confirm">Type CLEAR to confirm</Label>
+                  <Input
+                    id="clear-confirm"
+                    value={clearConfirm}
+                    onChange={(e) => setClearConfirm(e.target.value)}
+                    placeholder="CLEAR"
+                    className="font-mono"
+                    autoComplete="off"
+                  />
+                </div>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={clearing}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                void clearLegislationData();
+              }}
+              disabled={clearing || clearConfirm !== "CLEAR" || (!clearDocuments && !clearCatalog && !clearSyncHistory)}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {clearing ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Trash2 className="h-4 w-4 mr-1" />}
+              Clear data
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
+    </TooltipProvider>
   );
 }

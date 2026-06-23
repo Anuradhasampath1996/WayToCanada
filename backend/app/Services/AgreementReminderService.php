@@ -5,11 +5,18 @@ namespace App\Services;
 use App\Models\CaseFile;
 use App\Models\ClientProfile;
 use App\Models\QuestionnaireSubmission;
-use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Log;
+use App\Models\User;
+use App\Services\Notifications\WhatsAppMessageBuilder;
+use App\Services\WhatsApp\WhatsAppDeliveryService;
+use App\Support\WhatsAppStructuredMessage;
 
 class AgreementReminderService
 {
+    public function __construct(
+        private WhatsAppMessageBuilder $whatsappMessages,
+        private WhatsAppDeliveryService $whatsappDelivery,
+    ) {}
+
     public function resolveClientPhone(ClientProfile $profile): ?string
     {
         $profile->loadMissing('user');
@@ -36,13 +43,20 @@ class AgreementReminderService
         return $publicDashboardUrl . '/agreement/' . $caseFile->agreement_token;
     }
 
-    public function buildReminderMessage(CaseFile $caseFile, string $clientName, string $consultantName): string
+    public function buildReminderMessage(CaseFile $caseFile, string $clientName, User $consultant): string
     {
-        $url = $this->buildSigningUrl($caseFile);
+        return $this->buildReminderStructured($caseFile, $clientName, $consultant)->toPlainText();
+    }
 
-        return "Hi {$clientName}, this is {$consultantName} from RCICMASTER. "
-            . "Your retainer agreement is ready for signature. Please review and sign here: {$url} "
-            . "Thank you!";
+    public function buildReminderStructured(CaseFile $caseFile, string $clientName, User $consultant): WhatsAppStructuredMessage
+    {
+        return $this->whatsappMessages->buildStructuredForClient(
+            $clientName,
+            $consultant,
+            'Retainer agreement ready to sign',
+            'Your retainer agreement is ready for signature. Please review and sign when you have a moment.',
+            $this->buildSigningUrl($caseFile),
+        );
     }
 
     public function toWhatsAppUrl(string $phone, string $message): string
@@ -55,45 +69,25 @@ class AgreementReminderService
         return 'https://wa.me/' . $digits . '?text=' . rawurlencode($message);
     }
 
+    /** @return array{sent: bool, error: string|null, provider: string|null} */
+    public function sendWhatsApp(string $phone, WhatsAppStructuredMessage $message): array
+    {
+        return $this->whatsappDelivery->send($phone, $message);
+    }
+
     /** @return array{sent: bool, error: string|null} */
     public function sendViaTwilio(string $phone, string $message): array
     {
-        $sid   = config('services.twilio.sid');
-        $token = config('services.twilio.token');
-        $from  = config('services.twilio.whatsapp_from');
+        $result = $this->whatsappDelivery->send($phone, new WhatsAppStructuredMessage(
+            WhatsAppStructuredMessage::AUDIENCE_CLIENT,
+            'there',
+            'Notification',
+            $message,
+        ));
 
-        if (! $sid || ! $token || ! $from) {
-            return ['sent' => false, 'error' => null];
-        }
-
-        $digits = preg_replace('/\D/', '', $phone) ?? '';
-        if (strlen($digits) === 10) {
-            $digits = '1' . $digits;
-        }
-
-        try {
-            $response = Http::withBasicAuth($sid, $token)
-                ->asForm()
-                ->post('https://api.twilio.com/2010-04-01/Accounts/' . $sid . '/Messages.json', [
-                    'From' => str_starts_with($from, 'whatsapp:') ? $from : 'whatsapp:' . $from,
-                    'To'   => 'whatsapp:+' . $digits,
-                    'Body' => $message,
-                ]);
-
-            if ($response->successful()) {
-                return ['sent' => true, 'error' => null];
-            }
-
-            Log::warning('Twilio WhatsApp reminder failed', [
-                'status' => $response->status(),
-                'body'   => $response->body(),
-            ]);
-
-            return ['sent' => false, 'error' => 'Twilio API error.'];
-        } catch (\Throwable $e) {
-            Log::warning('Twilio WhatsApp reminder exception', ['message' => $e->getMessage()]);
-
-            return ['sent' => false, 'error' => $e->getMessage()];
-        }
+        return [
+            'sent'  => $result['sent'],
+            'error' => $result['error'],
+        ];
     }
 }

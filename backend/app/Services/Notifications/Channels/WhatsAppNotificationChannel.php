@@ -4,15 +4,17 @@ namespace App\Services\Notifications\Channels;
 
 use App\Models\NotificationDelivery;
 use App\Models\UserNotification;
-use App\Services\AgreementReminderService;
 use App\Services\Notifications\NotificationPhoneResolver;
+use App\Services\Notifications\WhatsAppMessageBuilder;
+use App\Services\WhatsApp\WhatsAppDeliveryService;
 use Illuminate\Support\Facades\Log;
 
 class WhatsAppNotificationChannel
 {
     public function __construct(
         private NotificationPhoneResolver $phones,
-        private AgreementReminderService $twilio,
+        private WhatsAppMessageBuilder $messages,
+        private WhatsAppDeliveryService $delivery,
     ) {}
 
     public function deliver(UserNotification $notification): NotificationDelivery
@@ -30,25 +32,27 @@ class WhatsAppNotificationChannel
             return $this->skip($delivery, 'No phone number on file.');
         }
 
-        $message = $notification->title . "\n\n" . $notification->body;
-        if ($notification->action_url) {
-            $message .= "\n\n" . $notification->action_url;
-        }
-
-        $result = $this->twilio->sendViaTwilio($phone, $message);
+        $structured = $this->messages->buildStructuredFromNotification($notification);
+        $result = $this->delivery->send($phone, $structured);
 
         if ($result['sent']) {
-            $delivery->update(['status' => 'sent', 'sent_at' => now()]);
+            $provider = $result['provider'] ?? 'whatsapp';
+            $delivery->update([
+                'status'               => 'sent',
+                'sent_at'              => now(),
+                'provider_message_id'=> $provider,
+            ]);
 
             return $delivery->fresh();
         }
 
         if ($result['error'] === null) {
-            return $this->skip($delivery, 'Twilio not configured.');
+            return $this->skip($delivery, 'WhatsApp provider not configured.');
         }
 
         Log::warning('Notification WhatsApp failed', [
             'notification_id' => $notification->id,
+            'provider'        => $result['provider'] ?? null,
             'error'           => $result['error'],
         ]);
 

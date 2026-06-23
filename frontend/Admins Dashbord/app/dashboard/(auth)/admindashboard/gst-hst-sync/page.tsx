@@ -61,9 +61,17 @@ type SyncStatus = {
     effective_date: string;
     last_synced_at: string | null;
     changelog: string | null;
+    government_pages_changed?: boolean;
   };
   rates_table: RateRow[];
   province_count: number;
+  cra_check?: {
+    has_differences: boolean;
+    matched_provinces: number;
+    differences: Array<{ code: string; name: string; config_pct: number; cra_pct: number }>;
+    fetch: { fetched: boolean; error: string | null; fetched_at: string | null };
+    source_url: string;
+  };
   auto_sync: { command: string; schedule: string; description: string };
   sample_calculation: {
     subtotal: number;
@@ -135,13 +143,14 @@ export default function GstHstSyncPage() {
     void loadStatus();
   }, [loadStatus]);
 
-  async function runSync() {
+  async function runSync(applyCra = false) {
     setSyncing(true);
     setSyncMessage("");
     try {
       const res = await fetch(`${API}/admin/gst-hst/sync`, {
         method: "POST",
         headers: authHeaders(),
+        body: JSON.stringify({ apply_cra_rates: applyCra }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.message ?? "Sync failed.");
@@ -192,10 +201,15 @@ export default function GstHstSyncPage() {
           </div>
         </div>
         <div className="flex gap-2">
-          <Button onClick={runSync} disabled={syncing || loading}>
+          <Button onClick={() => void runSync(false)} disabled={syncing || loading}>
             <CloudDownload className={`mr-2 h-4 w-4 ${syncing ? "animate-pulse" : ""}`} />
             {syncing ? "Syncing…" : "Sync Now"}
           </Button>
+          {status?.cra_check?.has_differences && (
+            <Button variant="secondary" onClick={() => void runSync(true)} disabled={syncing || loading}>
+              Apply CRA rates
+            </Button>
+          )}
           <Button variant="outline" onClick={loadStatus} disabled={loading}>
             <RefreshCw className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} />
             Refresh
@@ -215,6 +229,42 @@ export default function GstHstSyncPage() {
           <CheckCircle2 className="h-4 w-4 shrink-0" />
           {syncMessage}
         </div>
+      )}
+
+      {status?.cra_check && (
+        <Card className={status.cra_check.has_differences ? "border-amber-300 bg-amber-50/40" : "border-green-200 bg-green-50/30"}>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">CRA live page check</CardTitle>
+            <CardDescription>
+              Fetches the official CRA charge &amp; collect page and compares totals with active rates.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm">
+            {!status.cra_check.fetch.fetched ? (
+              <p className="text-amber-800">{status.cra_check.fetch.error ?? "Could not fetch CRA page."}</p>
+            ) : status.cra_check.has_differences ? (
+              <>
+                <p className="text-amber-900 font-medium">
+                  {status.cra_check.differences.length} province rate(s) differ from CRA. Review before applying.
+                </p>
+                <ul className="space-y-1 text-xs">
+                  {status.cra_check.differences.map((d) => (
+                    <li key={d.code}>
+                      <strong>{d.name} ({d.code})</strong>: config {d.config_pct}% → CRA {d.cra_pct}%
+                    </li>
+                  ))}
+                </ul>
+              </>
+            ) : (
+              <p className="text-green-800">
+                CRA page matches active rates ({status.cra_check.matched_provinces} provinces checked).
+                {status.cra_check.fetch.fetched_at && (
+                  <> Last checked {new Date(status.cra_check.fetch.fetched_at).toLocaleString("en-CA")}.</>
+                )}
+              </p>
+            )}
+          </CardContent>
+        </Card>
       )}
 
       <div className="rounded-xl border bg-violet-50/50 border-violet-200 p-4 space-y-2 text-sm">

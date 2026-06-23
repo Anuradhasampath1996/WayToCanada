@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/sidebar";
 import {
   BadgeDollarSignIcon,
+  Building2Icon,
   CalculatorIcon,
   ChevronRight,
   CreditCardIcon,
@@ -30,6 +31,7 @@ import {
   KeyRoundIcon,
   MessageCircle,
   Headphones,
+  MailIcon,
   type LucideIcon,
 } from "lucide-react";
 import Link from "next/link";
@@ -104,6 +106,21 @@ export const navItems: NavGroup[] = [
         isNew: true,
       },
       {
+        title: "Marketing Orders",
+        href: "/admindashboard/marketing-orders",
+        icon: MegaphoneIcon,
+      },
+      {
+        title: "Client Payments",
+        href: "/admindashboard/client-payment-requests",
+        icon: WalletMinimalIcon,
+      },
+      {
+        title: "Storage Subscriptions",
+        href: "/admindashboard/storage-subscriptions",
+        icon: HardDriveIcon,
+      },
+      {
         title: "Subscription Payments",
         href: "/admindashboard/subscription-payments",
         icon: WalletMinimalIcon
@@ -129,6 +146,11 @@ export const navItems: NavGroup[] = [
         icon: LandmarkIcon,
       },
       {
+        title: "Company & Invoices",
+        href: "/admindashboard/company-invoice-settings",
+        icon: Building2Icon,
+      },
+      {
         title: "Legislation Hub",
         href: "/admindashboard/legislations-hub",
         icon: ScaleIcon,
@@ -138,6 +160,17 @@ export const navItems: NavGroup[] = [
         title: "Notifications",
         href: "/admindashboard/notifications",
         icon: MegaphoneIcon,
+      },
+      {
+        title: "Email Templates",
+        href: "/admindashboard/email-templates",
+        icon: MailIcon,
+      },
+      {
+        title: "WhatsApp Inbox",
+        href: "/admindashboard/whatsapp-inbox",
+        icon: MessageCircle,
+        isNew: true,
       },
       {
         title: "RCIC Community",

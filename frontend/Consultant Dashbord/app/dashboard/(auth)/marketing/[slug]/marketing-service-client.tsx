@@ -4,13 +4,20 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import {
-  Loader2, ChevronLeft, CheckCircle2, CreditCard, Globe, Share2, Target, Megaphone,
+  Loader2, ChevronLeft, CheckCircle2, CreditCard, Globe, Share2, Target, Megaphone, MapPin, Lock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 
 const API = (process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000") + "/api/v1";
@@ -20,6 +27,8 @@ const ICONS: Record<string, typeof Globe> = {
   "social-media": Share2,
   "google-ads": Target,
 };
+
+type ProvinceOption = { code: string; name: string; label: string };
 
 type Service = {
   id: number;
@@ -38,7 +47,9 @@ type TaxQuote = {
   subtotal: number;
   total_tax: number;
   total: number;
-  lines?: { label: string; amount: number }[];
+  tax_label?: string;
+  tax_applicable?: boolean;
+  disclaimer?: string;
 };
 
 function authHeaders(json = true): Record<string, string> {
@@ -50,7 +61,7 @@ function authHeaders(json = true): Record<string, string> {
   };
 }
 
-function fmtPrice(price: number, label: string) {
+function fmtPrice(price: number, label = "") {
   const formatted = new Intl.NumberFormat("en-CA", { style: "currency", currency: "CAD" }).format(price);
   return label ? `${formatted} ${label}` : formatted;
 }
@@ -62,10 +73,18 @@ export function MarketingServiceClient({ slug }: { slug: string }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [toast, setToast] = useState("");
-  const [province, setProvince] = useState("ON");
+  const [provinces, setProvinces] = useState<ProvinceOption[]>([]);
+  const [billingCountry, setBillingCountry] = useState("CA");
+  const [addressLine1, setAddressLine1] = useState("");
+  const [addressLine2, setAddressLine2] = useState("");
+  const [city, setCity] = useState("");
+  const [postalCode, setPostalCode] = useState("");
+  const [province, setProvince] = useState("");
   const [tax, setTax] = useState<TaxQuote | null>(null);
   const [taxLoading, setTaxLoading] = useState(false);
   const [checkingOut, setCheckingOut] = useState(false);
+
+  const isCanada = billingCountry === "CA";
 
   const showToast = (msg: string) => {
     setToast(msg);
@@ -77,6 +96,53 @@ export function MarketingServiceClient({ slug }: { slug: string }) {
       showToast("Checkout was cancelled.");
     }
   }, [searchParams]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadProvincesAndProfile() {
+      try {
+        const [ratesRes, profileRes] = await Promise.all([
+          fetch(`${API}/tax/gst-hst/rates`, { headers: { Accept: "application/json" } }),
+          fetch(`${API}/consultant/profile`, { headers: authHeaders(false) }),
+        ]);
+
+        const ratesJson = ratesRes.ok ? await ratesRes.json() : null;
+        const profileJson = profileRes.ok ? await profileRes.json() : null;
+
+        if (cancelled) return;
+
+        const opts: ProvinceOption[] = ratesJson?.provinces ?? [];
+        setProvinces(opts);
+
+        const fromProfile = profileJson?.company_province ?? "";
+        if (fromProfile) {
+          const match = opts.find(
+            (p) => p.code === fromProfile.toUpperCase() || p.name.toLowerCase() === fromProfile.toLowerCase(),
+          );
+          setProvince(match?.code ?? fromProfile);
+        } else if (opts.length > 0) {
+          setProvince(opts.find((p) => p.code === "ON")?.code ?? opts[0].code);
+        }
+
+        if (profileJson) {
+          const country = profileJson.company_country;
+          setBillingCountry(
+            country === "Canada" || country === "CA" ? "CA" : (country ?? "CA"),
+          );
+          setAddressLine1(profileJson.company_address_line1 ?? "");
+          setAddressLine2(profileJson.company_address_line2 ?? "");
+          setCity(profileJson.company_city ?? "");
+          setPostalCode(profileJson.company_postal_code ?? "");
+        }
+      } catch {
+        /* optional */
+      }
+    }
+
+    void loadProvincesAndProfile();
+    return () => { cancelled = true; };
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -103,36 +169,55 @@ export function MarketingServiceClient({ slug }: { slug: string }) {
     void load();
   }, [load]);
 
+  const billingPayload = useCallback(() => {
+    if (!service) return null;
+    return {
+      marketing_service_id: service.id,
+      billing_country: billingCountry,
+      billing_address_line1: addressLine1.trim(),
+      billing_address_line2: addressLine2.trim() || undefined,
+      billing_city: city.trim(),
+      billing_postal_code: postalCode.trim() || undefined,
+      billing_province: isCanada ? province : undefined,
+      province: isCanada ? province : undefined,
+    };
+  }, [service, billingCountry, addressLine1, addressLine2, city, postalCode, province, isCanada]);
+
   const loadTax = useCallback(async () => {
-    if (!service) return;
+    const payload = billingPayload();
+    if (!payload || !addressLine1.trim() || !city.trim()) return;
+    if (isCanada && !province) return;
+
     setTaxLoading(true);
     try {
-      const params = new URLSearchParams({
-        marketing_service_id: String(service.id),
-        province,
+      const params = new URLSearchParams();
+      Object.entries(payload).forEach(([k, v]) => {
+        if (v !== undefined && v !== null) params.set(k, String(v));
       });
       const res = await fetch(`${API}/consultant/marketing/payment/tax-quote?${params}`, {
-        headers: authHeaders(),
+        headers: authHeaders(false),
       });
       const json = await res.json();
       if (res.ok) setTax(json.tax ?? null);
+      else setTax(null);
     } finally {
       setTaxLoading(false);
     }
-  }, [service, province]);
+  }, [billingPayload, addressLine1, city, isCanada, province]);
 
   useEffect(() => {
     if (service && !owned) void loadTax();
   }, [service, owned, loadTax]);
 
   async function startCheckout() {
-    if (!service || owned) return;
+    const payload = billingPayload();
+    if (!payload || owned) return;
     setCheckingOut(true);
     try {
       const res = await fetch(`${API}/consultant/marketing/payment/checkout-session`, {
         method: "POST",
         headers: authHeaders(),
-        body: JSON.stringify({ marketing_service_id: service.id, province }),
+        body: JSON.stringify(payload),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json?.message ?? "Checkout failed.");
@@ -143,6 +228,16 @@ export function MarketingServiceClient({ slug }: { slug: string }) {
       setCheckingOut(false);
     }
   }
+
+  const canCheckout =
+    !owned &&
+    service &&
+    service.price > 0 &&
+    addressLine1.trim() &&
+    city.trim() &&
+    (!isCanada || province) &&
+    !taxLoading &&
+    !checkingOut;
 
   if (loading) {
     return (
@@ -228,7 +323,7 @@ export function MarketingServiceClient({ slug }: { slug: string }) {
               <CardDescription>
                 {owned
                   ? "You have already purchased this service. Our team will contact you."
-                  : "Secure payment via Stripe. GST/HST applies based on your province."}
+                  : "Same secure checkout as your RCICMASTER subscription — billing address and tax calculated before Stripe."}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -236,15 +331,65 @@ export function MarketingServiceClient({ slug }: { slug: string }) {
 
               {!owned && (
                 <>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="province">Province (for tax)</Label>
+                  <div className="space-y-3 rounded-lg border border-border/60 bg-muted/10 p-3">
+                    <p className="text-sm font-medium">Billing address</p>
+
+                    <div className="space-y-1.5">
+                      <Label htmlFor="country">Country</Label>
+                      <Select value={billingCountry} onValueChange={setBillingCountry}>
+                        <SelectTrigger id="country" className="w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="CA">Canada</SelectItem>
+                          <SelectItem value="US">United States</SelectItem>
+                          <SelectItem value="GB">United Kingdom</SelectItem>
+                          <SelectItem value="IN">India</SelectItem>
+                          <SelectItem value="OTHER">Outside Canada (other)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <p className="text-[11px] text-muted-foreground">
+                        {isCanada
+                          ? "Canadian GST/HST applies based on your province of supply."
+                          : "No Canadian sales tax — recipient located outside Canada."}
+                      </p>
+                    </div>
+
                     <Input
-                      id="province"
-                      value={province}
-                      onChange={(e) => setProvince(e.target.value.toUpperCase().slice(0, 2))}
-                      maxLength={2}
-                      placeholder="ON"
+                      placeholder="Street address"
+                      value={addressLine1}
+                      onChange={(e) => setAddressLine1(e.target.value)}
                     />
+                    <Input
+                      placeholder="Apartment, suite (optional)"
+                      value={addressLine2}
+                      onChange={(e) => setAddressLine2(e.target.value)}
+                    />
+                    <div className="grid grid-cols-2 gap-2">
+                      <Input placeholder="City" value={city} onChange={(e) => setCity(e.target.value)} />
+                      <Input placeholder="Postal / ZIP" value={postalCode} onChange={(e) => setPostalCode(e.target.value)} />
+                    </div>
+
+                    {isCanada && (
+                      <div className="space-y-1.5">
+                        <Label htmlFor="province" className="flex items-center gap-1.5">
+                          <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
+                          Province (place of supply)
+                        </Label>
+                        <Select value={province} onValueChange={setProvince} disabled={provinces.length === 0}>
+                          <SelectTrigger id="province" className="w-full">
+                            <SelectValue placeholder="Select province" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {provinces.map((p) => (
+                              <SelectItem key={p.code} value={p.code}>
+                                {p.name} — {p.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
                   </div>
 
                   {taxLoading ? (
@@ -253,21 +398,40 @@ export function MarketingServiceClient({ slug }: { slug: string }) {
                     </p>
                   ) : tax ? (
                     <div className="rounded-lg bg-muted/40 p-3 text-sm space-y-1">
-                      <div className="flex justify-between"><span>Subtotal</span><span>{fmtPrice(tax.subtotal, "")}</span></div>
-                      <div className="flex justify-between text-muted-foreground"><span>Tax</span><span>{fmtPrice(tax.total_tax, "")}</span></div>
-                      <div className="flex justify-between font-semibold border-t pt-1"><span>Total</span><span>{fmtPrice(tax.total, "")}</span></div>
+                      <div className="flex justify-between">
+                        <span>Subtotal</span>
+                        <span>{fmtPrice(tax.subtotal)}</span>
+                      </div>
+                      <div className="flex justify-between text-muted-foreground">
+                        <span>
+                          Tax{tax.tax_label ? ` (${tax.tax_label})` : ""}
+                        </span>
+                        <span>{tax.tax_applicable === false ? "—" : fmtPrice(tax.total_tax)}</span>
+                      </div>
+                      {tax.disclaimer && (
+                        <p className="text-[11px] text-muted-foreground pt-1">{tax.disclaimer}</p>
+                      )}
+                      <div className="flex justify-between font-semibold border-t pt-1">
+                        <span>Total</span>
+                        <span>{fmtPrice(tax.total)}</span>
+                      </div>
                     </div>
                   ) : null}
 
                   <Button
                     className="w-full gap-2"
                     size="lg"
-                    disabled={checkingOut || service.price <= 0}
+                    disabled={!canCheckout}
                     onClick={() => void startCheckout()}
                   >
                     {checkingOut ? <Loader2 className="size-4 animate-spin" /> : <CreditCard className="size-4" />}
-                    {checkingOut ? "Redirecting to Stripe…" : "Pay & request service"}
+                    {checkingOut ? "Redirecting to Stripe…" : "Continue to Stripe"}
                   </Button>
+
+                  <p className="text-center text-[11px] text-muted-foreground flex items-center justify-center gap-1">
+                    <Lock className="h-3 w-3" />
+                    Payments secured by Stripe
+                  </p>
                 </>
               )}
 

@@ -3,17 +3,21 @@
 namespace App\Services;
 
 use App\Models\ExpressEntryDraw;
-use App\Models\LegislationProvision;
 
 class WorkspaceMapleImmigrationKnowledgeService
 {
-    public function __construct(private CrsRulesService $crsRules) {}
+    public function __construct(
+        private CrsRulesService $crsRules,
+        private LegislationProvisionSearchService $legislationSearch,
+        private LegislationHubLinkService $hubLinks,
+    ) {}
 
     /** @return array<string, mixed> */
     public function packForQuestion(string $message): array
     {
         $topics = config('maple_immigration_topics', []);
         $q      = strtolower($message);
+        $excerpts = $this->searchLegislation($message);
 
         return [
             'crs_rules' => [
@@ -24,8 +28,20 @@ class WorkspaceMapleImmigrationKnowledgeService
             'express_entry_draws' => $this->recentDraws($q),
             'pathway_guides'      => $this->pickTopicMap($topics['pathways'] ?? [], $q),
             'admissibility_guides'=> $this->pickTopicMap($topics['admissibility'] ?? [], $q),
-            'legislation_excerpts'=> $this->searchLegislation($message),
+            'legislation_excerpts'=> $excerpts,
+            'legislation_links'   => $this->hubLinks->enrichRows($excerpts),
         ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $immigrationKnowledge
+     * @return list<array<string, mixed>>
+     */
+    public function citationLinksForResponse(array $immigrationKnowledge): array
+    {
+        $links = $immigrationKnowledge['legislation_links'] ?? [];
+
+        return array_values(array_filter($links, fn ($l) => ! empty($l['hub_path'])));
     }
 
     /** @return list<array<string, mixed>> */
@@ -95,57 +111,20 @@ class WorkspaceMapleImmigrationKnowledgeService
     /** @return list<array<string, mixed>> */
     private function searchLegislation(string $message): array
     {
-        $terms = $this->extractSearchTerms($message);
-        if ($terms === []) {
+        if (strlen(trim($message)) < 3) {
             return [];
         }
 
-        $query = LegislationProvision::query()
-            ->where('language', 'en')
-            ->where(function ($outer) use ($terms) {
-                foreach ($terms as $term) {
-                    $like = '%'.$term.'%';
-                    $outer->orWhere(function ($q) use ($like) {
-                        $q->where('text_content', 'like', $like)
-                            ->orWhere('marginal_note', 'like', $like)
-                            ->orWhere('section_label', 'like', $like);
-                    });
-                }
-            })
-            ->orderBy('act_code')
-            ->limit(6);
+        $payload = $this->legislationSearch->search($message, 'en', 6, true);
 
-        return $query->get()->map(fn (LegislationProvision $p) => [
-            'act_code'       => $p->act_code,
-            'provision_key'  => $p->provision_key,
-            'section_label'  => $p->section_label,
-            'marginal_note'  => $p->marginal_note,
-            'excerpt'        => mb_substr(trim((string) $p->text_content), 0, 500),
-        ])->all();
-    }
-
-    /** @return list<string> */
-    private function extractSearchTerms(string $message): array
-    {
-        $q = strtolower($message);
-        $stop = ['what', 'when', 'where', 'which', 'does', 'this', 'that', 'with', 'from', 'about', 'client', 'case', 'please', 'tell', 'explain'];
-
-        $terms = [];
-        foreach (preg_split('/\s+/', $q) ?: [] as $word) {
-            $word = preg_replace('/[^a-z0-9\-]/', '', $word) ?? '';
-            if (strlen($word) < 4 || in_array($word, $stop, true)) {
-                continue;
-            }
-            $terms[] = $word;
-        }
-
-        foreach (['inadmissibility', 'criminal', 'misrepresentation', 'express entry', 'permanent resident', 'study permit', 'work permit', 'provincial nominee'] as $phrase) {
-            if (str_contains($q, $phrase)) {
-                $terms[] = str_replace(' ', '', $phrase);
-            }
-        }
-
-        return array_values(array_unique(array_slice($terms, 0, 8)));
+        return array_map(fn (array $row) => [
+            'act_code'       => $row['act_code'],
+            'provision_key'  => $row['provision_key'],
+            'section_label'  => $row['section_label'],
+            'marginal_note'  => $row['marginal_note'],
+            'excerpt'        => $row['excerpt'],
+            'viewer_document_id' => $row['viewer_document_id'] ?? null,
+        ], $payload['results'] ?? []);
     }
 
     private function topicMatches(string $key, string $q): bool

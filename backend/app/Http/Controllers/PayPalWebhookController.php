@@ -4,7 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Models\ConsultantSubscription;
 use App\Models\PaymentGatewaySetting;
+use App\Services\Notifications\ConsultantBillingNotificationService;
 use App\Services\PayPalSubscriptionService;
+use App\Services\SubscriptionPaymentRecorder;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Log;
@@ -19,6 +21,11 @@ use Illuminate\Support\Facades\Log;
  */
 class PayPalWebhookController extends Controller
 {
+    public function __construct(
+        private SubscriptionPaymentRecorder $recorder,
+        private ConsultantBillingNotificationService $billingNotifications,
+    ) {}
+
     public function handle(Request $request): Response
     {
         $rawBody   = $request->getContent();
@@ -28,10 +35,11 @@ class PayPalWebhookController extends Controller
             return response('Invalid payload', 400);
         }
 
+        $setting = PaymentGatewaySetting::where('gateway', 'paypal')->first();
+
         // ── Optional signature verification ──────────────────────────────────
         // Read webhook_id from DB (set via Admin → Payment Gateway).
         // Fall back to env for local dev. Skip verification if neither is set.
-        $setting   = PaymentGatewaySetting::where('gateway', 'paypal')->first();
         $webhookId = ($setting?->webhook_id) ?: config('services.paypal.webhook_id');
 
         if ($webhookId) {
@@ -59,6 +67,14 @@ class PayPalWebhookController extends Controller
         $subscriptionId = $resource['id']             ?? null;
 
         Log::info("[PayPal Webhook] event={$eventType} subscription={$subscriptionId}");
+
+        if ($setting) {
+            $setting->update([
+                'last_webhook_at'      => now(),
+                'last_webhook_type'    => $eventType,
+                'last_webhook_account' => null,
+            ]);
+        }
 
         match ($eventType) {
             // ── Subscription lifecycle ────────────────────────────────────────
@@ -120,8 +136,13 @@ class PayPalWebhookController extends Controller
         $subscriptionId = $resource['billing_agreement_id'] ?? null;
         if (! $subscriptionId) return;
 
-        $sub = ConsultantSubscription::where('paypal_subscription_id', $subscriptionId)->first();
-        if (! $sub) return;
+        $sub = ConsultantSubscription::where('paypal_subscription_id', $subscriptionId)
+            ->with('user', 'package')
+            ->first();
+        if (! $sub || ! $sub->user) return;
+
+        $saleId = $resource['id'] ?? null;
+        $amount = (float) ($resource['amount']['total'] ?? 0);
 
         // Extend the subscription by one billing period
         $endsAt = $sub->billing_cycle === 'yearly'
@@ -133,14 +154,40 @@ class PayPalWebhookController extends Controller
             'last_payment_at' => now(),
             'ends_at'         => $endsAt,
         ]);
+
+        if ($saleId && $amount > 0) {
+            $payment = $this->recorder->recordPayPalPayment($sub, $sub->user, $saleId, $amount);
+            if ($payment) {
+                $this->billingNotifications->onPaymentSucceeded(
+                    $sub->user,
+                    $payment,
+                    $sub->package?->name ?? 'Platform subscription',
+                );
+            }
+        }
     }
 
     private function onPaymentFailed(?string $subscriptionId): void
     {
         if (! $subscriptionId) return;
 
+        $sub = ConsultantSubscription::where('paypal_subscription_id', $subscriptionId)
+            ->with('user', 'package:id,name')
+            ->first();
+
+        if (! $sub?->user) {
+            return;
+        }
+
         ConsultantSubscription::where('paypal_subscription_id', $subscriptionId)
             ->where('status', 'active')
             ->update(['status' => 'payment_declined']);
+
+        $this->billingNotifications->onRenewalFailed(
+            $sub->user,
+            $sub->package?->name ?? 'Platform subscription',
+            $sub,
+            'billing_renewal_failed:paypal:' . $subscriptionId . ':' . now()->format('Y-m-d'),
+        );
     }
 }

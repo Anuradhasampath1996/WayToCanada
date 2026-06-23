@@ -56,6 +56,9 @@ type GatewayData = {
   secret_key_preview: string | null;
   has_webhook: boolean;
   webhook_preview: string | null;
+  last_webhook_at: string | null;
+  last_webhook_type: string | null;
+  last_webhook_account: string | null;
   updated_at: string;
 };
 
@@ -146,9 +149,11 @@ function KeyField({
 function GatewayCard({
   data,
   onSaved,
+  variant = "stripe",
 }: {
   data: GatewayData;
   onSaved: () => void;
+  variant?: "stripe" | "paypal";
 }) {
   const [form, setForm] = React.useState<FormState>({
     mode: data.mode,
@@ -170,7 +175,9 @@ function GatewayCard({
 
   const webhookUrl =
     (process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000") +
-    "/api/v1/webhooks/stripe";
+    (variant === "paypal" ? "/api/v1/webhooks/paypal" : "/api/v1/webhooks/stripe");
+
+  const isPayPal = variant === "paypal";
 
   function showToast(type: "success" | "error", msg: string) {
     setToast({ type, msg });
@@ -263,15 +270,21 @@ function GatewayCard({
     <>
       <Card className="overflow-hidden border-0 shadow-sm">
         {/* Branded header */}
-        <div className="bg-gradient-to-r from-[#635BFF] to-[#7A73FF] px-6 py-5">
+        <div className={`bg-gradient-to-r px-6 py-5 ${isPayPal ? "from-[#003087] to-[#009CDE]" : "from-[#635BFF] to-[#7A73FF]"}`}>
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-4">
-              <div className="bg-white rounded-lg px-4 py-2.5 shadow-sm">
-                <StripeLogo className="h-7" />
+              <div className="bg-white rounded-lg px-4 py-2.5 shadow-sm min-w-[88px] text-center">
+                {isPayPal ? (
+                  <span className="text-[#003087] font-bold text-lg tracking-tight">PayPal</span>
+                ) : (
+                  <StripeLogo className="h-7" />
+                )}
               </div>
               <div className="text-white">
                 <p className="font-semibold text-sm opacity-90">Payment Gateway</p>
-                <p className="text-xs opacity-75">Consultant subscription billing</p>
+                <p className="text-xs opacity-75">
+                  {isPayPal ? "PayPal subscription billing (optional)" : "Consultant subscription billing"}
+                </p>
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -393,29 +406,40 @@ function GatewayCard({
             <h3 className="text-sm font-semibold mb-1">API Keys</h3>
             <p className="text-xs text-muted-foreground mb-4">
               Get keys from{" "}
-              <a
-                href="https://dashboard.stripe.com/apikeys"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-[#635BFF] hover:underline"
-              >
-                Stripe Dashboard → API Keys
-              </a>
+              {isPayPal ? (
+                <a
+                  href="https://developer.paypal.com/dashboard/applications/live"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[#003087] hover:underline"
+                >
+                  PayPal Developer Dashboard
+                </a>
+              ) : (
+                <a
+                  href="https://dashboard.stripe.com/apikeys"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[#635BFF] hover:underline"
+                >
+                  Stripe Dashboard → API Keys
+                </a>
+              )}
               . Leave fields blank to keep existing saved keys.
             </p>
 
             <div className="grid gap-4 md:grid-cols-2">
               <KeyField
-                label="Publishable Key"
-                placeholder="pk_test_…"
+                label={isPayPal ? "Client ID" : "Publishable Key"}
+                placeholder={isPayPal ? "Client ID…" : "pk_test_…"}
                 value={form.publishable_key}
                 onChange={(v) => setForm((f) => ({ ...f, publishable_key: v }))}
                 hasSaved={data.has_publishable}
                 savedPreview={data.publishable_key_preview}
               />
               <KeyField
-                label="Secret Key"
-                placeholder="sk_test_…"
+                label={isPayPal ? "Client Secret" : "Secret Key"}
+                placeholder={isPayPal ? "Secret…" : "sk_test_…"}
                 value={form.secret_key}
                 onChange={(v) => setForm((f) => ({ ...f, secret_key: v }))}
                 hasSaved={data.has_secret}
@@ -433,7 +457,9 @@ function GatewayCard({
               <h3 className="text-sm font-semibold">Webhook (optional)</h3>
             </div>
             <p className="text-xs text-muted-foreground mb-3">
-              Required for auto-renewal events. Add this URL in Stripe Dashboard → Webhooks.
+              {isPayPal
+                ? "Required for PayPal subscription renewals. Add this URL in PayPal Developer → Webhooks."
+                : "Required for auto-renewal events and client Connect payments. Add this URL in Stripe Dashboard → Webhooks. Enable Events on connected accounts for client payments."}
             </p>
 
             <div className="flex items-center gap-2 mb-4">
@@ -452,14 +478,36 @@ function GatewayCard({
             </div>
 
             <KeyField
-              label="Signing Secret"
-              hint="Events: checkout.session.completed, invoice.paid, customer.subscription.updated, customer.subscription.deleted"
-              placeholder="whsec_…"
+              label={isPayPal ? "Webhook ID" : "Signing Secret"}
+              hint={
+                isPayPal
+                  ? "Events: BILLING.SUBSCRIPTION.*, PAYMENT.SALE.COMPLETED"
+                  : "Events: checkout.session.completed, invoice.paid, customer.subscription.updated, account.updated (Connect)"
+              }
+              placeholder={isPayPal ? "Webhook ID…" : "whsec_…"}
               value={form.webhook_id}
               onChange={(v) => setForm((f) => ({ ...f, webhook_id: v }))}
               hasSaved={data.has_webhook}
               savedPreview={data.webhook_preview}
             />
+
+            {data.last_webhook_at && (
+              <div className="mt-3 rounded-lg border bg-muted/30 px-3 py-2.5 text-xs text-muted-foreground space-y-1">
+                <p>
+                  <span className="font-medium text-foreground">Last webhook:</span>{" "}
+                  {new Date(data.last_webhook_at).toLocaleString("en-CA", {
+                    dateStyle: "medium",
+                    timeStyle: "short",
+                  })}
+                </p>
+                {data.last_webhook_type && (
+                  <p>
+                    <span className="font-medium text-foreground">Event:</span> {data.last_webhook_type}
+                    {data.last_webhook_account ? ` (Connect: ${data.last_webhook_account})` : " (platform)"}
+                  </p>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Security note */}
@@ -482,19 +530,21 @@ function GatewayCard({
 
           {/* Actions */}
           <div className="flex flex-wrap gap-2 pt-1">
-            <Button
-              variant="outline"
-              onClick={handleTestConnection}
-              disabled={testing || !canTest}
-              className="gap-2"
-            >
-              {testing ? (
-                <RefreshCw className="size-4 animate-spin" />
-              ) : (
-                <Zap className="size-4" />
-              )}
-              Test Connection
-            </Button>
+            {!isPayPal && (
+              <Button
+                variant="outline"
+                onClick={handleTestConnection}
+                disabled={testing || !canTest}
+                className="gap-2"
+              >
+                {testing ? (
+                  <RefreshCw className="size-4 animate-spin" />
+                ) : (
+                  <Zap className="size-4" />
+                )}
+                Test Connection
+              </Button>
+            )}
 
             <Button onClick={handleSave} disabled={saving} className="gap-2 flex-1 sm:flex-none">
               {saving ? (
@@ -522,11 +572,11 @@ function GatewayCard({
       <AlertDialog open={confirmClear} onOpenChange={setConfirmClear}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Clear Stripe Keys?</AlertDialogTitle>
+            <AlertDialogTitle>Clear {isPayPal ? "PayPal" : "Stripe"} Keys?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete the stored Stripe API keys and
+              This will permanently delete the stored {isPayPal ? "PayPal" : "Stripe"} API keys and
               deactivate the gateway. You will need to re-enter them to use
-              Stripe again.
+              {isPayPal ? " PayPal" : " Stripe"} again.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -576,13 +626,14 @@ export default function PaymentGatewayPage() {
   }, []);
 
   const stripe = gateways.find((g) => g.gateway === "stripe");
+  const paypal = gateways.find((g) => g.gateway === "paypal");
 
   return (
     <div className="w-full space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Payment Gateway</h1>
         <p className="text-muted-foreground text-sm mt-1">
-          Connect Stripe to accept consultant subscription payments.
+          Connect Stripe and PayPal to accept consultant subscription payments.
         </p>
       </div>
 
@@ -605,12 +656,16 @@ export default function PaymentGatewayPage() {
 
       {!loading && !error && stripe && (
         <div className="grid gap-6 xl:grid-cols-[1fr_380px]">
-          <GatewayCard data={stripe} onSaved={fetchGateways} />
+          <GatewayCard data={stripe} onSaved={fetchGateways} variant="stripe" />
           {stripe.mode === "test" && <TestClockPanel />}
         </div>
       )}
 
-      {!loading && !error && !stripe && (
+      {!loading && !error && paypal && (
+        <GatewayCard data={paypal} onSaved={fetchGateways} variant="paypal" />
+      )}
+
+      {!loading && !error && !stripe && !paypal && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
           Stripe gateway record not found. Please run database migrations.
         </div>

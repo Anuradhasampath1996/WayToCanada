@@ -45,11 +45,30 @@ class CaseMessagingController extends Controller
             return response()->json(['messages' => []]);
         }
 
-        $this->verificationService->assertCaseManagementUnlocked($caseFile);
+        $this->assertClientCanReadMessages($caseFile);
 
         $messages = $this->getMessages($caseFile, $request->user()->id, 'client');
 
         return response()->json(['messages' => $messages]);
+    }
+
+    /**
+     * GET /api/v1/client/messages/unread-count
+     */
+    public function clientUnreadCount(Request $request): JsonResponse
+    {
+        $caseFile = $request->user()->clientProfile?->caseFile;
+
+        if (! $caseFile) {
+            return response()->json(['count' => 0]);
+        }
+
+        $count = $caseFile->messages()
+            ->where('sender_type', 'consultant')
+            ->whereNull('read_at')
+            ->count();
+
+        return response()->json(['count' => $count]);
     }
 
     /**
@@ -137,6 +156,8 @@ class CaseMessagingController extends Controller
     {
         $caseFile = $request->user()->clientProfile?->caseFile;
         if ($caseFile) {
+            $this->assertClientCanReadMessages($caseFile);
+
             $caseFile->messages()
                 ->where('sender_type', 'consultant')
                 ->whereNull('read_at')
@@ -152,12 +173,6 @@ class CaseMessagingController extends Controller
 
     private function getMessages(CaseFile $caseFile, int $userId, string $readerType): array
     {
-        // Mark messages sent to this reader as read
-        $caseFile->messages()
-            ->where('sender_type', '!=', $readerType)
-            ->whereNull('read_at')
-            ->update(['read_at' => now()]);
-
         return $caseFile->messages()
             ->with('sender:id,name')
             ->orderBy('created_at')
@@ -184,5 +199,15 @@ class CaseMessagingController extends Controller
         if ($profile->consultant_id !== $request->user()->id) {
             abort(403, 'Access denied.');
         }
+    }
+
+    /** Clients can read (and mark read) after retainer is signed; sending still requires full case hub. */
+    private function assertClientCanReadMessages(CaseFile $caseFile): void
+    {
+        if ($caseFile->agreement_signed_at) {
+            return;
+        }
+
+        $this->verificationService->assertCaseManagementUnlocked($caseFile);
     }
 }

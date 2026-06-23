@@ -22,7 +22,7 @@ class NotificationOrchestrator
     public function deliver(UserNotification $notification, NotificationType $type, ?array $channels = null): void
     {
         $notification->loadMissing('user');
-        $channels = $channels ?? $type->defaultChannels();
+        $channels = $type->channelsFor($notification->user, $channels);
         $channels = $this->preferences->filterChannels($notification->user, $type, $channels);
 
         $async = array_values(array_filter($channels, fn ($c) => in_array($c, ['email', 'whatsapp'], true)));

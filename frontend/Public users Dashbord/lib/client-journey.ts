@@ -9,6 +9,14 @@ export interface ClientCaseFile {
   agreement_signed_at: string | null;
   application_forms_verified_at: string | null;
   pathway_assessment_at?: string | null;
+  pathway_assessment_notes?: string | null;
+  pathway_assessment_crs_score?: number | null;
+  pathway_assessment_ircc_crs_score?: number | null;
+  pathway_assessment_snapshot?: {
+    principal_applicant?: "main" | "spouse";
+    has_spouse?: boolean;
+    comparison?: { recommendation?: string };
+  } | null;
 }
 
 export interface ClientFormsVerification {
@@ -210,6 +218,19 @@ export function canAccessNavStep(
       return false;
   }
 }
+
+/** LMS unlocks when consultant assigns an immigration pathway (matches backend LmsPathwayGate). */
+export function canAccessLearning(caseFile: ClientCaseFile | null): boolean {
+  return Boolean(caseFile?.immigration_pathway);
+}
+
+/** Read consultant messages after retainer signed (send still needs full case hub). */
+export function canAccessClientMessages(caseFile: ClientCaseFile | null): boolean {
+  return Boolean(caseFile?.agreement_signed_at);
+}
+
+export const LEARNING_LOCKED_REASON =
+  "Unlocks after your consultant assigns your immigration pathway.";
 
 export function resolveClientNextAction(
   caseFile: ClientCaseFile | null,

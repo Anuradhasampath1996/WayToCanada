@@ -13,6 +13,9 @@ final class LegislationLinkifyTerms
 
     public const SUB_NUM = '[\d.]+';
 
+    /** Letter paragraph labels: (b), (b.1), (c), (d), etc. */
+    public const PAR_LABEL = '[a-z][a-z0-9.]*';
+
     public static function isFrench(string $language): bool
     {
         return str_starts_with(strtolower($language), 'fr');
@@ -40,6 +43,8 @@ final class LegislationLinkifyTerms
             '/\b(sections?\s+\d+(?:\.\d+)?\s+to\s+\d+(?:\.\d+)?)/iu',
             '/\b(sections?\s+\d+(?:\.\d+)?\s+or\s+\d+(?:\.\d+)?)/iu',
             '/\b(to\s+\([\d.]+\))/iu',
+            '/\b\([\d.]+\)(?:\s*,\s*\('.LegislationLinkifyTerms::PAR_LABEL.'\))+/iu',
+            '/\b\('.LegislationLinkifyTerms::PAR_LABEL.'\)(?:\s*,\s*\('.LegislationLinkifyTerms::PAR_LABEL.'\))*(?:\s+or\s+\('.LegislationLinkifyTerms::PAR_LABEL.'\))?/iu',
         ];
 
         if (self::isFrench($language)) {

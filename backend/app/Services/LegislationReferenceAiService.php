@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\Log;
 
 class LegislationReferenceAiService
 {
-    private const DETECT_PATTERN = '/\b(?:subsections?\s+\([\d.]+\)(?:\s+(?:to|or)\s+\([\d.]+\))+|\b(?:subsections?|sections?|paragraphs?)\s+\d+(?:\.\d+)?(?:\([^)]+\))*(?:\s+of\s+the\s+Act)?|\d+(?:\.\d+)?(?:\([^)]+\))*\s+of\s+the\s+Act|subsections\s+\d+(?:\.\d+)?\([\d.]+\)(?:\s+and\s+\d+(?:\.\d+)?\([\d.]+\))*)/iu';
+    private const DETECT_PATTERN = '/\b(?:subsections?\s+\([\d.]+\)(?:\s+(?:to|or)\s+\([\d.]+\))+|\b(?:subsections?|sections?|paragraphs?)\s+\d+(?:\.\d+)?(?:\([^)]+\))*(?:\s+of\s+the\s+Act)?|\d+(?:\.\d+)?(?:\([^)]+\))*\s+of\s+the\s+Act|subsections\s+\d+(?:\.\d+)?\([\d.]+\)(?:\s+and\s+\d+(?:\.\d+)?\([\d.]+\))*|\([^)]+\)(?:\s*,\s*\([a-z][a-z0-9.]*\))+|\([a-z][a-z0-9.]*\)(?:\s*,\s*\([a-z][a-z0-9.]*\))*(?:\s+or\s+\([a-z][a-z0-9.]*\))?)/iu';
 
     public function __construct(
         private LegislationReferenceLabelParser $labelParser,
@@ -268,7 +268,7 @@ class LegislationReferenceAiService
                     'messages' => [
                         [
                             'role'    => 'system',
-                            'content' => 'Analyze Canadian legislation cross-references. Return JSON {"references":[{"label":"exact phrase as it appears in text","target_act_code":"'.($parent ?? $document->act_code).' or '.$document->act_code.'","target_provision_key":"e.g. 14.1(1)"}]}. Include full phrases like "subsection 24(1) of the Act", "section 148", "paragraph 38(2)(d)", ranges like "subsections (1) to (2)", lists like "subsections 10.1(3) and 10.2(3)", and decimal subsections like "subsection (1.01)" or "subsection (1.1) or (1.2)" (resolve using surrounding section context when possible). For IRPR references to the Act use act code '.($parent ?? 'I-2.5').'.',
+                            'content' => 'Analyze Canadian legislation cross-references. Return JSON {"references":[{"label":"exact phrase as it appears in text","target_act_code":"'.($parent ?? $document->act_code).' or '.$document->act_code.'","target_provision_key":"e.g. 14.1(1)"}]}. Include full phrases like "subsection 24(1) of the Act", "section 148", "paragraph 38(2)(d)", ranges like "subsections (1) to (2)", lists like "subsections 10.1(3) and 10.2(3)", decimal subsections like "subsection (1.01)", and letter-paragraph lists like "paragraphs 190(3)(b), (b.1), (c), (d), (f), (g) or (h)" — each list item must resolve to the full provision_key (e.g. 190(3)(b.1), 190(3)(c)). For IRPR references to the Act use act code '.($parent ?? 'I-2.5').'.',
                         ],
                         [
                             'role'    => 'user',

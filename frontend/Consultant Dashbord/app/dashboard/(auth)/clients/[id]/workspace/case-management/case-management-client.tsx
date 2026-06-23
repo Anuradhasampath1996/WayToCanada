@@ -312,11 +312,50 @@ export function CaseManagementClient({ paramsPromise }: { paramsPromise: Promise
 
   useEffect(() => { load(); }, [load]);
 
+  const loadMessages = useCallback(async () => {
+    const token = localStorage.getItem("wtc_consultant_token");
+    const headers = { Accept: "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) };
+    try {
+      const res = await fetch(`${API}/consultant/clients/${id}/messages`, { headers });
+      if (!res.ok) return;
+      const json = await res.json();
+      setMessages(json.messages ?? []);
+    } catch {
+      // silent poll failure
+    }
+  }, [id]);
+
+  const markMessagesRead = useCallback(async () => {
+    const token = localStorage.getItem("wtc_consultant_token");
+    const headers = { Accept: "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) };
+    try {
+      await fetch(`${API}/consultant/clients/${id}/messages/mark-read`, {
+        method: "PATCH",
+        headers,
+      });
+      const now = new Date().toISOString();
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.sender_type === "client" && !m.read_at ? { ...m, read_at: now } : m,
+        ),
+      );
+    } catch {
+      // ignore
+    }
+  }, [id]);
+
   useEffect(() => {
     if (activeTab === "messages") {
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }
   }, [messages, activeTab]);
+
+  useEffect(() => {
+    if (activeTab !== "messages") return;
+    void markMessagesRead();
+    const interval = setInterval(() => void loadMessages(), 30000);
+    return () => clearInterval(interval);
+  }, [activeTab, markMessagesRead, loadMessages]);
 
   const sendMessage = async () => {
     if (!msgInput.trim()) return;

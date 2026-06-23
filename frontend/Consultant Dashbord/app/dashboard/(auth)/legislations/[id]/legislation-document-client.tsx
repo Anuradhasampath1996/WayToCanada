@@ -184,7 +184,8 @@ export default function LegislationDocumentClient({ id }: { id: string }) {
           <div className="flex flex-wrap items-center gap-2 rounded-xl border border-primary/25 bg-primary/5 px-4 py-3 text-sm">
             <Sparkles className="size-4 shrink-0 text-primary" />
             <span>
-              <strong className="text-primary">Smart popups enabled</strong> — click any blue legal reference to preview the cited section instantly.
+              <strong className="text-primary">Smart popups enabled</strong> — click blue legal references for instant preview.
+              When OpenAI is enabled, use the <strong>Maple explains</strong> tab for a consultant-friendly summary.
             </span>
           </div>
         )}
@@ -202,6 +203,7 @@ export default function LegislationDocumentClient({ id }: { id: string }) {
             html={viewerHtml}
             language={doc.language}
             documentId={viewerDocumentId ?? undefined}
+            actCode={doc.act_code}
           />
         </article>
       )}

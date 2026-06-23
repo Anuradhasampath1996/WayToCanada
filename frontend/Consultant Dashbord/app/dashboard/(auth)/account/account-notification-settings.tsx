@@ -114,7 +114,9 @@ export function AccountNotificationSettings() {
           <div className="flex items-center gap-2 font-semibold text-sm">
             <MessageCircle className="h-4 w-4 text-green-600" /> WhatsApp
           </div>
-          <p className="text-xs text-muted-foreground">High-priority reminders via WhatsApp (Twilio).</p>
+          <p className="text-xs text-muted-foreground">
+            Client reminders and workspace alerts on WhatsApp. Messages appear in your name — enabled by default; turn off here if you prefer email only.
+          </p>
           <Switch
             checked={prefs.whatsapp_enabled}
             onCheckedChange={(v) => { setPrefs({ ...prefs, whatsapp_enabled: v }); save({ whatsapp_enabled: v }); }}

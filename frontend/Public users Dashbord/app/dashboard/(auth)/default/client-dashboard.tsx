@@ -11,10 +11,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useClientJourney } from "@/context/client-journey-context";
 import { ClientJourneyTimeline } from "@/components/client-journey-ui";
+import { ClientCaseTimeline } from "@/components/client-case-timeline";
+import { ClientActionCenter } from "@/components/client-action-center";
 import {
-  AssessmentWaitingCard,
-  ClientActivityTimeline,
-  ClientNextActionCard,
   FormsProgressStrip,
   PathwayAssignedCard,
 } from "@/components/client-workspace-ui";
@@ -126,7 +125,7 @@ export function ClientDashboard() {
 
   const {
     loading, error, refresh, consultant, pendingRequest, client, caseFile, steps, currentStepId,
-    progressPercent, meta, nextAction, activityEvents, verification, qStats,
+    progressPercent, meta, activityEvents, verification, qStats,
   } = useClientJourney();
 
   const firstName = (client?.name ?? "there").split(" ")[0];
@@ -173,7 +172,9 @@ export function ClientDashboard() {
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Hi {firstName}</h1>
             <p className="text-muted-foreground text-sm mt-1">
-              Follow the 4 steps below — your consultant guides you through each stage.
+              {consultant
+                ? "Follow the 4 steps below — your consultant guides you through each stage."
+                : "Find a licensed RCIC to start your immigration journey."}
             </p>
           </div>
           <Button variant="ghost" size="icon" onClick={refresh} aria-label="Refresh">
@@ -223,12 +224,10 @@ export function ClientDashboard() {
       {consultant && (
         <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
           <div className="space-y-5 lg:col-span-2 order-2 lg:order-1">
-            <ClientNextActionCard action={nextAction} />
-
-            {meta.assessmentWaiting && <AssessmentWaitingCard />}
+            <ClientActionCenter />
 
             {meta.pathwayAssigned && !caseFile?.agreement_signed_at && (
-              <PathwayAssignedCard pathway={meta.pathwayAssigned} />
+              <PathwayAssignedCard pathway={meta.pathwayAssigned} caseFile={caseFile} />
             )}
 
             {verification && verification.total_forms > 0 && (
@@ -256,7 +255,7 @@ export function ClientDashboard() {
           <div className="space-y-5 lg:col-span-1 order-1 lg:order-2">
             <ConsultantCard consultant={consultant} />
             <ClientTrustPanel />
-            <ClientActivityTimeline events={activityEvents} />
+            <ClientCaseTimeline milestones={activityEvents} />
             <div className="rounded-xl border p-4 text-xs text-muted-foreground space-y-2">
               <p className="font-semibold text-foreground text-sm">How it works</p>
               <ol className="list-decimal list-inside space-y-1.5 leading-relaxed">

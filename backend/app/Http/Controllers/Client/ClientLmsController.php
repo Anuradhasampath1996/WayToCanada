@@ -12,6 +12,7 @@ use App\Models\Lms\LmsQuiz;
 use App\Models\Lms\LmsQuizAttempt;
 use App\Services\LmsExamService;
 use App\Services\LmsProgressService;
+use App\Services\LmsPathwayGate;
 use App\Services\ClientActivity\ClientActivityTriggers;
 use App\Services\Notifications\WorkspaceNotificationTriggers;
 use Illuminate\Http\JsonResponse;
@@ -28,6 +29,7 @@ class ClientLmsController extends Controller
 
     public function myCourses(Request $request): JsonResponse
     {
+        $this->assertLmsUnlocked($request);
         $userId = $request->user()->id;
 
         $items = LmsCourseAssignment::with(['course.category'])
@@ -172,5 +174,15 @@ class ClientLmsController extends Controller
         if ($assignment->client_user_id !== $request->user()->id) {
             abort(403, 'Unauthorized');
         }
+        $this->assertLmsUnlocked($request);
+    }
+
+    private function assertLmsUnlocked(Request $request): void
+    {
+        $profile = $request->user()->clientProfile;
+        if (! $profile) {
+            abort(403, 'Client profile not found.');
+        }
+        LmsPathwayGate::assertForProfile($profile);
     }
 }

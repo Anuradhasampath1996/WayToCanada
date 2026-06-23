@@ -12,10 +12,11 @@ use Illuminate\Http\Request;
 
 class AdminGstHstController extends Controller
 {
-    public function syncStatus(GstHstRatesService $rates, GstHstCalculatorService $calculator): JsonResponse
+    public function syncStatus(GstHstRatesService $rates, GstHstCalculatorService $calculator, GstHstSyncService $syncService): JsonResponse
     {
         $config = config('canada_gst_hst_rates');
         $active = GstHstRateVersion::active();
+        $cra    = $syncService->craStatus();
 
         $history = GstHstRateVersion::orderByDesc('effective_date')
             ->orderByDesc('id')
@@ -36,29 +37,36 @@ class AdminGstHstController extends Controller
             'rates_in_db'       => (bool) $active,
             'province_count'    => count($config['provinces'] ?? []),
             'rates_table'       => $rates->formattedTable(),
+            'cra_check'         => $cra,
             'auto_sync'         => [
                 'command'     => 'gst-hst:sync',
                 'schedule'    => 'Daily at 6:30 AM (America/Toronto)',
-                'description' => 'Syncs GST/HST/PST rates from config for payment tax.',
+                'description' => 'Syncs GST/HST/PST rates and checks CRA charge & collect page for changes.',
             ],
             'version_history'   => $history,
             'sample_calculation'=> $calculator->calculate(100, 'ON'),
         ]);
     }
 
-    public function sync(GstHstSyncService $syncService, GstHstRatesService $rates): JsonResponse
+    public function sync(Request $request, GstHstSyncService $syncService, GstHstRatesService $rates): JsonResponse
     {
-        $result = $syncService->sync();
+        $applyCra = $request->boolean('apply_cra_rates');
+        $result   = $syncService->sync($applyCra);
 
         $message = 'GST/HST sync completed.';
-        if ($result['rates_updated'] ?? false) {
+        if ($result['applied_cra_rates'] ?? false) {
+            $message = 'GST/HST rates updated from CRA page.';
+        } elseif ($result['rates_updated'] ?? false) {
             $message = 'GST/HST rates updated to version '.($result['version'] ?? '').'.';
+        } elseif ($result['government_pages_changed'] ?? false) {
+            $message = 'CRA page differs from active rates. Review differences or apply CRA rates.';
         }
 
         return response()->json([
             'message' => $message,
             'result'  => $result,
             'meta'    => $rates->meta(),
+            'cra_check' => $result['cra_check'] ?? null,
         ]);
     }
 

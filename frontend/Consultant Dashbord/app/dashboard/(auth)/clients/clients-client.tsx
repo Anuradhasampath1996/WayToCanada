@@ -24,7 +24,9 @@ import {
   SlidersHorizontal,
   X,
   MessageCircle,
+  Briefcase,
 } from "lucide-react";
+import { ClientPipelineBoard } from "@/components/clients/client-pipeline-board";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -79,6 +81,29 @@ interface Client {
   invited_at: string | null;
   created_at: string;
   user: ClientUser;
+  case_summary?: CaseSummary;
+  pipeline?: PipelineSummary | null;
+}
+
+interface PipelineSummary {
+  status: string;
+  status_label: string;
+  pending_docs: number;
+  agreement_signed_at: string | null;
+}
+
+interface CaseSummary {
+  case_status: string | null;
+  case_status_label: string;
+  immigration_pathway: string | null;
+  workflow_phase: string;
+  agreement_signed: boolean;
+  case_updated_at: string | null;
+  next_action: {
+    title: string;
+    tone: "primary" | "success" | "warning" | "info" | string;
+    href: string | null;
+  };
 }
 
 interface Pagination {
@@ -89,7 +114,7 @@ interface Pagination {
   per_page: number;
 }
 
-type Layout = "grid" | "list";
+type Layout = "grid" | "list" | "pipeline";
 
 function authHeaders() {
   const token = typeof window !== "undefined" ? localStorage.getItem("wtc_consultant_token") : null;
@@ -133,19 +158,59 @@ const PATHWAY_COLORS: Record<string, string> = {
   Refugee: "bg-red-500/10 text-red-700 border-red-200/60",
 };
 
-function filterClients(clients: Client[], name: string, email: string, phone: string): Client[] {
-  const n = name.trim().toLowerCase();
-  const e = email.trim().toLowerCase();
-  const p = phone.trim().replace(/\D/g, "");
-  return clients.filter((c) => {
-    if (n && !c.user.name.toLowerCase().includes(n)) return false;
-    if (e && !c.user.email.toLowerCase().includes(e)) return false;
-    if (p) {
-      const clientPhoneDigits = (clientPhone(c) ?? "").replace(/\D/g, "");
-      if (!clientPhoneDigits.includes(p)) return false;
-    }
-    return true;
-  });
+const NEXT_ACTION_TONES: Record<string, string> = {
+  primary: "bg-primary/10 text-primary border-primary/20",
+  success: "bg-emerald-500/10 text-emerald-700 border-emerald-200",
+  warning: "bg-amber-500/10 text-amber-800 border-amber-200",
+  info: "bg-sky-500/10 text-sky-800 border-sky-200",
+};
+
+const CASE_STATUS_TONES: Record<string, string> = {
+  PENDING_ASSESSMENT: "bg-muted text-muted-foreground",
+  PATHWAY_SELECTED: "bg-violet-500/10 text-violet-700",
+  AGREEMENT_SENT: "bg-amber-500/10 text-amber-800",
+  AGREEMENT_SIGNED: "bg-blue-500/10 text-blue-700",
+  DOCUMENTS_UPLOADING: "bg-orange-500/10 text-orange-800",
+  UNDER_REVIEW: "bg-indigo-500/10 text-indigo-700",
+  READY_FOR_SUBMISSION: "bg-emerald-500/10 text-emerald-700",
+  APPLICATION_SUBMITTED: "bg-emerald-600/15 text-emerald-800",
+};
+
+function NextActionChip({
+  summary,
+  onNavigate,
+}: {
+  summary?: CaseSummary;
+  onNavigate: (href: string) => void;
+}) {
+  if (!summary?.next_action?.title) return <span className="text-xs text-muted-foreground">—</span>;
+  const { title, tone, href } = summary.next_action;
+  const cls = NEXT_ACTION_TONES[tone] ?? NEXT_ACTION_TONES.info;
+
+  if (href) {
+    return (
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          onNavigate(href);
+        }}
+        className={cn(
+          "inline-flex max-w-[220px] truncate rounded-md border px-2 py-0.5 text-left text-[11px] font-medium transition-opacity hover:opacity-80",
+          cls,
+        )}
+        title={title}
+      >
+        {title}
+      </button>
+    );
+  }
+
+  return (
+    <span className={cn("inline-flex max-w-[220px] truncate rounded-md border px-2 py-0.5 text-[11px] font-medium", cls)}>
+      {title}
+    </span>
+  );
 }
 
 function EmailLink({ email }: { email: string }) {
@@ -249,7 +314,7 @@ export function ClientsPageClient() {
     setTimeout(() => setToast(null), 3500);
   };
 
-  const load = useCallback(async (p: number) => {
+  const load = useCallback(async (p: number, filters: { name: string; email: string; phone: string }) => {
     setLoading(true);
     setError("");
     const controller = new AbortController();
@@ -262,6 +327,10 @@ export function ClientsPageClient() {
       }
 
       const params = new URLSearchParams({ page: String(p), per_page: "50" });
+      if (filters.name.trim()) params.set("search", filters.name.trim());
+      if (filters.email.trim()) params.set("email", filters.email.trim());
+      if (filters.phone.trim()) params.set("phone", filters.phone.trim());
+
       const res = await fetch(`${API}/consultant/clients?${params}`, {
         headers: authHeaders(),
         signal: controller.signal,
@@ -289,13 +358,17 @@ export function ClientsPageClient() {
   }, []);
 
   useEffect(() => {
-    void load(page);
-  }, [load, page]);
+    const t = setTimeout(() => {
+      void load(page, { name: filterName, email: filterEmail, phone: filterPhone });
+    }, 350);
+    return () => clearTimeout(t);
+  }, [load, page, filterName, filterEmail, filterPhone]);
 
   const clearFilters = () => {
     setFilterName("");
     setFilterEmail("");
     setFilterPhone("");
+    setPage(1);
   };
 
   const handleDelete = async (client: Client) => {
@@ -332,8 +405,9 @@ export function ClientsPageClient() {
     }
   };
 
-  const clients = filterClients(allClients, filterName, filterEmail, filterPhone);
+  const clients = allClients;
   const openClient = (id: number) => router.push(`/dashboard/clients/${id}`);
+  const openAction = (href: string) => router.push(href);
 
   const CardItem = ({ client }: { client: Client }) => {
     const phone = clientPhone(client);
@@ -373,12 +447,40 @@ export function ClientsPageClient() {
           <Badge
             variant="outline"
             className={cn(
-              "mt-4 text-xs",
+              "mt-3 text-xs",
               PATHWAY_COLORS[client.immigration_pathway] ?? "bg-muted text-muted-foreground",
             )}
           >
             {client.immigration_pathway}
           </Badge>
+        )}
+        {(client.pipeline || client.case_summary) && (
+          <div className="mt-3 space-y-2 border-t border-border/50 pt-3">
+            <Badge
+              variant="secondary"
+              className={cn(
+                "text-[10px] font-medium",
+                CASE_STATUS_TONES[
+                  (client.pipeline?.status ?? client.case_summary?.case_status) ?? ""
+                ] ?? "bg-muted",
+              )}
+            >
+              {client.pipeline?.status_label ?? client.case_summary?.case_status_label}
+            </Badge>
+            {client.pipeline && (
+              <p
+                className={cn(
+                  "text-[10px] font-medium",
+                  client.pipeline.pending_docs > 0 ? "text-amber-700" : "text-emerald-700",
+                )}
+              >
+                {client.pipeline.pending_docs > 0
+                  ? `${client.pipeline.pending_docs} document(s) pending review`
+                  : "All documents reviewed"}
+              </p>
+            )}
+            <NextActionChip summary={client.case_summary} onNavigate={openAction} />
+          </div>
         )}
       </div>
     );
@@ -409,9 +511,11 @@ export function ClientsPageClient() {
               My clients
             </h1>
             <p className="text-sm text-muted-foreground">
-              {loading
-                ? "Loading…"
-                : `${clients.length} of ${allClients.length} client${allClients.length !== 1 ? "s" : ""} in your practice`}
+              {layout === "pipeline"
+                ? "Kanban board for clients who signed the retainer — drag cards to update stage."
+                : loading
+                  ? "Loading…"
+                  : `${pagination?.total ?? clients.length} client${(pagination?.total ?? clients.length) !== 1 ? "s" : ""} in your practice`}
             </p>
           </div>
           <Button asChild className="shrink-0 rounded-xl">
@@ -430,9 +534,12 @@ export function ClientsPageClient() {
               <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 className="h-9 rounded-xl bg-muted/20 pl-9"
-                placeholder="Search by name…"
+                placeholder={layout === "pipeline" ? "Search board by name, email, pathway…" : "Search by name…"}
                 value={filterName}
-                onChange={(e) => setFilterName(e.target.value)}
+                onChange={(e) => {
+                  setFilterName(e.target.value);
+                  setPage(1);
+                }}
               />
             </div>
 
@@ -481,9 +588,20 @@ export function ClientsPageClient() {
               >
                 <LayoutGrid className="size-4" />
               </button>
+              <button
+                type="button"
+                className={cn(
+                  "p-2 transition-colors",
+                  layout === "pipeline" ? "bg-primary text-primary-foreground" : "hover:bg-muted",
+                )}
+                onClick={() => setLayout("pipeline")}
+                title="Pipeline board"
+              >
+                <Briefcase className="size-4" />
+              </button>
             </div>
 
-            <Button variant="ghost" size="icon" className="rounded-xl" onClick={() => void load(page)} disabled={loading}>
+            <Button variant="ghost" size="icon" className="rounded-xl" onClick={() => void load(page, { name: filterName, email: filterEmail, phone: filterPhone })} disabled={loading}>
               <RefreshCw className={cn("size-4", loading && "animate-spin")} />
             </Button>
           </div>
@@ -496,7 +614,10 @@ export function ClientsPageClient() {
                   className="h-9 rounded-xl bg-background pl-9"
                   placeholder="Filter by email"
                   value={filterEmail}
-                  onChange={(e) => setFilterEmail(e.target.value)}
+                  onChange={(e) => {
+                    setFilterEmail(e.target.value);
+                    setPage(1);
+                  }}
                 />
               </div>
               <div className="relative">
@@ -505,7 +626,10 @@ export function ClientsPageClient() {
                   className="h-9 rounded-xl bg-background pl-9"
                   placeholder="Filter by phone number"
                   value={filterPhone}
-                  onChange={(e) => setFilterPhone(e.target.value)}
+                  onChange={(e) => {
+                    setFilterPhone(e.target.value);
+                    setPage(1);
+                  }}
                 />
               </div>
             </div>
@@ -517,21 +641,25 @@ export function ClientsPageClient() {
         <div className="flex items-center gap-2 rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
           <AlertCircle className="size-4 shrink-0" />
           <span className="flex-1">{error}</span>
-          <Button variant="outline" size="sm" className="shrink-0" onClick={() => void load(page)}>
+          <Button variant="outline" size="sm" className="shrink-0" onClick={() => void load(page, { name: filterName, email: filterEmail, phone: filterPhone })}>
             <RefreshCw className="mr-1.5 size-4" />
             Retry
           </Button>
         </div>
       )}
 
-      {loading && (
+      {layout === "pipeline" && (
+        <ClientPipelineBoard searchQuery={filterName} embedded showToolbar showStats />
+      )}
+
+      {layout !== "pipeline" && loading && (
         <div className="flex items-center justify-center gap-2 py-20 text-muted-foreground">
           <Loader2 className="size-5 animate-spin" />
           Loading clients…
         </div>
       )}
 
-      {!loading && !error && clients.length === 0 && (
+      {layout !== "pipeline" && !loading && !error && clients.length === 0 && (
         <Card className="border-dashed border-border/70 shadow-none">
           <CardContent className="flex flex-col items-center justify-center py-20 text-center">
             <Users className="mb-4 size-12 text-muted-foreground/40" />
@@ -558,7 +686,7 @@ export function ClientsPageClient() {
         </Card>
       )}
 
-      {!loading && clients.length > 0 && (
+      {layout !== "pipeline" && !loading && clients.length > 0 && (
         <>
           {layout === "list" ? (
             <Card className="overflow-hidden border-border/70 shadow-sm">
@@ -569,6 +697,8 @@ export function ClientsPageClient() {
                       <TableHead className="min-w-[200px]">Client</TableHead>
                       <TableHead className="min-w-[220px]">Email</TableHead>
                       <TableHead className="min-w-[160px]">Phone / WhatsApp</TableHead>
+                      <TableHead className="min-w-[140px]">Case status</TableHead>
+                      <TableHead className="min-w-[200px]">Next action</TableHead>
                       <TableHead>Pathway</TableHead>
                       <TableHead>Added</TableHead>
                       <TableHead className="w-[52px]" />
@@ -607,6 +737,40 @@ export function ClientsPageClient() {
                             ) : (
                               <span className="text-xs text-muted-foreground">—</span>
                             )}
+                          </TableCell>
+                          <TableCell>
+                            {(client.pipeline || client.case_summary) ? (
+                              <div className="space-y-1">
+                                <Badge
+                                  variant="secondary"
+                                  className={cn(
+                                    "whitespace-nowrap text-[10px] font-medium",
+                                    CASE_STATUS_TONES[
+                                      (client.pipeline?.status ?? client.case_summary?.case_status) ?? ""
+                                    ] ?? "bg-muted",
+                                  )}
+                                >
+                                  {client.pipeline?.status_label ?? client.case_summary?.case_status_label}
+                                </Badge>
+                                {client.pipeline && (
+                                  <p
+                                    className={cn(
+                                      "text-[10px] font-medium",
+                                      client.pipeline.pending_docs > 0 ? "text-amber-700" : "text-emerald-700",
+                                    )}
+                                  >
+                                    {client.pipeline.pending_docs > 0
+                                      ? `${client.pipeline.pending_docs} doc(s) pending`
+                                      : "Docs reviewed"}
+                                  </p>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">—</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <NextActionChip summary={client.case_summary} onNavigate={openAction} />
                           </TableCell>
                           <TableCell>
                             {client.immigration_pathway ? (

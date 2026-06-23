@@ -123,7 +123,9 @@ export default function NotificationSettingsPage() {
                   <MessageCircle className="h-5 w-5 text-green-600" />
                   <div>
                     <p className="font-medium text-sm">WhatsApp</p>
-                    <p className="text-xs text-muted-foreground">Urgent reminders</p>
+                    <p className="text-xs text-muted-foreground">
+                      Updates from your consultant on WhatsApp. Enabled by default — turn off if you prefer email only.
+                    </p>
                   </div>
                 </div>
                 <Switch checked={prefs.whatsapp_enabled} onCheckedChange={(v) => { setPrefs({ ...prefs, whatsapp_enabled: v }); save({ whatsapp_enabled: v }); }} disabled={saving} />

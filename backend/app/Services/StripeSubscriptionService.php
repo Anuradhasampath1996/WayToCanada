@@ -79,6 +79,7 @@ class StripeSubscriptionService extends StripeService
         string $cancelUrl,
         ?string $provinceCode = null,
         ?array $taxRateIds = null,
+        ?string $billingCountry = 'CA',
     ): array {
         $priceId = $this->ensurePrice($package, $cycle);
 
@@ -93,6 +94,7 @@ class StripeSubscriptionService extends StripeService
                 'billing_cycle'           => $cycle,
                 'user_id'                 => (string) $userId,
                 'province'                => $provinceCode ?? '',
+                'billing_country'         => $billingCountry ?? 'CA',
             ],
             'subscription_data' => [
                 'metadata' => [
@@ -100,6 +102,7 @@ class StripeSubscriptionService extends StripeService
                     'billing_cycle'           => $cycle,
                     'user_id'                 => (string) $userId,
                     'province'                => $provinceCode ?? '',
+                    'billing_country'         => $billingCountry ?? 'CA',
                 ],
             ],
         ];
