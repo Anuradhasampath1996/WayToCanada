@@ -19,7 +19,6 @@ jobs:
           POSTGRES_DB: db_cws_test
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: secret
-        # Map to 5433 — ubuntu runners often already use local Postgres on 5432
         ports:
           - 5433:5432
         options: >-
@@ -39,6 +38,16 @@ jobs:
           tools: composer:v2
           coverage: none
 
+      - name: Prepare Laravel writable directories
+        working-directory: backend
+        run: |
+          mkdir -p bootstrap/cache \
+            storage/framework/cache \
+            storage/framework/sessions \
+            storage/framework/views \
+            storage/logs
+          chmod -R 777 bootstrap/cache storage
+
       - name: Cache Composer dependencies
         uses: actions/cache@v4
         with:
@@ -51,29 +60,41 @@ jobs:
       - name: Install Composer dependencies
         working-directory: backend
         run: |
-          mkdir -p bootstrap/cache storage/framework/{cache,sessions,views} storage/logs
-          chmod -R 775 bootstrap/cache storage
-          rm -f bootstrap/cache/*.php
-          COMPOSER_MEMORY_LIMIT=-1 composer install --no-interaction --prefer-dist --optimize-autoloader --no-progress
+          COMPOSER_MEMORY_LIMIT=-1 composer install \
+            --no-interaction \
+            --prefer-dist \
+            --optimize-autoloader \
+            --no-progress \
+            --no-scripts
 
       - name: Create .env for CI
         working-directory: backend
-        run: |
-          rm -f bootstrap/cache/*.php
-          cp .env.ci .env
+        run: cp .env.ci .env
 
-      - name: Wait for Postgres
+      - name: Discover packages
         working-directory: backend
+        run: php artisan package:discover --ansi
+
+      - name: Wait for Postgres and create test databases
+        working-directory: backend
+        env:
+          PGPASSWORD: secret
         run: |
           for i in $(seq 1 60); do
             if php -r "try { new PDO('pgsql:host=127.0.0.1;port=5433;dbname=db_cws_test', 'postgres', 'secret'); echo 'Postgres ready'; exit(0); } catch (Throwable \$e) { exit(1); }"; then
-              exit 0
+              break
             fi
             echo "Waiting for Postgres... ($i/60)"
             sleep 2
+            if [ "$i" -eq 60 ]; then
+              echo "Postgres did not become ready in time"
+              exit 1
+            fi
           done
-          echo "Postgres did not become ready in time"
-          exit 1
+          psql -h 127.0.0.1 -p 5433 -U postgres -d postgres -tc \
+            "SELECT 1 FROM pg_database WHERE datname = 'db_lms_test'" | grep -q 1 \
+            || psql -h 127.0.0.1 -p 5433 -U postgres -d postgres -c "CREATE DATABASE db_lms_test;" \
+            || php -r "try { \$p=new PDO('pgsql:host=127.0.0.1;port=5433;dbname=postgres','postgres','secret'); if(!\$p->query(\"SELECT 1 FROM pg_database WHERE datname='db_lms_test'\")->fetch()){ \$p->exec('CREATE DATABASE db_lms_test'); } echo 'db_lms_test ready'; } catch(Throwable \$e){ fwrite(STDERR,\$e->getMessage()); exit(1);} "
 
       - name: Run migrations
         working-directory: backend
