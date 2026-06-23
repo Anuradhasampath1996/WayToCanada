@@ -102,7 +102,7 @@ jobs:
 
       - name: Run tests
         working-directory: backend
-        run: php artisan test -- --log-junit test-results.xml
+        run: php vendor/bin/phpunit --log-junit test-results.xml
 
       - name: Upload test results
         if: failure()
