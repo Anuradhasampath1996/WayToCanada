@@ -27,6 +27,7 @@ export interface PersonInput {
 }
 
 export interface SpouseInput {
+  age?: number;
   education: EducationLevel;
   ielts: { speaking: number; listening: number; reading: number; writing: number };
   canadianWorkExp: number;

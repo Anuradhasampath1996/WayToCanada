@@ -11,7 +11,8 @@ backend/storage/framework/sessions/
 backend/storage/framework/testing/
 backend/storage/framework/views/
 backend/storage/logs/
-backend/bootstrap/cache/
+backend/bootstrap/cache/*
+!backend/bootstrap/cache/.gitignore
 backend/.phpunit.result.cache
 frontend/node_modules/
 frontend/**/node_modules/

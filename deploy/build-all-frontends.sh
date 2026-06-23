@@ -9,10 +9,21 @@ build_image() {
   local tag="$1"
   shift
   echo ">>> Building $tag ..."
-  docker build -f docker/frontend/Dockerfile "$@" -t "$tag"
-  docker image prune -f 2>/dev/null || true
-  docker builder prune -f 2>/dev/null || true
-  df -h / | tail -1
+  local attempt=1
+  local max=3
+  while [ "$attempt" -le "$max" ]; do
+    if docker build -f docker/frontend/Dockerfile "$@" -t "$tag"; then
+      docker image prune -f 2>/dev/null || true
+      df -h / | tail -1
+      return 0
+    fi
+    echo ">>> Build failed for $tag (attempt $attempt/$max). Retrying..."
+    docker buildx prune -f 2>/dev/null || true
+    sleep 5
+    attempt=$((attempt + 1))
+  done
+  echo "ERROR: docker build failed for $tag after $max attempts"
+  return 1
 }
 
 build_frontend() {
@@ -23,9 +34,22 @@ build_frontend() {
 }
 
 echo ">>> Building waytocanada-api ..."
-docker build -f docker/php/Dockerfile -t waytocanada-api .
+attempt=1
+max=3
+while [ "$attempt" -le "$max" ]; do
+  if docker build -f docker/php/Dockerfile -t waytocanada-api .; then
+    break
+  fi
+  echo ">>> API build failed (attempt $attempt/$max). Retrying..."
+  docker buildx prune -f 2>/dev/null || true
+  sleep 5
+  attempt=$((attempt + 1))
+done
+if [ "$attempt" -gt "$max" ]; then
+  echo "ERROR: waytocanada-api build failed"
+  exit 1
+fi
 docker image prune -f 2>/dev/null || true
-docker builder prune -f 2>/dev/null || true
 
 build_frontend waytocanada-frontend-public "./frontend/Publick website" \
   --build-arg NEXT_PUBLIC_API_URL=https://apply.rcicmaster.com \

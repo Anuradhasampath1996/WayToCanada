@@ -39,12 +39,13 @@ fi
 git reset --hard origin/main
 
 echo ">>> Clearing stale Laravel caches..."
+mkdir -p backend/bootstrap/cache
+chmod 775 backend/bootstrap/cache
 rm -f backend/bootstrap/cache/*.php
 
 bash deploy/bootstrap-prod-env.sh backend/.env
 
 echo ">>> Freeing Docker disk space..."
-docker builder prune -af 2>/dev/null || true
 docker image prune -f 2>/dev/null || true
 
 echo ">>> Building images on server (one at a time)..."

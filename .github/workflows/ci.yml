@@ -51,6 +51,8 @@ jobs:
       - name: Install Composer dependencies
         working-directory: backend
         run: |
+          mkdir -p bootstrap/cache storage/framework/{cache,sessions,views} storage/logs
+          chmod -R 775 bootstrap/cache storage
           rm -f bootstrap/cache/*.php
           COMPOSER_MEMORY_LIMIT=-1 composer install --no-interaction --prefer-dist --optimize-autoloader --no-progress
 
