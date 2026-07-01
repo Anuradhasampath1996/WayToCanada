@@ -6,12 +6,13 @@ import {
   ArrowLeft, Loader2, AlertCircle, Check, CheckCircle2, XCircle,
   Clock, RefreshCw, MessageSquare, FileText, Eye, Send,
   Bot, ShieldCheck, ShieldAlert, ShieldQuestion, MoreHorizontal,
-  ChevronDown, FormInput, Briefcase,
+  ChevronDown, FormInput, Briefcase, RotateCcw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { WorkspaceBreadcrumb } from "../workspace-flow-ui";
+import { CASE_WORKFLOW_STEPS } from "../workspace-flow-ui";
+import { WorkspaceSubpageHero } from "../workspace-subpage-hero";
 import { ConsultantInteractiveFormsPanel } from "./consultant-interactive-forms-panel";
 import {
   CaseHubProgressHeader, CaseHubOverview, CaseHubLocked,
@@ -89,6 +90,11 @@ function pdfAuthHeaders() {
   };
 }
 
+function isImageFile(doc: { mime_type: string | null; original_filename: string }) {
+  if (doc.mime_type?.startsWith("image/")) return true;
+  return /\.(jpe?g|png|webp|gif)$/i.test(doc.original_filename);
+}
+
 function isPdfFile(doc: { mime_type: string | null; original_filename: string }) {
   if (doc.mime_type === "application/pdf") return true;
   return doc.original_filename.toLowerCase().endsWith(".pdf");
@@ -114,7 +120,7 @@ const DOC_STATUS_CONFIG: Record<string, { label: string; color: string; icon: Re
   ai_verified:          { label: "AI Verified ✓",    color: "bg-green-50 text-green-700 border-green-200",  icon: <ShieldCheck className="h-3 w-3" /> },
   ai_flagged:           { label: "AI Flagged ⚠",     color: "bg-orange-50 text-orange-700 border-orange-200", icon: <ShieldAlert className="h-3 w-3" /> },
   consultant_approved:  { label: "Approved ✓",       color: "bg-green-50 text-green-700 border-green-200",  icon: <CheckCircle2 className="h-3 w-3" /> },
-  consultant_rejected:  { label: "Rejected",         color: "bg-red-50 text-red-700 border-red-200",        icon: <XCircle className="h-3 w-3" /> },
+  consultant_rejected:  { label: "Re-upload requested", color: "bg-red-50 text-red-700 border-red-200",        icon: <XCircle className="h-3 w-3" /> },
 };
 
 function DocStatusBadge({ status }: { status: string }) {
@@ -126,6 +132,88 @@ function DocStatusBadge({ status }: { status: string }) {
   );
 }
 
+// ── Image preview modal ────────────────────────────────────────────────────────
+
+function ImagePreviewDialog({
+  open,
+  onOpenChange,
+  title,
+  streamUrl,
+  getAuthHeaders,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  title: string;
+  streamUrl: string;
+  getAuthHeaders: () => Record<string, string>;
+}) {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [blobUrl, setBlobUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!open || !streamUrl) {
+      setBlobUrl(null);
+      setError(null);
+      return;
+    }
+
+    let cancelled = false;
+    let objectUrl: string | null = null;
+
+    (async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await fetch(streamUrl, { headers: getAuthHeaders() });
+        if (!res.ok) throw new Error("Failed to load image.");
+        const blob = await res.blob();
+        if (cancelled) return;
+        objectUrl = URL.createObjectURL(blob);
+        setBlobUrl(objectUrl);
+      } catch (e: unknown) {
+        if (!cancelled) setError(e instanceof Error ? e.message : "Could not load image.");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+      setBlobUrl(null);
+    };
+  }, [open, streamUrl, getAuthHeaders]);
+
+  return (
+    <div
+      className={cn(
+        "fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4",
+        !open && "hidden",
+      )}
+      onClick={() => onOpenChange(false)}
+    >
+      <div
+        className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-xl border bg-background shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between border-b px-4 py-3">
+          <h3 className="text-sm font-semibold">{title}</h3>
+          <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)}>Close</Button>
+        </div>
+        <div className="relative flex min-h-[50vh] items-center justify-center bg-muted/20 p-4">
+          {loading && <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />}
+          {error && !loading && <p className="text-sm text-red-600">{error}</p>}
+          {blobUrl && !loading && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={blobUrl} alt={title} className="max-h-[70vh] max-w-full rounded-lg object-contain" />
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Review modal ───────────────────────────────────────────────────────────────
 
 function ReviewModal({
@@ -133,27 +221,34 @@ function ReviewModal({
   onClose,
   onDone,
   profileId,
-  onViewPdf,
+  onViewDocument,
 }: {
   doc: DocumentSubmission;
   onClose: () => void;
   onDone: (updated: DocumentSubmission) => void;
   profileId: string;
-  onViewPdf: (title: string, streamUrl: string) => void;
+  onViewDocument: (doc: DocumentSubmission) => void;
 }) {
-  const [action, setAction] = useState<"approve" | "reject">("approve");
+  const [action, setAction] = useState<"approve" | "request_reupload">("approve");
   const [comment, setComment] = useState(doc.rejection_comment ?? "");
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
 
   const submit = async () => {
-    if (action === "reject" && !comment.trim()) { setErr("Please provide a rejection reason."); return; }
-    setLoading(true); setErr("");
+    if (action === "request_reupload" && !comment.trim()) {
+      setErr("Please tell the client what to upload instead.");
+      return;
+    }
+    setLoading(true);
+    setErr("");
     const token = localStorage.getItem("wtc_consultant_token");
     const res = await fetch(`${API}/consultant/clients/${profileId}/documents/${doc.id}/review`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json", "Accept": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-      body: JSON.stringify({ action, rejection_comment: comment }),
+      body: JSON.stringify({
+        action: action === "approve" ? "approve" : "reject",
+        rejection_comment: action === "request_reupload" ? comment.trim() : null,
+      }),
     });
     const json = await res.json();
     setLoading(false);
@@ -162,75 +257,88 @@ function ReviewModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-background rounded-xl border shadow-xl w-full max-w-md p-6" onClick={e => e.stopPropagation()}>
-        <h3 className="font-semibold text-lg mb-1">Review Document</h3>
-        <p className="text-sm text-muted-foreground mb-4">{doc.document_label}</p>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div className="w-full max-w-lg rounded-xl border bg-background p-6 shadow-xl" onClick={e => e.stopPropagation()}>
+        <h3 className="mb-1 text-lg font-semibold">Manage document</h3>
+        <p className="mb-1 text-sm text-muted-foreground">{doc.document_label}</p>
+        <p className="mb-4 text-xs text-muted-foreground">{doc.original_filename}</p>
 
-        {/* AI result */}
+        <div className="mb-4">
+          <DocStatusBadge status={doc.status} />
+        </div>
+
         {doc.ai_match_result && (
           <div className={cn(
-            "rounded-lg border px-4 py-3 mb-4 text-sm",
-            doc.ai_match_result.matched ? "bg-green-50 border-green-200 text-green-800" : "bg-orange-50 border-orange-200 text-orange-800"
+            "mb-4 rounded-lg border px-4 py-3 text-sm",
+            doc.ai_match_result.matched ? "border-green-200 bg-green-50 text-green-800" : "border-orange-200 bg-orange-50 text-orange-800",
           )}>
-            <p className="font-medium mb-1">{doc.ai_match_result.matched ? "AI: All fields matched ✓" : "AI: Fields mismatch ⚠"}</p>
+            <p className="mb-1 font-medium">{doc.ai_match_result.matched ? "AI: All fields matched ✓" : "AI: Fields mismatch ⚠"}</p>
             <p className="text-xs">{doc.ai_match_result.reason}</p>
             {doc.ai_confidence != null && (
-              <p className="text-xs mt-1">Confidence: {(doc.ai_confidence * 100).toFixed(0)}%</p>
+              <p className="mt-1 text-xs">Confidence: {(doc.ai_confidence * 100).toFixed(0)}%</p>
             )}
           </div>
         )}
 
-        {/* View file */}
-        {isPdfFile(doc) ? (
-          <button
-            type="button"
-            onClick={() => onViewPdf(doc.document_label, `${API}/consultant/clients/${profileId}/documents/${doc.id}/stream`)}
-            className="flex items-center gap-2 text-sm text-primary hover:underline mb-4"
-          >
-            <Eye className="h-4 w-4" /> View uploaded PDF
-          </button>
-        ) : (
-          <a href={doc.file_url} target="_blank" rel="noopener noreferrer"
-            className="flex items-center gap-2 text-sm text-primary hover:underline mb-4">
-            <Eye className="h-4 w-4" /> View uploaded file ↗
-          </a>
-        )}
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="mb-4 gap-1.5"
+          onClick={() => onViewDocument(doc)}
+        >
+          <Eye className="h-4 w-4" /> View uploaded file
+        </Button>
 
-        {/* Action picker */}
-        <div className="flex gap-2 mb-3">
+        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Consultant action</p>
+        <div className="mb-3 flex gap-2">
           <button
             onClick={() => setAction("approve")}
-            className={cn("flex-1 flex items-center justify-center gap-2 rounded-lg border py-2 text-sm font-medium transition-colors",
-              action === "approve" ? "bg-green-600 text-white border-green-600" : "border-input hover:bg-muted/50")}
+            className={cn(
+              "flex flex-1 items-center justify-center gap-2 rounded-lg border py-2.5 text-sm font-medium transition-colors",
+              action === "approve" ? "border-green-600 bg-green-600 text-white" : "border-input hover:bg-muted/50",
+            )}
           >
             <Check className="h-4 w-4" /> Approve
           </button>
           <button
-            onClick={() => setAction("reject")}
-            className={cn("flex-1 flex items-center justify-center gap-2 rounded-lg border py-2 text-sm font-medium transition-colors",
-              action === "reject" ? "bg-red-600 text-white border-red-600" : "border-input hover:bg-muted/50")}
+            onClick={() => setAction("request_reupload")}
+            className={cn(
+              "flex flex-1 items-center justify-center gap-2 rounded-lg border py-2.5 text-sm font-medium transition-colors",
+              action === "request_reupload" ? "border-red-600 bg-red-600 text-white" : "border-input hover:bg-muted/50",
+            )}
           >
-            <XCircle className="h-4 w-4" /> Reject
+            <RotateCcw className="h-4 w-4" /> Request re-upload
           </button>
         </div>
 
-        {action === "reject" && (
-          <textarea
-            value={comment}
-            onChange={e => setComment(e.target.value)}
-            placeholder="Reason for rejection (visible to client)…"
-            className="w-full rounded-lg border bg-background px-3 py-2 text-sm resize-none h-20 mb-3 focus:outline-none focus:ring-2 focus:ring-primary/50"
-          />
+        {action === "request_reupload" && (
+          <div className="mb-3 space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground">
+              Tell the client what is wrong and what to upload
+            </label>
+            <textarea
+              value={comment}
+              onChange={e => setComment(e.target.value)}
+              placeholder="Example: This is a bank statement, not a passport. Please upload a clear scan of your passport bio page."
+              className="h-24 w-full resize-none rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+            />
+          </div>
         )}
 
-        {err && <p className="text-sm text-red-600 mb-3">{err}</p>}
+        {action === "approve" && doc.status === "consultant_rejected" && (
+          <p className="mb-3 rounded-lg border border-green-100 bg-green-50 px-3 py-2 text-xs text-green-800">
+            Approving will mark this upload as accepted. The client does not need to upload again.
+          </p>
+        )}
 
-        <div className="flex gap-2 justify-end">
+        {err && <p className="mb-3 text-sm text-red-600">{err}</p>}
+
+        <div className="flex justify-end gap-2">
           <Button variant="outline" onClick={onClose}>Cancel</Button>
           <Button onClick={submit} disabled={loading}>
             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {action === "approve" ? "Approve Document" : "Reject & Notify Client"}
+            {action === "approve" ? "Save — Approve document" : "Save — Request re-upload"}
           </Button>
         </div>
       </div>
@@ -262,11 +370,11 @@ export function CaseManagementClient({ paramsPromise }: { paramsPromise: Promise
   const [statusMenuOpen, setStatusMenuOpen] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState(false);
   const [pdfViewer, setPdfViewer] = useState<{ title: string; streamUrl: string } | null>(null);
+  const [imagePreview, setImagePreview] = useState<{ title: string; streamUrl: string } | null>(null);
   const [togglingCheckId, setTogglingCheckId] = useState<string | null>(null);
   const [checklistData, setChecklistData] = useState<Record<string, boolean>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const openPdf = (title: string, streamUrl: string) => setPdfViewer({ title, streamUrl });
   const submissionStreamUrl = (submissionId: number) => `${API}/consultant/clients/${id}/documents/${submissionId}/stream`;
   const packageDocStreamUrl = (documentId: number) => `${API}/consultant/clients/${id}/package-documents/${documentId}/stream`;
 
@@ -274,6 +382,43 @@ export function CaseManagementClient({ paramsPromise }: { paramsPromise: Promise
     setToast({ msg, type });
     setTimeout(() => setToast(null), 3500);
   };
+
+  const openPdf = (title: string, streamUrl: string) => setPdfViewer({ title, streamUrl });
+
+  const openDocument = useCallback((
+    title: string,
+    streamUrl: string,
+    mimeType?: string | null,
+    filename?: string,
+  ) => {
+    const fileLike = {
+      mime_type: mimeType ?? null,
+      original_filename: filename ?? title,
+    };
+    if (isPdfFile(fileLike)) {
+      openPdf(title, streamUrl);
+      return;
+    }
+    if (isImageFile(fileLike)) {
+      setImagePreview({ title, streamUrl });
+      return;
+    }
+    fetch(streamUrl, { headers: pdfAuthHeaders() })
+      .then((r) => r.blob())
+      .then((blob) => {
+        const url = URL.createObjectURL(blob);
+        window.open(url, "_blank", "noopener,noreferrer");
+        setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      })
+      .catch(() => {
+        setToast({ msg: "Could not open file.", type: "error" });
+        setTimeout(() => setToast(null), 3500);
+      });
+  }, [id]);
+
+  const openSubmissionDocument = useCallback((doc: DocumentSubmission) => {
+    openDocument(doc.document_label, submissionStreamUrl(doc.id), doc.mime_type, doc.original_filename);
+  }, [openDocument, id]);
 
   const load = useCallback(async () => {
     setLoading(true); setError("");
@@ -480,60 +625,57 @@ export function CaseManagementClient({ paramsPromise }: { paramsPromise: Promise
         </div>
       )}
 
-      <div className="mb-4">
-        <Button variant="ghost" size="sm" asChild className="-ml-2 rounded-lg">
-          <Link href={`/dashboard/clients/${id}/workspace`}>
-            <ArrowLeft className="mr-1.5 size-4" />
-            Back to case workspace
-          </Link>
+      <WorkspaceSubpageHero
+        profileId={id}
+        stepLabel="Step 4 · Case hub"
+        title="Full case management"
+        description="Manage documents, IRCC forms, pipeline updates, and client communication in one place."
+        illustration={CASE_WORKFLOW_STEPS[3].illustration}
+        illustrationAlt={CASE_WORKFLOW_STEPS[3].illustrationAlt}
+        backLabel="Back to case workspace"
+        className="mb-5 sm:mb-6"
+      >
+        {client?.user.name && (
+          <Badge variant="outline" className="h-8 rounded-xl px-3 text-xs">
+            {client.user.name}
+          </Badge>
+        )}
+        {caseFile?.immigration_pathway && (
+          <Badge variant="outline" className="h-8 rounded-xl px-3 text-xs">
+            {caseFile.immigration_pathway}
+          </Badge>
+        )}
+        <div className="relative">
+          <button
+            onClick={() => setStatusMenuOpen(o => !o)}
+            disabled={updatingStatus}
+            className="flex h-8 items-center gap-2 rounded-xl border bg-background px-3 text-xs font-medium transition-colors hover:bg-muted/50"
+          >
+            {updatingStatus ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+            Pipeline: <span className="text-primary">{currentStatusLabel}</span>
+            <ChevronDown className="h-3.5 w-3.5" />
+          </button>
+          {statusMenuOpen && (
+            <div className="absolute left-0 top-full z-20 mt-1 min-w-[200px] rounded-lg border bg-background py-1 shadow-lg">
+              {pipelineOptions.map((s: { value: string; label: string }) => (
+                <button
+                  key={s.value}
+                  onClick={() => updatePipelineStatus(s.value)}
+                  className={cn(
+                    "w-full px-4 py-2 text-left text-sm transition-colors hover:bg-muted/50",
+                    caseFile?.status === s.value && "bg-primary/5 font-semibold text-primary",
+                  )}
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+        <Button variant="outline" size="icon" className="h-8 w-8 rounded-xl" onClick={load}>
+          <RefreshCw className="h-4 w-4" />
         </Button>
-      </div>
-
-      <WorkspaceBreadcrumb profileId={id} workspaceStep={4} pageLabel="Case management" />
-
-      <div className="mb-4 flex flex-col gap-3 sm:mb-6 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0">
-          <h1 className="text-xl font-bold tracking-tight sm:text-2xl">Full Case Management</h1>
-          <p className="mt-0.5 text-sm text-muted-foreground break-words">
-            {client?.user.name} &mdash; {client?.user.email} &middot; {caseFile?.immigration_pathway ?? "No pathway"}
-          </p>
-        </div>
-
-        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
-          {/* Pipeline status dropdown */}
-          <div className="relative w-full sm:w-auto">
-            <button
-              onClick={() => setStatusMenuOpen(o => !o)}
-              disabled={updatingStatus}
-              className="flex w-full items-center justify-between gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-colors hover:bg-muted/50 sm:w-auto"
-            >
-              {updatingStatus ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
-              Pipeline: <span className="text-primary">{currentStatusLabel}</span>
-              <ChevronDown className="h-3.5 w-3.5" />
-            </button>
-            {statusMenuOpen && (
-              <div className="absolute right-0 top-full mt-1 z-20 bg-background border rounded-lg shadow-lg min-w-[200px] py-1">
-                {pipelineOptions.map((s: { value: string; label: string }) => (
-                  <button
-                    key={s.value}
-                    onClick={() => updatePipelineStatus(s.value)}
-                    className={cn(
-                      "w-full text-left px-4 py-2 text-sm hover:bg-muted/50 transition-colors",
-                      caseFile?.status === s.value && "font-semibold text-primary bg-primary/5"
-                    )}
-                  >
-                    {s.label}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <Button variant="ghost" size="icon" onClick={load}>
-            <RefreshCw className="h-4 w-4" />
-          </Button>
-        </div>
-      </div>
+      </WorkspaceSubpageHero>
 
       {hubProgress && (
         <CaseHubProgressHeader
@@ -616,18 +758,45 @@ export function CaseManagementClient({ paramsPromise }: { paramsPromise: Promise
       {/* ── DOCUMENTS TAB ── */}
       {activeTab === "documents" && (
         <div className="space-y-6">
+          <div className="rounded-xl border border-primary/15 bg-primary/5 px-4 py-3 text-sm text-muted-foreground">
+            Review each upload, approve when correct, or request a re-upload if the client uploaded the wrong file.
+            The client will see your note and can upload again from their portal.
+          </div>
+
           <div>
-            <p className="text-sm font-semibold mb-3">Document Requirements</p>
+            <p className="mb-3 text-sm font-semibold">Document Requirements</p>
             <DocumentRequirementsGrid
               requirements={requirements}
               consultantView
               onToggleCheck={toggleChecklist}
               togglingCheckId={togglingCheckId}
               onReview={(submissionId) => {
-                const doc = documents.find((d) => d.id === submissionId);
+                let doc = documents.find((d) => d.id === submissionId);
+                if (!doc) {
+                  const req = requirements.find((r) => r.submission?.id === submissionId);
+                  if (req?.submission) {
+                    doc = {
+                      id: req.submission.id,
+                      document_type: req.id,
+                      document_label: req.label,
+                      original_filename: req.submission.original_filename ?? "",
+                      file_url: req.submission.file_url,
+                      mime_type: req.submission.mime_type ?? null,
+                      file_size: null,
+                      status: req.submission.status,
+                      ai_confidence: null,
+                      ai_match_result: null,
+                      ai_result: null,
+                      rejection_comment: req.submission.rejection_comment ?? null,
+                      reviewed_by: null,
+                      reviewed_at: null,
+                      uploaded_at: req.submission.uploaded_at ?? null,
+                    };
+                  }
+                }
                 if (doc) setReviewDoc(doc);
               }}
-              onViewPdf={openPdf}
+              onViewDocument={openDocument}
               buildSubmissionStreamUrl={submissionStreamUrl}
             />
           </div>
@@ -679,28 +848,24 @@ export function CaseManagementClient({ paramsPromise }: { paramsPromise: Promise
                       {doc.reviewed_by && (
                         <span className="text-xs text-muted-foreground">· Reviewed by {doc.reviewed_by}</span>
                       )}
-                      <div className="ml-auto flex gap-2">
-                        {isPdfFile(doc) ? (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-7 text-xs gap-1"
-                            onClick={() => openPdf(doc.document_label, submissionStreamUrl(doc.id))}
-                          >
-                            <Eye className="h-3 w-3" /> View
-                          </Button>
-                        ) : (
-                          <a href={doc.file_url} target="_blank" rel="noopener noreferrer">
-                            <Button variant="outline" size="sm" className="h-7 text-xs gap-1">
-                              <Eye className="h-3 w-3" /> View
-                            </Button>
-                          </a>
-                        )}
-                        {!["consultant_approved", "consultant_rejected"].includes(doc.status) && (
-                          <Button size="sm" className="h-7 text-xs gap-1" onClick={() => setReviewDoc(doc)}>
-                            <MoreHorizontal className="h-3 w-3" /> Review
-                          </Button>
-                        )}
+                      <div className="ml-auto flex flex-wrap gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 gap-1 text-xs"
+                          onClick={() => openSubmissionDocument(doc)}
+                        >
+                          <Eye className="h-3 w-3" /> View
+                        </Button>
+                        <Button
+                          size="sm"
+                          className="h-7 gap-1 text-xs"
+                          variant={doc.status === "consultant_rejected" ? "outline" : "default"}
+                          onClick={() => setReviewDoc(doc)}
+                        >
+                          <MoreHorizontal className="h-3 w-3" />
+                          {doc.status === "consultant_approved" ? "Update status" : "Manage"}
+                        </Button>
                       </div>
                     </div>
                   </div>
@@ -779,15 +944,26 @@ export function CaseManagementClient({ paramsPromise }: { paramsPromise: Promise
           doc={reviewDoc}
           profileId={id}
           onClose={() => setReviewDoc(null)}
-          onViewPdf={openPdf}
+          onViewDocument={openSubmissionDocument}
           onDone={async (updated) => {
             setDocuments(prev => prev.map(d => d.id === updated.id ? updated : d));
             setReviewDoc(null);
-            showToast("Document review saved.");
+            showToast(
+              updated.status === "consultant_rejected"
+                ? "Re-upload requested. Client has been notified."
+                : "Document approved.",
+            );
             await load();
           }}
         />
       )}
+      <ImagePreviewDialog
+        open={imagePreview !== null}
+        onOpenChange={(open) => { if (!open) setImagePreview(null); }}
+        title={imagePreview?.title ?? "Document"}
+        streamUrl={imagePreview?.streamUrl ?? ""}
+        getAuthHeaders={pdfAuthHeaders}
+      />
       <PdfViewerDialog
         open={pdfViewer !== null}
         onOpenChange={(open) => { if (!open) setPdfViewer(null); }}

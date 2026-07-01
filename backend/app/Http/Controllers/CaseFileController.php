@@ -16,6 +16,7 @@ use App\Services\ClientActivity\ClientActivityTriggers;
 use App\Services\Notifications\WorkspaceNotificationTriggers;
 use App\Services\RetainerAgreementPdfService;
 use App\Services\TrustLedger\TrustLedgerService;
+use App\Support\ClientAgreementDetails;
 use App\Support\RetainerAgreementConfig;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -451,6 +452,7 @@ class CaseFileController extends Controller
 
         $c      = $caseFile->consultant;
         $config = RetainerAgreementConfig::formatAgreementPayload($caseFile);
+        $storedDetails = is_array($config['clientDetails'] ?? null) ? $config['clientDetails'] : null;
 
         return response()->json([
             'case_file' => array_merge($caseFile->only([
@@ -465,6 +467,7 @@ class CaseFileController extends Controller
             ]),
             'client_name'        => $config['clientName'] ?: ($caseFile->clientProfile->user->name ?? null),
             'client_email'       => $config['clientEmail'] ?: ($caseFile->clientProfile->user->email ?? null),
+            'client_details'     => ClientAgreementDetails::extract($caseFile->clientProfile, $storedDetails),
             'consultant_name'    => $config['consultantName'] ?: ($c?->name ?? null),
             'consultant_profile' => $c ? [
                 'name'                  => $c->name,

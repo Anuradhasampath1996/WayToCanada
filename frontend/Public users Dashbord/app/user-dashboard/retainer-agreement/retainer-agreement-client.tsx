@@ -49,6 +49,7 @@ interface AgreementData {
   };
   client_name: string | null;
   client_email: string | null;
+  client_details?: import("@/lib/retainer-agreement").ClientAgreementDetails | null;
   consultant_name: string | null;
   consultant_profile: ConsultantProfile | null;
 }
@@ -387,6 +388,7 @@ export function RetainerAgreementClient() {
           config={configFromCaseFile(data.case_file)}
           clientName={data.client_name ?? ""}
           clientEmail={data.client_email ?? ""}
+          clientDetails={data.client_details ?? undefined}
           consultantName={data.consultant_name ?? ""}
           consultantProfile={data.consultant_profile}
           clientSignature={clientSig}

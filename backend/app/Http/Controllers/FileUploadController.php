@@ -2,9 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Support\ClientDocumentStorage;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rules\File;
 
 class FileUploadController extends Controller
@@ -37,32 +37,16 @@ class FileUploadController extends Controller
 
         $uploadedFile = $request->file('file');
         $type         = $request->input('type', 'other');
-
-        // Build a structured, collision-safe path inside the bucket.
-        $path = sprintf(
-            '%s/%s/%s/%s',
-            $type,
-            now()->format('Y'),
-            now()->format('m'),
-            $uploadedFile->getClientOriginalName()
-        );
-
-        // Store on the localstack disk (S3-compatible, path-style endpoint).
-        $stored = Storage::disk('localstack')->putFileAs(
-            dirname($path),
-            $uploadedFile,
-            basename($path),
-            'private'
-        );
-
-        if (! $stored) {
-            return response()->json(['message' => 'File upload failed.'], 500);
+        if (! in_array($type, ['client-document', 'rcic-certificate', 'other'], true)) {
+            $type = 'other';
         }
+
+        $stored = ClientDocumentStorage::store($uploadedFile, $type);
 
         return response()->json([
             'message' => 'File uploaded successfully.',
             'path'    => $stored,
-            'disk'    => 'localstack',
+            'disk'    => ClientDocumentStorage::diskForPath($stored) ?? ClientDocumentStorage::DISK_S3,
             'bucket'  => config('filesystems.disks.localstack.bucket'),
         ], 201);
     }

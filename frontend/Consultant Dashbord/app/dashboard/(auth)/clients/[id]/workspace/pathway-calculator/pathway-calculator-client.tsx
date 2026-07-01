@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useEffect, useState, useMemo } from "react";
+import { use, useEffect, useState, useMemo, useCallback } from "react";
 import Link from "next/link";
 import {
   ArrowLeft, Award, Briefcase, Calculator,
@@ -8,13 +8,22 @@ import {
   CheckCircle2, XCircle, AlertCircle, Users,
   FileText, GraduationCap, Languages, Star,
   TrendingUp, Globe, ShieldCheck, ExternalLink, Loader2,
-  Sparkles, ClipboardCheck, Package, X,
+  Sparkles, X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
-import { WorkspaceBreadcrumb } from "../workspace-flow-ui";
+import { WorkspaceSubpageHero } from "../workspace-subpage-hero";
+import { INTAKE_WORKSPACE_TASKS } from "../workspace-flow-ui";
 import { IrccFormExplorer } from "./ircc-form-explorer";
+import { PossiblePathwaysCard } from "./possible-pathways-card";
+import {
+  HowItWorksCard,
+  SimulationStatusBanner,
+  WorkflowGuideCard,
+  StepNavButtons,
+} from "./pathway-calculator-shell";
 import {
   calcCRS, calcFSW, getPathwayInsights, ieltsToCLB,
   DEF_PERSON, DEF_SPOUSE, EDU_LABELS,
@@ -153,6 +162,9 @@ function PersonForm({ data, onChange, label }: {
   return (
     <div className="space-y-3">
       <p className="text-sm font-bold text-foreground">{label}</p>
+      <p className="text-xs text-muted-foreground -mt-1">
+        Enter the client&apos;s profile below. When finished, click <strong>Calculate score</strong> in the sidebar.
+      </p>
 
       <SectionCard title="Basic profile" icon={Users} hint="Age, education, Canadian study" defaultOpen>
         <NumInput label="Age" value={data.age} onChange={v => set("age", v)} min={16} max={60} />
@@ -575,191 +587,46 @@ function pathwayShortName(pathway: string): string {
   return pathway;
 }
 
-function PathwayInsightsPanel({ insights, assignedPathway, compact = false }: {
-  insights: PathwayInsight[];
-  assignedPathway: string | null;
-  compact?: boolean;
-}) {
-  const ready = insights.filter(i => i.status === "eligible");
-  const achievable = insights.filter(i => i.status === "achievable");
-
-  return (
-    <div className="space-y-3">
-      {ready.length > 0 && (
-        <div>
-          <p className="text-[10px] font-semibold text-green-700 mb-1.5">
-            Ready now · {ready.length}
-          </p>
-          <div className="space-y-1">
-            {ready.map(i => (
-              <div key={i.backendValue} className="flex items-center gap-2 rounded-md px-2 py-1.5 text-xs bg-green-50 border border-green-100">
-                <CheckCircle2 className="h-3 w-3 text-green-600 shrink-0" />
-                <span className="flex-1 font-medium text-green-900 truncate">{pathwayShortName(i.pathway)}</span>
-                {i.backendValue === assignedPathway && (
-                  <Badge className="bg-green-600 text-white text-[9px] py-0 px-1 h-3.5">Selected</Badge>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {achievable.length > 0 && (
-        <div>
-          <p className="text-[10px] font-semibold text-amber-800 mb-1.5 flex items-center gap-1">
-            <TrendingUp className="h-3 w-3" />
-            Possible after improving skills · {achievable.length}
-          </p>
-          <div className="space-y-2">
-            {(compact ? achievable.slice(0, 3) : achievable).map(i => (
-              <div key={i.backendValue} className="rounded-lg border border-amber-200 bg-amber-50/90 px-2.5 py-2">
-                <div className="flex items-start gap-2">
-                  <Sparkles className="h-3.5 w-3.5 text-amber-600 mt-0.5 shrink-0" />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs font-semibold text-amber-950">{pathwayShortName(i.pathway)}</p>
-                    {i.improvement && (
-                      <>
-                        <p className="text-[10px] text-amber-900/90 mt-0.5">{i.improvement.headline}</p>
-                        <ul className="mt-1.5 space-y-0.5">
-                          {i.improvement.actions.map(a => (
-                            <li key={a} className="text-[10px] text-amber-900 leading-snug pl-3 relative before:content-['•'] before:absolute before:left-0">
-                              {a}
-                            </li>
-                          ))}
-                        </ul>
-                        {i.improvement.projectedCrs != null && (
-                          <p className="text-[10px] font-semibold text-amber-800 mt-1.5">
-                            → Projected CRS ~{i.improvement.projectedCrs} after changes
-                          </p>
-                        )}
-                      </>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ))}
-            {compact && achievable.length > 3 && (
-              <p className="text-[10px] text-muted-foreground text-center">
-                +{achievable.length - 3} more in review step
-              </p>
-            )}
-          </div>
-        </div>
-      )}
-
-      {ready.length === 0 && achievable.length === 0 && (
-        <p className="text-xs text-muted-foreground text-center py-2">
-          No pathways ready yet — check improvement tips in review step
-        </p>
-      )}
-    </div>
-  );
-}
-
 // ─── Live CRS Score Preview (Step 1 — right panel) ──────────────────────────
 
-function LiveScorePreview({ crs, fsw, person, assignedPathway, draws, onNext, hasSpouse, spouse }: {
+function LiveScorePreview({ clientId, crs, fsw, person, assignedPathway, onNext, hasSpouse, spouse, hasActiveSimulation }: {
+  clientId: number;
   crs: CRSBreakdown; fsw: FSWBreakdown;
   person: PersonInput; assignedPathway: string | null;
-  draws?: CrsDraw[];
   onNext?: () => void;
   hasSpouse?: boolean;
   spouse?: SpouseInput;
+  hasActiveSimulation: boolean;
 }) {
   const insights = getPathwayInsights(crs, fsw, person, hasSpouse ?? false, spouse);
-  const readyCount = insights.filter(i => i.status === "eligible").length;
-  const latestDraw = draws?.[0];
-  const drawCutoff = latestDraw?.minimum_crs_score;
-  const vsDraw = drawCutoff != null ? crs.total - drawCutoff : null;
-  const ringClass =
-    crs.total >= 470 ? "border-green-300 bg-green-50"  :
-    crs.total >= 400 ? "border-blue-300 bg-blue-50"    :
-    crs.total >= 300 ? "border-amber-300 bg-amber-50"  :
-                       "border-rose-300 bg-rose-50";
-  const numClass =
-    crs.total >= 470 ? "text-green-600" :
-    crs.total >= 400 ? "text-blue-600"  :
-    crs.total >= 300 ? "text-amber-600" :
-                       "text-rose-500";
-  const barClass =
-    crs.total >= 470 ? "bg-green-500" :
-    crs.total >= 400 ? "bg-blue-500"  :
-    crs.total >= 300 ? "bg-amber-500" :
-                       "bg-rose-500";
-  const scoreLabel =
-    crs.total >= 470 ? "Strong for draws" :
-    crs.total >= 400 ? "Competitive"    :
-    crs.total >= 300 ? "Below average"   : "Needs improvement";
+
+  if (!hasActiveSimulation) {
+    return (
+      <div className="rounded-xl border border-dashed border-border/70 bg-muted/10 p-5 text-center">
+        <TrendingUp className="mx-auto size-7 text-muted-foreground/40" />
+        <p className="mt-2 text-sm font-medium text-muted-foreground">Eligible pathways will show here</p>
+        <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+          After you calculate the score, we&apos;ll list which immigration routes may fit this client.
+        </p>
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-3 sticky top-4">
-      <div className={cn("rounded-xl border-2 p-5", ringClass)}>
-        <div className="flex items-center justify-between mb-2">
-          <p className="text-xs font-semibold text-muted-foreground">Estimated CRS score</p>
-          <Badge variant="outline" className="text-xs">{scoreLabel}</Badge>
-        </div>
-        <div className="flex items-end gap-2 mb-3">
-          <span className={cn("text-5xl font-black leading-none", numClass)}>{crs.total}</span>
-          <span className="text-lg text-muted-foreground pb-1">/ 1,200</span>
-        </div>
-        <ScoreBar value={crs.total} max={1200} color={barClass} />
-
-        {drawCutoff != null && (
-          <div className={cn(
-            "mt-3 rounded-lg px-3 py-2 text-xs flex items-center justify-between",
-            vsDraw != null && vsDraw >= 0 ? "bg-green-100/80 text-green-800" : "bg-amber-100/80 text-amber-900"
-          )}>
-            <span>Latest draw cut-off: <strong>{drawCutoff}</strong></span>
-            <span>{vsDraw != null && vsDraw >= 0 ? `+${vsDraw} above` : `${vsDraw} below`}</span>
-          </div>
-        )}
-
-        <div className="grid grid-cols-3 gap-2 mt-3 text-center">
-          {[
-            { label: "Profile", value: crs.humanCapital,  max: 500 },
-            { label: "Skills mix", value: crs.skillTransfer, max: 100 },
-            { label: "Bonuses",    value: crs.additional,    max: 600 },
-          ].map(r => (
-            <div key={r.label} className="rounded-lg bg-white/60 p-1.5">
-              <p className="text-[10px] text-muted-foreground leading-tight">{r.label}</p>
-              <p className="text-base font-bold">{r.value}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div className={cn("rounded-xl border p-3 flex items-center gap-3",
-        fsw.eligible ? "bg-green-50 border-green-200" : "bg-rose-50 border-rose-200"
-      )}>
-        {fsw.eligible
-          ? <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
-          : <XCircle      className="h-4 w-4 text-rose-500 shrink-0" />}
-        <div>
-          <p className="text-xs font-semibold">Federal Skilled Worker (67-point test)</p>
-          <p className={cn("text-xs", fsw.eligible ? "text-green-700" : "text-rose-600")}>
-            {fsw.total}/100 — {fsw.eligible ? "Passes minimum" : "Needs 67+ points"}
-          </p>
-        </div>
-      </div>
-
-      <div className="rounded-xl border bg-card p-3">
-        <div className="flex items-center justify-between mb-2">
-          <p className="text-xs font-semibold text-muted-foreground">Possible pathways</p>
-          <Badge variant="outline" className="text-xs">{readyCount} ready</Badge>
-        </div>
-        <PathwayInsightsPanel insights={insights} assignedPathway={assignedPathway} compact />
-      </div>
+    <div className="space-y-3">
+      <PossiblePathwaysCard
+        clientId={clientId}
+        insights={insights}
+        assignedPathway={assignedPathway}
+        crsTotal={crs.total}
+      />
 
       {onNext && (
         <Button onClick={onNext} className="w-full gap-2 rounded-xl">
-          Next: Review & pick pathway
+          Continue to choose pathway
           <ChevronRight className="size-4" />
         </Button>
       )}
-
-      <p className="text-[10px] text-muted-foreground text-center px-2">
-        Updates automatically as you edit
-      </p>
     </div>
   );
 }
@@ -938,10 +805,10 @@ function ReviewStatCard({
   };
 
   return (
-    <div className={cn("rounded-xl border px-4 py-3.5", styles[tone])}>
-      <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
-      <p className={cn("mt-1 text-2xl font-bold tabular-nums leading-none", valueStyles[tone])}>{value}</p>
-      {sub && <p className="mt-1.5 text-xs text-muted-foreground">{sub}</p>}
+    <div className={cn("min-w-0 rounded-xl border px-4 py-3.5", styles[tone])}>
+      <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground leading-snug">{label}</p>
+      <p className={cn("mt-1.5 text-xl font-bold tabular-nums leading-tight sm:text-2xl", valueStyles[tone])}>{value}</p>
+      {sub && <p className="mt-1.5 text-xs leading-snug text-muted-foreground">{sub}</p>}
     </div>
   );
 }
@@ -962,11 +829,11 @@ function ReviewStepSummary({
   const vsDraw = drawCutoff != null ? crs.total - drawCutoff : null;
 
   return (
-    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
       <ReviewStatCard
-        label="Estimated CRS"
+        label="CRS score"
         value={String(crs.total)}
-        sub={vsDraw != null ? `${vsDraw >= 0 ? "+" : ""}${vsDraw} vs latest draw` : undefined}
+        sub={vsDraw != null ? `${vsDraw >= 0 ? "+" : ""}${vsDraw} vs latest draw (${drawCutoff})` : "Express Entry estimate"}
         tone={vsDraw != null && vsDraw >= 0 ? "good" : vsDraw != null ? "warn" : "violet"}
       />
       <ReviewStatCard
@@ -976,20 +843,30 @@ function ReviewStepSummary({
         tone="neutral"
       />
       <ReviewStatCard
-        label="FSW 67-point test"
+        label="FSW minimum"
         value={`${fsw.total}/100`}
-        sub={fsw.eligible ? "Passes minimum" : "Below 67 points"}
+        sub={fsw.eligible ? "Passes 67-point test" : "Below 67 points"}
         tone={fsw.eligible ? "good" : "warn"}
       />
       <ReviewStatCard
-        label="Pathway status"
-        value={assignedPathway ? "Assigned" : "Pending"}
-        sub={assignedPathway ? pathwayShortName(assignedPathway) : "Select a ready pathway below"}
+        label="Assigned pathway"
+        value={assignedPathway ? pathwayShortName(assignedPathway) : "None yet"}
+        sub={assignedPathway ? "Saved to case file" : "Your choice below"}
         tone={assignedPathway ? "good" : "neutral"}
       />
     </div>
   );
 }
+
+const ALL_PATHWAY_OPTIONS = [
+  "Express Entry – Federal Skilled Worker",
+  "Express Entry – Canadian Experience Class",
+  "Express Entry – Federal Skilled Trades",
+  "Provincial Nominee Program",
+  "Study Permit",
+  "Work Permit",
+  "Family Sponsorship",
+] as const;
 
 function PathwaySelectRow({
   row,
@@ -1010,7 +887,7 @@ function PathwaySelectRow({
   showClear?: boolean;
   compact?: boolean;
 }) {
-  const canSelect = row.status === "eligible";
+  const isEligible = row.status === "eligible";
   const isLoading = assigning === row.backendValue;
 
   return (
@@ -1082,17 +959,87 @@ function PathwaySelectRow({
           ) : (
             <span className="text-xs font-medium text-emerald-700">Assigned</span>
           )
-        ) : canSelect ? (
+        ) : (
           <Button
             size="sm"
-            className={cn("h-8 rounded-lg text-xs", isRecommended && "bg-violet-600 hover:bg-violet-700")}
-            variant={isRecommended ? "default" : "outline"}
+            className={cn("h-8 rounded-lg text-xs", isRecommended && isEligible && "bg-violet-600 hover:bg-violet-700")}
+            variant={isRecommended && isEligible ? "default" : "outline"}
             disabled={isLoading}
             onClick={() => onAssign(row.backendValue, row.pathway)}
           >
-            {isLoading ? "Assigning…" : "Assign"}
+            {isLoading ? "Assigning…" : isEligible ? "Assign" : "Assign anyway"}
           </Button>
-        ) : null}
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ConsultantPathwayPicker({
+  assignedPathway,
+  assigning,
+  onAssign,
+}: {
+  assignedPathway: string | null;
+  assigning: string | null;
+  onAssign: (backendValue: string, displayName: string) => void;
+}) {
+  const [selected, setSelected] = useState<string>(ALL_PATHWAY_OPTIONS[0]);
+  const [customPathway, setCustomPathway] = useState("");
+  const useCustom = selected === "__custom__";
+  const pendingValue = useCustom ? customPathway.trim() : selected;
+  const isLoading = Boolean(pendingValue) && assigning === pendingValue;
+
+  useEffect(() => {
+    if (!assignedPathway) return;
+    if ((ALL_PATHWAY_OPTIONS as readonly string[]).includes(assignedPathway)) {
+      setSelected(assignedPathway);
+      setCustomPathway("");
+    } else {
+      setSelected("__custom__");
+      setCustomPathway(assignedPathway);
+    }
+  }, [assignedPathway]);
+
+  return (
+    <div className="rounded-xl border border-dashed border-primary/30 bg-primary/[0.03] p-4">
+      <p className="text-sm font-semibold">Your choice — assign any pathway</p>
+      <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+        Suggestions above are based on the profile. As the consultant, you decide the final immigration route.
+      </p>
+
+      <div className="mt-4 space-y-3">
+        <select
+          value={selected}
+          onChange={(e) => setSelected(e.target.value)}
+          className="h-10 w-full rounded-xl border border-border/70 bg-background px-3 text-sm outline-none focus:border-primary/50"
+        >
+          {ALL_PATHWAY_OPTIONS.map((p) => (
+            <option key={p} value={p}>{pathwayShortName(p)}</option>
+          ))}
+          <option value="__custom__">Other pathway (type your own)</option>
+        </select>
+
+        {useCustom && (
+          <input
+            type="text"
+            value={customPathway}
+            onChange={(e) => setCustomPathway(e.target.value)}
+            placeholder="e.g. Atlantic Immigration Program"
+            maxLength={100}
+            className="h-10 w-full rounded-xl border border-border/70 bg-background px-3 text-sm outline-none focus:border-primary/50"
+          />
+        )}
+
+        <Button
+          className="w-full gap-2 rounded-xl"
+          variant="outline"
+          disabled={!pendingValue || isLoading || assignedPathway === pendingValue}
+          onClick={() => onAssign(pendingValue, pendingValue)}
+        >
+          {isLoading ? <Loader2 className="size-4 animate-spin" /> : <Award className="size-4" />}
+          {assignedPathway === pendingValue ? "Already assigned" : "Assign selected pathway"}
+        </Button>
       </div>
     </div>
   );
@@ -1140,7 +1087,7 @@ function PathwayAssignPanel({
               Assign immigration pathway
             </h2>
             <p className="max-w-2xl text-sm text-muted-foreground">
-              Select one ready pathway for this client. Other options are shown for planning only.
+              Review suggested pathways below, or assign any route you believe is right for this client.
             </p>
           </div>
           {assignedPathway && (
@@ -1156,7 +1103,7 @@ function PathwayAssignPanel({
         <div className="space-y-3">
           <div className="flex items-center justify-between gap-2">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Ready to assign · {ready.length}
+              Suggested · ready now · {ready.length}
             </p>
           </div>
 
@@ -1202,12 +1149,27 @@ function PathwayAssignPanel({
             {showFuture && (
               <div className="space-y-2">
                 {future.map((row) => (
-                  <PathwaySelectRow key={row.backendValue} row={row} isAssigned={false} assigning={assigning} onAssign={onAssign} compact />
+                  <PathwaySelectRow
+                    key={row.backendValue}
+                    row={row}
+                    isAssigned={assignedPathway === row.backendValue}
+                    assigning={assigning}
+                    onAssign={onAssign}
+                    onClear={onClear}
+                    showClear={Boolean(onClear)}
+                    compact
+                  />
                 ))}
               </div>
             )}
           </div>
         )}
+
+        <ConsultantPathwayPicker
+          assignedPathway={assignedPathway}
+          assigning={assigning}
+          onAssign={onAssign}
+        />
       </div>
     </div>
   );
@@ -1312,118 +1274,68 @@ function AssessmentNotesCard({
   );
 }
 
-// ─── Quick start bar ─────────────────────────────────────────────────────────
+// ─── Accompanying spouse card (prominent toggle) ─────────────────────────────
 
-function QuickStartBar({
-  onPrefill, prefillLoading, prefillMessage, rulesMeta, draws, calcLoading,
+function AccompanyingSpouseCard({
+  enabled, onChange, onRunSimulation,
 }: {
-  onPrefill: () => void;
-  prefillLoading: boolean;
-  prefillMessage: string | null;
-  rulesMeta: CrsRulesMeta | null;
-  draws: CrsDraw[];
-  calcLoading: boolean;
+  enabled: boolean;
+  onChange: (v: boolean) => void;
+  onRunSimulation?: () => void;
 }) {
-  const latestDraw = draws[0];
   return (
-    <div className="mb-6 space-y-3 rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/[0.05] via-background to-violet-500/[0.04] p-4 shadow-sm">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-center">
-        <div className="flex min-w-0 flex-1 items-start gap-3">
-          <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-primary">
-            <Sparkles className="size-5" />
+    <div className={cn(
+      "rounded-2xl border p-4 transition-all sm:p-5",
+      enabled
+        ? "border-violet-300/80 bg-gradient-to-br from-violet-500/10 via-background to-fuchsia-500/5 shadow-sm"
+        : "border-border/70 bg-card hover:border-violet-200/80",
+    )}>
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex min-w-0 items-start gap-3">
+          <div className={cn(
+            "flex size-12 shrink-0 items-center justify-center rounded-xl transition-colors",
+            enabled ? "bg-violet-600 text-white shadow-sm" : "bg-muted text-muted-foreground",
+          )}>
+            <Users className="size-5" />
           </div>
           <div className="min-w-0">
-            <p className="text-sm font-semibold">How to use this tool</p>
-            <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
-              1) Load client data or fill in manually → 2) Check score vs latest draw → 3) Select pathway → 4) Open IRCC forms.
-              {rulesMeta && ` CRS rules ${rulesMeta.version}.`}
-              {calcLoading && " Updating score…"}
+            <p className="text-sm font-semibold">Accompanying spouse or partner</p>
+            <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
+              {enabled
+                ? "Spouse details are included in the score. Fill in the spouse section below, then use the comparison tool if you need to decide who should be the main applicant."
+                : "Turn this on if your client is immigrating with a spouse or common-law partner."}
             </p>
           </div>
         </div>
-
-        <div className="flex shrink-0 flex-wrap items-center gap-2">
-          <Button size="sm" className="gap-1.5 rounded-xl" onClick={onPrefill} disabled={prefillLoading}>
-            {prefillLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileText className="h-3.5 w-3.5" />}
-            Load from questionnaire
-          </Button>
-          <Button variant="outline" size="sm" className="gap-1.5 rounded-xl" asChild>
-            <a href={OFFICIAL_CRS_TOOL_URL} target="_blank" rel="noopener noreferrer">
-              <ExternalLink className="h-3.5 w-3.5" />
-              Verify on IRCC
-            </a>
-          </Button>
+        <div className="flex shrink-0 flex-col items-end gap-2">
+          <Switch
+            checked={enabled}
+            onCheckedChange={onChange}
+            className="scale-110 data-[state=checked]:bg-violet-600"
+            aria-label="Include accompanying spouse"
+          />
+          <span className={cn("text-[10px] font-semibold uppercase tracking-wide", enabled ? "text-violet-700" : "text-muted-foreground")}>
+            {enabled ? "Active" : "Off"}
+          </span>
         </div>
-
-        {latestDraw && (
-          <div className="min-w-[7.5rem] shrink-0 rounded-xl border border-blue-200/60 bg-blue-500/[0.08] px-4 py-2.5 text-center">
-            <p className="text-[10px] font-medium uppercase tracking-wide text-blue-700/80">Latest draw</p>
-            <p className="text-2xl font-black text-blue-800">{latestDraw.minimum_crs_score ?? "—"}</p>
-            <p className="text-[10px] text-blue-700/70">Draw #{latestDraw.draw_number}</p>
-          </div>
-        )}
       </div>
 
-      {prefillMessage && (
-        <p className="text-xs rounded-lg bg-blue-50 border border-blue-100 px-3 py-2 text-blue-800">{prefillMessage}</p>
+      {enabled && onRunSimulation && (
+        <div className="mt-4 flex flex-col gap-2 border-t border-violet-200/50 pt-4 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-xs text-violet-900/80">
+            Compare who should be the main applicant — only when both profiles are complete.
+          </p>
+          <Button
+            variant="outline"
+            size="sm"
+            className="shrink-0 gap-1.5 rounded-xl border-violet-300 bg-white/80 text-violet-900 hover:bg-violet-50"
+            onClick={onRunSimulation}
+          >
+            <Users className="size-3.5" />
+            Compare main vs spouse
+          </Button>
+        </div>
       )}
-    </div>
-  );
-}
-
-// ─── Step Indicator Bar ───────────────────────────────────────────────────────
-
-const STEPS = [
-  { num: 1, title: "Client details",  subtitle: "Scores & work history", icon: Calculator     },
-  { num: 2, title: "Review & decide", subtitle: "Pathway & notes",       icon: ClipboardCheck },
-  { num: 3, title: "IRCC package",    subtitle: "Forms & guides",        icon: Package        },
-] as const;
-
-function StepBar({ current, onStep }: { current: 1 | 2 | 3; onStep?: (s: 1 | 2 | 3) => void }) {
-  return (
-    <div className="flex items-start">
-      {STEPS.map((step, idx) => {
-        const done   = step.num < current;
-        const active = step.num === current;
-        const Icon   = step.icon;
-        const canClick = onStep && (done || active);
-        return (
-          <div key={step.num} className="flex items-start flex-1">
-            <button
-              type="button"
-              disabled={!canClick}
-              onClick={() => canClick && onStep?.(step.num as 1 | 2 | 3)}
-              className={cn(
-                "flex flex-col items-center gap-2 flex-1 rounded-lg py-1 transition-colors",
-                canClick && !active && "hover:bg-muted/40 cursor-pointer",
-                !canClick && "cursor-default"
-              )}
-            >
-              <div className={cn(
-                "flex size-11 shrink-0 items-center justify-center rounded-full border-2 transition-all",
-                done   ? "border-violet-600 bg-violet-600 text-white" :
-                active ? "border-violet-500 bg-violet-500/15 text-violet-700 dark:text-violet-300" :
-                         "border-border bg-background text-muted-foreground"
-              )}>
-                {done ? <CheckCircle2 className="h-5 w-5" /> : <Icon className="h-4 w-4" />}
-              </div>
-              <div className="text-center px-1">
-                <p className={cn("text-xs font-bold",
-                  active ? "text-violet-700 dark:text-violet-300" :
-                  done   ? "text-foreground" : "text-muted-foreground"
-                )}>{step.title}</p>
-                <p className="text-[10px] text-muted-foreground hidden sm:block">{step.subtitle}</p>
-              </div>
-            </button>
-            {idx < STEPS.length - 1 && (
-              <div className={cn(
-                "h-0.5 flex-1 mt-5 mx-1 sm:mx-2",
-                step.num < current ? "bg-violet-500" : "bg-border"
-              )} />
-            )}
-          </div>
-        );
-      })}
     </div>
   );
 }
@@ -1452,6 +1364,11 @@ export function PathwayCalculatorClient({ paramsPromise }: { paramsPromise: Prom
   const [draws,           setDraws]           = useState<CrsDraw[]>([]);
   const [apiResult,       setApiResult]       = useState<CrsApiResult | null>(null);
   const [calcLoading,     setCalcLoading]     = useState(false);
+  const [simulation, setSimulation] = useState<{
+    result: CrsApiResult;
+    inputKey: string;
+    source: "questionnaire" | "manual";
+  } | null>(null);
   const [assessmentNotes, setAssessmentNotes] = useState("");
   const [irccCrsScore,    setIrccCrsScore]    = useState<string>("");
   const [savingNotes,     setSavingNotes]     = useState(false);
@@ -1496,21 +1413,46 @@ export function PathwayCalculatorClient({ paramsPromise }: { paramsPromise: Prom
     fetchCrsDraws(8).then(setDraws).catch(() => []);
   }, []);
 
-  useEffect(() => {
-    let cancelled = false;
-    const timer = setTimeout(async () => {
-      setCalcLoading(true);
-      try {
-        const result = await calculateCrs(toApiPayload(main, spouse, hasSpouse, principalApplicant));
-        if (!cancelled) setApiResult(result);
-      } catch {
-        if (!cancelled) setApiResult(null);
-      } finally {
-        if (!cancelled) setCalcLoading(false);
-      }
-    }, 350);
-    return () => { cancelled = true; clearTimeout(timer); };
+  const runSimulation = useCallback(async (
+    source: "questionnaire" | "manual",
+    overrides?: {
+      main?: ExtendedPersonInput;
+      spouse?: SpouseInput & { age?: number; englishTestType?: "ielts" | "celpip" };
+      hasSpouse?: boolean;
+      principal?: "main" | "spouse";
+    },
+  ) => {
+    const m = overrides?.main ?? main;
+    const s = overrides?.spouse ?? spouse;
+    const hs = overrides?.hasSpouse ?? hasSpouse;
+    const p = overrides?.principal ?? principalApplicant;
+    setCalcLoading(true);
+    try {
+      const payload = toApiPayload(m, s, hs, p);
+      const result = await calculateCrs(payload);
+      setSimulation({ result, inputKey: JSON.stringify(payload), source });
+      setApiResult(result);
+    } catch {
+      setSimulation(null);
+      setApiResult(null);
+    } finally {
+      setCalcLoading(false);
+    }
   }, [main, spouse, hasSpouse, principalApplicant]);
+
+  const currentSimulationInputKey = useMemo(
+    () => JSON.stringify(toApiPayload(main, spouse, hasSpouse, principalApplicant)),
+    [main, spouse, hasSpouse, principalApplicant],
+  );
+
+  const simulationStale = Boolean(simulation && simulation.inputKey !== currentSimulationInputKey);
+  const hasActiveSimulation = Boolean(simulation && !simulationStale);
+
+  const scoreHeroMode: "empty" | "stale" | "active" = !simulation
+    ? "empty"
+    : simulationStale
+      ? "stale"
+      : "active";
 
   async function loadFromQuestionnaire() {
     setPrefillLoading(true);
@@ -1528,13 +1470,23 @@ export function PathwayCalculatorClient({ paramsPromise }: { paramsPromise: Prom
         step3_data: sub.step3_data,
       });
       if (mapped.filledFields.length === 0) {
-        setPrefillMessage("Questionnaire exists but has no usable CRS fields yet. Enter scores manually.");
+        setPrefillMessage("Questionnaire exists but has no usable CRS fields yet. Enter scores manually, then run simulation.");
         return;
       }
-      setMain(prev => mergePersonInput(prev, mapped.main));
-      setSpouse(prev => mergeSpouseInput(prev, mapped.spouse));
+      const nextMain = mergePersonInput(main, mapped.main);
+      const nextSpouse = mergeSpouseInput(spouse, mapped.spouse);
+      const nextHasSpouse = mapped.hasSpouse || hasSpouse;
+      setMain(nextMain);
+      setSpouse(nextSpouse);
       if (mapped.hasSpouse) setHasSpouse(true);
-      setPrefillMessage(`Loaded ${mapped.filledFields.length} field(s): ${mapped.filledFields.join(", ")}. Review and verify against IRCC tool.`);
+      await runSimulation("questionnaire", {
+        main: nextMain,
+        spouse: nextSpouse,
+        hasSpouse: nextHasSpouse,
+      });
+      setPrefillMessage(
+        `Loaded ${mapped.filledFields.length} field(s) and ran CRS simulation. Review values below — simulated result is not saved until you record it on the case file.`,
+      );
     } catch (e) {
       setPrefillMessage(e instanceof Error ? e.message : "Could not load questionnaire.");
     } finally {
@@ -1553,12 +1505,17 @@ export function PathwayCalculatorClient({ paramsPromise }: { paramsPromise: Prom
     try {
       const payload = toApiPayload(main, spouse, hasSpouse, principal);
       let crsScore = clientAsPrincipalCrs;
-      try {
-        const result = await calculateCrs(payload);
-        crsScore = result.crs.total;
-        setApiResult(result);
-      } catch {
-        crsScore = principal === "spouse" && hasSpouse ? spouseAsPrincipalCrs : clientAsPrincipalCrs;
+      if (hasActiveSimulation && simulation) {
+        crsScore = simulation.result.crs.total;
+      } else {
+        try {
+          const result = await calculateCrs(payload);
+          crsScore = result.crs.total;
+          setSimulation({ result, inputKey: JSON.stringify(payload), source: "manual" });
+          setApiResult(result);
+        } catch {
+          crsScore = principal === "spouse" && hasSpouse ? spouseAsPrincipalCrs : clientAsPrincipalCrs;
+        }
       }
       const snapshot = {
         ...payload,
@@ -1573,7 +1530,7 @@ export function PathwayCalculatorClient({ paramsPromise }: { paramsPromise: Prom
         notes: assessmentNotes,
         crs_score: crsScore,
         ircc_crs_score: irccCrsScore ? parseInt(irccCrsScore, 10) : undefined,
-        rules_version: apiResult?.rules_version ?? rulesMeta?.version,
+        rules_version: simulation?.result.rules_version ?? apiResult?.rules_version ?? rulesMeta?.version,
         assessment_snapshot: snapshot as Record<string, unknown>,
       });
       setPrincipalApplicant(principal);
@@ -1637,15 +1594,15 @@ export function PathwayCalculatorClient({ paramsPromise }: { paramsPromise: Prom
     }
   }
 
-  const mainCRS: CRSBreakdown = apiResult ? apiToBreakdown(apiResult.crs) : calcCRS(main, hasSpouse, hasSpouse ? spouse : undefined);
-  const mainFSW: FSWBreakdown = apiResult ? apiToFsw(apiResult.fsw) : calcFSW(main);
+  const simulatedCrs = simulation ? apiToBreakdown(simulation.result.crs) : null;
+  const simulatedFsw = simulation ? apiToFsw(simulation.result.fsw) : null;
 
   const spouseAsMain = spouseToExtendedPerson(spouse);
   const spouseCRS = calcCRS(spouseAsMain, false);
   const spouseFSW = calcFSW(spouseAsMain);
 
-  const activeCRS = mainCRS;
-  const activeFSW = mainFSW;
+  const activeCRS = simulatedCrs ?? calcCRS(main, hasSpouse, hasSpouse ? spouse : undefined);
+  const activeFSW = simulatedFsw ?? calcFSW(main);
   const activePerson: PersonInput = principalApplicant === "spouse" && hasSpouse ? spouseAsMain : main;
   const activeHasSpouse = hasSpouse;
   const activeSpouseForInsights =
@@ -1657,184 +1614,123 @@ export function PathwayCalculatorClient({ paramsPromise }: { paramsPromise: Prom
   const canClearPathway = !agreementSentAt;
 
   return (
-    <div className="min-w-0 w-full space-y-4 overflow-x-hidden pb-4 sm:space-y-6 sm:pb-6">
+    <div className="min-w-0 w-full space-y-5 overflow-x-hidden pb-6 sm:space-y-6">
 
-      <WorkspaceBreadcrumb profileId={id} workspaceStep={1} pageLabel="Pathway calculator" />
+      <WorkspaceSubpageHero
+        profileId={id}
+        stepLabel="Step 1 · Intake & pathway"
+        title="Pathway calculator"
+        description="Load your client's details, calculate their CRS score, and choose the right Canadian immigration pathway — all in three guided steps."
+        illustration={INTAKE_WORKSPACE_TASKS[1].illustration}
+        illustrationAlt={INTAKE_WORKSPACE_TASKS[1].illustrationAlt}
+      >
+        {assignedPathway && (
+          <Badge variant="outline" className="h-8 gap-1.5 rounded-xl border-emerald-200/70 bg-emerald-500/10 px-3 text-emerald-800">
+            <CheckCircle2 className="size-3.5" />
+            {assignedPathway}
+          </Badge>
+        )}
+        {clientName && (
+          <Badge variant="outline" className="h-8 rounded-xl px-3 text-xs">
+            {clientName}
+          </Badge>
+        )}
+      </WorkspaceSubpageHero>
 
-      <section className="rounded-2xl border border-border/70 bg-gradient-to-br from-background via-background to-violet-500/[0.06] p-4 shadow-sm sm:p-5 md:p-6">
+      <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+        {/* ── Main workflow column ─────────────────────────────────────── */}
+        <div className="min-w-0 space-y-5">
+          <WorkflowGuideCard
+            step={step}
+            onStep={setStep}
+            hasActiveSimulation={hasActiveSimulation}
+            assignedPathway={assignedPathway}
+          >
+            <StepNavButtons
+              step={step}
+              hasActiveSimulation={hasActiveSimulation}
+              assignedPathway={assignedPathway}
+              onStep={setStep}
+            />
+          </WorkflowGuideCard>
 
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div className="space-y-1">
-            <h1 className="flex items-center gap-2.5 text-xl font-bold tracking-tight sm:text-2xl md:text-3xl">
-              <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-violet-500/15 text-violet-700 dark:text-violet-300 sm:size-10">
-                <Calculator className="size-4 sm:size-5" />
-              </span>
-              CRS &amp; pathway calculator
-            </h1>
-            {clientName && (
-              <p className="text-sm text-muted-foreground">
-                Assessing <span className="font-medium text-foreground">{clientName}</span>
-              </p>
-            )}
-            <p className="max-w-2xl text-sm text-muted-foreground">
-              Score the profile, compare pathways, verify with IRCC, and assign the right immigration route.
-            </p>
-          </div>
-          {assignedPathway && (
-            <Badge variant="outline" className="h-8 shrink-0 gap-1.5 rounded-xl border-emerald-200/70 bg-emerald-500/10 px-3 text-emerald-800">
-              <CheckCircle2 className="size-3.5" />
-              {assignedPathway}
-            </Badge>
-          )}
-        </div>
-      </section>
-
-      <QuickStartBar
-        onPrefill={loadFromQuestionnaire}
-        prefillLoading={prefillLoading}
-        prefillMessage={prefillMessage}
-        rulesMeta={rulesMeta}
-        draws={draws}
-        calcLoading={calcLoading}
-      />
-
-      <div className="rounded-2xl border border-border/70 bg-card px-4 py-5 shadow-sm sm:px-6">
-        <StepBar current={step} onStep={s => setStep(s)} />
-
-        <div className="mt-5 flex flex-wrap items-center justify-between gap-4 border-t border-border/50 pt-4">
           {step === 1 && (
             <>
-              <div className="flex min-w-0 flex-1 flex-col gap-2 sm:max-w-xl">
-                <Toggle
-                  label="Client has accompanying spouse"
-                  checked={hasSpouse}
-                  onChange={(v) => {
-                    setHasSpouse(v);
-                    if (!v) setPrincipalApplicant("main");
-                  }}
-                />
-                {hasSpouse && (
-                  <div className="flex flex-col gap-2 rounded-xl border border-violet-200/50 bg-violet-500/[0.05] px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between">
-                    <p className="text-xs text-muted-foreground leading-relaxed">
-                      <strong className="text-foreground">Compare CRS scores</strong> — pick who should be principal applicant, save to the case file, and continue to pathway review.
-                    </p>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="shrink-0 gap-1.5 rounded-xl border-violet-200/70 text-xs"
-                      onClick={() => setShowCompareModal(true)}
-                    >
-                      <Users className="size-3.5" />
-                      Compare &amp; continue
-                    </Button>
-                  </div>
-                )}
-              </div>
-              <Button onClick={() => setStep(2)} className="shrink-0 gap-2 rounded-xl">
-                Continue to review
-                <ChevronRight className="size-4" />
-              </Button>
-            </>
-          )}
-          {step === 2 && (
-            <>
-              <Button variant="outline" onClick={() => setStep(1)} className="gap-2">
-                <ArrowLeft className="h-4 w-4" />Edit client details
-              </Button>
-              <Button onClick={() => setStep(3)} className="gap-2" disabled={!assignedPathway}>
-                {assignedPathway ? "Open IRCC forms" : "Select a pathway first"}
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </>
-          )}
-          {step === 3 && (
-            <>
-              <Button variant="outline" onClick={() => setStep(2)} className="gap-2">
-                <ArrowLeft className="h-4 w-4" />Back to review
-              </Button>
-              <Link href={`/dashboard/clients/${id}/workspace`}>
-                <Button variant="outline" className="gap-2">
-                  Done — back to workspace
-                  <CheckCircle2 className="h-4 w-4 text-green-600" />
-                </Button>
-              </Link>
-            </>
-          )}
-        </div>
-      </div>
-
-      {/* ── Step 1: Client details ─────────────────────────────────────────── */}
-      {step === 1 && (
-        <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
-          <div className="space-y-4">
-            <div className="rounded-xl border border-blue-200/60 bg-blue-500/[0.06] px-4 py-3 text-sm text-blue-900">
-              <strong>Tip:</strong> Click <em>Load from questionnaire</em> above to auto-fill, then verify each section below.
-            </div>
-            <PersonForm data={main} onChange={setMain} label="Main applicant" />
-            {hasSpouse && (
-              <div className="rounded-xl border border-violet-200/50 bg-violet-500/[0.04] p-4">
-                <p className="mb-3 flex items-center gap-2 text-sm font-semibold text-violet-900">
-                  <Users className="size-4 text-violet-600" />
-                  Spouse / partner details
-                </p>
-                <SpouseForm data={spouse} onChange={setSpouse} />
-                <div className="mt-4">
-                  <PrincipalApplicantBanner
-                    principal={principalApplicant}
-                    mainCrs={calcCRS(main, true, spouse).total}
-                    spouseCrs={spouseCRS.total}
-                    onChange={setPrincipalApplicant}
-                  />
-                </div>
-              </div>
-            )}
-          </div>
-
-          <div className="xl:sticky xl:top-4 xl:self-start">
-            <LiveScorePreview
-              crs={activeCRS} fsw={activeFSW} person={activePerson}
-              assignedPathway={assignedPathway}
-              draws={draws}
-              hasSpouse={activeHasSpouse}
-              spouse={activeSpouseForInsights}
-              onNext={() => setStep(2)}
-            />
-          </div>
-        </div>
-      )}
-
-      {step === 2 && (
-        <div className="space-y-6">
-          {hasSpouse && (
-            <PrincipalApplicantBanner
-              principal={principalApplicant}
-              mainCrs={calcCRS(main, true, spouse).total}
-              spouseCrs={spouseCRS.total}
-              onChange={setPrincipalApplicant}
-            />
-          )}
-          <ReviewStepSummary crs={activeCRS} fsw={activeFSW} assignedPathway={assignedPathway} draws={draws} />
-
-          <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
-            <PathwayAssignPanel
-              crs={activeCRS}
-              fsw={activeFSW}
-              person={activePerson}
-              assignedPathway={assignedPathway}
-              assigning={assigning}
-              onAssign={assignPathway}
-              onClear={canClearPathway ? clearPathway : undefined}
-              hasSpouse={activeHasSpouse}
-              spouse={activeSpouseForInsights}
-            />
-
-            <aside className="space-y-4 xl:sticky xl:top-4 xl:self-start">
-              <IrccVerifyCard
-                mainCrs={activeCRS.total}
-                irccCrsScore={irccCrsScore}
-                onIrccChange={setIrccCrsScore}
-                rulesVersion={apiResult?.rules_version ?? rulesMeta?.version}
+              <HowItWorksCard
+                onLoad={loadFromQuestionnaire}
+                onSimulate={() => { void runSimulation("manual"); }}
+                loadLoading={prefillLoading}
+                simulateLoading={calcLoading}
+                prefillMessage={prefillMessage}
+                hasActiveSimulation={hasActiveSimulation}
               />
+
+              <AccompanyingSpouseCard
+                enabled={hasSpouse}
+                onChange={(v) => {
+                  setHasSpouse(v);
+                  if (!v) setPrincipalApplicant("main");
+                }}
+                onRunSimulation={() => setShowCompareModal(true)}
+              />
+
+              <PersonForm data={main} onChange={setMain} label="Client profile" />
+
+              {hasSpouse && (
+                <div className="rounded-xl border border-violet-200/60 bg-violet-500/[0.04] p-4">
+                  <p className="mb-3 flex items-center gap-2 text-sm font-semibold text-violet-900">
+                    <Users className="size-4 text-violet-600" />
+                    Spouse or partner
+                  </p>
+                  <SpouseForm data={spouse} onChange={setSpouse} />
+                </div>
+              )}
+            </>
+          )}
+
+          {step === 2 && !hasActiveSimulation && (
+            <div className="rounded-2xl border border-amber-300/70 bg-amber-50/80 p-6 text-center">
+              <AlertCircle className="mx-auto size-8 text-amber-700" />
+              <p className="mt-3 text-sm font-semibold text-amber-950">
+                {simulationStale ? "Score needs updating" : "Calculate a score first"}
+              </p>
+              <p className="mt-1 text-xs leading-relaxed text-amber-900/90">
+                {simulationStale
+                  ? "You changed client details. Go back and calculate the score again."
+                  : "Load the questionnaire or calculate the score in Step 1 before choosing a pathway."}
+              </p>
+              <Button className="mt-4 gap-2 rounded-xl" onClick={() => { setStep(1); void runSimulation("manual"); }} disabled={calcLoading}>
+                {calcLoading ? <Loader2 className="size-4 animate-spin" /> : <Calculator className="size-4" />}
+                Go to Step 1
+              </Button>
+            </div>
+          )}
+
+          {step === 2 && hasActiveSimulation && (
+            <div className="space-y-6">
+              <ReviewStepSummary crs={activeCRS} fsw={activeFSW} assignedPathway={assignedPathway} draws={draws} />
+
+              {hasSpouse && (
+                <PrincipalApplicantBanner
+                  principal={principalApplicant}
+                  mainCrs={calcCRS(main, true, spouse).total}
+                  spouseCrs={spouseCRS.total}
+                  onChange={setPrincipalApplicant}
+                />
+              )}
+
+              <PathwayAssignPanel
+                crs={activeCRS}
+                fsw={activeFSW}
+                person={activePerson}
+                assignedPathway={assignedPathway}
+                assigning={assigning}
+                onAssign={assignPathway}
+                onClear={canClearPathway ? clearPathway : undefined}
+                hasSpouse={activeHasSpouse}
+                spouse={activeSpouseForInsights}
+              />
+
               <AssessmentNotesCard
                 notes={assessmentNotes}
                 onChange={setAssessmentNotes}
@@ -1842,77 +1738,132 @@ export function PathwayCalculatorClient({ paramsPromise }: { paramsPromise: Prom
                 saving={savingNotes}
                 message={saveMessage}
               />
+
+              <div className="overflow-hidden rounded-2xl border border-border/70 bg-card shadow-sm">
+                <button
+                  type="button"
+                  className="flex w-full items-center justify-between gap-3 border-b border-border/50 bg-muted/10 px-5 py-4 text-left transition-colors hover:bg-muted/20"
+                  onClick={() => setShowScoreBreakdown(!showScoreBreakdown)}
+                >
+                  <div>
+                    <p className="text-sm font-semibold">Detailed score breakdown</p>
+                    <p className="text-xs text-muted-foreground">See how CRS points were calculated</p>
+                  </div>
+                  {showScoreBreakdown ? <ChevronUp className="size-4 shrink-0" /> : <ChevronDown className="size-4 shrink-0" />}
+                </button>
+                {showScoreBreakdown && (
+                  <div className="border-t border-border/50 p-5">
+                    <ScoreDetailPanel crs={activeCRS} fsw={activeFSW} />
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {step === 3 && (
+            <div className="space-y-4">
+              {assignedPathway && (
+                <div className="flex items-center gap-3 rounded-xl border border-emerald-200/70 bg-emerald-500/[0.08] px-4 py-3">
+                  <CheckCircle2 className="size-5 shrink-0 text-emerald-600" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-emerald-900">Pathway assigned</p>
+                    <p className="text-xs text-emerald-800">{assignedPathway}</p>
+                  </div>
+                  {canClearPathway && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-8 shrink-0 border-green-300 text-xs text-green-800 hover:bg-green-100"
+                      disabled={assigning === "__clear__"}
+                      onClick={clearPathway}
+                    >
+                      {assigning === "__clear__" ? <Loader2 className="h-3 w-3 animate-spin" /> : <><X className="mr-1 h-3 w-3" />Clear</>}
+                    </Button>
+                  )}
+                </div>
+              )}
+              <IrccFormExplorer
+                clientProfileId={id}
+                assignedCategoryId={assignedPackageId}
+                onAssigned={setAssignedPackageId}
+              />
+              <div className="flex justify-end">
+                <Link href={`/dashboard/clients/${id}/workspace`}>
+                  <Button variant="outline" className="gap-2 rounded-xl">
+                    Back to Intake &amp; pathway
+                    <CheckCircle2 className="h-4 w-4 text-green-600" />
+                  </Button>
+                </Link>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* ── Sticky results sidebar ───────────────────────────────────── */}
+        <aside className="space-y-4 xl:sticky xl:top-4 xl:self-start">
+          <SimulationStatusBanner
+            mode={scoreHeroMode}
+            crsTotal={hasActiveSimulation ? activeCRS.total : undefined}
+            source={simulation?.source}
+            fswTotal={hasActiveSimulation ? activeFSW.total : undefined}
+            fswEligible={hasActiveSimulation ? activeFSW.eligible : undefined}
+            drawCutoff={draws[0]?.minimum_crs_score ?? null}
+            vsDraw={
+              hasActiveSimulation && draws[0]?.minimum_crs_score != null
+                ? activeCRS.total - draws[0].minimum_crs_score
+                : null
+            }
+          />
+
+          {step === 1 && (
+            <LiveScorePreview
+              clientId={Number(id)}
+              crs={activeCRS}
+              fsw={activeFSW}
+              person={activePerson}
+              assignedPathway={assignedPathway}
+              hasSpouse={activeHasSpouse}
+              spouse={activeSpouseForInsights}
+              hasActiveSimulation={hasActiveSimulation}
+              onNext={hasActiveSimulation ? () => setStep(2) : undefined}
+            />
+          )}
+
+          {step === 2 && hasActiveSimulation && (
+            <>
+              <IrccVerifyCard
+                mainCrs={activeCRS.total}
+                irccCrsScore={irccCrsScore}
+                onIrccChange={setIrccCrsScore}
+                rulesVersion={simulation?.result.rules_version ?? rulesMeta?.version}
+              />
               <div className="rounded-xl border border-amber-200/60 bg-amber-500/[0.05] px-4 py-3">
                 <p className="flex items-start gap-2 text-xs text-amber-900">
                   <AlertCircle className="mt-0.5 size-4 shrink-0" />
-                  <span>
-                    Screening estimate only. Draw cut-offs change each round. Confirm final scores with the official IRCC tool.
-                  </span>
+                  Confirm final scores with the official IRCC tool before advising your client.
                 </p>
               </div>
-            </aside>
-          </div>
-
-          <div className="overflow-hidden rounded-2xl border border-border/70 bg-card shadow-sm">
-            <button
-              type="button"
-              className="flex w-full items-center justify-between gap-3 border-b border-border/50 bg-muted/10 px-5 py-4 text-left transition-colors hover:bg-muted/20"
-              onClick={() => setShowScoreBreakdown(!showScoreBreakdown)}
-            >
-              <div>
-                <p className="text-sm font-semibold">Detailed score breakdown</p>
-                <p className="text-xs text-muted-foreground">CLB levels, FSW factors, and improvement ideas</p>
-              </div>
-              {showScoreBreakdown ? <ChevronUp className="size-4 shrink-0" /> : <ChevronDown className="size-4 shrink-0" />}
-            </button>
-            {showScoreBreakdown && (
-              <div className="border-t border-border/50 p-5">
-                <ScoreDetailPanel crs={activeCRS} fsw={activeFSW} />
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* ── Step 3: IRCC Forms & Guides ───────────────────────────────────── */}
-      {step === 3 && (
-        <div className="space-y-4">
-          {assignedPathway && (
-            <div className="flex items-center gap-3 rounded-xl border border-emerald-200/70 bg-emerald-500/[0.08] px-4 py-3">
-              <CheckCircle2 className="size-5 shrink-0 text-emerald-600" />
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold text-emerald-900">Pathway selected</p>
-                <p className="text-xs text-emerald-800">
-                  {assignedPathway} — find the required IRCC forms below
-                </p>
-              </div>
-              {canClearPathway && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="shrink-0 h-8 text-xs border-green-300 text-green-800 hover:bg-green-100"
-                  disabled={assigning === "__clear__"}
-                  onClick={clearPathway}
-                >
-                  {assigning === "__clear__" ? <Loader2 className="h-3 w-3 animate-spin" /> : <><X className="h-3 w-3 mr-1" />Clear</>}
-                </Button>
-              )}
-            </div>
+            </>
           )}
-          <IrccFormExplorer
-            clientProfileId={id}
-            assignedCategoryId={assignedPackageId}
-            onAssigned={setAssignedPackageId}
-          />
-        </div>
-      )}
 
-      {/* ── Spouse Compare Modal ─────────────────────────────────────────── */}
+          {step === 1 && !hasActiveSimulation && (
+            <Button
+              className="w-full gap-2 rounded-xl"
+              onClick={() => { void runSimulation("manual"); }}
+              disabled={calcLoading || prefillLoading}
+            >
+              {calcLoading ? <Loader2 className="size-4 animate-spin" /> : <Calculator className="size-4" />}
+              Calculate score
+            </Button>
+          )}
+        </aside>
+      </div>
+
       <SpouseCompareModal
         open={showCompareModal && hasSpouse}
         onClose={() => setShowCompareModal(false)}
-        mainCRS={calcCRS(main, true, spouse)} mainFSW={mainFSW}
+        mainCRS={calcCRS(main, true, spouse)} mainFSW={calcFSW(main)}
         spouseCRS={spouseCRS} spouseFSW={spouseFSW}
         onChoosePrincipal={(who) => void applyPrincipalAndContinue(who)}
         saving={savingNotes}

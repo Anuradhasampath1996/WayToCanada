@@ -269,7 +269,7 @@ class CaseManagementHubService
             'ai_match_result'   => $submission->ai_match_result,
             'rejection_comment' => $submission->rejection_comment,
             'reviewed_at'       => $submission->reviewed_at,
-            'uploaded_at'       => $submission->created_at,
+            'uploaded_at'       => $submission->created_at?->toDateTimeString(),
         ];
     }
 

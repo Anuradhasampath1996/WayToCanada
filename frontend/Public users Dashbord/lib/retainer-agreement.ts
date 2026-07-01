@@ -18,6 +18,7 @@ export interface AgreementConfig {
   consultantName: string;
   pathway: string;
   scopeDescription: string;
+  clientDetails?: ClientAgreementDetails;
 }
 
 export const DEFAULT_AGREEMENT_CONFIG: AgreementConfig = {
@@ -119,4 +120,102 @@ export function configFromCaseFile(caseFile: {
     totalFee: caseFile.agreement_fee ? Number(caseFile.agreement_fee) : undefined,
     customClauses: caseFile.agreement_notes ?? "",
   });
+}
+
+export interface ClientAgreementDetails {
+  fullLegalName?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  dateOfBirth?: string | null;
+  passportNumber?: string | null;
+  citizenship?: string | null;
+  residentialAddress?: string | null;
+  caseReference?: string | null;
+}
+
+function pickString(...values: unknown[]): string | null {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return null;
+}
+
+export function cleanAddressText(value: string | null | undefined): string | null {
+  if (!value?.trim()) return null;
+  return value
+    .replace(/,\s*,+/g, ", ")
+    .replace(/\s+/g, " ")
+    .replace(/,\s*$/g, "")
+    .trim();
+}
+
+function composeAddressParts(...parts: unknown[]): string | null {
+  const joined = parts
+    .flatMap((part) => {
+      if (typeof part !== "string" || !part.trim()) return [];
+      return part.split(",").map((s) => s.trim()).filter(Boolean);
+    })
+    .filter(Boolean);
+
+  return joined.length ? joined.join(", ") : null;
+}
+
+function formatAgreementDob(value: unknown): string | null {
+  const raw = pickString(value);
+  if (!raw) return null;
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return raw;
+  return parsed.toLocaleDateString("en-CA", { year: "numeric", month: "long", day: "numeric" });
+}
+
+export function mergeClientAgreementDetails(
+  base: ClientAgreementDetails,
+  overrides?: Partial<ClientAgreementDetails> | null,
+): ClientAgreementDetails {
+  if (!overrides) return base;
+  const merged: ClientAgreementDetails = { ...base };
+  (Object.keys(overrides) as (keyof ClientAgreementDetails)[]).forEach((key) => {
+    const value = overrides[key];
+    if (typeof value === "string" && value.trim()) {
+      merged[key] = key === "residentialAddress" ? cleanAddressText(value) : value.trim();
+    }
+  });
+  return merged;
+}
+
+export function extractClientAgreementDetails(params: {
+  clientProfile?: { phone?: string | null; passport_number?: string | null; id?: number } | null;
+  clientUser?: { name?: string | null; email?: string | null; phone?: string | null } | null;
+  questionnaireMain?: Record<string, unknown> | null;
+  questionnaireStep1?: Record<string, unknown> | null;
+  storedDetails?: Partial<ClientAgreementDetails> | null;
+  clientProfileId?: string | number | null;
+}): ClientAgreementDetails {
+  const md = params.questionnaireMain ?? {};
+  const s1 = params.questionnaireStep1 ?? {};
+  const passportName = pickString(md.passportFullName, md.fullName, md.nicFullName);
+  const composedName = [md.firstName, md.lastName].filter((v) => typeof v === "string" && v.trim()).join(" ").trim();
+  const residentialAddress = cleanAddressText(
+    pickString(
+      md.nicAddress,
+      md.currentAddress,
+      md.address,
+      md.mailingAddress,
+      md.residentialAddress,
+      composeAddressParts(md.streetAddress, md.city, md.province, md.postalCode, md.country),
+    ),
+  );
+
+  const extracted: ClientAgreementDetails = {
+    fullLegalName: passportName || composedName || pickString(s1.fullName) || params.clientUser?.name || null,
+    email: pickString(s1.email, params.clientUser?.email),
+    phone: pickString(md.phone, md.mobile, s1.whatsapp, params.clientProfile?.phone, params.clientUser?.phone),
+    dateOfBirth: formatAgreementDob(md.dob ?? md.passportDob ?? md.nicDob),
+    passportNumber: pickString(md.passportNumber, params.clientProfile?.passport_number),
+    citizenship: pickString(md.passportNationality, md.nationality),
+    residentialAddress,
+    caseReference: params.clientProfileId ? `WTC-${params.clientProfileId}` : null,
+  };
+
+  return mergeClientAgreementDetails(extracted, params.storedDetails);
 }

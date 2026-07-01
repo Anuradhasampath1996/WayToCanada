@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\CaseFile;
+use App\Support\ClientAgreementDetails;
 use App\Support\RetainerAgreementConfig;
 use Barryvdh\DomPDF\Facade\Pdf;
 
@@ -64,11 +65,16 @@ class RetainerAgreementPdfService
 
         $pathway = $config['pathway'] ?: ($caseFile->immigration_pathway ?? '');
         $scopeText = $config['scopeDescription'] ?? '';
+        $clientDetails = ClientAgreementDetails::extract(
+            $caseFile->clientProfile,
+            is_array($config['clientDetails'] ?? null) ? $config['clientDetails'] : null,
+        );
 
         return Pdf::loadView('pdf.retainer_agreement', [
             'config'            => $config,
             'clientName'        => $clientName,
             'clientEmail'       => $clientEmail,
+            'clientDetails'     => $clientDetails,
             'consultantName'    => $consultantName,
             'consultantProfile' => $consultantProfile,
             'companyName'       => $companyName,

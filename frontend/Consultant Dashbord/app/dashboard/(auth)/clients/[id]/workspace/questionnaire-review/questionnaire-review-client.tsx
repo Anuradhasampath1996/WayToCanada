@@ -5,7 +5,7 @@ import Link from "next/link";
 import {
   ArrowLeft, CheckCircle2, Loader2, AlertCircle,
   ClipboardList, ShieldCheck, Pencil, Upload, FileText, X, Check,
-  Eye, RotateCcw, MessageSquare, ImageIcon,
+  Eye, RotateCcw, MessageSquare, ImageIcon, Clock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -14,7 +14,8 @@ import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { WorkspaceBreadcrumb } from "../workspace-flow-ui";
+import { WorkspaceSubpageHero } from "../workspace-subpage-hero";
+import { INTAKE_WORKSPACE_TASKS } from "../workspace-flow-ui";
 
 const API = (process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000") + "/api/v1";
 
@@ -159,12 +160,19 @@ function fileBasename(path: string): string {
   return path.split("/").pop() ?? path;
 }
 
-function isImagePath(path: string): boolean {
-  return /\.(jpe?g|png|webp|gif)$/i.test(path);
+type DocumentMediaType = "image" | "pdf" | "other";
+
+function inferDocumentMediaType(path: string, blobMime: string): DocumentMediaType {
+  if (blobMime.startsWith("image/")) return "image";
+  if (blobMime === "application/pdf") return "pdf";
+  const lower = path.toLowerCase();
+  if (/\.(jpe?g|png|webp|gif)$/i.test(lower)) return "image";
+  if (/\.pdf$/i.test(lower)) return "pdf";
+  return "other";
 }
 
-function isPdfPath(path: string): boolean {
-  return /\.pdf$/i.test(path);
+function canStreamDocumentPath(path: string): boolean {
+  return path.startsWith("client-document/") || /\.(jpe?g|png|webp|gif|pdf)$/i.test(path);
 }
 
 const IDENTITY_DOC_KEYS = new Set([
@@ -185,12 +193,14 @@ function documentStreamUrl(profileId: string, filePath: string): string {
 
 function useAuthenticatedFileUrl(profileId: string, filePath: string | null) {
   const [url, setUrl] = useState<string | null>(null);
+  const [mediaType, setMediaType] = useState<DocumentMediaType>("other");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
 
   useEffect(() => {
-    if (!filePath || !filePath.includes("/")) {
+    if (!filePath || !canStreamDocumentPath(filePath)) {
       setUrl(null);
+      setMediaType("other");
       setError(false);
       return;
     }
@@ -212,6 +222,7 @@ function useAuthenticatedFileUrl(profileId: string, filePath: string | null) {
         if (cancelled) return;
         blobUrl = URL.createObjectURL(blob);
         setUrl(blobUrl);
+        setMediaType(inferDocumentMediaType(filePath, blob.type));
       })
       .catch(() => {
         if (!cancelled) setError(true);
@@ -226,7 +237,7 @@ function useAuthenticatedFileUrl(profileId: string, filePath: string | null) {
     };
   }, [profileId, filePath]);
 
-  return { url, loading, error };
+  return { url, mediaType, loading, error };
 }
 
 function RequestRefillDialog({
@@ -312,14 +323,44 @@ function DocCard({
 }) {
   const [uploading, setUploading] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [localPreviewUrl, setLocalPreviewUrl] = useState<string | null>(null);
+  const [localMediaType, setLocalMediaType] = useState<DocumentMediaType>("other");
   const fileRef = useRef<HTMLInputElement>(null);
   const currentPath = typeof value === "string" && value ? value : null;
   const displayName = currentPath ? fileBasename(currentPath) : "";
-  const isPdf = currentPath ? isPdfPath(currentPath) : false;
-  const isImage = currentPath ? isImagePath(currentPath) : false;
-  const { url: previewUrl, loading: previewLoading, error: previewError } = useAuthenticatedFileUrl(profileId, currentPath);
+  const { url: previewUrl, mediaType: storedMediaType, loading: previewLoading, error: previewError } = useAuthenticatedFileUrl(profileId, currentPath);
+
+  const activePreviewUrl = localPreviewUrl ?? previewUrl;
+  const activeMediaType = localPreviewUrl ? localMediaType : storedMediaType;
+
+  useEffect(() => {
+    return () => {
+      if (localPreviewUrl) URL.revokeObjectURL(localPreviewUrl);
+    };
+  }, [localPreviewUrl]);
+
+  useEffect(() => {
+    if (!currentPath) {
+      setLocalPreviewUrl((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return null;
+      });
+      setLocalMediaType("other");
+    }
+  }, [currentPath]);
 
   async function handleFile(file: File) {
+    if (localPreviewUrl) URL.revokeObjectURL(localPreviewUrl);
+    const objectUrl = URL.createObjectURL(file);
+    setLocalPreviewUrl(objectUrl);
+    setLocalMediaType(
+      file.type.startsWith("image/")
+        ? "image"
+        : file.type === "application/pdf"
+          ? "pdf"
+          : inferDocumentMediaType(file.name, file.type),
+    );
+
     setUploading(true);
     try {
       const token = authToken();
@@ -366,8 +407,8 @@ function DocCard({
         </div>
 
         <div className={cn(
-          "relative bg-muted/20",
-          compact ? "aspect-[4/3]" : "aspect-[5/4]",
+          "relative overflow-hidden bg-slate-100/80",
+          compact ? "aspect-[3/4] min-h-[200px]" : "aspect-[5/4]",
         )}>
           {uploading ? (
             <div className="flex h-full items-center justify-center gap-2 text-sm text-primary">
@@ -376,35 +417,70 @@ function DocCard({
             </div>
           ) : currentPath ? (
             <>
-              {previewLoading ? (
+              {previewLoading && !localPreviewUrl ? (
                 <div className="flex h-full items-center justify-center">
                   <Loader2 className="size-6 animate-spin text-muted-foreground" />
                 </div>
-              ) : previewUrl && isImage ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={previewUrl} alt={label} className="h-full w-full object-contain bg-slate-950/5" />
-              ) : previewUrl && isPdf ? (
-                <div className="flex h-full flex-col items-center justify-center gap-2 text-red-500">
-                  <FileText className="size-12" />
-                  <span className="text-xs font-medium">PDF document</span>
-                </div>
-              ) : previewError ? (
-                <div className="flex h-full flex-col items-center justify-center gap-2 px-4 text-center text-muted-foreground">
-                  <ImageIcon className="size-10 opacity-40" />
-                  <span className="text-xs">Preview unavailable</span>
+              ) : activePreviewUrl && activeMediaType === "image" ? (
+                <button
+                  type="button"
+                  className="group relative block h-full w-full cursor-zoom-in"
+                  onClick={() => setPreviewOpen(true)}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={activePreviewUrl}
+                    alt={label}
+                    className={cn(
+                      "h-full w-full bg-slate-950/5",
+                      compact ? "object-cover" : "object-contain",
+                    )}
+                  />
+                  <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/25 via-transparent to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
+                </button>
+              ) : activePreviewUrl && activeMediaType === "pdf" ? (
+                <button
+                  type="button"
+                  className="flex h-full w-full flex-col items-center justify-center gap-2 bg-white"
+                  onClick={() => setPreviewOpen(true)}
+                >
+                  <iframe
+                    src={activePreviewUrl}
+                    title={label}
+                    className="pointer-events-none h-full w-full border-0"
+                  />
+                </button>
+              ) : previewError && !localPreviewUrl ? (
+                <div className="flex h-full flex-col items-center justify-center gap-2 px-4 text-center">
+                  <AlertCircle className="size-8 text-amber-600" />
+                  <span className="text-xs font-medium text-amber-900">File not found in storage</span>
+                  <span className="text-[10px] leading-snug text-muted-foreground">
+                    {displayName}
+                    <br />
+                    Click <span className="font-medium">Replace</span> below to upload again.
+                  </span>
                 </div>
               ) : (
-                <div className="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground">
+                <button
+                  type="button"
+                  className="flex h-full w-full flex-col items-center justify-center gap-2 text-muted-foreground transition-colors hover:bg-muted/30"
+                  onClick={() => setPreviewOpen(true)}
+                >
                   <FileText className="size-10 opacity-40" />
-                  <span className="text-xs">{displayName}</span>
-                </div>
+                  <span className="text-xs font-medium">{displayName}</span>
+                </button>
               )}
               {currentPath && (
-                <div className="absolute bottom-2 right-2">
-                  <Button size="sm" variant="secondary" className="h-7 gap-1 rounded-lg text-xs shadow-sm" onClick={() => setPreviewOpen(true)}>
+                <div className="absolute bottom-2 right-2 z-10">
+                  <Button size="sm" variant="secondary" className="h-7 gap-1 rounded-lg border-0 bg-white/90 text-xs shadow-md backdrop-blur-sm hover:bg-white" onClick={() => setPreviewOpen(true)}>
                     <Eye className="size-3.5" />
                     View
                   </Button>
+                </div>
+              )}
+              {currentPath && activeMediaType === "image" && (
+                <div className="absolute bottom-2 left-2 z-10 rounded-full bg-emerald-600/90 px-2 py-0.5 text-[10px] font-semibold text-white shadow-sm backdrop-blur-sm">
+                  Uploaded
                 </div>
               )}
             </>
@@ -461,11 +537,11 @@ function DocCard({
             <DialogDescription>{displayName || "Document preview"}</DialogDescription>
           </DialogHeader>
           <div className="max-h-[70vh] overflow-auto bg-muted/20 p-4">
-            {previewUrl && isImage ? (
+            {activePreviewUrl && activeMediaType === "image" ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={previewUrl} alt={label} className="mx-auto max-h-[65vh] w-auto max-w-full rounded-lg object-contain" />
-            ) : previewUrl && isPdf ? (
-              <iframe src={previewUrl} title={label} className="h-[65vh] w-full rounded-lg border bg-white" />
+              <img src={activePreviewUrl} alt={label} className="mx-auto max-h-[65vh] w-auto max-w-full rounded-lg object-contain shadow-sm" />
+            ) : activePreviewUrl && activeMediaType === "pdf" ? (
+              <iframe src={activePreviewUrl} title={label} className="h-[65vh] w-full rounded-lg border bg-white shadow-sm" />
             ) : (
               <p className="py-12 text-center text-sm text-muted-foreground">Preview not available.</p>
             )}
@@ -885,7 +961,7 @@ export function QuestionnaireReviewClient({ paramsPromise }: { paramsPromise: Pr
       <p className="text-lg font-semibold">{error}</p>
       <Button variant="outline" asChild>
         <Link href={`/dashboard/clients/${id}/workspace`}>
-          <ArrowLeft className="mr-2 h-4 w-4" />Back
+          <ArrowLeft className="mr-2 h-4 w-4" />Back to Intake &amp; pathway
         </Link>
       </Button>
     </div>
@@ -951,54 +1027,48 @@ export function QuestionnaireReviewClient({ paramsPromise }: { paramsPromise: Pr
         </div>
       )}
 
-      <div className="mb-4">
-        <Button variant="ghost" size="sm" asChild className="-ml-2 rounded-lg">
-          <Link href={`/dashboard/clients/${id}/workspace`}>
-            <ArrowLeft className="mr-1.5 size-4" />
-            Back to case workspace
-          </Link>
-        </Button>
+      <WorkspaceSubpageHero
+        profileId={id}
+        stepLabel="Step 1 · Intake & pathway"
+        title="Questionnaire review"
+        description="Review client answers and uploaded identity documents. Verify correct fields or request a refill with a remark."
+        illustration={INTAKE_WORKSPACE_TASKS[0].illustration}
+        illustrationAlt={INTAKE_WORKSPACE_TASKS[0].illustrationAlt}
+      >
+        {totalVerified > 0 && (
+          <Badge variant="outline" className="h-7 gap-1.5 rounded-lg border-emerald-200 bg-emerald-500/10 text-emerald-800">
+            <ShieldCheck className="size-3.5" />
+            {totalVerified} verified
+          </Badge>
+        )}
+        {pendingRefills > 0 && (
+          <Badge variant="outline" className="h-7 gap-1.5 rounded-lg border-amber-200 bg-amber-500/10 text-amber-800">
+            <RotateCcw className="size-3.5" />
+            {pendingRefills} refill request{pendingRefills === 1 ? "" : "s"}
+          </Badge>
+        )}
+        {!submission?.is_submitted && (
+          <Badge variant="outline" className="h-7 gap-1.5 rounded-lg border-amber-200 bg-amber-500/10 text-amber-800">
+            <Clock className="size-3.5" />
+            Awaiting client submission
+          </Badge>
+        )}
+      </WorkspaceSubpageHero>
+
+      <div className="mt-4 flex flex-wrap items-center gap-2 sm:mt-5">
+        {submission?.is_submitted ? (
+          <Badge className="h-7 gap-1.5 rounded-lg bg-blue-600 text-white">
+            <CheckCircle2 className="size-3.5" />
+            Submitted
+          </Badge>
+        ) : (
+          <Badge variant="outline" className="h-7 rounded-lg border-amber-200 text-amber-800">
+            Draft
+          </Badge>
+        )}
       </div>
 
-      <WorkspaceBreadcrumb profileId={id} workspaceStep={1} pageLabel="Questionnaire review" />
-
-      <div className="mb-4 overflow-hidden rounded-2xl border border-violet-200/50 bg-gradient-to-r from-violet-600/[0.07] via-background to-background px-4 py-4 shadow-sm sm:mb-6 sm:px-6 sm:py-6">
-        <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
-          <div className="min-w-0 space-y-1">
-            <h1 className="flex items-center gap-2 text-xl font-bold tracking-tight sm:text-2xl">
-              <ClipboardList className="size-5 shrink-0 text-violet-600 sm:size-6" />
-              Questionnaire review
-            </h1>
-            <p className="max-w-3xl text-sm text-muted-foreground">
-              Review client answers and uploaded identity documents. Verify correct fields or request a refill with a remark.
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            {totalVerified > 0 && (
-              <Badge variant="outline" className="h-7 gap-1.5 rounded-lg border-emerald-200 bg-emerald-500/10 text-emerald-800">
-                <ShieldCheck className="size-3.5" />
-                {totalVerified} verified
-              </Badge>
-            )}
-            {pendingRefills > 0 && (
-              <Badge variant="outline" className="h-7 gap-1.5 rounded-lg border-amber-200 bg-amber-500/10 text-amber-800">
-                <RotateCcw className="size-3.5" />
-                {pendingRefills} refill request{pendingRefills === 1 ? "" : "s"}
-              </Badge>
-            )}
-            {submission?.is_submitted ? (
-              <Badge className="h-7 gap-1.5 rounded-lg bg-blue-600 text-white">
-                <CheckCircle2 className="size-3.5" />
-                Submitted
-              </Badge>
-            ) : (
-              <Badge variant="outline" className="h-7 rounded-lg border-amber-200 text-amber-800">Draft</Badge>
-            )}
-          </div>
-        </div>
-      </div>
-
-      <div className="mb-6 grid gap-3 sm:grid-cols-3">
+      <div className="mb-6 mt-4 grid gap-3 sm:grid-cols-3">
         {[
           { tone: "amber", icon: <Pencil className="size-3.5" />, text: "Empty or pending — edit or request refill" },
           { tone: "neutral", icon: <Check className="size-3.5" />, text: "Answered — verify when information is correct" },

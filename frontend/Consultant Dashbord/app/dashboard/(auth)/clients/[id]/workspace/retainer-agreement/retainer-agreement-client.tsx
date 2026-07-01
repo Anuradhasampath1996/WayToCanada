@@ -19,7 +19,9 @@ import {
 import { RetainerAgreementDocument } from "@/components/retainer-agreement-document";
 import {
   type AgreementConfig,
+  type ClientAgreementDetails,
   DEFAULT_AGREEMENT_CONFIG,
+  extractClientAgreementDetails,
   formatAgreementCurrency,
   milestoneAmounts,
   PATHWAY_TEMPLATES,
@@ -145,6 +147,20 @@ function TextInput({ value, onChange, placeholder }: {
   );
 }
 
+function TextAreaInput({ value, onChange, placeholder, rows = 3 }: {
+  value: string; onChange: (v: string) => void; placeholder?: string; rows?: number;
+}) {
+  return (
+    <textarea
+      value={value}
+      rows={rows}
+      placeholder={placeholder}
+      onChange={(e) => onChange(e.target.value)}
+      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+    />
+  );
+}
+
 function NumInput({ value, onChange, min, max, step = 1 }: {
   value: number; onChange: (v: number) => void; min: number; max: number; step?: number;
 }) {
@@ -187,6 +203,7 @@ export function RetainerAgreementClient({ paramsPromise }: { paramsPromise: Prom
   // Pre-loaded data
   const [clientName, setClientName]           = useState("");
   const [clientEmail, setClientEmail]         = useState("");
+  const [clientDetails, setClientDetails]     = useState<ClientAgreementDetails>({});
   const [consultantName, setConsultantName]   = useState("");
   const [pathway, setPathway]                 = useState("");
   const [alreadySent, setAlreadySent]         = useState(false);
@@ -211,6 +228,9 @@ export function RetainerAgreementClient({ paramsPromise }: { paramsPromise: Prom
   const [lastReminderAt, setLastReminderAt] = useState<string | null>(null);
   const set = <K extends keyof AgreementConfig>(k: K, v: AgreementConfig[K]) =>
     setConfig(prev => ({ ...prev, [k]: v }));
+
+  const setClientDetail = <K extends keyof ClientAgreementDetails>(key: K, value: ClientAgreementDetails[K]) =>
+    setClientDetails((prev) => ({ ...prev, [key]: value }));
 
   async function loadTemplates() {
     setTemplatesLoading(true);
@@ -280,10 +300,19 @@ export function RetainerAgreementClient({ paramsPromise }: { paramsPromise: Prom
         }
 
         if (q?.submission?.main_data) {
-          const md   = q.submission.main_data;
+          const md   = q.submission.main_data as Record<string, unknown>;
           const name = [md.firstName, md.lastName].filter(Boolean).join(" ");
           if (name) setClientName(name);
         }
+
+        setClientDetails(extractClientAgreementDetails({
+          clientProfile: client ?? null,
+          clientUser: client?.user ?? null,
+          questionnaireMain: (q?.submission?.main_data as Record<string, unknown> | undefined) ?? null,
+          questionnaireStep1: (q?.submission?.step1_data as Record<string, unknown> | undefined) ?? null,
+          storedDetails: (caseFile?.agreement_config as { clientDetails?: ClientAgreementDetails } | undefined)?.clientDetails ?? null,
+          clientProfileId: id,
+        }));
       })
       .catch(() => setError("Failed to load client data."))
       .finally(() => setLoading(false));
@@ -429,6 +458,11 @@ export function RetainerAgreementClient({ paramsPromise }: { paramsPromise: Prom
       consultantName,
       pathway,
       scopeDescription: PATHWAY_TEMPLATES[pathway]?.description ?? config.scopeDescription ?? "",
+      clientDetails: {
+        ...clientDetails,
+        fullLegalName: clientName || clientDetails.fullLegalName || null,
+        email: clientEmail || clientDetails.email || null,
+      },
     };
   }
 
@@ -516,6 +550,7 @@ export function RetainerAgreementClient({ paramsPromise }: { paramsPromise: Prom
           config={signedConfig}
           clientName={clientName}
           clientEmail={clientEmail}
+          clientDetails={clientDetails}
           consultantName={consultantName}
           consultantProfile={consultantProfile}
           agreementDate={alreadySentAt}
@@ -752,16 +787,59 @@ export function RetainerAgreementClient({ paramsPromise }: { paramsPromise: Prom
                   <h2 className="font-semibold">Client &amp; Consultant Details</h2>
                 </div>
                 <p className="text-sm text-muted-foreground">
-                  Verify and edit the auto-filled details — these will appear in the agreement.
+                  Verify and edit the auto-filled details — these appear in the agreement parties table.
                 </p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <Field label="Client Full Name">
-                    <TextInput value={clientName} onChange={setClientName} placeholder="Full legal name" />
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <Field label="Client full legal name">
+                    <TextInput
+                      value={clientName}
+                      onChange={(v) => { setClientName(v); setClientDetail("fullLegalName", v); }}
+                      placeholder="As on passport"
+                    />
                   </Field>
-                  <Field label="Client Email">
-                    <TextInput value={clientEmail} onChange={setClientEmail} placeholder="client@email.com" />
+                  <Field label="Client email">
+                    <TextInput
+                      value={clientEmail}
+                      onChange={(v) => { setClientEmail(v); setClientDetail("email", v); }}
+                      placeholder="client@email.com"
+                    />
                   </Field>
-                  <Field label="Consultant Name">
+                  <Field label="Client telephone">
+                    <TextInput
+                      value={clientDetails.phone ?? ""}
+                      onChange={(v) => setClientDetail("phone", v)}
+                      placeholder="Mobile or WhatsApp"
+                    />
+                  </Field>
+                  <Field label="Date of birth">
+                    <TextInput
+                      value={clientDetails.dateOfBirth ?? ""}
+                      onChange={(v) => setClientDetail("dateOfBirth", v)}
+                      placeholder="e.g. January 27, 1999"
+                    />
+                  </Field>
+                  <Field label="Passport / travel document no.">
+                    <TextInput
+                      value={clientDetails.passportNumber ?? ""}
+                      onChange={(v) => setClientDetail("passportNumber", v)}
+                      placeholder="e.g. P1076180"
+                    />
+                  </Field>
+                  <Field label="Country of citizenship">
+                    <TextInput
+                      value={clientDetails.citizenship ?? ""}
+                      onChange={(v) => setClientDetail("citizenship", v)}
+                      placeholder="e.g. Sri Lankan"
+                    />
+                  </Field>
+                  <Field label="Client residential address" hint="Required for the legal agreement if not in questionnaire">
+                    <TextAreaInput
+                      value={clientDetails.residentialAddress ?? ""}
+                      onChange={(v) => setClientDetail("residentialAddress", v)}
+                      placeholder="Full mailing address"
+                    />
+                  </Field>
+                  <Field label="Consultant name">
                     <TextInput value={consultantName} onChange={setConsultantName} placeholder="Your full name" />
                   </Field>
                   <Field label="CICC License No. (RCIC)" hint="Optional — printed on the agreement">
@@ -1018,6 +1096,7 @@ export function RetainerAgreementClient({ paramsPromise }: { paramsPromise: Prom
                 config={buildPayloadConfig()}
                 clientName={clientName}
                 clientEmail={clientEmail}
+                clientDetails={clientDetails}
                 consultantName={consultantName}
                 consultantProfile={consultantProfile}
                 previewNote="The client will receive a secure signing link via email. This preview is for consultant review only."

@@ -521,7 +521,7 @@ export function ClientsPageClient() {
   };
 
   const clients = allClients;
-  const openClient = (id: number) => router.push(`/dashboard/clients/${id}`);
+  const openClient = (id: number) => router.push(`/dashboard/clients/${id}/workspace`);
   const openAction = (href: string) => router.push(href);
 
   const CardItem = ({ client }: { client: Client }) => {

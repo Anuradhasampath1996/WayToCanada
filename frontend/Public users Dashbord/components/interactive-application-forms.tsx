@@ -15,7 +15,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { CLIENT_API, clientAuthHeaders } from "@/lib/client-api";
+import { CLIENT_API, clientAuthHeaders, clientUploadHeaders } from "@/lib/client-api";
 import { useClientJourneyOptional } from "@/context/client-journey-context";
 
 type FormField = {
@@ -343,7 +343,7 @@ function FormEditor({
     formData.append("type", "client-document");
     const res = await fetch(`${CLIENT_API}/upload`, {
       method: "POST",
-      headers: clientAuthHeaders(),
+      headers: clientUploadHeaders(),
       body: formData,
     });
     const json = await res.json();

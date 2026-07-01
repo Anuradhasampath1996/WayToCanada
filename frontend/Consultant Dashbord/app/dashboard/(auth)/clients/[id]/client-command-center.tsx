@@ -3,21 +3,17 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import {
-  Briefcase,
   CheckCircle2,
-  FileText,
-  FormInput,
   Landmark,
   Loader2,
   Lock,
-  UserCheck,
   ArrowRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { NextActionCard, resolveNextAction } from "./workspace/workspace-flow-ui";
+import { NextActionCard, resolveNextAction, CASE_WORKFLOW_STEPS } from "./workspace/workspace-flow-ui";
 import type { QuestionnaireWorkspaceStats } from "@/lib/questionnaire-workspace-stats";
 
 const API = (process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000") + "/api/v1";
@@ -33,12 +29,10 @@ const STATUS_LABELS: Record<string, string> = {
   APPLICATION_SUBMITTED: "Application submitted",
 };
 
-const WORKFLOW_STEPS = [
-  { label: "Pathway", icon: Briefcase },
-  { label: "Agreement", icon: FileText },
-  { label: "Forms", icon: FormInput },
-  { label: "Case hub", icon: UserCheck },
-];
+const WORKFLOW_STEPS = CASE_WORKFLOW_STEPS.map((step) => ({
+  label: step.label,
+  icon: step.icon,
+}));
 
 type CommandCenterData = {
   case_file: {
@@ -223,7 +217,7 @@ export function ClientCommandCenter({
           <div>
             <CardTitle className="text-base">Where is this case?</CardTitle>
             <CardDescription className="mt-1">
-              Follow the steps below. Use the workspace for the full guided workflow.
+              Complete one step at a time. Open the workspace for the current task.
             </CardDescription>
           </div>
           <Badge variant="outline" className="h-7 rounded-lg text-xs font-medium">
@@ -260,7 +254,7 @@ export function ClientCommandCenter({
 
         <div className="flex flex-col gap-2 border-t border-border/50 pt-4 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-xs text-muted-foreground">
-            All case steps — questionnaire, pathway, agreement, forms — live in the workspace.
+            Only the current step is shown in the workspace. Full timeline is on the right in Client journey.
           </p>
           <Button asChild className="h-10 w-full shrink-0 rounded-xl sm:w-auto">
             <Link href={ws}>

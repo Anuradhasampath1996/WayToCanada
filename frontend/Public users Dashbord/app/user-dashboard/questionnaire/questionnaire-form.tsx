@@ -4,11 +4,12 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useIAQNav } from "@/context/questionnaire-nav-context";
+import { useIsMobile } from "@/hooks/use-mobile";
 import {
   ChevronLeft, ChevronRight, Check, Send,
   CheckCircle2, AlertCircle, User, Users, Baby, UserPlus,
   Upload, FileText, Car, CreditCard, Loader2, Eye, X, Star,
-  RotateCcw, MessageSquare,
+  RotateCcw, MessageSquare, Camera,
 } from "lucide-react";
 
 import { Button }           from "@/components/ui/button";
@@ -2396,6 +2397,9 @@ function DocumentUploadCard({
   onNewFile?: () => void;
 }) {
   const inputRef                      = useRef<HTMLInputElement>(null);
+  const cameraInputRef              = useRef<HTMLInputElement>(null);
+  const isMobile                      = useIsMobile();
+  const acceptsImages                 = /jpe?g|png|image/i.test(accept);
   const [uploading, setUploading]     = useState(false);
   const [previewUrl, setPreviewUrl]   = useState<string | null>(null);
   const [previewType, setPreviewType] = useState<"image" | "pdf" | "other">("other");
@@ -2425,7 +2429,7 @@ function DocumentUploadCard({
   // S3 paths look like "client-document/2026/05/name.pdf" — show only basename
   const displayName = fileName
     ? (fileName.includes("/") ? fileName.split("/").pop()! : fileName)
-    : "";
+    : uploadedFile?.name ?? "";
 
   // Load preview for previously uploaded S3 documents on page reload
   useEffect(() => {
@@ -2472,10 +2476,7 @@ function DocumentUploadCard({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fileName, uploadedFile]);
 
-  async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
+  async function processSelectedFile(file: File) {
     // Clear previously scanned/filled fields before processing the new image
     onNewFile?.();
 
@@ -2493,12 +2494,11 @@ function DocumentUploadCard({
     );
 
     setUploadedFile(file);
-    onFileChange(file.name); // instant UI feedback
     if (onUpload) {
       setUploading(true);
       try {
         const path = await onUpload(file);
-        onFileChange(path); // replace with S3 path once uploaded
+        onFileChange(path);
       } catch {
         // keep local filename in state; autosave will store it
       } finally {
@@ -2521,8 +2521,24 @@ function DocumentUploadCard({
     }
   }
 
+  async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    await processSelectedFile(file);
+    e.target.value = "";
+  }
+
+  function openFilePicker() {
+    inputRef.current?.click();
+  }
+
+  function openCamera() {
+    cameraInputRef.current?.click();
+  }
+
   function handleRemove() {
     if (inputRef.current) inputRef.current.value = "";
+    if (cameraInputRef.current) cameraInputRef.current.value = "";
     if (previewUrl) URL.revokeObjectURL(previewUrl);
     loadedStoredPathRef.current = null;
     setPreviewUrl(null);
@@ -2580,7 +2596,11 @@ function DocumentUploadCard({
               ? "border-green-400 bg-green-50"
               : "border-border hover:border-primary/50 hover:bg-muted/30 cursor-pointer",
           )}
-          onClick={() => !uploading && !loadingStored && !displayName && inputRef.current?.click()}
+          onClick={() => {
+            if (uploading || loadingStored || displayName) return;
+            if (isMobile && acceptsImages) return;
+            openFilePicker();
+          }}
         >
           {uploading || loadingStored ? (
             <div className="flex items-center justify-center gap-2 text-sm text-primary p-5">
@@ -2664,10 +2684,40 @@ function DocumentUploadCard({
               )}
             </div>
           ) : (
-            <div className="p-5 text-center space-y-1.5">
-              <Upload className="h-7 w-7 text-muted-foreground/40 mx-auto" />
-              <p className="text-xs font-medium text-muted-foreground">Click to upload</p>
-              <p className="text-[11px] text-muted-foreground/60">PDF, JPG, PNG — up to 10 MB</p>
+            <div className="space-y-3 p-5 text-center">
+              <Upload className="mx-auto h-7 w-7 text-muted-foreground/40" />
+              {isMobile && acceptsImages ? (
+                <>
+                  <p className="text-xs font-medium text-muted-foreground">Upload a document photo</p>
+                  <div className="flex flex-col gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="h-10 w-full"
+                      onClick={(e) => { e.stopPropagation(); openCamera(); }}
+                    >
+                      <Camera className="mr-2 h-4 w-4" />
+                      Take photo
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-10 w-full"
+                      onClick={(e) => { e.stopPropagation(); openFilePicker(); }}
+                    >
+                      <Upload className="mr-2 h-4 w-4" />
+                      Choose file or PDF
+                    </Button>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground/60">JPG, PNG, or PDF — up to 10 MB</p>
+                </>
+              ) : (
+                <div className="space-y-1.5">
+                  <p className="text-xs font-medium text-muted-foreground">Click to upload</p>
+                  <p className="text-[11px] text-muted-foreground/60">PDF, JPG, PNG — up to 10 MB</p>
+                </div>
+              )}
             </div>
           )}
 
@@ -2678,6 +2728,16 @@ function DocumentUploadCard({
             className="hidden"
             onChange={handleFileSelect}
           />
+          {acceptsImages && (
+            <input
+              ref={cameraInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="hidden"
+              onChange={handleFileSelect}
+            />
+          )}
         </div>
 
         {/* OCR extracted data summary — shown for both success and partial_success */}

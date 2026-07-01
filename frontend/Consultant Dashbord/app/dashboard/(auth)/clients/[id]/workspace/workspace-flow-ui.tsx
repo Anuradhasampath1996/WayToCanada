@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import {
   ArrowRight, Briefcase, Calculator, CheckCircle2, ChevronRight,
   ClipboardList, Clock, FileText, FormInput, MessageSquare, RotateCcw, UserCheck,
@@ -10,6 +11,232 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import type { QuestionnaireWorkspaceStats } from "@/lib/questionnaire-workspace-stats";
+
+// ── Case workflow steps (consultant workspace) ────────────────────────────────
+
+export const CASE_WORKFLOW_STEPS = [
+  {
+    label: "Intake & pathway",
+    fullLabel: "Client intake & pathway assignment",
+    description: "Review the client profile, verify their questionnaire, and assign the right immigration pathway.",
+    icon: Briefcase,
+    illustration: "/images/workspace/step-1-intake-pathway.png",
+    illustrationAlt: "Consultant team reviewing client intake checklist and pathway options",
+  },
+  {
+    label: "Retainer",
+    fullLabel: "Retainer agreement",
+    description: "Create and send the retainer agreement for the client to review and sign.",
+    icon: FileText,
+    illustration: "/images/workspace/step-2-retainer-agreement.png",
+    illustrationAlt: "Consultant and client signing a retainer agreement",
+  },
+  {
+    label: "Forms",
+    fullLabel: "Verify application forms",
+    description: "Review client-submitted forms before opening the full case hub.",
+    icon: FormInput,
+    illustration: "/images/workspace/step-3-verify-forms.png",
+    illustrationAlt: "Consultant verifying client application forms",
+  },
+  {
+    label: "Case hub",
+    fullLabel: "Full case management",
+    description: "Manage documents, IRCC forms, pipeline updates, and client communication.",
+    icon: UserCheck,
+    illustration: "/images/workspace/step-4-case-hub.png",
+    illustrationAlt: "Case management hub with documents and progress tracking",
+  },
+] as const;
+
+export const INTAKE_WORKSPACE_TASKS = [
+  {
+    id: "questionnaire-review",
+    title: "Review client questionnaire",
+    description: "Verify answers, identity documents, and flag fields that need correction.",
+    href: (profileId: string) => `/dashboard/clients/${profileId}/workspace/questionnaire-review`,
+    illustration: "/images/workspace/step-1-questionnaire-review.png",
+    illustrationAlt: "Consultant reviewing client questionnaire",
+    icon: ClipboardList,
+    primary: true,
+  },
+  {
+    id: "pathway-calculator",
+    title: "Assign pathway",
+    description: "Score CRS, compare routes, and assign the best immigration pathway.",
+    href: (profileId: string) => `/dashboard/clients/${profileId}/workspace/pathway-calculator`,
+    illustration: "/images/workspace/step-1-pathway-calculator.png",
+    illustrationAlt: "Pathway calculator and CRS scoring",
+    icon: Calculator,
+    primary: false,
+  },
+] as const;
+
+// ── Slim step progress rail ───────────────────────────────────────────────────
+
+export function WorkspaceStepRail({
+  unlockedStep,
+  viewStep,
+  onViewStep,
+}: {
+  unlockedStep: number;
+  viewStep: number;
+  onViewStep: (step: number) => void;
+}) {
+  const steps = CASE_WORKFLOW_STEPS;
+  const lastIndex = steps.length - 1;
+  const trackProgress = lastIndex > 0 ? (unlockedStep / lastIndex) * 100 : 0;
+
+  return (
+    <nav aria-label="Case workflow progress" className="w-full">
+      <div className="relative px-1 py-0.5">
+        {/* Background track — equal span between first & last step centers */}
+        <div
+          className="pointer-events-none absolute top-[15px] h-[3px] rounded-full bg-border/70"
+          style={{ left: `${100 / steps.length / 2}%`, right: `${100 / steps.length / 2}%` }}
+        />
+        {/* Progress fill */}
+        <div
+          className="pointer-events-none absolute top-[15px] h-[3px] rounded-full bg-primary transition-all duration-300 ease-out"
+          style={{
+            left: `${100 / steps.length / 2}%`,
+            width: `calc((100% - ${100 / steps.length}%) * ${trackProgress / 100})`,
+          }}
+        />
+
+        <ol className="relative grid grid-cols-4 items-start">
+          {steps.map((step, i) => {
+            const done = i < unlockedStep;
+            const viewing = i === viewStep;
+            const locked = i > unlockedStep;
+            const clickable = !locked;
+
+            return (
+              <li key={step.label} className="flex flex-col items-center">
+                <button
+                  type="button"
+                  disabled={!clickable}
+                  onClick={() => clickable && onViewStep(i)}
+                  title={step.fullLabel}
+                  className={cn(
+                    "flex flex-col items-center gap-1.5 rounded-lg px-1 py-1 transition-all",
+                    clickable && "cursor-pointer hover:opacity-90",
+                    !clickable && "cursor-not-allowed",
+                  )}
+                >
+                  <span
+                    className={cn(
+                      "relative z-10 flex items-center justify-center rounded-full border-2 font-bold transition-all duration-200",
+                      viewing && "size-8 border-primary bg-primary text-primary-foreground shadow-md ring-4 ring-primary/30",
+                      done && !viewing && "size-7 border-emerald-500 bg-emerald-500 text-white",
+                      locked && "size-7 border-muted-foreground/25 bg-muted/80 text-muted-foreground/60",
+                      !done && !viewing && !locked && "size-7 border-primary/50 bg-background text-primary",
+                    )}
+                  >
+                    {done && !viewing ? (
+                      <CheckCircle2 className="size-3.5" strokeWidth={2.5} />
+                    ) : (
+                      <span className="text-[11px] leading-none">{i + 1}</span>
+                    )}
+                  </span>
+                  <span
+                    className={cn(
+                      "max-w-[5.5rem] text-center text-[11px] leading-tight sm:max-w-none sm:text-xs",
+                      viewing && "font-bold text-primary",
+                      done && !viewing && "font-medium text-emerald-700 dark:text-emerald-400",
+                      locked && "font-medium text-muted-foreground/50",
+                      !done && !viewing && !locked && "font-medium text-muted-foreground",
+                    )}
+                  >
+                    {step.label}
+                  </span>
+                </button>
+              </li>
+            );
+          })}
+        </ol>
+      </div>
+    </nav>
+  );
+}
+
+export function IntakeTaskCards({
+  profileId,
+  qStats,
+  pathwayAssigned,
+}: {
+  profileId: string;
+  qStats: QuestionnaireWorkspaceStats;
+  pathwayAssigned: string | null;
+}) {
+  const statusFor = (taskId: string) => {
+    if (taskId === "questionnaire-review") {
+      if (!qStats.hasSubmission) return { label: "Awaiting client", tone: "amber" as const };
+      if (!qStats.isSubmitted) return { label: "Draft in progress", tone: "amber" as const };
+      if (qStats.pendingRefills > 0) return { label: `${qStats.pendingRefills} refill pending`, tone: "amber" as const };
+      return { label: "Ready to review", tone: "emerald" as const };
+    }
+    if (!qStats.isSubmitted) return { label: "After questionnaire", tone: "muted" as const };
+    if (pathwayAssigned) return { label: pathwayAssigned, tone: "emerald" as const };
+    return { label: "Ready to assign", tone: "primary" as const };
+  };
+
+  const toneClass = {
+    amber: "border-amber-200/60 bg-amber-500/10 text-amber-800",
+    emerald: "border-emerald-200/60 bg-emerald-500/10 text-emerald-800",
+    primary: "border-primary/30 bg-primary/10 text-primary",
+    muted: "border-border bg-muted/40 text-muted-foreground",
+  };
+
+  return (
+    <div className="grid gap-3 sm:grid-cols-2">
+      {INTAKE_WORKSPACE_TASKS.map((task) => {
+        const Icon = task.icon;
+        const status = statusFor(task.id);
+        return (
+          <Link
+            key={task.id}
+            href={task.href(profileId)}
+            className={cn(
+              "group relative flex overflow-hidden rounded-xl border border-border/70 bg-card shadow-sm transition-all",
+              "hover:border-primary/35 hover:shadow-md",
+              task.primary && "ring-1 ring-primary/10",
+            )}
+          >
+            <div className="flex min-w-0 flex-1 flex-col justify-between gap-3 p-4">
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <span className="flex size-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                    <Icon className="size-4" />
+                  </span>
+                  <Badge variant="outline" className={cn("h-6 rounded-md text-[10px] font-medium", toneClass[status.tone])}>
+                    {status.label}
+                  </Badge>
+                </div>
+                <p className="font-semibold leading-snug text-foreground">{task.title}</p>
+                <p className="text-xs leading-relaxed text-muted-foreground">{task.description}</p>
+              </div>
+              <span className="inline-flex items-center text-xs font-semibold text-primary">
+                Open
+                <ArrowRight className="ml-1 size-3.5 transition-transform group-hover:translate-x-0.5" />
+              </span>
+            </div>
+            <div className="relative hidden w-[38%] min-w-[7rem] shrink-0 sm:block">
+              <Image
+                src={task.illustration}
+                alt={task.illustrationAlt}
+                fill
+                sizes="160px"
+                className="object-cover object-center transition-transform duration-300 group-hover:scale-[1.03]"
+              />
+              <div className="absolute inset-0 bg-gradient-to-r from-card via-card/30 to-transparent" />
+            </div>
+          </Link>
+        );
+      })}
+    </div>
+  );
+}
 
 // ── Breadcrumb ────────────────────────────────────────────────────────────────
 
@@ -107,10 +334,10 @@ export function resolveNextAction(
   if (!caseFile.immigration_pathway) {
     return {
       tone: "primary",
-      title: "Assign immigration pathway",
-      description: "Questionnaire is in good shape. Score the profile, compare routes, and assign the best pathway for this client.",
+      title: "Complete client intake & assign pathway",
+      description: "Review the client questionnaire, then score and assign the best immigration pathway.",
       href: `${base}/pathway-calculator`,
-      buttonLabel: "Open pathway calculator",
+      buttonLabel: "Continue intake & pathway",
     };
   }
 

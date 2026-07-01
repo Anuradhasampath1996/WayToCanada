@@ -11,7 +11,7 @@ import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { CLIENT_API, clientAuthHeaders } from "@/lib/client-api";
+import { CLIENT_API, clientUploadHeaders } from "@/lib/client-api";
 
 async function fetchPdfBytes(streamUrl: string, headers: Record<string, string>): Promise<Uint8Array> {
   const res = await fetch(streamUrl, {
@@ -157,7 +157,7 @@ export function PackagePdfFormDialog({
 
       const res = await fetch(`${CLIENT_API}/client/package-documents/${documentId}/submit`, {
         method: "POST",
-        headers: clientAuthHeaders(),
+        headers: clientUploadHeaders(),
         body: form,
       });
       const json = await res.json();

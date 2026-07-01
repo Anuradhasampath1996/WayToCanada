@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\ClientProfile;
 use App\Models\QuestionnaireSubmission;
+use App\Support\ClientDocumentStorage;
+use App\Support\QuestionnaireDocumentResolver;
 use App\Services\ClientActivity\ClientActivityTriggers;
 use App\Services\Notifications\WorkspaceNotificationTriggers;
 use Illuminate\Http\JsonResponse;
@@ -100,28 +102,14 @@ class QuestionnaireController extends Controller
 
         $path = $data['path'];
 
-        if (! preg_match('#^client-document/\d{4}/\d{2}/#', $path)) {
-            abort(422, 'Invalid document path.');
-        }
-
         $submission = QuestionnaireSubmission::where('user_id', $request->user()->id)->firstOrFail();
 
-        if (! $this->submissionContainsFilePath($submission, $path)) {
-            abort(403, 'Document not linked to your questionnaire.');
-        }
-
-        if (! Storage::disk('localstack')->exists($path)) {
+        $resolved = QuestionnaireDocumentResolver::resolveStoragePath($submission, $path);
+        if (! $resolved) {
             abort(404, 'File not found.');
         }
 
-        $filename = basename($path);
-        $mime     = Storage::disk('localstack')->mimeType($path) ?: 'application/octet-stream';
-
-        return Storage::disk('localstack')->response($path, $filename, [
-            'Content-Type'        => $mime,
-            'Content-Disposition' => 'inline; filename="'.addslashes($filename).'"',
-            'Cache-Control'       => 'private, max-age=3600',
-        ]);
+        return ClientDocumentStorage::streamResponse($resolved);
     }
 
     private function submissionContainsFilePath(QuestionnaireSubmission $submission, string $filePath): bool

@@ -27,6 +27,8 @@ Push-Location $Root
 docker compose -f docker-compose.dev.yml up -d
 Pop-Location
 
+& powershell -ExecutionPolicy Bypass -File (Join-Path $Root "scripts\ensure-localstack-s3-bucket.ps1")
+
 Write-Host ">>> Docker OCR/LocalStack starting..." -ForegroundColor Yellow
 
 if (-not (Test-Path (Join-Path $Backend ".env"))) {
@@ -108,7 +110,18 @@ $consSiteBat = New-FrontendBat "cons-site" (Join-Path $Fe "Consultant Website") 
     "set NEXT_PUBLIC_USER_DASHBOARD_URL=http://localhost:3002",
     "set NEXT_PUBLIC_ADMIN_DASHBOARD_URL=http://localhost:3001"
 )
-$consDashBat = New-FrontendBat "cons-dash" (Join-Path $Fe "Consultant Dashbord") 3005 @(
+$consDashDir = Join-Path $Fe "Consultant Dashbord"
+$consDashRoutesFile = Join-Path $consDashDir ".next\dev\types\routes.d.ts"
+$consDashWorkspacePage = Join-Path $consDashDir "app\dashboard\(auth)\clients\[id]\workspace\page.tsx"
+if ((Test-Path -LiteralPath $consDashWorkspacePage) -and (Test-Path -LiteralPath $consDashRoutesFile)) {
+    $routesText = Get-Content -Raw -LiteralPath $consDashRoutesFile
+    if ($routesText -notmatch '/workspace') {
+        Write-Host ">>> Consultant dashboard: stale dev routes cache (missing /workspace) - clearing .next" -ForegroundColor Yellow
+        Remove-Item -Recurse -Force (Join-Path $consDashDir ".next") -ErrorAction SilentlyContinue
+    }
+}
+
+$consDashBat = New-FrontendBat "cons-dash" $consDashDir 3005 @(
     "set NEXT_PUBLIC_APP_URL=http://localhost:3005",
     "set NEXT_PUBLIC_CONSULTANT_WEBSITE_URL=http://localhost:3003"
 )

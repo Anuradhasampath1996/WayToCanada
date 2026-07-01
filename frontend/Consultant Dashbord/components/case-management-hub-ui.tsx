@@ -3,7 +3,7 @@
 import Link from "next/link";
 import {
   CheckCircle2, Clock, FileText, FormInput, AlertCircle,
-  ChevronRight, ExternalLink, Briefcase, ClipboardList,
+  ChevronRight, ExternalLink, Briefcase, ClipboardList, Eye, RotateCcw,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -22,7 +22,15 @@ export interface HubRequirement {
   category: string;
   status: "missing" | "pending" | "approved" | "rejected" | "uploaded";
   checked: boolean;
-  submission?: { id: number; file_url: string; status: string } | null;
+  submission?: {
+    id: number;
+    file_url: string;
+    status: string;
+    original_filename?: string;
+    mime_type?: string | null;
+    rejection_comment?: string | null;
+    uploaded_at?: string | null;
+  } | null;
 }
 
 export interface HubIrccForm {
@@ -120,7 +128,7 @@ const REQ_STATUS: Record<string, { label: string; className: string }> = {
 export function DocumentRequirementsGrid({
   requirements,
   onReview,
-  onViewPdf,
+  onViewDocument,
   buildSubmissionStreamUrl,
   consultantView = true,
   onToggleCheck,
@@ -128,7 +136,7 @@ export function DocumentRequirementsGrid({
 }: {
   requirements: HubRequirement[];
   onReview?: (submissionId: number) => void;
-  onViewPdf?: (title: string, streamUrl: string) => void;
+  onViewDocument?: (title: string, streamUrl: string, mimeType?: string | null, filename?: string) => void;
   buildSubmissionStreamUrl?: (submissionId: number) => string;
   consultantView?: boolean;
   onToggleCheck?: (docId: string, checked: boolean) => void;
@@ -149,56 +157,104 @@ export function DocumentRequirementsGrid({
           <div className="space-y-2">
             {items.map((req) => {
               const st = REQ_STATUS[req.status] ?? REQ_STATUS.missing;
+              const submission = req.submission;
+              const streamUrl = submission && buildSubmissionStreamUrl
+                ? buildSubmissionStreamUrl(submission.id)
+                : null;
+
               return (
-                <div key={req.id} className="flex items-center gap-3 rounded-lg border px-4 py-3 bg-card">
-                  {req.status === "approved" ? (
-                    <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
-                  ) : req.status === "missing" ? (
-                    <Clock className="h-4 w-4 text-muted-foreground shrink-0" />
-                  ) : (
-                    <FileText className="h-4 w-4 text-primary shrink-0" />
+                <div
+                  key={req.id}
+                  className={cn(
+                    "rounded-xl border bg-card p-4",
+                    req.status === "approved" && "border-green-200/80 bg-green-50/20",
+                    req.status === "rejected" && "border-red-200/80 bg-red-50/20",
                   )}
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium">{req.label}</p>
-                    {req.submission && (
-                      <p className="text-xs text-muted-foreground truncate">{req.submission.file_url.split("/").pop()}</p>
+                >
+                  <div className="flex items-start gap-3">
+                    {req.status === "approved" ? (
+                      <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-green-600" />
+                    ) : req.status === "missing" ? (
+                      <Clock className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                    ) : req.status === "rejected" ? (
+                      <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-600" />
+                    ) : (
+                      <FileText className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
                     )}
+
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-sm font-medium">{req.label}</p>
+                        <Badge variant="outline" className={cn("text-[10px]", st.className)}>{st.label}</Badge>
+                        {consultantView && req.checked && (
+                          <Badge variant="outline" className="text-[10px] bg-green-50 text-green-700">Checklist verified</Badge>
+                        )}
+                      </div>
+
+                      {submission ? (
+                        <div className="mt-1.5 space-y-1">
+                          <p className="truncate text-xs text-muted-foreground">
+                            {submission.original_filename ?? submission.file_url.split("/").pop()}
+                          </p>
+                          {submission.uploaded_at && (
+                            <p className="text-[11px] text-muted-foreground/80">
+                              Uploaded {new Date(submission.uploaded_at).toLocaleString("en-CA", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                            </p>
+                          )}
+                          {submission.rejection_comment && (
+                            <div className="rounded-lg border border-red-100 bg-red-50 px-3 py-1.5 text-xs text-red-700">
+                              <RotateCcw className="mr-1 inline h-3 w-3" />
+                              Re-upload requested: {submission.rejection_comment}
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <p className="mt-1 text-xs text-muted-foreground">Waiting for client upload</p>
+                      )}
+                    </div>
+
+                    <div className="flex shrink-0 flex-col items-end gap-2 sm:flex-row sm:items-center">
+                      {consultantView && onToggleCheck && (
+                        <label className="flex cursor-pointer items-center gap-1.5 text-[10px] text-muted-foreground">
+                          <input
+                            type="checkbox"
+                            checked={req.checked}
+                            disabled={togglingCheckId === req.id}
+                            onChange={(e) => onToggleCheck(req.id, e.target.checked)}
+                            className="rounded border-input"
+                          />
+                          Verified
+                        </label>
+                      )}
+
+                      {submission && streamUrl && onViewDocument && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 gap-1 text-xs"
+                          onClick={() => onViewDocument(
+                            req.label,
+                            streamUrl,
+                            submission.mime_type,
+                            submission.original_filename,
+                          )}
+                        >
+                          <Eye className="h-3 w-3" /> View
+                        </Button>
+                      )}
+
+                      {consultantView && submission && onReview && (
+                        <Button
+                          size="sm"
+                          className="h-7 text-xs"
+                          variant={req.status === "rejected" ? "outline" : "default"}
+                          onClick={() => onReview(submission.id)}
+                        >
+                          {req.status === "approved" ? "Update status" : req.status === "rejected" ? "Review again" : "Review"}
+                        </Button>
+                      )}
+                    </div>
                   </div>
-                  <Badge variant="outline" className={cn("text-[10px] shrink-0", st.className)}>{st.label}</Badge>
-                  {consultantView && onToggleCheck && (
-                    <label className="flex items-center gap-1.5 text-[10px] text-muted-foreground shrink-0 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={req.checked}
-                        disabled={togglingCheckId === req.id}
-                        onChange={(e) => onToggleCheck(req.id, e.target.checked)}
-                        className="rounded border-input"
-                      />
-                      Verified
-                    </label>
-                  )}
-                  {consultantView && !onToggleCheck && req.checked && (
-                    <Badge variant="outline" className="text-[10px] shrink-0 bg-green-50">Checked</Badge>
-                  )}
-                  {req.submission && onReview && ["pending", "uploaded"].includes(req.status) && (
-                    <Button size="sm" variant="outline" className="h-7 text-xs shrink-0" onClick={() => onReview(req.submission!.id)}>
-                      Review
-                    </Button>
-                  )}
-                  {req.submission && onViewPdf && buildSubmissionStreamUrl ? (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-7 text-xs shrink-0"
-                      onClick={() => onViewPdf(req.label, buildSubmissionStreamUrl(req.submission!.id))}
-                    >
-                      View
-                    </Button>
-                  ) : req.submission ? (
-                    <a href={req.submission.file_url} target="_blank" rel="noopener noreferrer" className="shrink-0">
-                      <Button size="sm" variant="ghost" className="h-7 text-xs">View</Button>
-                    </a>
-                  ) : null}
                 </div>
               );
             })}

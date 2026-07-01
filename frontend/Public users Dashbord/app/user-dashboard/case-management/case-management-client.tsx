@@ -12,7 +12,7 @@ import { PdfViewerDialog } from "@/components/pdf-viewer-dialog";
 import { PackagePdfFormDialog } from "@/components/package-pdf-form-dialog";
 import { cn } from "@/lib/utils";
 import { ClientJourneyPageChrome } from "@/components/client-workspace-ui";
-import { CLIENT_API, clientAuthHeaders } from "@/lib/client-api";
+import { CLIENT_API, clientAuthHeaders, clientUploadHeaders, clientStreamHeaders } from "@/lib/client-api";
 import {
   CaseHubProgressHeader,
   ClientRequirementsStatusGrid,
@@ -97,6 +97,29 @@ function isPdfFile(submission: { mime_type: string | null; original_filename: st
   return submission.original_filename.toLowerCase().endsWith(".pdf");
 }
 
+function isImageFile(submission: { mime_type: string | null; original_filename: string }) {
+  if (submission.mime_type?.startsWith("image/")) return true;
+  return /\.(jpe?g|png|webp|gif)$/i.test(submission.original_filename);
+}
+
+const ALLOWED_UPLOAD_TYPES = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
+const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
+
+function validateUploadFile(file: File): string | null {
+  if (file.size > MAX_UPLOAD_BYTES) {
+    return "File is too large. Maximum size is 20 MB.";
+  }
+  const type = file.type || "";
+  const name = file.name.toLowerCase();
+  const allowed =
+    ALLOWED_UPLOAD_TYPES.includes(type) ||
+    /\.(jpe?g|png|webp|pdf)$/i.test(name);
+  if (!allowed) {
+    return "Please upload a JPG, PNG, WEBP, or PDF file.";
+  }
+  return null;
+}
+
 // ── Status badge ───────────────────────────────────────────────────────────────
 
 const DOC_STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
@@ -123,21 +146,32 @@ function DropZone({
   doc,
   existingSubmission,
   onUpload,
-  onViewPdf,
+  onViewDocument,
 }: {
   doc: DocumentRequirement;
   existingSubmission: DocumentSubmission | undefined;
-  onUpload: (docType: string, docLabel: string, file: File) => Promise<void>;
-  onViewPdf: (title: string, streamUrl: string) => void;
+  onUpload: (docType: string, docLabel: string, file: File) => Promise<boolean>;
+  onViewDocument: (submission: DocumentSubmission) => void;
 }) {
   const [draggingOver, setDraggingOver] = useState(false);
-  const [uploading, setUploading]       = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const handleFile = async (file: File) => {
+    const validationError = validateUploadFile(file);
+    if (validationError) {
+      setUploadError(validationError);
+      return;
+    }
+
+    setUploadError(null);
     setUploading(true);
-    await onUpload(doc.id, doc.label, file);
+    const ok = await onUpload(doc.id, doc.label, file);
     setUploading(false);
+    if (!ok) {
+      setUploadError("Upload failed. Please try again.");
+    }
   };
 
   const onDrop = (e: React.DragEvent) => {
@@ -149,7 +183,8 @@ function DropZone({
 
   const isApproved = existingSubmission?.status === "consultant_approved";
   const isRejected = existingSubmission?.status === "consultant_rejected";
-  const hasUpload  = !!existingSubmission && !isRejected;
+  const canUpload = !isApproved;
+  const showDropZone = canUpload;
 
   return (
     <div className={cn(
@@ -185,15 +220,21 @@ function DropZone({
               )}
 
               {isRejected && existingSubmission.rejection_comment && (
-                <div className="rounded-lg bg-red-50 border border-red-100 px-3 py-1.5 text-xs text-red-700 mt-1">
-                  <XCircle className="inline h-3 w-3 mr-1" />
-                  <strong>Rejection reason:</strong> {existingSubmission.rejection_comment}
+                <div className="mt-1 rounded-lg border border-red-100 bg-red-50 px-3 py-1.5 text-xs text-red-700">
+                  <XCircle className="mr-1 inline h-3 w-3" />
+                  <strong>Consultant note:</strong> {existingSubmission.rejection_comment}
                 </div>
+              )}
+
+              {isRejected && (
+                <p className="text-xs font-medium text-red-700">
+                  Please upload the correct file below.
+                </p>
               )}
             </div>
           )}
 
-          {(!hasUpload || isRejected) && (
+          {showDropZone && (
             <div
               onDragOver={e => { e.preventDefault(); setDraggingOver(true); }}
               onDragLeave={() => setDraggingOver(false)}
@@ -208,9 +249,19 @@ function DropZone({
               {uploading ? (
                 <><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /><p className="text-xs text-muted-foreground">Uploading…</p></>
               ) : (
-                <><CloudUpload className="h-5 w-5 text-muted-foreground" /><p className="text-xs text-muted-foreground">Drag & drop or click to upload</p><p className="text-[10px] text-muted-foreground/70">JPG, PNG, PDF, WEBP · max 20 MB</p></>
+                <>
+                  <CloudUpload className="h-5 w-5 text-muted-foreground" />
+                  <p className="text-xs text-muted-foreground">
+                    {isRejected ? "Upload corrected file" : existingSubmission ? "Replace file" : "Drag & drop or click to upload"}
+                  </p>
+                  <p className="text-[10px] text-muted-foreground/70">JPG, PNG, PDF, WEBP · max 20 MB</p>
+                </>
               )}
             </div>
+          )}
+
+          {uploadError && (
+            <p className="mt-2 text-xs text-red-600">{uploadError}</p>
           )}
 
           <input
@@ -221,34 +272,102 @@ function DropZone({
             onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = ""; }}
           />
 
-          {existingSubmission && !isRejected && (
-            <div className="flex items-center gap-2 mt-2">
-              {isPdfFile(existingSubmission) ? (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-6 text-xs gap-1"
-                  onClick={() => onViewPdf(
-                    existingSubmission.document_label || existingSubmission.original_filename,
-                    `${CLIENT_API}/client/documents/${existingSubmission.id}/stream`,
-                  )}
-                >
-                  <Eye className="h-3 w-3" />View
-                </Button>
-              ) : (
-                <a href={existingSubmission.file_url} target="_blank" rel="noopener noreferrer">
-                  <Button variant="outline" size="sm" className="h-6 text-xs gap-1"><Eye className="h-3 w-3" />View</Button>
-                </a>
-              )}
-              {!isApproved && (
+          {existingSubmission && (
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 gap-1 text-xs"
+                onClick={() => onViewDocument(existingSubmission)}
+              >
+                <Eye className="h-3 w-3" /> View
+              </Button>
+              {canUpload && !isRejected && (
                 <button
+                  type="button"
                   onClick={() => inputRef.current?.click()}
                   className="text-xs text-primary hover:underline"
                 >
                   Replace file
                 </button>
               )}
+              {isApproved && (
+                <span className="text-[11px] text-green-700">Approved by your consultant</span>
+              )}
             </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Image preview ──────────────────────────────────────────────────────────────
+
+function ImagePreviewDialog({
+  open,
+  onOpenChange,
+  title,
+  streamUrl,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  title: string;
+  streamUrl: string;
+}) {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [blobUrl, setBlobUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!open || !streamUrl) {
+      setBlobUrl(null);
+      setError(null);
+      return;
+    }
+
+    let cancelled = false;
+    let objectUrl: string | null = null;
+
+    (async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await fetch(streamUrl, { headers: clientStreamHeaders() });
+        if (!res.ok) throw new Error("Failed to load image.");
+        const blob = await res.blob();
+        if (cancelled) return;
+        objectUrl = URL.createObjectURL(blob);
+        setBlobUrl(objectUrl);
+      } catch (e: unknown) {
+        if (!cancelled) setError(e instanceof Error ? e.message : "Could not load image.");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+      setBlobUrl(null);
+    };
+  }, [open, streamUrl]);
+
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4" onClick={() => onOpenChange(false)}>
+      <div className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-xl border bg-background shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between border-b px-4 py-3">
+          <h3 className="text-sm font-semibold">{title}</h3>
+          <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)}>Close</Button>
+        </div>
+        <div className="relative flex min-h-[50vh] items-center justify-center bg-muted/20 p-4">
+          {loading && <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />}
+          {error && !loading && <p className="text-sm text-red-600">{error}</p>}
+          {blobUrl && !loading && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={blobUrl} alt={title} className="max-h-[70vh] max-w-full rounded-lg object-contain" />
           )}
         </div>
       </div>
@@ -277,6 +396,7 @@ export function CaseManagementClient() {
   const [sending, setSending]     = useState(false);
   const [toast, setToast]         = useState<{ msg: string; type: "success" | "error" } | null>(null);
   const [pdfViewer, setPdfViewer] = useState<{ title: string; streamUrl: string } | null>(null);
+  const [imagePreview, setImagePreview] = useState<{ title: string; streamUrl: string } | null>(null);
   const [packageForm, setPackageForm] = useState<{
     documentId: number;
     title: string;
@@ -284,12 +404,39 @@ export function CaseManagementClient() {
     alreadySubmitted: boolean;
   } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const pdfAuthHeaders = useCallback(() => clientAuthHeaders(), []);
+  const pdfAuthHeaders = useCallback(() => clientStreamHeaders(), []);
+
+  const submissionStreamUrl = (submissionId: number) =>
+    `${CLIENT_API}/client/documents/${submissionId}/stream`;
 
   const showToast = (msg: string, type: "success" | "error" = "success") => {
     setToast({ msg, type });
     setTimeout(() => setToast(null), 3500);
   };
+
+  const openDocument = useCallback((submission: DocumentSubmission) => {
+    const title = submission.document_label || submission.original_filename;
+    const streamUrl = submissionStreamUrl(submission.id);
+    if (isPdfFile(submission)) {
+      setPdfViewer({ title, streamUrl });
+      return;
+    }
+    if (isImageFile(submission)) {
+      setImagePreview({ title, streamUrl });
+      return;
+    }
+    fetch(streamUrl, { headers: clientStreamHeaders() })
+      .then((r) => r.blob())
+      .then((blob) => {
+        const url = URL.createObjectURL(blob);
+        window.open(url, "_blank", "noopener,noreferrer");
+        setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      })
+      .catch(() => {
+        setToast({ msg: "Could not open file.", type: "error" });
+        setTimeout(() => setToast(null), 3500);
+      });
+  }, []);
 
   const loadMessages = useCallback(async () => {
     try {
@@ -376,7 +523,13 @@ export function CaseManagementClient() {
     return () => clearInterval(interval);
   }, [locked, activeTab, loadMessages, markMessagesRead]);
 
-  const uploadDocument = async (docType: string, docLabel: string, file: File) => {
+  const uploadDocument = async (docType: string, docLabel: string, file: File): Promise<boolean> => {
+    const validationError = validateUploadFile(file);
+    if (validationError) {
+      showToast(validationError, "error");
+      return false;
+    }
+
     const form = new FormData();
     form.append("document_type", docType);
     form.append("document_label", docLabel);
@@ -385,7 +538,7 @@ export function CaseManagementClient() {
     try {
       const res = await fetch(`${CLIENT_API}/client/documents/upload`, {
         method: "POST",
-        headers: clientAuthHeaders(),
+        headers: clientUploadHeaders(),
         body: form,
       });
       const json = await res.json();
@@ -399,10 +552,19 @@ export function CaseManagementClient() {
         }
         return [json.document, ...prev];
       });
+      setHubRequirements((prev) =>
+        prev.map((r) =>
+          r.id === docType
+            ? { ...r, status: "pending", submission: json.document }
+            : r,
+        ),
+      );
       showToast("Document uploaded successfully.");
-      load(true);
+      await load(true);
+      return true;
     } catch (e: unknown) {
       showToast(e instanceof Error ? e.message : "Upload failed.", "error");
+      return false;
     }
   };
 
@@ -586,6 +748,28 @@ export function CaseManagementClient() {
 
       {activeTab === "documents" && (
         <div className="space-y-3">
+          <div className="mb-4 grid gap-3 sm:grid-cols-3">
+            <div className="rounded-xl border bg-card p-3">
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Approved</p>
+              <p className="text-xl font-bold text-green-700">{approvedCount}<span className="text-sm font-normal text-muted-foreground">/{requiredDocs.length}</span></p>
+            </div>
+            <div className="rounded-xl border bg-card p-3">
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Awaiting review</p>
+              <p className="text-xl font-bold text-amber-700">{pendingCount}</p>
+            </div>
+            <div className="rounded-xl border bg-card p-3">
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Need re-upload</p>
+              <p className="text-xl font-bold text-red-700">{rejectedCount}</p>
+            </div>
+          </div>
+
+          {(missingDocs > 0 || rejectedCount > 0) && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+              {rejectedCount > 0
+                ? `${rejectedCount} document(s) need a corrected upload. Read your consultant's note, then upload again.`
+                : `${missingDocs} required document(s) still need to be uploaded.`}
+            </div>
+          )}
           {applicationPackage && (
             <div className="rounded-xl border-2 border-primary/20 bg-primary/5 p-4 space-y-3 mb-4">
               <div>
@@ -652,7 +836,7 @@ export function CaseManagementClient() {
                 doc={doc}
                 existingSubmission={submissionMap[doc.id]}
                 onUpload={uploadDocument}
-                onViewPdf={(title, streamUrl) => setPdfViewer({ title, streamUrl })}
+                onViewDocument={openDocument}
               />
             ))
           )}
@@ -668,26 +852,18 @@ export function CaseManagementClient() {
                 <DocStatusBadge status={doc.status} />
               </div>
               {doc.rejection_comment && (
-                <div className="mt-2 rounded-lg bg-red-50 border border-red-100 px-3 py-1.5 text-xs text-red-700">
-                  <XCircle className="inline h-3 w-3 mr-1" />{doc.rejection_comment}
+                <div className="mt-2 rounded-lg border border-red-100 bg-red-50 px-3 py-1.5 text-xs text-red-700">
+                  <XCircle className="mr-1 inline h-3 w-3" />{doc.rejection_comment}
                 </div>
               )}
-              {isPdfFile(doc) ? (
-                <button
-                  type="button"
-                  onClick={() => setPdfViewer({
-                    title: doc.document_label || doc.original_filename,
-                    streamUrl: `${CLIENT_API}/client/documents/${doc.id}/stream`,
-                  })}
-                  className="mt-2 inline-flex items-center gap-1 text-xs text-primary hover:underline"
-                >
-                  <Eye className="h-3 w-3" />View file
-                </button>
-              ) : (
-                <a href={doc.file_url} target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex items-center gap-1 text-xs text-primary hover:underline">
-                  <Eye className="h-3 w-3" />View file
-                </a>
-              )}
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-2 h-7 gap-1 text-xs"
+                onClick={() => openDocument(doc)}
+              >
+                <Eye className="h-3 w-3" /> View file
+              </Button>
             </div>
           ))}
         </div>
@@ -754,6 +930,12 @@ export function CaseManagementClient() {
         }}
       />
 
+      <ImagePreviewDialog
+        open={imagePreview !== null}
+        onOpenChange={(open) => { if (!open) setImagePreview(null); }}
+        title={imagePreview?.title ?? "Document"}
+        streamUrl={imagePreview?.streamUrl ?? ""}
+      />
       <PdfViewerDialog
         open={pdfViewer !== null}
         onOpenChange={(open) => { if (!open) setPdfViewer(null); }}

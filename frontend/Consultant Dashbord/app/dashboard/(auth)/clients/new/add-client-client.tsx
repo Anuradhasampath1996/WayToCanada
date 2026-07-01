@@ -84,6 +84,7 @@ export function AddClientPageClient() {
   const [errorMsg, setErrorMsg] = useState("");
   const [sendInvite, setSendInvite] = useState(true);
   const [inviteSent, setInviteSent] = useState(false);
+  const [createdClientId, setCreatedClientId] = useState<number | null>(null);
 
   const set = (field: keyof FormState) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setForm((f) => ({ ...f, [field]: e.target.value }));
@@ -120,8 +121,12 @@ export function AddClientPageClient() {
       }
 
       setInviteSent(sendInvite);
+      setCreatedClientId(json.client?.id ?? null);
       setStatus("success");
-      setTimeout(() => router.push("/dashboard/clients"), 3000);
+      const workspaceHref = json.client?.id
+        ? `/dashboard/clients/${json.client.id}/workspace`
+        : "/dashboard/clients";
+      setTimeout(() => router.push(workspaceHref), 2500);
     } catch (e: unknown) {
       setErrorMsg(e instanceof Error ? e.message : "Something went wrong. Please try again.");
       setStatus("error");
@@ -153,8 +158,16 @@ export function AddClientPageClient() {
             )}
             <p className="mt-6 flex items-center gap-2 text-xs text-muted-foreground">
               <Loader2 className="size-3.5 animate-spin" />
-              Redirecting to your client list…
+              Opening case workspace — Step 1: client intake &amp; pathway…
             </p>
+            {createdClientId && (
+              <Button asChild className="mt-4 rounded-xl">
+                <Link href={`/dashboard/clients/${createdClientId}/workspace`}>
+                  Go to workspace now
+                  <ArrowRight className="ml-2 size-4" />
+                </Link>
+              </Button>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -358,7 +371,7 @@ export function AddClientPageClient() {
                 {[
                   "Client profile is added to your practice",
                   sendInvite ? "Invite email with login link is sent" : "Invite can be sent later from client list",
-                  "Client appears on your Application Progress Board after retainer signing",
+                  "You go straight to Step 1 — client intake & pathway assignment",
                 ].map((text, i) => (
                   <div key={text} className="flex items-start gap-2.5 text-xs text-muted-foreground">
                     <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[10px] font-bold text-primary">
