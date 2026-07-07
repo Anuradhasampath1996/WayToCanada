@@ -41,22 +41,22 @@ class GstHstSyncService
             || $active->source_checksum !== $checksum
             || ($applyCraRates && ($craCheck['has_differences'] ?? false))
         ) {
-            if ($active) {
-                $active->update(['is_active' => false]);
-            }
+            GstHstRateVersion::where('is_active', true)->update(['is_active' => false]);
 
-            GstHstRateVersion::create([
-                'version'                  => $versionLabel,
-                'effective_date'           => $config['effective_date'],
-                'rates'                    => $payload,
-                'source_checksum'          => $checksum,
-                'is_active'                => true,
-                'government_pages_changed' => (bool) ($craCheck['has_differences'] ?? false),
-                'changelog'                => $applyCraRates
-                    ? 'Rates applied from CRA charge & collect page.'
-                    : ($config['changelog'] ?? null),
-                'last_synced_at'           => now(),
-            ]);
+            GstHstRateVersion::updateOrCreate(
+                ['version' => $versionLabel],
+                [
+                    'effective_date'           => $config['effective_date'],
+                    'rates'                    => $payload,
+                    'source_checksum'          => $checksum,
+                    'is_active'                => true,
+                    'government_pages_changed' => (bool) ($craCheck['has_differences'] ?? false),
+                    'changelog'                => $applyCraRates
+                        ? 'Rates applied from CRA charge & collect page.'
+                        : ($config['changelog'] ?? null),
+                    'last_synced_at'           => now(),
+                ]
+            );
 
             $result['rates_updated'] = true;
         } else {

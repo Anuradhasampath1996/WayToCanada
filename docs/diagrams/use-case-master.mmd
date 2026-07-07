@@ -1,0 +1,138 @@
+flowchart TB
+    classDef actor fill:#E3F2FD,stroke:#1565C0,stroke-width:2px
+    classDef usecase fill:#FFF9C4,stroke:#F9A825,stroke-width:1px
+    classDef system fill:#F5F5F5,stroke:#616161,stroke-width:2px
+    classDef external fill:#ECEFF1,stroke:#455A64,stroke-width:2px
+
+    Guest((Public Visitor))
+    Client((Immigration Client))
+    Consultant((RCIC Consultant))
+    Admin((Platform Admin))
+    Stripe((Stripe))
+    Google((Google OAuth))
+    OpenAI((OpenAI))
+    OCR((OCR Service))
+
+    subgraph WTC["WayToCanada RCICMASTER Platform"]
+        direction TB
+
+        subgraph AUTH["Authentication"]
+            UC01([Register Account])
+            UC02([Login / Logout])
+            UC03([Reset Password])
+            UC04([Verify Email])
+            UC05([Consultant Onboarding])
+        end
+
+        subgraph PUBLIC["Public Services"]
+            UC06([Browse IRCC News])
+            UC07([CRS Calculator])
+            UC08([Browse Subscription Plans])
+            UC09([View Consultant Website])
+        end
+
+        subgraph CLIENT["Client Journey"]
+            UC10([Choose Consultant])
+            UC11([Fill Questionnaire])
+            UC12([Upload Documents])
+            UC13([Sign Retainer Agreement])
+            UC14([View My Pathway])
+            UC15([Message Consultant])
+            UC16([Attend Meeting])
+            UC17([Pay Invoice])
+            UC18([Complete LMS Course])
+            UC19([Fill IRCC Forms])
+            UC20([View Trust Account])
+        end
+
+        subgraph CONSULTANT["Consultant Workspace"]
+            UC21([Manage Clients])
+            UC22([Assign Immigration Pathway])
+            UC23([Send Agreement])
+            UC24([Review Documents])
+            UC25([Schedule Meeting])
+            UC26([Create Payment Request])
+            UC27([Manage Trust Ledger])
+            UC28([Generate Letters])
+            UC29([Maple AI Advisor])
+            UC30([Assign LMS Courses])
+            UC31([Case Pipeline View])
+            UC32([Export Compliance Packet])
+        end
+
+        subgraph LEGAL["Legislation Hub"]
+            UC33([Search IRPA IRPR])
+            UC34([Bookmark Provisions])
+            UC35([AI Explain Legislation])
+        end
+
+        subgraph ADMIN["Platform Admin"]
+            UC36([Manage Users and Roles])
+            UC37([Sync Legislation])
+            UC38([Manage LMS Content])
+            UC39([Configure Payment Gateway])
+            UC40([WhatsApp Inbox])
+            UC41([Manage RCIC Registry])
+            UC42([Platform Analytics])
+        end
+    end
+
+    Guest --> UC06
+    Guest --> UC07
+    Guest --> UC08
+    Guest --> UC09
+    Guest --> UC01
+
+    Client --> UC02
+    Client --> UC10
+    Client --> UC11
+    Client --> UC12
+    Client --> UC13
+    Client --> UC14
+    Client --> UC15
+    Client --> UC16
+    Client --> UC17
+    Client --> UC18
+    Client --> UC19
+    Client --> UC20
+
+    Consultant --> UC02
+    Consultant --> UC05
+    Consultant --> UC21
+    Consultant --> UC22
+    Consultant --> UC23
+    Consultant --> UC24
+    Consultant --> UC25
+    Consultant --> UC26
+    Consultant --> UC27
+    Consultant --> UC28
+    Consultant --> UC29
+    Consultant --> UC30
+    Consultant --> UC31
+    Consultant --> UC32
+    Consultant --> UC33
+    Consultant --> UC34
+    Consultant --> UC35
+
+    Admin --> UC02
+    Admin --> UC36
+    Admin --> UC37
+    Admin --> UC38
+    Admin --> UC39
+    Admin --> UC40
+    Admin --> UC41
+    Admin --> UC42
+
+    UC01 -.-> UC04
+    UC12 -.-> UC12A([Scan Document OCR])
+    UC12A --> OCR
+    UC29 -.-> UC29A([AI Chat Analysis])
+    UC29A --> OpenAI
+    UC35 --> OpenAI
+    UC28 --> OpenAI
+    UC17 --> Stripe
+    UC26 --> Stripe
+    UC02 --> Google
+
+    class Guest,Client,Consultant,Admin actor
+    class Stripe,Google,OpenAI,OCR external

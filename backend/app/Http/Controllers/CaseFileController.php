@@ -11,6 +11,7 @@ use App\Models\ConsultantClientRequest;
 use App\Models\IrccCategory;
 use App\Mail\AgreementReminderEmail;
 use App\Services\AgreementReminderService;
+use App\Services\CaseFileLifecycleService;
 use App\Services\IrccInteractiveFormVerificationService;
 use App\Services\ClientActivity\ClientActivityTriggers;
 use App\Services\Notifications\WorkspaceNotificationTriggers;
@@ -33,6 +34,7 @@ class CaseFileController extends Controller
         private WorkspaceNotificationTriggers $notify,
         private ClientActivityTriggers $activity,
         private TrustLedgerService $trust,
+        private CaseFileLifecycleService $lifecycle,
     ) {}
 
     // ── Private helper ─────────────────────────────────────────────────────────
@@ -46,10 +48,7 @@ class CaseFileController extends Controller
 
     private function getOrCreateCaseFile(ClientProfile $profile, Request $request): CaseFile
     {
-        return CaseFile::firstOrCreate(
-            ['client_profile_id' => $profile->id],
-            ['consultant_id' => $request->user()->id, 'status' => 'PENDING_ASSESSMENT']
-        );
+        return $this->lifecycle->resolveActiveCaseFile($profile, $request->user()->id);
     }
 
     private function prepareCaseFile(?CaseFile $caseFile): ?CaseFile
@@ -77,6 +76,8 @@ class CaseFileController extends Controller
 
         return response()->json([
             'case_file'  => $caseFile,
+            'case_files' => $this->lifecycle->listCasesForProfile($profile),
+            'lifecycle'  => $this->lifecycle->lifecycleMeta($profile, $caseFile),
             'client'     => $profile,
             'consultant' => [
                 'id'          => $consultant->id,
@@ -651,6 +652,69 @@ class CaseFileController extends Controller
                 'email'              => $user->email,
                 'immigration_pathway'=> $profile->immigration_pathway,
             ],
+        ]);
+    }
+
+    // ── Case lifecycle (consultant) ───────────────────────────────────────────
+
+    /** PATCH /consultant/clients/{profile}/case-file/lifecycle */
+    public function updateLifecycle(Request $request, ClientProfile $profile): JsonResponse
+    {
+        $this->authorizeConsultant($request, $profile);
+
+        $data = $request->validate([
+            'action' => 'required|string|in:hold,resume,close,complete',
+            'note'   => 'nullable|string|max:2000',
+        ]);
+
+        $caseFile = $this->lifecycle->resolveActiveCaseFile($profile, $request->user()->id);
+        $updated = $this->lifecycle->updateLifecycle($profile, $caseFile, $data['action'], $data['note'] ?? null);
+
+        return response()->json([
+            'message'    => 'Case updated.',
+            'case_file'  => $updated,
+            'case_files' => $this->lifecycle->listCasesForProfile($profile),
+            'lifecycle'  => $this->lifecycle->lifecycleMeta($profile, $updated),
+        ]);
+    }
+
+    /** POST /consultant/clients/{profile}/case-file/open-new */
+    public function openNewCase(Request $request, ClientProfile $profile): JsonResponse
+    {
+        $this->authorizeConsultant($request, $profile);
+
+        $caseFile = $this->lifecycle->openNewCase($profile, $request->user()->id);
+        $caseFile->loadMissing('assignedIrccCategory.documents');
+
+        return response()->json([
+            'message'    => 'New case opened.',
+            'case_file'  => $caseFile,
+            'case_files' => $this->lifecycle->listCasesForProfile($profile),
+            'lifecycle'  => $this->lifecycle->lifecycleMeta($profile, $caseFile),
+        ], 201);
+    }
+
+    /** PATCH /consultant/clients/{profile}/case-file/switch */
+    public function switchActiveCase(Request $request, ClientProfile $profile): JsonResponse
+    {
+        $this->authorizeConsultant($request, $profile);
+
+        $data = $request->validate([
+            'case_file_id' => 'required|integer',
+        ]);
+
+        $caseFile = $this->lifecycle->switchActiveCase($profile, (int) $data['case_file_id']);
+        $caseFile = $this->prepareCaseFile($caseFile);
+        $caseFile?->loadMissing('assignedIrccCategory.documents');
+
+        return response()->json([
+            'message'    => 'Active case switched.',
+            'case_file'  => $caseFile,
+            'case_files' => $this->lifecycle->listCasesForProfile($profile),
+            'lifecycle'  => $this->lifecycle->lifecycleMeta($profile, $caseFile),
+            'application_forms_verification' => $caseFile
+                ? $this->verificationService->getVerificationStatus($caseFile)
+                : null,
         ]);
     }
 }

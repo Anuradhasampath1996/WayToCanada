@@ -3,7 +3,7 @@
 import * as React from "react";
 import {
   ChevronLeft, ChevronRight, Download, Loader2, AlertCircle,
-  ZoomIn, ZoomOut, Send, CheckCircle2,
+  ZoomIn, ZoomOut, Send, CheckCircle2, Upload,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { CLIENT_API, clientUploadHeaders } from "@/lib/client-api";
+import { packageDocumentStreamUrl } from "@/lib/package-document-urls";
 
 async function fetchPdfBytes(streamUrl: string, headers: Record<string, string>): Promise<Uint8Array> {
   const res = await fetch(streamUrl, {
@@ -46,9 +47,19 @@ export function PackagePdfFormDialog({
   onSubmitted?: () => void;
 }) {
   const iframeRef = React.useRef<HTMLIFrameElement>(null);
+  const uploadInputRef = React.useRef<HTMLInputElement>(null);
   const pendingBytesRef = React.useRef<Uint8Array | null>(null);
   const getAuthHeadersRef = React.useRef(getAuthHeaders);
+  const documentIdRef = React.useRef(documentId);
+  const titleRef = React.useRef(title);
+  const onSubmittedRef = React.useRef(onSubmitted);
   const viewerReadyRef = React.useRef(false);
+  const deliverPdfRef = React.useRef<() => void>(() => {});
+
+  getAuthHeadersRef.current = getAuthHeaders;
+  documentIdRef.current = documentId;
+  titleRef.current = title;
+  onSubmittedRef.current = onSubmitted;
 
   const [loading, setLoading] = React.useState(false);
   const [submitting, setSubmitting] = React.useState(false);
@@ -58,8 +69,56 @@ export function PackagePdfFormDialog({
   const [numPages, setNumPages] = React.useState(0);
   const [scale, setScale] = React.useState(1.1);
   const [viewerReady, setViewerReady] = React.useState(false);
+  const [isPureXfa, setIsPureXfa] = React.useState(false);
 
-  getAuthHeadersRef.current = getAuthHeaders;
+  const isIrccForm = isPureXfa || /imm\s*\d|ircc/i.test(title);
+
+  const uploadPdfFile = React.useCallback(async (file: File) => {
+    const id = documentIdRef.current;
+    if (!id) {
+      setError("Could not identify this form. Please close and reopen.");
+      setSubmitting(false);
+      return;
+    }
+
+    setSubmitting(true);
+    setError(null);
+    try {
+      const form = new FormData();
+      form.append("file", file, file.name);
+
+      const res = await fetch(`${CLIENT_API}/client/package-documents/${id}/submit`, {
+        method: "POST",
+        headers: clientUploadHeaders(),
+        body: form,
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.message ?? "Submit failed.");
+
+      setSubmitted(true);
+      onSubmittedRef.current?.();
+
+      try {
+        const submissionUrl = packageDocumentStreamUrl(id, true);
+        const bytes = await fetchPdfBytes(submissionUrl, getAuthHeadersRef.current());
+        pendingBytesRef.current = bytes;
+        setError(null);
+        deliverPdfRef.current();
+      } catch {
+        // submitted file saved; viewer reload is best-effort
+      }
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Submit failed.");
+    } finally {
+      setSubmitting(false);
+    }
+  }, []);
+
+  const uploadSavedPdf = React.useCallback(async (data: ArrayBuffer) => {
+    const blob = new Blob([data], { type: "application/pdf" });
+    const filename = titleRef.current.replace(/[^\w\s.-]/g, "_") + ".pdf";
+    await uploadPdfFile(new File([blob], filename, { type: "application/pdf" }));
+  }, [uploadPdfFile]);
 
   const postToViewer = React.useCallback((payload: Record<string, unknown>) => {
     iframeRef.current?.contentWindow?.postMessage(
@@ -73,11 +132,14 @@ export function PackagePdfFormDialog({
     postToViewer({ type: "load-bytes", data: pendingBytesRef.current });
   }, [postToViewer]);
 
+  deliverPdfRef.current = deliverPdf;
+
   React.useEffect(() => {
     if (!open) {
       viewerReadyRef.current = false;
       setViewerReady(false);
       setSubmitted(alreadySubmitted ?? false);
+      setIsPureXfa(false);
       pendingBytesRef.current = null;
       return;
     }
@@ -124,6 +186,7 @@ export function PackagePdfFormDialog({
         setNumPages(Number(msg.numPages) || 0);
         setPage(1);
         setError(null);
+        setIsPureXfa(Boolean(msg.isPureXfa));
       }
       if (msg.type === "error") {
         setError(String(msg.message ?? "Could not display this PDF."));
@@ -135,7 +198,7 @@ export function PackagePdfFormDialog({
 
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
-  }, [deliverPdf]);
+  }, [deliverPdf, uploadSavedPdf]);
 
   React.useEffect(() => {
     if (!viewerReady || loading || error) return;
@@ -146,31 +209,6 @@ export function PackagePdfFormDialog({
     if (!viewerReady || loading || error) return;
     postToViewer({ type: "set-scale", scale });
   }, [scale, viewerReady, loading, error, postToViewer]);
-
-  async function uploadSavedPdf(data: ArrayBuffer) {
-    setSubmitting(true);
-    setError(null);
-    try {
-      const blob = new Blob([data], { type: "application/pdf" });
-      const form = new FormData();
-      form.append("file", blob, title.replace(/[^\w\s.-]/g, "_") + ".pdf");
-
-      const res = await fetch(`${CLIENT_API}/client/package-documents/${documentId}/submit`, {
-        method: "POST",
-        headers: clientUploadHeaders(),
-        body: form,
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.message ?? "Submit failed.");
-
-      setSubmitted(true);
-      onSubmitted?.();
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Submit failed.");
-    } finally {
-      setSubmitting(false);
-    }
-  }
 
   function requestSaveAndSubmit() {
     setSubmitting(true);
@@ -202,9 +240,22 @@ export function PackagePdfFormDialog({
             )}
           </div>
           <DialogDescription>
-            Fill the form below, then submit to your consultant for review.
+            {isIrccForm
+              ? "Fill fields below or download and complete in Adobe Acrobat Reader, then upload the filled PDF."
+              : "Fill the form below, then submit to your consultant for review."}
           </DialogDescription>
         </DialogHeader>
+
+        {isIrccForm && (
+          <div className="mx-5 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 shrink-0">
+            <p className="font-medium">IRCC government form</p>
+            <p className="mt-1 text-xs leading-relaxed text-amber-900/90">
+              Full validation and barcodes require <strong>Adobe Acrobat Reader</strong> (free).
+              Download the form, fill it in Acrobat, then use <strong>Upload filled PDF</strong>.
+              You can still type in fields here and save a draft to your consultant.
+            </p>
+          </div>
+        )}
 
         <div className="flex items-center justify-between gap-2 px-5 py-2 border-b bg-muted/30 shrink-0 flex-wrap">
           <div className="flex items-center gap-1">
@@ -229,6 +280,30 @@ export function PackagePdfFormDialog({
             <Button size="sm" variant="outline" className="gap-1.5 ml-1" onClick={downloadOriginal} disabled={loading || !pendingBytesRef.current}>
               <Download className="h-3.5 w-3.5" /> Download
             </Button>
+            {isIrccForm && (
+              <>
+                <input
+                  ref={uploadInputRef}
+                  type="file"
+                  accept=".pdf,application/pdf"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) void uploadPdfFile(f);
+                    e.target.value = "";
+                  }}
+                />
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="gap-1.5"
+                  disabled={loading || submitting}
+                  onClick={() => uploadInputRef.current?.click()}
+                >
+                  <Upload className="h-3.5 w-3.5" /> Upload filled PDF
+                </Button>
+              </>
+            )}
             <Button
               size="sm"
               className="gap-1.5"

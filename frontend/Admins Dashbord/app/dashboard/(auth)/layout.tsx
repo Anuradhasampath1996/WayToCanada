@@ -20,17 +20,18 @@ export default async function AuthLayout({
       defaultOpen={defaultOpen}
       style={
         {
-          "--sidebar-width": "16rem",
-          "--header-height": "3.5rem",
-          "--content-padding": "1rem",
-          "--content-full-height": "calc(100vh - var(--header-height) - (var(--content-padding) * 2))"
+          "--sidebar-width": "calc(var(--spacing) * 64)",
+          "--header-height": "calc(var(--spacing) * 14)",
+          "--content-padding": "calc(var(--spacing) * 4)",
+          "--content-full-height":
+            "calc(100vh - var(--header-height) - (var(--content-padding) * 2))"
         } as React.CSSProperties
       }>
-      <AppSidebar variant="sidebar" />
+      <AppSidebar variant="floating" />
       <SidebarInset className="min-w-0">
         <SiteHeader />
-        <div className="flex min-w-0 flex-1 flex-col">
-          <div className="@container/main w-full max-w-none min-w-0 px-(--content-padding) py-(--content-padding)">
+        <div className="flex min-w-0 flex-1 flex-col bg-muted/40">
+          <div className="@container/main w-full max-w-none min-w-0 p-(--content-padding)">
             {children}
           </div>
         </div>

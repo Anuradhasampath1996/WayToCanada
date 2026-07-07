@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import {
   Loader2, AlertCircle, Check, FileText, Upload, MessageSquare,
   Send, CheckCircle2, XCircle, Clock, Bot, ShieldCheck, ShieldAlert,
-  ShieldQuestion, CloudUpload, Eye, RefreshCw, Briefcase,
+  ShieldQuestion, Eye, RefreshCw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -15,20 +15,20 @@ import { ClientJourneyPageChrome } from "@/components/client-workspace-ui";
 import { CLIENT_API, clientAuthHeaders, clientUploadHeaders, clientStreamHeaders } from "@/lib/client-api";
 import {
   CaseHubProgressHeader,
-  ClientRequirementsStatusGrid,
-  IrccFormsList,
-  ClientHubNextActions,
   CaseManagementLockedPanel,
   type HubProgress,
   type HubRequirement,
-  type HubIrccForm,
 } from "@/components/client-case-hub-ui";
+import { CaseDocumentUploadCard } from "./case-document-upload-card";
+import { PackageDocumentCard } from "./package-document-card";
+import { packageDocumentStreamUrl } from "@/lib/package-document-urls";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
 interface DocumentRequirement {
   id: string;
   label: string;
+  category: string;
 }
 
 interface DocumentSubmission {
@@ -140,169 +140,7 @@ function DocStatusBadge({ status }: { status: string }) {
   );
 }
 
-// ── Drop Zone ──────────────────────────────────────────────────────────────────
-
-function DropZone({
-  doc,
-  existingSubmission,
-  onUpload,
-  onViewDocument,
-}: {
-  doc: DocumentRequirement;
-  existingSubmission: DocumentSubmission | undefined;
-  onUpload: (docType: string, docLabel: string, file: File) => Promise<boolean>;
-  onViewDocument: (submission: DocumentSubmission) => void;
-}) {
-  const [draggingOver, setDraggingOver] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const [uploadError, setUploadError] = useState<string | null>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  const handleFile = async (file: File) => {
-    const validationError = validateUploadFile(file);
-    if (validationError) {
-      setUploadError(validationError);
-      return;
-    }
-
-    setUploadError(null);
-    setUploading(true);
-    const ok = await onUpload(doc.id, doc.label, file);
-    setUploading(false);
-    if (!ok) {
-      setUploadError("Upload failed. Please try again.");
-    }
-  };
-
-  const onDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setDraggingOver(false);
-    const file = e.dataTransfer.files[0];
-    if (file) handleFile(file);
-  };
-
-  const isApproved = existingSubmission?.status === "consultant_approved";
-  const isRejected = existingSubmission?.status === "consultant_rejected";
-  const canUpload = !isApproved;
-  const showDropZone = canUpload;
-
-  return (
-    <div className={cn(
-      "rounded-xl border-2 p-4 transition-all",
-      isApproved && "border-green-200 bg-green-50/30",
-      isRejected && "border-red-200 bg-red-50/30",
-      !existingSubmission && "border-dashed border-input",
-      draggingOver && "border-primary bg-primary/5 scale-[1.01]"
-    )}>
-      <div className="flex items-start gap-3">
-        <div className={cn(
-          "flex h-8 w-8 items-center justify-center rounded-full shrink-0 mt-0.5",
-          isApproved ? "bg-green-100 text-green-600" : isRejected ? "bg-red-100 text-red-600" : "bg-muted text-muted-foreground"
-        )}>
-          {isApproved ? <CheckCircle2 className="h-4 w-4" /> : isRejected ? <XCircle className="h-4 w-4" /> : <FileText className="h-4 w-4" />}
-        </div>
-
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium">{doc.label}</p>
-
-          {existingSubmission && (
-            <div className="mt-1.5 space-y-1">
-              <div className="flex items-center gap-2 flex-wrap">
-                <DocStatusBadge status={existingSubmission.status} />
-                <span className="text-xs text-muted-foreground">{existingSubmission.original_filename} {existingSubmission.file_size ? `· ${fmtSize(existingSubmission.file_size)}` : ""}</span>
-              </div>
-
-              {existingSubmission.ai_match_result && (
-                <p className={cn("text-xs", existingSubmission.ai_match_result.matched ? "text-green-700" : "text-orange-700")}>
-                  <Bot className="inline h-3 w-3 mr-0.5" />
-                  {existingSubmission.ai_match_result.reason}
-                </p>
-              )}
-
-              {isRejected && existingSubmission.rejection_comment && (
-                <div className="mt-1 rounded-lg border border-red-100 bg-red-50 px-3 py-1.5 text-xs text-red-700">
-                  <XCircle className="mr-1 inline h-3 w-3" />
-                  <strong>Consultant note:</strong> {existingSubmission.rejection_comment}
-                </div>
-              )}
-
-              {isRejected && (
-                <p className="text-xs font-medium text-red-700">
-                  Please upload the correct file below.
-                </p>
-              )}
-            </div>
-          )}
-
-          {showDropZone && (
-            <div
-              onDragOver={e => { e.preventDefault(); setDraggingOver(true); }}
-              onDragLeave={() => setDraggingOver(false)}
-              onDrop={onDrop}
-              onClick={() => !uploading && inputRef.current?.click()}
-              className={cn(
-                "mt-2 flex flex-col items-center justify-center gap-1 rounded-lg border border-dashed py-4 cursor-pointer transition-colors hover:bg-muted/30",
-                draggingOver && "border-primary bg-primary/5",
-                uploading && "opacity-60 pointer-events-none"
-              )}
-            >
-              {uploading ? (
-                <><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /><p className="text-xs text-muted-foreground">Uploading…</p></>
-              ) : (
-                <>
-                  <CloudUpload className="h-5 w-5 text-muted-foreground" />
-                  <p className="text-xs text-muted-foreground">
-                    {isRejected ? "Upload corrected file" : existingSubmission ? "Replace file" : "Drag & drop or click to upload"}
-                  </p>
-                  <p className="text-[10px] text-muted-foreground/70">JPG, PNG, PDF, WEBP · max 20 MB</p>
-                </>
-              )}
-            </div>
-          )}
-
-          {uploadError && (
-            <p className="mt-2 text-xs text-red-600">{uploadError}</p>
-          )}
-
-          <input
-            ref={inputRef}
-            type="file"
-            accept="image/jpeg,image/png,image/webp,application/pdf"
-            className="hidden"
-            onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = ""; }}
-          />
-
-          {existingSubmission && (
-            <div className="mt-2 flex flex-wrap items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-7 gap-1 text-xs"
-                onClick={() => onViewDocument(existingSubmission)}
-              >
-                <Eye className="h-3 w-3" /> View
-              </Button>
-              {canUpload && !isRejected && (
-                <button
-                  type="button"
-                  onClick={() => inputRef.current?.click()}
-                  className="text-xs text-primary hover:underline"
-                >
-                  Replace file
-                </button>
-              )}
-              {isApproved && (
-                <span className="text-[11px] text-green-700">Approved by your consultant</span>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── Image preview ──────────────────────────────────────────────────────────────
+// ── Main Component ─────────────────────────────────────────────────────────────
 
 function ImagePreviewDialog({
   open,
@@ -387,11 +225,10 @@ export function CaseManagementClient() {
   const [pathway, setPathway]     = useState<string | null>(null);
   const [hubRequirements, setHubRequirements] = useState<HubRequirement[]>([]);
   const [hubProgress, setHubProgress] = useState<HubProgress | null>(null);
-  const [irccForms, setIrccForms] = useState<HubIrccForm[]>([]);
   const [documents, setDocuments] = useState<DocumentSubmission[]>([]);
   const [applicationPackage, setApplicationPackage] = useState<ApplicationPackage | null>(null);
   const [messages, setMessages]   = useState<CaseMessage[]>([]);
-  const [activeTab, setActiveTab] = useState<"overview" | "documents" | "messages">("overview");
+  const [activeTab, setActiveTab] = useState<"documents" | "messages">("documents");
   const [msgInput, setMsgInput]   = useState("");
   const [sending, setSending]     = useState(false);
   const [toast, setToast]         = useState<{ msg: string; type: "success" | "error" } | null>(null);
@@ -497,7 +334,6 @@ export function CaseManagementClient() {
       setApplicationPackage(hubJson.application_package ?? null);
       setHubProgress(hubJson.progress ?? null);
       setHubRequirements(hubJson.document_requirements ?? []);
-      setIrccForms(hubJson.ircc_forms ?? []);
       setDocuments(hubJson.documents ?? []);
       setMessages(msgsJson.messages ?? []);
     } catch (e: unknown) {
@@ -523,7 +359,12 @@ export function CaseManagementClient() {
     return () => clearInterval(interval);
   }, [locked, activeTab, loadMessages, markMessagesRead]);
 
-  const uploadDocument = async (docType: string, docLabel: string, file: File): Promise<boolean> => {
+  const uploadDocument = async (
+    docType: string,
+    docLabel: string,
+    file: File,
+    options?: { silent?: boolean; skipReload?: boolean },
+  ): Promise<boolean> => {
     const validationError = validateUploadFile(file);
     if (validationError) {
       showToast(validationError, "error");
@@ -543,15 +384,7 @@ export function CaseManagementClient() {
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.message ?? "Upload failed.");
-      setDocuments(prev => {
-        const existing = prev.findIndex(d => d.document_type === docType);
-        if (existing >= 0) {
-          const copy = [...prev];
-          copy[existing] = json.document;
-          return copy;
-        }
-        return [json.document, ...prev];
-      });
+      setDocuments(prev => [json.document, ...prev]);
       setHubRequirements((prev) =>
         prev.map((r) =>
           r.id === docType
@@ -559,8 +392,12 @@ export function CaseManagementClient() {
             : r,
         ),
       );
-      showToast("Document uploaded successfully.");
-      await load(true);
+      if (!options?.silent) {
+        showToast("Document uploaded successfully.");
+      }
+      if (!options?.skipReload) {
+        await load(true);
+      }
       return true;
     } catch (e: unknown) {
       showToast(e instanceof Error ? e.message : "Upload failed.", "error");
@@ -617,20 +454,20 @@ export function CaseManagementClient() {
     );
   }
 
-  const requiredDocs: DocumentRequirement[] = hubRequirements.map((r) => ({ id: r.id, label: r.label }));
-  const submissionMap = Object.fromEntries(documents.map(d => [d.document_type, d]));
+  const requiredDocs: DocumentRequirement[] = hubRequirements.map((r) => ({
+    id: r.id,
+    label: r.label,
+    category: r.category,
+  }));
+  const submissionsByType = documents.reduce<Record<string, DocumentSubmission[]>>((acc, d) => {
+    (acc[d.document_type] ??= []).push(d);
+    return acc;
+  }, {});
   const approvedCount = documents.filter(d => ["consultant_approved", "ai_verified"].includes(d.status)).length;
   const rejectedCount = documents.filter(d => d.status === "consultant_rejected").length;
   const pendingCount  = documents.filter(d => ["pending_review", "under_ai_review", "ai_flagged"].includes(d.status)).length;
   const unreadCount   = messages.filter(m => m.sender_type === "consultant" && !m.read_at).length;
   const missingDocs   = hubRequirements.filter((r) => r.status === "missing" || r.status === "rejected").length;
-
-  const clientNextActions = [
-    ...(missingDocs > 0 ? [{ label: `Upload ${missingDocs} required document(s)`, tab: "documents" as const, urgent: true }] : []),
-    ...(pendingCount > 0 ? [{ label: `${pendingCount} document(s) awaiting consultant review`, tab: "documents" as const }] : []),
-    ...(rejectedCount > 0 ? [{ label: `${rejectedCount} document(s) need re-upload`, tab: "documents" as const, urgent: true }] : []),
-    ...(unreadCount > 0 ? [{ label: `${unreadCount} new message(s) from consultant`, tab: "messages" as const }] : []),
-  ];
 
   return (
     <ClientJourneyPageChrome
@@ -682,16 +519,6 @@ export function CaseManagementClient() {
 
       <div className="-mx-3 mb-6 flex border-b overflow-x-auto px-3 sm:mx-0 sm:px-0">
         <button
-          onClick={() => setActiveTab("overview")}
-          className={cn(
-            "px-3 py-2 text-sm font-medium border-b-2 transition-colors shrink-0 sm:px-4",
-            activeTab === "overview" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
-          )}
-        >
-          <Briefcase className="inline h-4 w-4 mr-1.5" />
-          Overview
-        </button>
-        <button
           onClick={() => setActiveTab("documents")}
           className={cn(
             "px-3 py-2 text-sm font-medium border-b-2 transition-colors shrink-0 sm:px-4",
@@ -717,34 +544,6 @@ export function CaseManagementClient() {
           )}
         </button>
       </div>
-
-      {activeTab === "overview" && (
-        <div className="space-y-6">
-          <ClientHubNextActions actions={clientNextActions} onActionClick={(tab) => setActiveTab(tab as typeof activeTab)} />
-
-          {applicationPackage && (
-            <div className="rounded-xl border p-4 space-y-2">
-              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Your application package</p>
-              <p className="font-semibold">{applicationPackage.label}</p>
-              <p className="text-sm text-muted-foreground">{applicationPackage.breadcrumb.join(" › ")}</p>
-            </div>
-          )}
-
-          <div className="rounded-xl border p-4 space-y-3">
-            <p className="text-sm font-semibold">Document checklist</p>
-            {hubRequirements.length > 0 ? (
-              <ClientRequirementsStatusGrid requirements={hubRequirements} />
-            ) : (
-              <p className="text-sm text-muted-foreground italic">No document requirements configured yet.</p>
-            )}
-          </div>
-
-          <div className="rounded-xl border p-4 space-y-3">
-            <p className="text-sm font-semibold">IRCC forms for your pathway</p>
-            <IrccFormsList forms={irccForms} pathway={pathway} />
-          </div>
-        </div>
-      )}
 
       {activeTab === "documents" && (
         <div className="space-y-3">
@@ -794,32 +593,29 @@ export function CaseManagementClient() {
                 </div>
               )}
               {applicationPackage.documents.length > 0 && (
-                <div className="space-y-2">
+                <div className="space-y-3">
                   <p className="text-sm font-medium">Documents from your consultant</p>
-                  {applicationPackage.documents.map(doc => (
-                    <button
-                      key={doc.id}
-                      type="button"
-                      onClick={() => setPackageForm({
-                        documentId: doc.id,
-                        title: doc.label,
-                        streamUrl: `${CLIENT_API}/client/package-documents/${doc.id}/stream`,
-                        alreadySubmitted: !!doc.submission?.submitted_at,
-                      })}
-                      className="w-full flex items-center gap-2 rounded-lg border bg-white px-3 py-2 text-sm hover:bg-muted/40 text-left"
-                    >
-                      <FileText className="h-4 w-4 text-primary shrink-0" />
-                      <span className="font-medium flex-1">{doc.label}</span>
-                      {doc.submission?.submitted_at ? (
-                        <Badge className="bg-green-600 text-[10px] shrink-0">Submitted</Badge>
-                      ) : doc.doc_type === "form" ? (
-                        <Badge variant="secondary" className="text-[10px] shrink-0">Fill & submit</Badge>
-                      ) : (
-                        <Badge variant="outline" className="text-[10px] shrink-0">{doc.doc_type}</Badge>
-                      )}
-                      <Eye className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                    </button>
-                  ))}
+                  <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                    {applicationPackage.documents.map((doc) => {
+                      const isSubmitted = Boolean(doc.submission?.submitted_at);
+                      const streamUrl = packageDocumentStreamUrl(doc.id, isSubmitted);
+                      return (
+                      <PackageDocumentCard
+                        key={doc.id}
+                        doc={doc}
+                        streamUrl={streamUrl}
+                        onOpen={() =>
+                          setPackageForm({
+                            documentId: doc.id,
+                            title: doc.label,
+                            streamUrl,
+                            alreadySubmitted: isSubmitted,
+                          })
+                        }
+                      />
+                      );
+                    })}
+                  </div>
                 </div>
               )}
             </div>
@@ -830,15 +626,25 @@ export function CaseManagementClient() {
               No document requirements from your consultant yet.
             </p>
           ) : (
-            requiredDocs.map(doc => (
-              <DropZone
-                key={doc.id}
-                doc={doc}
-                existingSubmission={submissionMap[doc.id]}
-                onUpload={uploadDocument}
-                onViewDocument={openDocument}
-              />
-            ))
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              {requiredDocs.map((doc) => {
+                const existing = submissionsByType[doc.id] ?? [];
+                const latest = existing[0];
+                return (
+                  <CaseDocumentUploadCard
+                    key={doc.id}
+                    docId={doc.id}
+                    label={doc.label}
+                    category={doc.category}
+                    submissions={existing}
+                    statusBadge={latest ? <DocStatusBadge status={latest.status} /> : undefined}
+                    onUpload={uploadDocument}
+                    onViewDocument={openDocument}
+                    onReload={() => load(true)}
+                  />
+                );
+              })}
+            </div>
           )}
 
           {documents.filter(d => !requiredDocs.find(r => r.id === d.document_type)).map(doc => (
@@ -916,19 +722,21 @@ export function CaseManagementClient() {
         </div>
       )}
 
-      <PackagePdfFormDialog
-        open={packageForm !== null}
-        onOpenChange={(open) => { if (!open) setPackageForm(null); }}
-        documentId={packageForm?.documentId ?? 0}
-        title={packageForm?.title ?? "Form"}
-        streamUrl={packageForm?.streamUrl ?? ""}
-        alreadySubmitted={packageForm?.alreadySubmitted}
-        getAuthHeaders={pdfAuthHeaders}
-        onSubmitted={() => {
-          showToast("Form submitted to your consultant.");
-          load(true);
-        }}
-      />
+      {packageForm && (
+        <PackagePdfFormDialog
+          open
+          onOpenChange={(open) => { if (!open) setPackageForm(null); }}
+          documentId={packageForm.documentId}
+          title={packageForm.title}
+          streamUrl={packageForm.streamUrl}
+          alreadySubmitted={packageForm.alreadySubmitted}
+          getAuthHeaders={pdfAuthHeaders}
+          onSubmitted={() => {
+            showToast("Form submitted to your consultant.");
+            load(true);
+          }}
+        />
+      )}
 
       <ImagePreviewDialog
         open={imagePreview !== null}

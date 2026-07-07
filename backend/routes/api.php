@@ -351,6 +351,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('client/trust/invoices/{invoice}/approve', [ClientTrustController::class, 'approveInvoice'])->name('client.trust.invoices.approve');
     Route::get('client/case-management-hub', [CaseManagementHubController::class, 'clientShow'])->name('client.case-management-hub');
     Route::get('client/package-documents/{document}/stream', [SecurePdfController::class, 'clientPackageDocument'])->name('client.package-documents.stream');
+    Route::get('client/package-documents/{document}/submission/stream', [SecurePdfController::class, 'clientPackageDocumentSubmission'])->name('client.package-documents.submission.stream');
     Route::post('client/package-documents/{document}/submit', [PackageDocumentSubmissionController::class, 'clientSubmit'])->name('client.package-documents.submit');
     Route::get('client/application-package', [ApplicationPackageController::class, 'clientShow'])->name('client.application-package');
 
@@ -432,6 +433,9 @@ Route::middleware('auth:sanctum')->group(function () {
 
         // ── Case File / Workspace ──────────────────────────────────────────────
         Route::get('{profile}/case-file',                          [CaseFileController::class, 'show'])->name('case-file.show');
+        Route::patch('{profile}/case-file/lifecycle',              [CaseFileController::class, 'updateLifecycle'])->name('case-file.lifecycle');
+        Route::post('{profile}/case-file/open-new',               [CaseFileController::class, 'openNewCase'])->name('case-file.open-new');
+        Route::patch('{profile}/case-file/switch',                [CaseFileController::class, 'switchActiveCase'])->name('case-file.switch');
         Route::get('{profile}/case-management-hub',               [CaseManagementHubController::class, 'consultantShow'])->name('case-management-hub');
         Route::get('{profile}/package-documents/{document}/stream', [SecurePdfController::class, 'consultantPackageDocument'])->name('package-documents.stream');
         Route::patch('{profile}/case-file/select-pathway',         [CaseFileController::class, 'selectPathway'])->name('case-file.select-pathway');

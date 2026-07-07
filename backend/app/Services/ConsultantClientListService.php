@@ -43,8 +43,11 @@ class ConsultantClientListService
         $profileIds = $profiles->pluck('id');
         $userIds    = $profiles->pluck('user_id')->filter();
 
+        $activeCaseIds = $profiles->pluck('active_case_file_id')->filter();
+
         $caseFiles = CaseFile::query()
             ->whereIn('client_profile_id', $profileIds)
+            ->when($activeCaseIds->isNotEmpty(), fn ($q) => $q->whereIn('id', $activeCaseIds))
             ->get()
             ->keyBy('client_profile_id');
 

@@ -12,6 +12,7 @@ class LmsCategorySeeder extends Seeder
     {
         $streams = [
             ['name' => 'IELTS', 'description' => 'International English Language Testing System preparation'],
+            ['name' => 'CELPIP', 'description' => 'Canadian English Language Proficiency Index Program'],
             ['name' => 'PTE', 'description' => 'Pearson Test of English Academic preparation'],
             ['name' => 'NCLEX', 'description' => 'National Council Licensure Examination for nurses'],
             ['name' => 'TEF', 'description' => 'Test d\'évaluation de français for Canadian immigration'],
@@ -30,7 +31,7 @@ class LmsCategorySeeder extends Seeder
         }
 
         if ($this->command) {
-            $this->command->info('LMS exam categories seeded: IELTS, PTE, NCLEX, TEF');
+            $this->command->info('LMS exam categories seeded: IELTS, CELPIP, PTE, NCLEX, TEF');
         }
     }
 }

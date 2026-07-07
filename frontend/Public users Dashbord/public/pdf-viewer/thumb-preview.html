@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PDF Thumbnail</title>
+  <link rel="stylesheet" href="/pdf-viewer/vendor/web/pdf_viewer.css" />
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      background: #fff;
+      overflow: hidden;
+    }
+    #outerContainer { position: absolute; inset: 0; }
+    #viewerContainer {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+    }
+    .pdfViewer .page {
+      margin: 0 auto !important;
+      border: none !important;
+      box-shadow: none !important;
+    }
+    #errorBox {
+      display: none;
+      position: absolute;
+      inset: 0;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      color: #666;
+      text-align: center;
+      font-family: system-ui, sans-serif;
+      font-size: 12px;
+      line-height: 1.4;
+      background: #fff;
+    }
+    #errorBox.visible { display: flex; }
+  </style>
+</head>
+<body>
+  <div id="outerContainer">
+    <div id="viewerContainer">
+      <div class="pdfViewer"></div>
+    </div>
+    <div id="errorBox"></div>
+  </div>
+  <script type="module">
+    import * as pdfjsLib from "/pdf-viewer/vendor/build/pdf.mjs";
+    import { EventBus, PDFViewer, PDFScriptingManager } from "/pdf-viewer/vendor/web/pdf_viewer.mjs";
+    import { attachIrccXfaCleanup } from "/pdf-viewer/xfa-helpers.mjs";
+
+    const PDFJS = "/pdf-viewer/vendor";
+    pdfjsLib.GlobalWorkerOptions.workerSrc = `${PDFJS}/build/pdf.worker.mjs`;
+
+    const container = document.getElementById("viewerContainer");
+    const errorBox = document.getElementById("errorBox");
+    const eventBus = new EventBus();
+
+    const scriptingManager = new PDFScriptingManager({
+      eventBus,
+      sandboxBundleSrc: `${PDFJS}/build/pdf.sandbox.mjs`,
+    });
+
+    const pdfViewer = new PDFViewer({
+      container,
+      viewer: container.querySelector(".pdfViewer"),
+      eventBus,
+      scriptingManager,
+      enableXfa: true,
+      annotationMode: 2,
+      textLayerMode: 0,
+    });
+
+    scriptingManager.setViewer(pdfViewer);
+    attachIrccXfaCleanup(eventBus, container);
+
+    function notifyParent(payload) {
+      window.parent?.postMessage({ source: "wtc-pdf-viewer", ...payload }, "*");
+    }
+
+    function showError(message) {
+      container.style.visibility = "hidden";
+      errorBox.textContent = message;
+      errorBox.classList.add("visible");
+      notifyParent({ type: "error", message });
+    }
+
+    function fitToWidth() {
+      pdfViewer.currentScaleValue = "page-width";
+    }
+
+    async function loadPdf(data) {
+      try {
+        errorBox.classList.remove("visible");
+        container.style.visibility = "visible";
+
+        const bytes = data instanceof Uint8Array
+          ? data
+          : new Uint8Array(data instanceof ArrayBuffer ? data : data.buffer || data);
+
+        const loadingTask = pdfjsLib.getDocument({
+          data: bytes,
+          enableXfa: true,
+          isEvalSupported: true,
+          cMapUrl: `${PDFJS}/cmaps/`,
+          cMapPacked: true,
+          standardFontDataUrl: `${PDFJS}/standard_fonts/`,
+        });
+
+        const pdfDocument = await loadingTask.promise;
+        pdfViewer.setDocument(pdfDocument);
+        fitToWidth();
+
+        notifyParent({
+          type: "loaded",
+          numPages: pdfDocument.numPages,
+          isPureXfa: pdfDocument.isPureXfa,
+        });
+      } catch (err) {
+        showError(err?.message || "Could not open this PDF.");
+      }
+    }
+
+    window.addEventListener("message", (event) => {
+      const msg = event.data;
+      if (!msg || msg.target !== "wtc-pdf-viewer") return;
+      if (msg.type === "load-bytes" && msg.data) loadPdf(msg.data);
+      if (msg.type === "set-scale" && typeof msg.scale === "number") {
+        pdfViewer.currentScale = msg.scale;
+      }
+      if (msg.type === "refit") fitToWidth();
+    });
+
+    window.addEventListener("resize", () => fitToWidth());
+
+    notifyParent({ type: "ready" });
+  </script>
+</body>
+</html>

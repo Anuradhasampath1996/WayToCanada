@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\ClientProfile;
 use App\Models\DocumentSubmission;
 use App\Models\IrccCategoryDocument;
+use App\Models\IrccPackageDocumentSubmission;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -28,6 +29,36 @@ class SecurePdfController extends Controller
         return $this->streamPublicDiskFile(
             $document->file_path,
             $document->original_filename ?: ($document->label.'.pdf'),
+            $request->boolean('download'),
+        );
+    }
+
+    /** GET /api/v1/client/package-documents/{document}/submission/stream */
+    public function clientPackageDocumentSubmission(Request $request, IrccCategoryDocument $document): StreamedResponse
+    {
+        $profile = $request->user()->clientProfile;
+        $caseFile = $profile?->caseFile;
+
+        if (! $caseFile?->assigned_ircc_category_id) {
+            abort(403, 'No application package assigned.');
+        }
+
+        if (! $document->is_active || $document->ircc_category_id !== $caseFile->assigned_ircc_category_id) {
+            abort(404);
+        }
+
+        $submission = IrccPackageDocumentSubmission::where('case_file_id', $caseFile->id)
+            ->where('ircc_category_document_id', $document->id)
+            ->whereNotNull('submitted_at')
+            ->first();
+
+        if (! $submission || ! Storage::disk('public')->exists($submission->file_path)) {
+            abort(404, 'Submitted form not found.');
+        }
+
+        return $this->streamPublicDiskFile(
+            $submission->file_path,
+            $submission->original_filename ?: ($document->label.'-submitted.pdf'),
             $request->boolean('download'),
         );
     }

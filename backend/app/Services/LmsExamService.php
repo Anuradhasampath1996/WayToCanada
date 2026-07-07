@@ -20,14 +20,11 @@ class LmsExamService
 
             $pool = $query->get();
             if ($pool->count() <= $count) {
-                return $pool->shuffle()->map(fn ($q) => $this->formatBankQuestion($q));
+                return $pool->values()->map(fn ($q) => $this->formatBankQuestion($q));
             }
 
-            if ($seed !== null) {
-                mt_srand($seed);
-            }
-
-            return $pool->random($count)->values()->map(fn ($q) => $this->formatBankQuestion($q));
+            return $this->deterministicSample($pool, $count, $seed ?? 0)
+                ->map(fn ($q) => $this->formatBankQuestion($q));
         }
 
         if ($quiz->source_mode === 'bank_fixed') {
@@ -101,21 +98,22 @@ class LmsExamService
      */
     public function grade(LmsQuiz $quiz, Collection $questions, array $answers): array
     {
+        $answers = $this->normalizeAnswers($answers);
         $total   = $questions->count();
         $correct = 0;
         $breakdown = [];
 
         foreach ($questions as $q) {
-            $qid      = $q['id'];
-            $selected = isset($answers[$qid]) ? (int) $answers[$qid] : null;
-            $right    = $q['_correct_option_id'] ?? null;
-            $isCorrect = $right && $selected === (int) $right;
+            $qid       = (int) $q['id'];
+            $selected  = $answers[$qid] ?? null;
+            $right     = isset($q['_correct_option_id']) ? (int) $q['_correct_option_id'] : null;
+            $isCorrect = $right !== null && $selected !== null && $selected === $right;
             if ($isCorrect) {
                 $correct++;
             }
 
-            $selectedOpt = collect($q['options'])->firstWhere('id', $selected);
-            $correctOpt  = collect($q['options'])->firstWhere('id', $right);
+            $selectedOpt = $this->findOption($q['options'] ?? [], $selected);
+            $correctOpt  = $this->findOption($q['options'] ?? [], $right);
 
             $breakdown[] = [
                 'question_id'        => $qid,
@@ -159,17 +157,17 @@ class LmsExamService
     public function attemptResultPayload(LmsQuizAttempt $attempt): array
     {
         $snapshot = collect($attempt->questions_snapshot_json ?? []);
-        $answers  = $attempt->answers_json ?? [];
+        $answers  = $this->normalizeAnswers($attempt->answers_json ?? []);
 
         $breakdown = $snapshot->map(function ($q) use ($answers) {
-            $qid      = $q['id'];
-            $selected = isset($answers[$qid]) ? (int) $answers[$qid] : null;
-            $right    = $q['correct_option_id'] ?? null;
-            $isCorrect = $right && $selected === (int) $right;
+            $qid       = (int) $q['id'];
+            $selected  = $answers[$qid] ?? null;
+            $right     = isset($q['correct_option_id']) ? (int) $q['correct_option_id'] : null;
+            $isCorrect = $right !== null && $selected !== null && $selected === $right;
 
-            $options = collect($q['options'] ?? []);
-            $selectedOpt = $options->firstWhere('id', $selected);
-            $correctOpt  = $options->firstWhere('id', $right);
+            $options     = $q['options'] ?? [];
+            $selectedOpt = $this->findOption($options, $selected);
+            $correctOpt  = $this->findOption($options, $right);
 
             return [
                 'question_id'        => $qid,
@@ -182,6 +180,8 @@ class LmsExamService
             ];
         })->values()->all();
 
+        $correctCount = collect($breakdown)->where('is_correct', true)->count();
+
         return [
             'id'                 => $attempt->id,
             'quiz_id'            => $attempt->quiz_id,
@@ -189,9 +189,54 @@ class LmsExamService
             'content_type'       => $attempt->quiz?->content_type,
             'score_percent'      => $attempt->score_percent,
             'passed'             => $attempt->passed,
+            'correct'            => $correctCount,
+            'total'              => count($breakdown),
             'attempted_at'       => $attempt->attempted_at,
             'time_taken_seconds' => $attempt->time_taken_seconds,
             'breakdown'          => $breakdown,
         ];
+    }
+
+    /**
+     * Pick the same questions for a given seed on every request (show + submit + review).
+     *
+     * @param  Collection<int, LmsQuestionBank>  $pool
+     */
+    private function deterministicSample(Collection $pool, int $count, int $seed): Collection
+    {
+        return $pool
+            ->sortBy(fn ($item) => hash('sha256', $seed.':'.$item->id))
+            ->take($count)
+            ->values();
+    }
+
+    /** @param  array<int|string, mixed>  $answers */
+    private function normalizeAnswers(array $answers): array
+    {
+        $normalized = [];
+        foreach ($answers as $questionId => $optionId) {
+            if ($optionId === null || $optionId === '') {
+                continue;
+            }
+            $normalized[(int) $questionId] = (int) $optionId;
+        }
+
+        return $normalized;
+    }
+
+    /** @param  list<array<string, mixed>>  $options */
+    private function findOption(array $options, ?int $optionId): ?array
+    {
+        if ($optionId === null) {
+            return null;
+        }
+
+        foreach ($options as $opt) {
+            if ((int) ($opt['id'] ?? 0) === $optionId) {
+                return $opt;
+            }
+        }
+
+        return null;
     }
 }

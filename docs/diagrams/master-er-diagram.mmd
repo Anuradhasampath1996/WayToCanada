@@ -1,0 +1,95 @@
+erDiagram
+    USERS ||--o| CLIENT_PROFILES : "client account"
+    USERS ||--o{ CLIENT_PROFILES : "consultant manages"
+    USERS ||--o{ CONSULTANT_SUBSCRIPTIONS : subscribes
+    USERS ||--o| CONSULTANT_PAYMENT_ACCOUNTS : "Stripe Connect"
+    USERS ||--o{ CASE_FILES : manages
+    USERS ||--o| QUESTIONNAIRE_SUBMISSIONS : fills
+    USERS ||--o{ USER_NOTIFICATIONS : receives
+    USERS ||--o{ CONSULTANT_LETTERS : writes
+    USERS ||--o{ LMS_COURSE_ASSIGNMENTS : "client ref"
+
+    CLIENT_PROFILES ||--|| CASE_FILES : "one case"
+    CASE_FILES ||--o{ DOCUMENT_SUBMISSIONS : contains
+    CASE_FILES ||--o{ CASE_MESSAGES : messages
+    CASE_FILES ||--o{ CLIENT_MEETINGS : meetings
+    CASE_FILES ||--o{ CLIENT_PAYMENT_REQUESTS : bills
+    CASE_FILES ||--|| CLIENT_TRUST_ACCOUNTS : "trust account"
+    CASE_FILES }o--o| IRCC_CATEGORIES : "pathway"
+
+    CLIENT_TRUST_ACCOUNTS ||--o{ CASE_FEE_MILESTONES : milestones
+    CASE_FEE_MILESTONES ||--o{ MILESTONE_INVOICES : invoices
+    CLIENT_TRUST_ACCOUNTS ||--o{ TRUST_LEDGER_ENTRIES : ledger
+
+    SUBSCRIPTION_PACKAGES ||--o{ CONSULTANT_SUBSCRIPTIONS : package
+
+    IRCC_CATEGORIES ||--o{ IRCC_CATEGORIES : "parent child"
+    IRCC_CATEGORIES ||--o{ IRCC_CATEGORY_DOCUMENTS : requires
+    IRCC_CATEGORIES ||--o{ IRCC_INTERACTIVE_FORMS : forms
+
+    LEGISLATION_DOCUMENTS ||--o{ LEGISLATION_PROVISIONS : sections
+    LEGISLATION_DOCUMENTS ||--o{ LEGISLATION_REFERENCES : "cross refs"
+    LEGISLATION_SYNC_RUNS ||--o{ LEGISLATION_DOCUMENTS : syncs
+
+    LMS_CATEGORIES ||--o{ LMS_COURSES : categorizes
+    LMS_COURSES ||--o{ LMS_MODULES : modules
+    LMS_MODULES ||--o{ LMS_LESSONS : lessons
+    LMS_COURSES ||--o{ LMS_QUIZZES : quizzes
+    LMS_QUIZZES ||--o{ LMS_QUESTIONS : questions
+    LMS_QUESTIONS ||--o{ LMS_QUESTION_OPTIONS : options
+    LMS_COURSES ||--o{ LMS_COURSE_ASSIGNMENTS : assigns
+    LMS_COURSE_ASSIGNMENTS ||--o{ LMS_LESSON_COMPLETIONS : progress
+    LMS_COURSE_ASSIGNMENTS ||--o{ LMS_QUIZ_ATTEMPTS : attempts
+    LMS_COURSES ||--o{ LMS_HOMEWORK : homework
+    LMS_HOMEWORK ||--o{ LMS_HOMEWORK_SUBMISSIONS : submissions
+
+    USERS {
+        int id PK
+        string name
+        string email UK
+        string password
+        string google_id UK
+        string rcic_number
+        int consultant_id FK
+        string company_name
+        string locale
+    }
+
+    CLIENT_PROFILES {
+        int id PK
+        int user_id FK, UK
+        int consultant_id FK
+        string phone
+        string immigration_pathway
+        int family_id
+        string notes
+    }
+
+    CASE_FILES {
+        int id PK
+        int client_profile_id FK, UK
+        int consultant_id FK
+        string status
+        string immigration_pathway
+        int assigned_ircc_category_id FK
+        string agreement_token UK
+        string checklist_data
+    }
+
+    LMS_COURSES {
+        int id PK
+        int category_id FK
+        string title
+        string slug
+        string is_published
+    }
+
+    LEGISLATION_DOCUMENTS {
+        int id PK
+        string slug UK
+        string act_code
+        string title
+        string language
+        string category
+        string ai_analyzed
+    }

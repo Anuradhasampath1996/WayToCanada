@@ -49,6 +49,16 @@ export const CASE_WORKFLOW_STEPS = [
   },
 ] as const;
 
+/** Exam prep / LMS subpage hero (client workspace). */
+export const LMS_WORKSPACE_PAGE = {
+  stepLabel: "Exam preparation",
+  title: "Exam prep courses",
+  description:
+    "Assign language and skills exam courses, track lesson progress, and review quiz results for this client.",
+  illustration: "/images/workspace/step-lms-exam-prep.png",
+  illustrationAlt: "Client studying for IELTS and language exams with online courses",
+} as const;
+
 export const INTAKE_WORKSPACE_TASKS = [
   {
     id: "questionnaire-review",

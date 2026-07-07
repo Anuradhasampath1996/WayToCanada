@@ -4,7 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class ClientProfile extends Model
 {
@@ -13,6 +13,7 @@ class ClientProfile extends Model
     protected $fillable = [
         'user_id',
         'consultant_id',
+        'active_case_file_id',
         'phone',
         'passport_number',
         'immigration_pathway',
@@ -44,10 +45,22 @@ class ClientProfile extends Model
         return $this->belongsTo(User::class, 'consultant_id');
     }
 
-    /** The case file for this client. */
-    public function caseFile(): HasOne
+    /** Active case file for this client (workspace context). */
+    public function caseFile(): BelongsTo
     {
-        return $this->hasOne(CaseFile::class);
+        return $this->belongsTo(CaseFile::class, 'active_case_file_id');
+    }
+
+    /** All case files for this client (supports multiple cases). */
+    public function caseFiles(): HasMany
+    {
+        return $this->hasMany(CaseFile::class);
+    }
+
+    /** @deprecated Use caseFile() — kept for clarity in queries. */
+    public function activeCaseFile(): BelongsTo
+    {
+        return $this->caseFile();
     }
 
     // ── Scopes ─────────────────────────────────────────────────────────────────

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { ArrowLeft, Mail, RefreshCw } from "lucide-react";
+import { ArrowLeft, Mail, RefreshCw, GraduationCap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -86,6 +86,14 @@ export function WorkspaceHero({
                 Draft letter
               </Link>
             </Button>
+            {pathway && (
+              <Button variant="outline" size="sm" className="h-8 gap-1.5 rounded-lg" asChild>
+                <Link href={`/dashboard/clients/${profileId}/workspace/lms`}>
+                  <GraduationCap className="size-3.5" />
+                  Exam prep courses
+                </Link>
+              </Button>
+            )}
             <Button
               variant="outline"
               size="icon"

@@ -5,7 +5,7 @@ import Link from "next/link";
 import {
   ArrowLeft, Loader2, AlertCircle, Check, CheckCircle2, XCircle,
   Clock, RefreshCw, MessageSquare, FileText, Eye, Send,
-  Bot, ShieldCheck, ShieldAlert, ShieldQuestion, MoreHorizontal,
+  Bot, ShieldCheck, ShieldAlert, ShieldQuestion,
   ChevronDown, FormInput, Briefcase, RotateCcw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -19,6 +19,7 @@ import {
   DocumentRequirementsGrid, IrccFormsList,
   type HubProgress, type HubRequirement, type HubIrccForm, type HubPackage,
 } from "@/components/case-management-hub-ui";
+import { ConsultantDocumentPreviewCard } from "@/components/consultant-document-preview-card";
 import { PdfViewerDialog } from "@/components/pdf-viewer-dialog";
 
 const API = (process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000") + "/api/v1";
@@ -103,13 +104,6 @@ function isPdfFile(doc: { mime_type: string | null; original_filename: string })
 function fmtDate(iso: string | null) {
   if (!iso) return "—";
   return new Date(iso).toLocaleString("en-CA", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
-}
-
-function fmtSize(bytes: number | null) {
-  if (!bytes) return "";
-  if (bytes < 1024) return bytes + " B";
-  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
-  return (bytes / (1024 * 1024)).toFixed(1) + " MB";
 }
 
 // ── Status badge ───────────────────────────────────────────────────────────────
@@ -768,6 +762,9 @@ export function CaseManagementClient({ paramsPromise }: { paramsPromise: Promise
             <DocumentRequirementsGrid
               requirements={requirements}
               consultantView
+              allDocuments={documents}
+              getAuthHeaders={pdfAuthHeaders}
+              renderStatusBadge={(status) => <DocStatusBadge status={status} />}
               onToggleCheck={toggleChecklist}
               togglingCheckId={togglingCheckId}
               onReview={(submissionId) => {
@@ -804,73 +801,17 @@ export function CaseManagementClient({ paramsPromise }: { paramsPromise: Promise
           {documents.length > 0 && (
             <div>
               <p className="text-sm font-semibold mb-3">All Uploads</p>
-              <div className="space-y-3">
-                {documents.map(doc => (
-              <div key={doc.id} className={cn(
-                "rounded-xl border p-4 transition-colors",
-                doc.status === "consultant_approved" && "border-green-200 bg-green-50/30",
-                doc.status === "consultant_rejected" && "border-red-200 bg-red-50/30",
-                doc.status === "ai_flagged" && "border-orange-200 bg-orange-50/30",
-              )}>
-                <div className="flex items-start gap-3">
-                  <FileText className="h-5 w-5 text-muted-foreground mt-0.5 shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-2 flex-wrap">
-                      <div>
-                        <p className="text-sm font-medium">{doc.document_label}</p>
-                        <p className="text-xs text-muted-foreground">{doc.original_filename} {doc.file_size ? `· ${fmtSize(doc.file_size)}` : ""}</p>
-                      </div>
-                      <DocStatusBadge status={doc.status} />
-                    </div>
-
-                    {/* AI match result */}
-                    {doc.ai_match_result && (
-                      <div className={cn(
-                        "mt-2 rounded-lg px-3 py-1.5 text-xs",
-                        doc.ai_match_result.matched ? "bg-green-100 text-green-800" : "bg-orange-100 text-orange-800"
-                      )}>
-                        <Bot className="inline h-3 w-3 mr-1" />
-                        AI: {doc.ai_match_result.reason}
-                        {doc.ai_confidence != null && ` (${(doc.ai_confidence * 100).toFixed(0)}% confidence)`}
-                      </div>
-                    )}
-
-                    {/* Rejection comment */}
-                    {doc.rejection_comment && (
-                      <div className="mt-2 rounded-lg bg-red-50 border border-red-100 px-3 py-1.5 text-xs text-red-700">
-                        <XCircle className="inline h-3 w-3 mr-1" />
-                        {doc.rejection_comment}
-                      </div>
-                    )}
-
-                    <div className="flex items-center gap-2 mt-3 flex-wrap">
-                      <span className="text-xs text-muted-foreground">Uploaded {fmtDate(doc.uploaded_at)}</span>
-                      {doc.reviewed_by && (
-                        <span className="text-xs text-muted-foreground">· Reviewed by {doc.reviewed_by}</span>
-                      )}
-                      <div className="ml-auto flex flex-wrap gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-7 gap-1 text-xs"
-                          onClick={() => openSubmissionDocument(doc)}
-                        >
-                          <Eye className="h-3 w-3" /> View
-                        </Button>
-                        <Button
-                          size="sm"
-                          className="h-7 gap-1 text-xs"
-                          variant={doc.status === "consultant_rejected" ? "outline" : "default"}
-                          onClick={() => setReviewDoc(doc)}
-                        >
-                          <MoreHorizontal className="h-3 w-3" />
-                          {doc.status === "consultant_approved" ? "Update status" : "Manage"}
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                {documents.map((doc) => (
+                  <ConsultantDocumentPreviewCard
+                    key={doc.id}
+                    doc={doc}
+                    streamUrl={submissionStreamUrl(doc.id)}
+                    getAuthHeaders={pdfAuthHeaders}
+                    statusBadge={<DocStatusBadge status={doc.status} />}
+                    onView={() => openSubmissionDocument(doc)}
+                    onManage={() => setReviewDoc(doc)}
+                  />
                 ))}
               </div>
             </div>

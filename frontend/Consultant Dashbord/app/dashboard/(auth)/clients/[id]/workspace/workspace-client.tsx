@@ -5,7 +5,7 @@ import Link from "next/link";
 import {
   ArrowLeft, Loader2, AlertCircle, CheckCircle2, Clock,
   ChevronRight, FileText, Briefcase,
-  Eye, ExternalLink, GraduationCap,
+  Eye, ExternalLink,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -44,6 +44,9 @@ const STATUS_ORDER: Record<string, number> = {
 
 interface CaseFile {
   id: number;
+  case_number?: number;
+  lifecycle_status?: string;
+  lifecycle_note?: string | null;
   status: string;
   immigration_pathway: string | null;
   agreement_token: string | null;
@@ -352,14 +355,6 @@ function CurrentStepPanel({
                   <ChevronRight className="ml-1 size-4" />
                 </Link>
               </Button>
-              {caseFile.immigration_pathway && (
-                <Button variant="outline" className="h-10 rounded-xl" asChild>
-                  <Link href={`/dashboard/clients/${profileId}/workspace/lms`}>
-                    <GraduationCap className="mr-2 size-4" />
-                    Exam prep courses
-                  </Link>
-                </Button>
-              )}
             </div>
           </>
         )}
@@ -534,7 +529,7 @@ export function WorkspacePageClient({ paramsPromise }: { paramsPromise: Promise<
   const activityEvents = buildClientActivity(qStats, caseFile, verification);
 
   return (
-    <div className="min-w-0 w-full space-y-4 pb-4 sm:space-y-6 sm:pb-6">
+    <div className="space-y-4 sm:space-y-6">
       <WorkspaceHero
         profileId={id}
         clientName={client.user.name}
@@ -560,7 +555,7 @@ export function WorkspacePageClient({ paramsPromise }: { paramsPromise: Promise<
           <ClientActivityTimeline events={activityEvents} />
         </aside>
 
-        <div className="order-2 min-w-0 space-y-4 sm:space-y-6 xl:order-1 xl:pr-2">
+        <div className="order-2 min-w-0 xl:order-1 xl:pr-2">
           <CurrentStepPanel
             viewStep={viewStep}
             unlockedStep={unlockedStep}

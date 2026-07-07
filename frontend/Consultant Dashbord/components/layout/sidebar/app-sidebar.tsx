@@ -36,22 +36,16 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
   return (
     <Sidebar collapsible="icon" {...props}>
-      <SidebarHeader className="border-b border-sidebar-border/40 bg-gradient-to-br from-sidebar-primary/[0.07] via-transparent to-transparent p-3">
+      <SidebarHeader className="border-b border-sidebar-border/40 bg-gradient-to-br from-sidebar-primary/[0.07] via-transparent to-transparent px-3 py-4">
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton
               size="lg"
               asChild
-              className="h-[52px] rounded-xl bg-sidebar/60 px-2.5 shadow-sm ring-1 ring-sidebar-border/50 transition-all hover:bg-sidebar-accent/40 hover:ring-sidebar-primary/20"
+              className="h-auto justify-center rounded-lg bg-transparent px-1 py-1 shadow-none ring-0 hover:bg-sidebar-accent/30 group-data-[collapsible=icon]:size-10! group-data-[collapsible=icon]:p-1!"
             >
-              <Link href="/consultantdashboard">
-                <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-sidebar-primary to-sidebar-primary/85 text-sidebar-primary-foreground shadow-md">
-                  <Logo />
-                </div>
-                <div className="grid min-w-0 flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-semibold tracking-tight">RCICMASTER</span>
-                  <span className="truncate text-xs text-sidebar-foreground/55">Consultant Portal</span>
-                </div>
+              <Link href="/consultantdashboard" className="flex w-full items-center justify-center">
+                <Logo variant="sidebar" />
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>

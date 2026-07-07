@@ -8,6 +8,10 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import {
+  ConsultantDocumentPreviewCard,
+  type ConsultantDocumentItem,
+} from "@/components/consultant-document-preview-card";
 
 export interface HubProgress {
   overall_percent: number;
@@ -133,6 +137,9 @@ export function DocumentRequirementsGrid({
   consultantView = true,
   onToggleCheck,
   togglingCheckId,
+  allDocuments,
+  getAuthHeaders,
+  renderStatusBadge,
 }: {
   requirements: HubRequirement[];
   onReview?: (submissionId: number) => void;
@@ -141,6 +148,9 @@ export function DocumentRequirementsGrid({
   consultantView?: boolean;
   onToggleCheck?: (docId: string, checked: boolean) => void;
   togglingCheckId?: string | null;
+  allDocuments?: ConsultantDocumentItem[];
+  getAuthHeaders?: () => Record<string, string>;
+  renderStatusBadge?: (status: string) => React.ReactNode;
 }) {
   const grouped = requirements.reduce<Record<string, HubRequirement[]>>((acc, r) => {
     (acc[r.category] ??= []).push(r);
@@ -161,12 +171,17 @@ export function DocumentRequirementsGrid({
               const streamUrl = submission && buildSubmissionStreamUrl
                 ? buildSubmissionStreamUrl(submission.id)
                 : null;
+              const reqUploads = allDocuments?.filter((d) => d.document_type === req.id) ?? [];
+              const showPreviewGrid = reqUploads.length > 0
+                && buildSubmissionStreamUrl
+                && getAuthHeaders
+                && onViewDocument;
 
               return (
                 <div
                   key={req.id}
                   className={cn(
-                    "rounded-xl border bg-card p-4",
+                    "rounded-xl border bg-card p-4 space-y-3",
                     req.status === "approved" && "border-green-200/80 bg-green-50/20",
                     req.status === "rejected" && "border-red-200/80 bg-red-50/20",
                   )}
@@ -189,9 +204,14 @@ export function DocumentRequirementsGrid({
                         {consultantView && req.checked && (
                           <Badge variant="outline" className="text-[10px] bg-green-50 text-green-700">Checklist verified</Badge>
                         )}
+                        {reqUploads.length > 1 && (
+                          <Badge variant="outline" className="text-[10px]">
+                            {reqUploads.length} files
+                          </Badge>
+                        )}
                       </div>
 
-                      {submission ? (
+                      {!showPreviewGrid && submission ? (
                         <div className="mt-1.5 space-y-1">
                           <p className="truncate text-xs text-muted-foreground">
                             {submission.original_filename ?? submission.file_url.split("/").pop()}
@@ -208,9 +228,9 @@ export function DocumentRequirementsGrid({
                             </div>
                           )}
                         </div>
-                      ) : (
+                      ) : !showPreviewGrid ? (
                         <p className="mt-1 text-xs text-muted-foreground">Waiting for client upload</p>
-                      )}
+                      ) : null}
                     </div>
 
                     <div className="flex shrink-0 flex-col items-end gap-2 sm:flex-row sm:items-center">
@@ -227,7 +247,7 @@ export function DocumentRequirementsGrid({
                         </label>
                       )}
 
-                      {submission && streamUrl && onViewDocument && (
+                      {!showPreviewGrid && submission && streamUrl && onViewDocument && (
                         <Button
                           size="sm"
                           variant="outline"
@@ -255,6 +275,30 @@ export function DocumentRequirementsGrid({
                       )}
                     </div>
                   </div>
+
+                  {showPreviewGrid && (
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      {reqUploads.map((upload) => {
+                        const uploadStreamUrl = buildSubmissionStreamUrl!(upload.id);
+                        return (
+                          <ConsultantDocumentPreviewCard
+                            key={upload.id}
+                            doc={{ ...upload, document_label: req.label }}
+                            streamUrl={uploadStreamUrl}
+                            getAuthHeaders={getAuthHeaders!}
+                            statusBadge={renderStatusBadge?.(upload.status)}
+                            onView={() => onViewDocument!(
+                              req.label,
+                              uploadStreamUrl,
+                              upload.mime_type,
+                              upload.original_filename,
+                            )}
+                            onManage={onReview ? () => onReview(upload.id) : undefined}
+                          />
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               );
             })}

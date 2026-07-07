@@ -1,0 +1,104 @@
+classDiagram
+    direction TB
+
+    class User {
+        +int id
+        +string name
+        +string email
+        +string password
+        +string google_id
+        +string rcic_number
+        +int consultant_id
+        +bool is_license_verified
+        +string company_name
+        +hasPassword() bool
+        +authProviders() array
+        +clientProfile() ClientProfile
+        +clients() List
+    }
+
+    class ClientProfile {
+        +int id
+        +int user_id
+        +int consultant_id
+        +string phone
+        +string immigration_pathway
+        +int family_id
+        +user() User
+        +consultant() User
+        +caseFile() CaseFile
+    }
+
+    class CaseFile {
+        +int id
+        +int client_profile_id
+        +int consultant_id
+        +string status
+        +string immigration_pathway
+        +json pathway_assessment_snapshot
+        +int assigned_ircc_category_id
+        +string agreement_token
+        +datetime agreement_signed_at
+        +json checklist_data
+        +isAgreementSigned() bool
+        +statusStep() int
+        +clientProfile() ClientProfile
+        +consultant() User
+        +documentSubmissions() List
+        +messages() List
+    }
+
+    class DocumentSubmission {
+        +int id
+        +int case_file_id
+        +int uploaded_by
+        +string document_type
+        +string status
+        +json ai_result
+        +float ai_confidence
+        +caseFile() CaseFile
+        +uploader() User
+        +reviewer() User
+    }
+
+    class CaseMessage {
+        +int id
+        +int case_file_id
+        +int sender_id
+        +string sender_type
+        +string message
+        +datetime read_at
+        +caseFile() CaseFile
+        +sender() User
+    }
+
+    class QuestionnaireSubmission {
+        +int id
+        +int user_id
+        +json step1_data
+        +json main_data
+        +json spouse_data
+        +bool is_submitted
+        +user() User
+    }
+
+    class IrccCategory {
+        +int id
+        +int parent_id
+        +int level
+        +string label
+        +json result
+        +parent() IrccCategory
+        +children() List
+    }
+
+    User "1" --> "0..1" ClientProfile : clientProfile
+    User "1" --> "*" ClientProfile : manages
+    ClientProfile "1" --> "1" CaseFile : owns
+    User "1" --> "*" CaseFile : consultant
+    CaseFile "1" --> "*" DocumentSubmission
+    CaseFile "1" --> "*" CaseMessage
+    CaseFile "*" --> "0..1" IrccCategory : pathway
+    User "1" --> "0..1" QuestionnaireSubmission
+    DocumentSubmission "*" --> "1" User : uploaded_by
+    CaseMessage "*" --> "1" User : sender

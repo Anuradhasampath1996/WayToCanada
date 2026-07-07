@@ -39,7 +39,8 @@
   </div>
   <script type="module">
     import * as pdfjsLib from "/pdf-viewer/vendor/build/pdf.mjs";
-    import { EventBus, PDFViewer } from "/pdf-viewer/vendor/web/pdf_viewer.mjs";
+    import { EventBus, PDFViewer, PDFScriptingManager } from "/pdf-viewer/vendor/web/pdf_viewer.mjs";
+    import { attachIrccXfaCleanup } from "/pdf-viewer/xfa-helpers.mjs";
 
     const PDFJS = "/pdf-viewer/vendor";
     pdfjsLib.GlobalWorkerOptions.workerSrc = `${PDFJS}/build/pdf.worker.mjs`;
@@ -48,14 +49,23 @@
     const errorBox = document.getElementById("errorBox");
     const eventBus = new EventBus();
 
+    const scriptingManager = new PDFScriptingManager({
+      eventBus,
+      sandboxBundleSrc: `${PDFJS}/build/pdf.sandbox.mjs`,
+    });
+
     const pdfViewer = new PDFViewer({
       container,
       viewer: container.querySelector(".pdfViewer"),
       eventBus,
+      scriptingManager,
       enableXfa: true,
       annotationMode: 2,
       textLayerMode: 2,
     });
+
+    scriptingManager.setViewer(pdfViewer);
+    attachIrccXfaCleanup(eventBus, container);
 
     let pdfDocument = null;
 
@@ -82,6 +92,7 @@
         const loadingTask = pdfjsLib.getDocument({
           data: bytes,
           enableXfa: true,
+          isEvalSupported: true,
           cMapUrl: `${PDFJS}/cmaps/`,
           cMapPacked: true,
           standardFontDataUrl: `${PDFJS}/standard_fonts/`,

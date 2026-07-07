@@ -43,7 +43,7 @@ class ConsultantLmsController extends Controller
                 'progress_percent' => $a->progress_percent,
                 'status'           => $a->status,
                 'assigned_at'      => $a->assigned_at,
-                'course'           => $a->course?->only(['id', 'title', 'slug']),
+                'course'           => $a->course?->only(['id', 'title', 'slug', 'thumbnail_url', 'description']),
                 'category'         => $a->course?->category?->only(['id', 'name']),
                 'quiz_attempts'    => $a->quizAttempts->map(fn ($t) => [
                     'id'            => $t->id,
@@ -62,7 +62,7 @@ class ConsultantLmsController extends Controller
         $courses = LmsCourse::with('category')
             ->where('is_published', true)
             ->orderBy('sort_order')
-            ->get(['id', 'title', 'slug', 'category_id', 'description']);
+            ->get(['id', 'title', 'slug', 'category_id', 'description', 'thumbnail_url']);
 
         return response()->json(['data' => $courses]);
     }
