@@ -6,7 +6,7 @@ set -euo pipefail
 
 ENV_FILE="${1:-/opt/waytocanada/backend/.env}"
 POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-secret}"
-APP_URL="${APP_URL:-https://www.rcicmaster.com}"
+APP_URL="${APP_URL:-https://rcicmaster.ca}"
 
 if [ ! -f "$ENV_FILE" ]; then
   cp "$(dirname "$ENV_FILE")/.env.example" "$ENV_FILE" 2>/dev/null || \
@@ -48,16 +48,16 @@ set_var QUEUE_CONNECTION database
 set_var CACHE_STORE database
 
 # Live frontend URLs (OAuth redirects after login)
-set_var PUBLIC_FRONTEND_URL "https://apply.rcicmaster.com"
-set_var CONSULTANT_FRONTEND_URL "https://www.rcicmaster.com"
-set_var CONSULTANT_DASHBOARD_URL "https://portal.rcicmaster.com"
-set_var FRONTEND_URL "https://www.rcicmaster.com"
-set_var PUBLIC_DASHBOARD_URL "https://app.rcicmaster.com"
-set_var ADMIN_DASHBOARD_URL "https://admin.rcicmaster.com"
+set_var PUBLIC_FRONTEND_URL "https://apply.rcicmaster.ca"
+set_var CONSULTANT_FRONTEND_URL "https://rcicmaster.ca"
+set_var CONSULTANT_DASHBOARD_URL "https://consultant.rcicmaster.ca"
+set_var FRONTEND_URL "https://rcicmaster.ca"
+set_var PUBLIC_DASHBOARD_URL "https://app.rcicmaster.ca"
+set_var ADMIN_DASHBOARD_URL "https://admin.rcicmaster.ca"
 
-set_var SANCTUM_STATEFUL_DOMAINS "www.rcicmaster.com,apply.rcicmaster.com,admin.rcicmaster.com,app.rcicmaster.com,consultant.rcicmaster.com,portal.rcicmaster.com,rcicmaster.com"
+set_var SANCTUM_STATEFUL_DOMAINS "www.rcicmaster.ca,rcicmaster.ca,apply.rcicmaster.ca,admin.rcicmaster.ca,app.rcicmaster.ca,consultant.rcicmaster.ca,www.rcicmaster.com,rcicmaster.com,apply.rcicmaster.com,admin.rcicmaster.com,app.rcicmaster.com,consultant.rcicmaster.com,portal.rcicmaster.com"
 
-set_var GOOGLE_REDIRECT_URI "https://www.rcicmaster.com/api/v1/auth/google/callback"
+set_var GOOGLE_REDIRECT_URI "https://rcicmaster.ca/api/v1/auth/google/callback"
 
 if [ -n "${GOOGLE_CLIENT_ID:-}" ]; then
   set_var GOOGLE_CLIENT_ID "$GOOGLE_CLIENT_ID"
@@ -69,7 +69,7 @@ fi
 echo "Production .env patched (database unchanged):"
 echo "  APP_URL=$APP_URL"
 echo "  DB host=postgres"
-echo "  GOOGLE_REDIRECT_URI=https://www.rcicmaster.com/api/v1/auth/google/callback"
+echo "  GOOGLE_REDIRECT_URI=https://rcicmaster.ca/api/v1/auth/google/callback"
 if [ -n "${GOOGLE_CLIENT_ID:-}" ]; then
   echo "  GOOGLE_CLIENT_ID=set"
 else

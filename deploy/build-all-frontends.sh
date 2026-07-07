@@ -52,29 +52,29 @@ fi
 docker image prune -f 2>/dev/null || true
 
 build_frontend waytocanada-frontend-public "./frontend/Publick website" \
-  --build-arg NEXT_PUBLIC_API_URL=https://apply.rcicmaster.com \
-  --build-arg NEXT_PUBLIC_APP_URL=https://apply.rcicmaster.com \
-  --build-arg NEXT_PUBLIC_USER_DASHBOARD_URL=https://app.rcicmaster.com \
-  --build-arg NEXT_PUBLIC_CONSULTANT_WEBSITE_URL=https://www.rcicmaster.com
+  --build-arg NEXT_PUBLIC_API_URL=https://apply.rcicmaster.ca \
+  --build-arg NEXT_PUBLIC_APP_URL=https://apply.rcicmaster.ca \
+  --build-arg NEXT_PUBLIC_USER_DASHBOARD_URL=https://app.rcicmaster.ca \
+  --build-arg NEXT_PUBLIC_CONSULTANT_WEBSITE_URL=https://rcicmaster.ca
 
 build_frontend waytocanada-frontend-admin "./frontend/Admins Dashbord" \
-  --build-arg NEXT_PUBLIC_API_URL=https://admin.rcicmaster.com \
-  --build-arg NEXT_PUBLIC_APP_URL=https://admin.rcicmaster.com
+  --build-arg NEXT_PUBLIC_API_URL=https://admin.rcicmaster.ca \
+  --build-arg NEXT_PUBLIC_APP_URL=https://admin.rcicmaster.ca
 
 build_frontend waytocanada-frontend-users "./frontend/Public users Dashbord" \
-  --build-arg NEXT_PUBLIC_API_URL=https://app.rcicmaster.com \
-  --build-arg NEXT_PUBLIC_APP_URL=https://app.rcicmaster.com \
-  --build-arg NEXT_PUBLIC_PUBLIC_WEBSITE_URL=https://apply.rcicmaster.com \
-  --build-arg NEXT_PUBLIC_OCR_URL=https://apply.rcicmaster.com
+  --build-arg NEXT_PUBLIC_API_URL=https://app.rcicmaster.ca \
+  --build-arg NEXT_PUBLIC_APP_URL=https://app.rcicmaster.ca \
+  --build-arg NEXT_PUBLIC_PUBLIC_WEBSITE_URL=https://apply.rcicmaster.ca \
+  --build-arg NEXT_PUBLIC_OCR_URL=https://apply.rcicmaster.ca
 
 build_frontend waytocanada-frontend-consultant-site "./frontend/Consultant Website" \
-  --build-arg NEXT_PUBLIC_API_URL=https://www.rcicmaster.com \
-  --build-arg NEXT_PUBLIC_APP_URL=https://www.rcicmaster.com \
-  --build-arg NEXT_PUBLIC_CONSULTANT_DASHBOARD_URL=https://portal.rcicmaster.com
+  --build-arg NEXT_PUBLIC_API_URL=https://rcicmaster.ca \
+  --build-arg NEXT_PUBLIC_APP_URL=https://rcicmaster.ca \
+  --build-arg NEXT_PUBLIC_CONSULTANT_DASHBOARD_URL=https://consultant.rcicmaster.ca
 
 build_frontend waytocanada-frontend-consultant-dash "./frontend/Consultant Dashbord" \
-  --build-arg NEXT_PUBLIC_API_URL=https://portal.rcicmaster.com \
-  --build-arg NEXT_PUBLIC_APP_URL=https://portal.rcicmaster.com \
-  --build-arg NEXT_PUBLIC_CONSULTANT_WEBSITE_URL=https://www.rcicmaster.com
+  --build-arg NEXT_PUBLIC_API_URL=https://consultant.rcicmaster.ca \
+  --build-arg NEXT_PUBLIC_APP_URL=https://consultant.rcicmaster.ca \
+  --build-arg NEXT_PUBLIC_CONSULTANT_WEBSITE_URL=https://rcicmaster.ca
 
 echo ">>> All production images built on server."
