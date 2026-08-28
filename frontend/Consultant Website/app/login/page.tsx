@@ -3,36 +3,27 @@
 import { Suspense, useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import {
-  Briefcase,
-  CheckCircle2,
+  Bell,
   Eye,
   EyeOff,
-  LayoutDashboard,
+  FileText,
   Loader2,
+  Mail,
   Shield,
-  Sparkles,
+  Users,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-import { Badge } from "@/components/ui/badge";
 
 const API = `${process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000"}/api/v1`;
 const CONSULTANT_DASHBOARD_URL =
   process.env.NEXT_PUBLIC_CONSULTANT_DASHBOARD_URL ?? "http://localhost:3005";
 const ADMIN_DASHBOARD_URL =
   process.env.NEXT_PUBLIC_ADMIN_DASHBOARD_URL ?? "http://localhost:3001";
-const PUBLIC_USERS_URL =
-  process.env.NEXT_PUBLIC_USER_DASHBOARD_URL ?? "http://localhost:3002";
-
-const HIGHLIGHTS = [
-  "Manage clients and case files in one workspace",
-  "IRCC forms, legislation hub, and OCR tools",
-  "Secure messaging and deadline alerts",
-  "CICC-compliant documentation trail",
-];
 
 function LoginPageContent() {
   const searchParams = useSearchParams();
@@ -132,84 +123,55 @@ function LoginPageContent() {
   }
 
   return (
-    <div className="min-h-screen flex bg-muted/20">
+    <div className="rcic-login-page min-h-screen flex">
       {/* Left panel */}
-      <div className="relative hidden lg:flex lg:w-[46%] flex-col justify-between overflow-hidden p-12 text-white">
-        <div className="absolute inset-0 bg-gradient-to-br from-emerald-700 via-emerald-600 to-teal-700" />
-        <div className="absolute inset-0 opacity-40 [background-image:radial-gradient(circle_at_20%_80%,white_0%,transparent_45%)]" />
-        <div className="absolute -right-20 -top-20 h-72 w-72 rounded-full bg-white/10 blur-3xl" />
-        <div className="absolute -bottom-16 -left-16 h-64 w-64 rounded-full bg-teal-400/20 blur-3xl" />
-
+      <div className="rcic-login-brand-panel relative hidden lg:flex lg:w-[46%] flex-col justify-between overflow-hidden p-12">
+        <div className="rcic-login-brand-bg absolute inset-0" />
+        <div className="rcic-login-brand-glow absolute inset-0" />
         <div className="relative z-10">
-          <Link href="/" className="inline-flex items-center gap-2 font-bold text-xl">
-            <Briefcase className="h-6 w-6" />
-            <span>RCICMASTER</span>
-            <Badge className="border-white/30 bg-white/15 text-white hover:bg-white/15">Consultants</Badge>
+          <Link href="/" className="rcic-login-brand-logo inline-flex items-center gap-2 font-bold text-xl">
+            <Image src="/figma-assets/logo-footer.svg" alt="RCICMASTER" width={167} height={36} priority />
           </Link>
         </div>
 
-        <div className="relative z-10 space-y-8">
-          <div>
-            <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/25 bg-white/10 px-3 py-1 text-xs font-medium backdrop-blur">
-              <Sparkles className="h-3.5 w-3.5" />
-              RCIC workspace
-            </div>
-            <h2 className="text-3xl font-extrabold leading-tight xl:text-4xl">
-              Welcome back to your practice hub
-            </h2>
-            <p className="mt-4 max-w-md text-sm leading-relaxed text-emerald-50/90">
-              Sign in to manage clients, track applications, and access the tools built for
-              modern immigration consultants.
-            </p>
-          </div>
-
-          <ul className="space-y-3.5">
-            {HIGHLIGHTS.map((item) => (
-              <li key={item} className="flex items-start gap-3 text-sm text-emerald-50/95">
-                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-200" />
-                {item}
-              </li>
-            ))}
-          </ul>
-
-          <div className="flex items-center gap-4 rounded-2xl border border-white/20 bg-white/10 p-4 backdrop-blur">
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/15">
-              <LayoutDashboard className="h-5 w-5" />
-            </div>
-            <div>
-              <p className="text-sm font-semibold">Consultant Dashboard</p>
-              <p className="text-xs text-emerald-100/80">Clients · Cases · Documents · Messaging</p>
-            </div>
+        <div className="rcic-login-welcome relative z-10">
+          <h2>
+            <strong>Welcome back</strong>
+            <span>to your practice hub</span>
+          </h2>
+          <div className="rcic-login-accent" />
+          <p className="rcic-login-welcome-copy">
+            Manage clients, track applications, and access
+            <br /> all the tools you need for modern immigration
+            <br /> consulting — all in one secure workspace.
+          </p>
+          <div className="rcic-login-features">
+            <div><span><Users aria-hidden="true" /></span><b>Client &amp; Case<br />Management</b></div>
+            <i />
+            <div><span><FileText aria-hidden="true" /></span><b>Forms, Docs &amp;<br />OCR Tools</b></div>
+            <i />
+            <div><span><Bell aria-hidden="true" /></span><b>Alerts &amp;<br />Deadlines</b></div>
           </div>
         </div>
 
-        <p className="relative z-10 flex items-center gap-2 text-xs text-emerald-100/70">
-          <Shield className="h-3.5 w-3.5" />
-          © {new Date().getFullYear()} RCICMASTER · Secure consultant portal
+        <p className="rcic-login-copyright relative z-10 text-xs">
+          © {new Date().getFullYear()} RCICMASTER Consultants
         </p>
       </div>
 
       {/* Right panel */}
-      <div className="flex flex-1 items-center justify-center px-4 py-10 sm:px-6 lg:px-10">
+      <div className="rcic-login-form-panel relative flex flex-1 items-center justify-center px-4 py-10 sm:px-6 lg:px-10">
         <div className="w-full max-w-md">
-          <div className="rounded-2xl border border-border/80 bg-card p-8 shadow-xl shadow-emerald-500/5 sm:p-10">
+          <div className="rcic-login-card rounded-2xl border border-border/80 bg-card p-8 shadow-xl sm:p-10">
             <Link
               href="/"
-              className="mb-8 flex lg:hidden items-center justify-center gap-2 font-bold text-xl text-emerald-700">
-              <Briefcase className="h-6 w-6" />
-              <span>RCICMASTER</span>
+              className="rcic-login-mobile-logo mb-8 flex lg:hidden items-center justify-center gap-2 font-bold text-xl">
+              <Image src="/figma-assets/logo-header.svg" alt="RCICMASTER" width={200} height={44} priority />
             </Link>
 
-            <div className="mb-8">
-              <p className="text-xs font-semibold uppercase tracking-wider text-emerald-600">
-                Consultant sign in
-              </p>
-              <h1 className="mt-2 text-2xl font-bold tracking-tight sm:text-3xl">
-                Access your dashboard
-              </h1>
-              <p className="mt-2 text-sm text-muted-foreground">
-                Enter your credentials or continue with Google
-              </p>
+            <div className="rcic-login-card-header mb-8">
+              <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Sign in</h1>
+              <p className="mt-2 text-sm text-muted-foreground">Enter your credentials to continue</p>
             </div>
 
             {registered && (
@@ -233,16 +195,19 @@ function LoginPageContent() {
             <form className="space-y-5" onSubmit={handleSubmit}>
               <div className="space-y-1.5">
                 <Label htmlFor="email">Email address</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  autoComplete="email"
-                  required
-                  placeholder="you@example.com"
-                  className="h-11"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                />
+                <div className="rcic-login-input-wrap">
+                  <Mail className="rcic-login-input-icon" aria-hidden="true" />
+                  <Input
+                    id="email"
+                    type="email"
+                    autoComplete="email"
+                    required
+                    placeholder="you@example.com"
+                    className="h-11 pr-10"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                  />
+                </div>
               </div>
 
               <div className="space-y-1.5">
@@ -250,11 +215,11 @@ function LoginPageContent() {
                   <Label htmlFor="password">Password</Label>
                   <Link
                     href="/forgot-password"
-                    className="text-xs font-medium text-emerald-600 hover:text-emerald-700 hover:underline">
+                    className="rcic-login-link text-xs font-medium hover:underline">
                     Forgot password?
                   </Link>
                 </div>
-                <div className="relative">
+                <div className="rcic-login-input-wrap">
                   <Input
                     id="password"
                     type={showPassword ? "text" : "password"}
@@ -278,7 +243,7 @@ function LoginPageContent() {
 
               <Button
                 type="submit"
-                className="h-11 w-full bg-emerald-600 text-base font-semibold shadow-md shadow-emerald-600/20 hover:bg-emerald-700"
+                className="rcic-login-submit h-11 w-full text-base font-semibold shadow-md"
                 disabled={loading}>
                 {loading ? (
                   <>
@@ -300,7 +265,7 @@ function LoginPageContent() {
             <Button
               variant="outline"
               type="button"
-              className="h-11 w-full gap-2 border-border/80 font-medium"
+              className="rcic-login-google h-11 w-full gap-2 border-border/80 font-medium"
               onClick={handleGoogle}
               disabled={googleLoading}>
               {googleLoading ? (
@@ -328,28 +293,13 @@ function LoginPageContent() {
               Continue with Google
             </Button>
 
-            <div className="mt-8 space-y-3 text-center text-sm">
-              <p className="text-muted-foreground">
-                Not a consultant yet?{" "}
-                <Link href="/register" className="font-semibold text-emerald-600 hover:text-emerald-700 hover:underline">
-                  Register free →
-                </Link>
-              </p>
-              <p className="text-xs text-muted-foreground">
-                Are you an applicant?{" "}
-                <a href={`${PUBLIC_USERS_URL}/login`} className="text-emerald-600 hover:underline">
-                  Go to public portal
-                </a>
-              </p>
-            </div>
           </div>
 
-          <p className="mt-6 text-center text-xs text-muted-foreground">
-            <Link href="/" className="hover:text-emerald-600 hover:underline">
-              ← Back to home
-            </Link>
-          </p>
         </div>
+        <p className="rcic-login-right-privacy absolute bottom-7 flex items-center gap-2 text-xs">
+          <Shield className="h-4 w-4" />
+          Secure <i /> Private <i /> Trusted by Consultants
+        </p>
       </div>
     </div>
   );
@@ -359,8 +309,8 @@ export default function LoginPage() {
   return (
     <Suspense
       fallback={
-        <div className="flex min-h-screen items-center justify-center bg-muted/20">
-          <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
+        <div className="rcic-login-page flex min-h-screen items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-[#d50000]" />
         </div>
       }>
       <LoginPageContent />

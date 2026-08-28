@@ -2,12 +2,12 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Briefcase, CheckCircle, Eye, EyeOff, Loader2, MailCheck } from "lucide-react";
+import Image from "next/image";
+import { Bell, Eye, EyeOff, FileText, Loader2, MailCheck, Shield, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-import { Badge } from "@/components/ui/badge";
 
 const API = `${process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000"}/api/v1`;
 
@@ -20,14 +20,6 @@ interface FieldErrors {
   password?: string[];
   password_confirmation?: string[];
 }
-
-const BENEFITS = [
-  "Free to join — no monthly fees to start",
-  "Access to a pool of pre-qualified applicants",
-  "Built-in case management and document tools",
-  "CICC-compliant audit trail and compliance tools",
-  "Get paid securely through the platform",
-];
 
 export default function RegisterPage() {
   const [form, setForm] = useState({
@@ -140,47 +132,54 @@ export default function RegisterPage() {
 
   // ── Registration form ────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen flex">
+    <div className="rcic-login-page min-h-screen flex">
       {/* Left panel */}
-      <div className="hidden lg:flex lg:w-1/2 bg-primary flex-col justify-between p-12 text-primary-foreground">
-        <Link href="/" className="flex items-center gap-2 font-bold text-xl">
-          <Briefcase className="h-6 w-6" />
-          <span>RCICMASTER</span>
-          <Badge variant="secondary" className="text-xs text-primary ml-1">Consultants</Badge>
-        </Link>
-        <div className="space-y-6">
-          <h2 className="text-3xl font-extrabold leading-snug">
-            Join Canada&apos;s Fastest-Growing Consultant Platform
-          </h2>
-          <p className="text-sm text-primary-foreground/80">
-            Thousands of RCICs are already growing their practices on RCICMASTER.
-          </p>
-          <ul className="space-y-3 text-sm text-primary-foreground/90">
-            {BENEFITS.map((item) => (
-              <li key={item} className="flex items-center gap-2">
-                <CheckCircle className="h-4 w-4 shrink-0" />
-                {item}
-              </li>
-            ))}
-          </ul>
+      <div className="rcic-login-brand-panel relative hidden lg:flex lg:w-1/2 flex-col justify-between overflow-hidden p-12">
+        <div className="rcic-login-brand-bg absolute inset-0" />
+        <div className="rcic-login-brand-glow absolute inset-0" />
+
+        <div className="relative z-10">
+          <Link href="/" className="rcic-login-brand-logo inline-flex items-center gap-2 font-bold text-xl">
+            <Image src="/figma-assets/logo-footer.svg" alt="RCICMASTER" width={167} height={36} priority />
+          </Link>
         </div>
-        <p className="text-xs text-primary-foreground/60">
-          © {new Date().getFullYear()} RCICMASTER Consultant Portal.
+
+        <div className="rcic-login-welcome relative z-10">
+          <h2>
+            <strong>Build your practice</strong>
+            <span>with RCICMASTER</span>
+          </h2>
+          <div className="rcic-login-accent" />
+          <p className="rcic-login-welcome-copy">
+            Join Canada&apos;s trusted platform for immigration
+            <br /> consultants and manage your entire practice
+            <br /> in one secure workspace.
+          </p>
+          <div className="rcic-login-features">
+            <div><span><Users aria-hidden="true" /></span><b>Manage Clients<br />&amp; Cases</b></div>
+            <i />
+            <div><span><FileText aria-hidden="true" /></span><b>Organize Forms<br />&amp; Documents</b></div>
+            <i />
+            <div><span><Bell aria-hidden="true" /></span><b>Stay Ahead of<br />Deadlines</b></div>
+          </div>
+        </div>
+
+        <p className="rcic-login-copyright relative z-10 text-xs">
+          © {new Date().getFullYear()} RCICMASTER Consultants
         </p>
       </div>
 
       {/* Right panel */}
-      <div className="flex flex-1 items-center justify-center px-6 py-12 overflow-y-auto">
-        <div className="w-full max-w-lg space-y-7">
+      <div className="rcic-login-form-panel relative flex flex-1 items-center justify-center overflow-y-auto px-6 py-12">
+        <div className="w-full max-w-lg">
 
           {/* Mobile logo */}
-          <Link href="/" className="flex lg:hidden items-center gap-2 font-bold text-xl text-primary justify-center">
-            <Briefcase className="h-6 w-6" />
-            <span>RCICMASTER</span>
+          <Link href="/" className="rcic-login-mobile-logo mb-8 flex items-center justify-center lg:hidden">
+            <Image src="/figma-assets/logo-header.svg" alt="RCICMASTER" width={200} height={44} priority />
           </Link>
 
-          <div>
-            <p className="text-xs font-semibold text-primary uppercase tracking-wider mb-1">Consultant Portal</p>
+          <div className="rcic-login-card rcic-register-card rounded-2xl border border-border/80 bg-card p-8 shadow-xl">
+          <div className="rcic-register-header">
             <h1 className="text-3xl font-bold tracking-tight">Create your account</h1>
             <p className="mt-2 text-sm text-muted-foreground">
               Register as a consultant — we&apos;ll send a verification email to get you started.
@@ -258,18 +257,18 @@ export default function RegisterPage() {
               {fieldErrors.password_confirmation && <p className="text-xs text-destructive">{fieldErrors.password_confirmation[0]}</p>}
             </div>
 
-            <Button type="submit" className="w-full" size="lg" disabled={loading}>
+            <Button type="submit" className="rcic-login-submit rcic-register-submit w-full" size="lg" disabled={loading}>
               {loading ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Creating account…</> : "Create Account"}
             </Button>
           </form>
 
-          <div className="flex items-center gap-3">
+          <div className="rcic-register-separator flex items-center gap-3">
             <Separator className="flex-1" />
             <span className="text-xs text-muted-foreground">or sign up with</span>
             <Separator className="flex-1" />
           </div>
 
-          <Button variant="outline" type="button" className="w-full gap-2" onClick={handleGoogle} disabled={googleLoading}>
+          <Button variant="outline" type="button" className="rcic-login-google rcic-register-google w-full gap-2" onClick={handleGoogle} disabled={googleLoading}>
             {googleLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : (
               <svg className="h-4 w-4" viewBox="0 0 24 24">
                 <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
@@ -280,14 +279,11 @@ export default function RegisterPage() {
             )}
             Continue with Google
           </Button>
+          </div>
 
-          <p className="text-center text-sm text-muted-foreground">
+          <p className="rcic-login-register mt-6 text-center text-sm">
             Already have an account?{" "}
-            <Link href="/login" className="text-primary font-medium hover:underline">Sign in</Link>
-          </p>
-          <p className="text-center text-xs text-muted-foreground">
-            Are you an applicant?{" "}
-            <a href="http://localhost:3002/register" className="text-primary hover:underline">Register on the public portal →</a>
+            <Link href="/login" className="rcic-login-link font-medium hover:underline">Sign in</Link>
           </p>
         </div>
       </div>
