@@ -301,7 +301,7 @@ function scanKindMismatch(kind: ScanKind, documentType: OcrResult["document_type
   if (kind === "education" && ["passport", "national_id", "driving_license"].includes(documentType)) {
     return "This looks like an identity document, not an education certificate.";
   }
-  if (kind === "language" && documentType !== "language_test" && documentType !== "unknown") {
+  if (kind === "language" && documentType !== "language_test") {
     return "This may not be a language test score report. Please verify.";
   }
   return null;

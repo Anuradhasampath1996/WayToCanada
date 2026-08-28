@@ -326,7 +326,16 @@ class AuthController extends Controller
         }
 
         $hadPassword = $user->hasPassword();
-        $user->update(['password' => $data['password']]);
+        $updates = ['password' => $data['password']];
+
+        // A Google-authenticated user has already proven ownership of the
+        // account. Saving their first password should not leave the account
+        // blocked by the RCIC activation flag.
+        if (! $hadPassword && filled($user->google_id) && ! $user->is_verified) {
+            $updates['is_verified'] = true;
+        }
+
+        $user->update($updates);
 
         return response()->json([
             'message' => $hadPassword
