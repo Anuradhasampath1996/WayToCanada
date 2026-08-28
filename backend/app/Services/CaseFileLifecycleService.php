@@ -61,22 +61,52 @@ class CaseFileLifecycleService
         return $this->createCase($profile, $consultantId);
     }
 
-    public function createCase(ClientProfile $profile, int $consultantId): CaseFile
-    {
+    public function createCase(
+        ClientProfile $profile,
+        int $consultantId,
+        ?string $name = null,
+        ?string $note = null,
+    ): CaseFile {
         $nextNumber = (int) CaseFile::where('client_profile_id', $profile->id)->max('case_number') + 1;
+        $caseNumber = max(1, $nextNumber);
+        $resolvedName = trim((string) $name);
+        if ($resolvedName === '') {
+            $resolvedName = 'Case '.$caseNumber;
+        }
 
         $case = CaseFile::create([
-            'client_profile_id' => $profile->id,
-            'consultant_id'     => $consultantId,
-            'case_number'       => max(1, $nextNumber),
-            'status'            => 'PENDING_ASSESSMENT',
-            'lifecycle_status'  => self::LIFECYCLE_ACTIVE,
+            'client_profile_id'    => $profile->id,
+            'consultant_id'        => $consultantId,
+            'case_number'          => $caseNumber,
+            'name'                 => $resolvedName,
+            'status'               => 'PENDING_ASSESSMENT',
+            'lifecycle_status'     => self::LIFECYCLE_ACTIVE,
+            'lifecycle_note'       => $note,
             'lifecycle_changed_at' => now(),
         ]);
 
         $profile->update(['active_case_file_id' => $case->id]);
 
         return $case;
+    }
+
+    /**
+     * Put every active case for this client on hold, optionally excluding one id.
+     */
+    public function holdAllActiveExcept(ClientProfile $profile, ?int $exceptCaseId = null, ?string $note = null): void
+    {
+        $query = CaseFile::where('client_profile_id', $profile->id)
+            ->where('lifecycle_status', self::LIFECYCLE_ACTIVE);
+
+        if ($exceptCaseId !== null) {
+            $query->where('id', '!=', $exceptCaseId);
+        }
+
+        $query->update([
+            'lifecycle_status'     => self::LIFECYCLE_ON_HOLD,
+            'lifecycle_note'       => $note ?? 'Automatically put on hold when another case became active.',
+            'lifecycle_changed_at' => now(),
+        ]);
     }
 
     /** @return list<array<string, mixed>> */
@@ -93,32 +123,31 @@ class CaseFileLifecycleService
     /** @return array<string, mixed> */
     public function formatCaseSummary(CaseFile $case, ClientProfile $profile): array
     {
+        $name = trim((string) ($case->name ?? ''));
+        $fallback = 'Case #'.$case->case_number;
+
         return [
             'id'                  => $case->id,
             'case_number'         => $case->case_number,
-            'label'               => 'Case #' . $case->case_number,
+            'name'                => $name !== '' ? $name : null,
+            'label'               => $name !== '' ? $name : $fallback,
             'status'              => $case->status,
             'lifecycle_status'    => $case->lifecycle_status,
             'lifecycle_label'     => self::lifecycleLabels()[$case->lifecycle_status] ?? $case->lifecycle_status,
             'lifecycle_note'      => $case->lifecycle_note,
             'lifecycle_changed_at'=> $case->lifecycle_changed_at?->toDateTimeString(),
             'immigration_pathway' => $case->immigration_pathway,
+            'is_focused'          => $profile->active_case_file_id === $case->id,
             'is_active'           => $profile->active_case_file_id === $case->id,
+            'is_lifecycle_active' => $case->lifecycle_status === self::LIFECYCLE_ACTIVE,
             'created_at'          => $case->created_at?->toDateTimeString(),
+            'updated_at'          => $case->updated_at?->toDateTimeString(),
         ];
     }
 
     /** @return array<string, mixed> */
     public function lifecycleMeta(ClientProfile $profile, CaseFile $case): array
     {
-        $hasActiveOther = CaseFile::where('client_profile_id', $profile->id)
-            ->where('id', '!=', $case->id)
-            ->where('lifecycle_status', self::LIFECYCLE_ACTIVE)
-            ->exists();
-
-        $canOpenNew = in_array($case->lifecycle_status, [self::LIFECYCLE_CLOSED, self::LIFECYCLE_COMPLETED], true)
-            && ! $hasActiveOther;
-
         return [
             'status'            => $case->lifecycle_status,
             'label'             => self::lifecycleLabels()[$case->lifecycle_status] ?? $case->lifecycle_status,
@@ -128,7 +157,8 @@ class CaseFileLifecycleService
             'can_resume'        => $case->lifecycle_status === self::LIFECYCLE_ON_HOLD,
             'can_close'         => in_array($case->lifecycle_status, [self::LIFECYCLE_ACTIVE, self::LIFECYCLE_ON_HOLD], true),
             'can_complete'      => in_array($case->lifecycle_status, [self::LIFECYCLE_ACTIVE, self::LIFECYCLE_ON_HOLD], true),
-            'can_open_new_case' => $canOpenNew,
+            // Named new cases can be opened anytime; previous actives are auto-held.
+            'can_open_new_case' => true,
             'case_count'        => CaseFile::where('client_profile_id', $profile->id)->count(),
         ];
     }
@@ -145,7 +175,7 @@ class CaseFileLifecycleService
 
         $next = match ($action) {
             'hold'     => $this->hold($case, $note),
-            'resume'   => $this->resume($case),
+            'resume'   => $this->resume($profile, $case),
             'close'    => $this->close($case, $note),
             'complete' => $this->complete($case, $note),
             default    => throw ValidationException::withMessages(['action' => 'Invalid lifecycle action.']),
@@ -160,36 +190,66 @@ class CaseFileLifecycleService
             ->where('id', $caseFileId)
             ->firstOrFail();
 
+        // Switching to a held case resumes it and holds any other active case,
+        // so the client portal always tracks a single lifecycle-active case.
+        if ($case->lifecycle_status === self::LIFECYCLE_ON_HOLD) {
+            return $this->resume($profile, $case)->fresh();
+        }
+
         $profile->update(['active_case_file_id' => $case->id]);
 
         return $case->fresh();
     }
 
-    public function openNewCase(ClientProfile $profile, int $consultantId): CaseFile
+    /**
+     * Case the client portal should work on: the lifecycle-active case when one exists.
+     */
+    public function resolvePortalCaseFile(ClientProfile $profile): ?CaseFile
     {
-        $current = $this->resolveActiveCaseFile($profile, $consultantId, false);
-
-        if (! $current) {
-            return $this->createCase($profile, $consultantId);
-        }
-
-        if (! in_array($current->lifecycle_status, [self::LIFECYCLE_CLOSED, self::LIFECYCLE_COMPLETED], true)) {
-            throw ValidationException::withMessages([
-                'case' => 'Close or complete the current case before opening a new one.',
-            ]);
-        }
-
-        $hasActive = CaseFile::where('client_profile_id', $profile->id)
+        $active = CaseFile::where('client_profile_id', $profile->id)
             ->where('lifecycle_status', self::LIFECYCLE_ACTIVE)
-            ->exists();
+            ->orderByDesc('case_number')
+            ->first();
 
-        if ($hasActive) {
+        if ($active) {
+            if ($profile->active_case_file_id !== $active->id) {
+                $profile->update(['active_case_file_id' => $active->id]);
+            }
+
+            return $active;
+        }
+
+        if ($profile->active_case_file_id) {
+            return CaseFile::where('id', $profile->active_case_file_id)
+                ->where('client_profile_id', $profile->id)
+                ->first();
+        }
+
+        return CaseFile::where('client_profile_id', $profile->id)
+            ->orderByDesc('case_number')
+            ->first();
+    }
+
+    public function openNewCase(
+        ClientProfile $profile,
+        int $consultantId,
+        string $name,
+        ?string $note = null,
+    ): CaseFile {
+        $trimmed = trim($name);
+        if ($trimmed === '') {
             throw ValidationException::withMessages([
-                'case' => 'An active case already exists for this client.',
+                'name' => 'A case name is required.',
             ]);
         }
 
-        return $this->createCase($profile, $consultantId);
+        $this->holdAllActiveExcept(
+            $profile,
+            null,
+            'Automatically put on hold when a new case was opened.',
+        );
+
+        return $this->createCase($profile, $consultantId, $trimmed, $note);
     }
 
     private function hold(CaseFile $case, ?string $note): CaseFile
@@ -207,16 +267,24 @@ class CaseFileLifecycleService
         return $case;
     }
 
-    private function resume(CaseFile $case): CaseFile
+    private function resume(ClientProfile $profile, CaseFile $case): CaseFile
     {
         if ($case->lifecycle_status !== self::LIFECYCLE_ON_HOLD) {
             throw ValidationException::withMessages(['case' => 'Only cases on hold can be resumed.']);
         }
 
+        $this->holdAllActiveExcept(
+            $profile,
+            $case->id,
+            'Automatically put on hold when another case was resumed.',
+        );
+
         $case->update([
             'lifecycle_status'     => self::LIFECYCLE_ACTIVE,
             'lifecycle_changed_at' => now(),
         ]);
+
+        $profile->update(['active_case_file_id' => $case->id]);
 
         return $case;
     }

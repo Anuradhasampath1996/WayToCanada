@@ -9,7 +9,7 @@ import {
   ChevronLeft, ChevronRight, Check, Send,
   CheckCircle2, AlertCircle, User, Users, Baby, UserPlus,
   Upload, FileText, Car, CreditCard, Loader2, Eye, X, Star,
-  RotateCcw, MessageSquare, Camera,
+  RotateCcw, MessageSquare, Camera, ShieldAlert, ShieldCheck, Sparkles, Plus, Trash2,
 } from "lucide-react";
 
 import { Button }           from "@/components/ui/button";
@@ -131,6 +131,7 @@ interface OcrExtracted {
   institutionName?: string;
   degreeName?: string;
   graduationYear?: string;
+  country?: string;
   // Language test score fields
   testListening?: string; testReading?: string; testWriting?: string; testSpeaking?: string;
   testOverall?: string; testDate?: string;
@@ -145,15 +146,48 @@ interface EduQualification {
   documentName: string;
 }
 
+interface ForeignWorkEntry {
+  companyName: string;
+  jobTitle: string;
+  country: string;
+  city: string;
+  startDate: string;
+  endDate: string;
+  currentlyWorking: string; // yes | no | ""
+  duties: string;
+}
+
+function emptyForeignWorkEntry(): ForeignWorkEntry {
+  return {
+    companyName: "",
+    jobTitle: "",
+    country: "",
+    city: "",
+    startDate: "",
+    endDate: "",
+    currentlyWorking: "no",
+    duties: "",
+  };
+}
+
+interface OcrAuthenticity {
+  verdict: "likely_authentic" | "needs_review" | "suspicious" | "likely_fake" | "unknown";
+  score: number;
+  summary?: string;
+  flags?: string[];
+}
+
 interface OcrResult {
   status: "success" | "partial_success";
-  document_type: "passport" | "national_id" | "driving_license" | "unknown";
+  document_type: "passport" | "national_id" | "driving_license" | "education" | "language_test" | "study_permit" | "unknown";
   extracted_data: OcrExtracted;
   confidence_score: number;
   message?: string;
+  authenticity?: OcrAuthenticity;
+  engine?: string;
 }
 
-type ScanKind = "passport" | "id";
+type ScanKind = "passport" | "id" | "licence" | "education" | "language" | "study";
 
 function mapPassportGender(g?: string): string {
   if (!g) return "";
@@ -161,21 +195,83 @@ function mapPassportGender(g?: string): string {
   if (u === "M" || u === "MALE") return "Male";
   if (u === "F" || u === "FEMALE") return "Female";
   if (u === "X" || u === "OTHER" || u === "UNSPECIFIED") return "Other";
-  return g;
+  return "";
+}
+
+/** Keep only values that <input type="date"> will accept. */
+function toInputDate(value?: string): string {
+  if (!value) return "";
+  const m = value.trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return "";
+  const y = Number(m[1]);
+  const mo = Number(m[2]);
+  const d = Number(m[3]);
+  if (y < 1900 || y > 2100 || mo < 1 || mo > 12 || d < 1 || d > 31) return "";
+  const dt = new Date(Date.UTC(y, mo - 1, d));
+  if (dt.getUTCFullYear() !== y || dt.getUTCMonth() !== mo - 1 || dt.getUTCDate() !== d) return "";
+  return `${m[1]}-${m[2]}-${m[3]}`;
+}
+
+function passportOcrPatch(d: OcrExtracted): Record<string, string> {
+  const patch: Record<string, string> = {};
+  const dob = toInputDate(d.dob);
+  const issue = toInputDate(d.issueDate);
+  const expiry = toInputDate(d.expiryDate);
+  if (dob) patch.dob = dob;
+  if (d.fullName?.trim()) patch.passportFullName = d.fullName.trim();
+  if (d.passportNumber?.trim()) patch.passportNumber = d.passportNumber.trim().toUpperCase();
+  if (issue) patch.passportIssueDate = issue;
+  if (expiry) patch.passportExpiry = expiry;
+  if (d.nationality?.trim()) patch.passportNationality = d.nationality.trim();
+  const gender = mapPassportGender(d.gender);
+  if (gender) patch.passportGender = gender;
+  return patch;
 }
 
 function applyPassportOcrFields(
   d: OcrExtracted,
   onField: (field: string, value: string) => void,
 ) {
-  if (d.dob) onField("dob", d.dob);
-  if (d.fullName) onField("passportFullName", d.fullName);
-  if (d.passportNumber) onField("passportNumber", d.passportNumber);
-  if (d.issueDate) onField("passportIssueDate", d.issueDate);
-  if (d.expiryDate) onField("passportExpiry", d.expiryDate);
-  if (d.nationality) onField("passportNationality", d.nationality);
-  const gender = mapPassportGender(d.gender);
-  if (gender) onField("passportGender", gender);
+  const patch = passportOcrPatch(d);
+  for (const [field, value] of Object.entries(patch)) {
+    onField(field, value);
+  }
+}
+
+function applyPassportOcrPatch(
+  d: OcrExtracted,
+  onPatch: (patch: Record<string, string>) => void,
+) {
+  const patch = passportOcrPatch(d);
+  if (Object.keys(patch).length > 0) onPatch(patch);
+}
+
+function hasUsefulPassportFields(d: OcrExtracted | undefined): boolean {
+  if (!d) return false;
+  return Object.keys(passportOcrPatch(d)).length > 0;
+}
+
+function hasUsefulExtractedFields(d: OcrExtracted | undefined): boolean {
+  if (!d) return false;
+  return Object.values(d).some((v) => typeof v === "string" && v.trim() !== "");
+}
+
+function authenticityTone(verdict?: OcrAuthenticity["verdict"]): {
+  label: string;
+  className: string;
+} {
+  switch (verdict) {
+    case "likely_authentic":
+      return { label: "Looks authentic", className: "border-green-200 bg-green-50 text-green-800" };
+    case "needs_review":
+      return { label: "Needs review", className: "border-amber-200 bg-amber-50 text-amber-900" };
+    case "suspicious":
+      return { label: "Suspicious", className: "border-orange-200 bg-orange-50 text-orange-900" };
+    case "likely_fake":
+      return { label: "Likely fake / AI", className: "border-red-200 bg-red-50 text-red-800" };
+    default:
+      return { label: "Authenticity unknown", className: "border-border bg-muted/40 text-muted-foreground" };
+  }
 }
 
 function inferStoredDocumentMediaType(path: string, blobMime: string): "image" | "pdf" | "other" {
@@ -199,13 +295,26 @@ function scanKindMismatch(kind: ScanKind, documentType: OcrResult["document_type
   if (kind === "id" && documentType === "passport") {
     return "This looks like a passport, not a government ID card.";
   }
+  if (kind === "licence" && documentType === "passport") {
+    return "This looks like a passport, not a driving licence.";
+  }
+  if (kind === "education" && ["passport", "national_id", "driving_license"].includes(documentType)) {
+    return "This looks like an identity document, not an education certificate.";
+  }
+  if (kind === "language" && documentType !== "language_test" && documentType !== "unknown") {
+    return "This may not be a language test score report. Please verify.";
+  }
   return null;
 }
 
-async function scanDocumentFile(file: File): Promise<{ result: OcrResult | null; error: string | null }> {
+async function scanDocumentFile(
+  file: File,
+  documentHint?: ScanKind,
+): Promise<{ result: OcrResult | null; error: string | null }> {
   try {
     const fd = new globalThis.FormData();
     fd.append("file", file);
+    if (documentHint) fd.append("document_hint", documentHint);
     const token = getToken();
     const res = await fetch(`${API}/documents/scan`, {
       method: "POST",
@@ -233,6 +342,7 @@ interface MainData {
   intendedNocCode: string; intendedNocTeer: string; intendedNocTitle: string;
   tradeCertificate: string; provincialNominationInterest: string; provincialNomination: string;
   workExperience: string; canadianWork: string;
+  foreignWorkEntries: ForeignWorkEntry[];
   jobOffer: string; settlementFunds: string; canadianRelatives: string;
   passportName: string; governmentIdName: string; governmentIdBackName: string;
   drivingLicenseName: string; drivingLicenseBackName: string;
@@ -261,6 +371,7 @@ interface SpouseData {
   languageTest: string; languageTestType: string; scores: ScoreSet;
   frenchTestTaken: string; frenchTestType: string; frenchScores: ScoreSet;
   workExperience: string;
+  foreignWorkEntries: ForeignWorkEntry[];
   canadianWork: string;
   passportName: string; governmentIdName: string; governmentIdBackName: string;
   drivingLicenseName: string; drivingLicenseBackName: string;
@@ -345,6 +456,7 @@ const INITIAL: FormData = {
     tradeCertificate: "", provincialNominationInterest: "", provincialNomination: "",
     scores: { ...EMPTY_SCORES },
     workExperience: "", canadianWork: "", jobOffer: "",
+    foreignWorkEntries: [],
     settlementFunds: "", canadianRelatives: "",
     passportName: "", governmentIdName: "", governmentIdBackName: "",
     drivingLicenseName: "", drivingLicenseBackName: "",
@@ -365,6 +477,7 @@ const INITIAL: FormData = {
     languageTestType: "ielts", frenchTestTaken: "", frenchTestType: "tef",
     frenchScores: { ...EMPTY_SCORES },
     workExperience: "",
+    foreignWorkEntries: [],
     scores: { ...EMPTY_SCORES }, canadianWork: "",
     passportName: "", governmentIdName: "", governmentIdBackName: "",
     drivingLicenseName: "", drivingLicenseBackName: "",
@@ -590,20 +703,6 @@ function Step1Form({
             placeholder="+1 234 567 8900"
           />
         </Field>
-
-        <Field label="Intended Visa Type" required error={errors.visaType}>
-          <Select value={data.visaType || undefined} onValueChange={(v) => onChange("visaType", v)}>
-            <SelectTrigger>
-              <SelectValue placeholder="Select visa type…" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="express_entry">Express Entry</SelectItem>
-              <SelectItem value="study_permit">Study Permit</SelectItem>
-              <SelectItem value="work_permit">Work Permit</SelectItem>
-              <SelectItem value="business_immigration">Business Immigration</SelectItem>
-            </SelectContent>
-          </Select>
-        </Field>
       </div>
 
       <Separator />
@@ -685,10 +784,16 @@ function Step1Form({
 
         {(data.married === "yes" || childCount(data.dependentChildren) > 0 || data.hasAccompanying === "yes") && (
           <div className="rounded-lg border bg-muted/20 p-4 space-y-3">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
-              <Users className="h-3.5 w-3.5" />
-              Family Members — Full Names
-            </p>
+            <div className="space-y-1.5">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+                <Users className="h-3.5 w-3.5" />
+                Family Members — Full Names
+              </p>
+              <p className="text-[12px] leading-relaxed text-muted-foreground">
+                Only enter names for family members who are also expected to come to Canada with you.
+                If someone will not accompany you, leave their name blank.
+              </p>
+            </div>
             {data.married === "yes" && (
               <Field label="Spouse's Full Name">
                 <Input
@@ -725,15 +830,363 @@ function Step1Form({
 
 // â”€â”€ Tab: Main Applicant â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
+interface NocSuggestion {
+  code: string;
+  teer: string;
+  title: string;
+  why?: string;
+}
+
+function ForeignWorkEntriesEditor({
+  entries,
+  onChange,
+  personLabel = "your",
+}: {
+  entries: ForeignWorkEntry[];
+  onChange: (next: ForeignWorkEntry[]) => void;
+  personLabel?: string;
+}) {
+  const list = entries ?? [];
+
+  function update(i: number, patch: Partial<ForeignWorkEntry>) {
+    const next = list.map((row, idx) => (idx === i ? { ...row, ...patch } : row));
+    onChange(next);
+  }
+
+  function remove(i: number) {
+    onChange(list.filter((_, idx) => idx !== i));
+  }
+
+  return (
+    <div className="rounded-lg border bg-muted/30 p-4 space-y-4">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-sm font-semibold">Foreign work history details</p>
+          <p className="text-xs text-muted-foreground">
+            Add each company {personLabel} worked for outside Canada — job title and dates help your consultant assess eligibility.
+          </p>
+        </div>
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          className="shrink-0"
+          onClick={() => onChange([...list, emptyForeignWorkEntry()])}
+        >
+          <Plus className="h-4 w-4" />
+          Add job
+        </Button>
+      </div>
+
+      {list.length === 0 && (
+        <p className="rounded-lg border border-dashed px-3 py-4 text-center text-xs text-muted-foreground">
+          No jobs added yet. Click <strong>Add job</strong> to enter employer, role, and dates.
+        </p>
+      )}
+
+      {list.map((row, i) => (
+        <div key={i} className="rounded-xl border bg-background p-4 space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Job {i + 1}
+            </p>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-8 text-destructive hover:text-destructive"
+              onClick={() => remove(i)}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              Remove
+            </Button>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            <Field label="Company / Employer" required>
+              <Input
+                value={row.companyName}
+                onChange={(e) => update(i, { companyName: e.target.value })}
+                placeholder="Company name"
+              />
+            </Field>
+            <Field label="Job title" required>
+              <Input
+                value={row.jobTitle}
+                onChange={(e) => update(i, { jobTitle: e.target.value })}
+                placeholder="e.g. Software Engineer"
+              />
+            </Field>
+            <Field label="Country" required>
+              <Input
+                value={row.country}
+                onChange={(e) => update(i, { country: e.target.value })}
+                placeholder="e.g. Sri Lanka"
+              />
+            </Field>
+            <Field label="City">
+              <Input
+                value={row.city}
+                onChange={(e) => update(i, { city: e.target.value })}
+                placeholder="e.g. Colombo"
+              />
+            </Field>
+            <Field label="Start date" required>
+              <Input
+                type="date"
+                value={row.startDate}
+                onChange={(e) => update(i, { startDate: e.target.value })}
+              />
+            </Field>
+            <Field label="Currently working here?">
+              <Select
+                value={row.currentlyWorking || undefined}
+                onValueChange={(v) => update(i, {
+                  currentlyWorking: v,
+                  endDate: v === "yes" ? "" : row.endDate,
+                })}
+              >
+                <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="yes">Yes — current job</SelectItem>
+                  <SelectItem value="no">No — ended</SelectItem>
+                </SelectContent>
+              </Select>
+            </Field>
+            {row.currentlyWorking !== "yes" && (
+              <Field label="End date" required>
+                <Input
+                  type="date"
+                  value={row.endDate}
+                  onChange={(e) => update(i, { endDate: e.target.value })}
+                />
+              </Field>
+            )}
+            <Field label="Main duties (brief)">
+              <Input
+                value={row.duties}
+                onChange={(e) => update(i, { duties: e.target.value })}
+                placeholder="What did you do day-to-day?"
+              />
+            </Field>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function NocSmartLookup({
+  code,
+  teer,
+  title,
+  onApply,
+}: {
+  code: string;
+  teer: string;
+  title: string;
+  onApply: (patch: { code?: string; teer?: string; title?: string }) => void;
+}) {
+  const [query, setQuery] = useState(title || "");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [suggestions, setSuggestions] = useState<NocSuggestion[]>([]);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastFetchedRef = useRef("");
+
+  async function fetchSuggestions(raw: string, autoApplyTop = false) {
+    const q = raw.trim();
+    if (q.length < 3) {
+      setSuggestions([]);
+      setError(null);
+      return;
+    }
+    if (q === lastFetchedRef.current && suggestions.length > 0 && !autoApplyTop) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const token = getToken();
+      const res = await fetch(`${API}/noc/suggest`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ query: q }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setSuggestions([]);
+        setError((json as { message?: string }).message ?? "Could not look up NOC.");
+        return;
+      }
+      const list = Array.isArray((json as { suggestions?: NocSuggestion[] }).suggestions)
+        ? (json as { suggestions: NocSuggestion[] }).suggestions
+        : [];
+      setSuggestions(list);
+      lastFetchedRef.current = q;
+      if (autoApplyTop && list[0]) {
+        applySuggestion(list[0]);
+      }
+    } catch {
+      setSuggestions([]);
+      setError("Could not reach NOC lookup. Check your connection and try again.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function applySuggestion(s: NocSuggestion) {
+    onApply({ code: s.code, teer: s.teer, title: s.title });
+    setQuery(s.title);
+    setError(null);
+  }
+
+  function onQueryChange(value: string) {
+    setQuery(value);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      void fetchSuggestions(value, false);
+    }, 700);
+  }
+
+  function onCodeChange(raw: string) {
+    const next = raw.replace(/\D/g, "").slice(0, 5);
+    const patch: { code?: string; teer?: string } = { code: next };
+    if (next.length === 5 && /^[0-5]/.test(next)) {
+      patch.teer = next[0];
+    }
+    onApply(patch);
+  }
+
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, []);
+
+  return (
+    <div className="space-y-3">
+      <Field label="Describe your job (plain words)">
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <Input
+            value={query}
+            onChange={(e) => onQueryChange(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                if (debounceRef.current) clearTimeout(debounceRef.current);
+                void fetchSuggestions(query, true);
+              }
+            }}
+            placeholder="e.g. software developer, chef, accountant, truck driver…"
+          />
+          <Button
+            type="button"
+            variant="secondary"
+            className="shrink-0"
+            disabled={loading || query.trim().length < 3}
+            onClick={() => {
+              if (debounceRef.current) clearTimeout(debounceRef.current);
+              void fetchSuggestions(query, true);
+            }}
+          >
+            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+            Find NOC
+          </Button>
+        </div>
+        <p className="mt-1 text-[11px] text-muted-foreground">
+          Type at least 3 characters — suggestions appear automatically. Click <strong>Find NOC</strong> to fill the top match.
+        </p>
+      </Field>
+
+      {error && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+          {error}
+        </div>
+      )}
+
+      {suggestions.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Suggested NOC codes — tap to apply</p>
+          <div className="space-y-1.5">
+            {suggestions.map((s) => {
+              const selected = code === s.code;
+              return (
+                <button
+                  key={`${s.code}-${s.title}`}
+                  type="button"
+                  onClick={() => applySuggestion(s)}
+                  className={cn(
+                    "w-full rounded-lg border px-3 py-2 text-left transition-colors",
+                    selected
+                      ? "border-primary bg-primary/5"
+                      : "border-border bg-background hover:border-primary/40 hover:bg-muted/40",
+                  )}
+                >
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge variant={selected ? "default" : "secondary"} className="font-mono text-[10px]">
+                      {s.code}
+                    </Badge>
+                    <span className="text-[10px] font-medium text-muted-foreground">TEER {s.teer}</span>
+                    <span className="text-xs font-semibold text-foreground">{s.title}</span>
+                  </div>
+                  {s.why && <p className="mt-1 text-[11px] text-muted-foreground">{s.why}</p>}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <Field label="NOC code (5 digits)">
+          <Input
+            value={code}
+            onChange={(e) => onCodeChange(e.target.value)}
+            placeholder="Auto-filled or type e.g. 21231"
+            inputMode="numeric"
+          />
+        </Field>
+        <Field label="TEER category">
+          <Select
+            value={teer || undefined}
+            onValueChange={(v) => onApply({ teer: v })}
+          >
+            <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
+            <SelectContent>
+              {[0, 1, 2, 3, 4, 5].map((t) => (
+                <SelectItem key={t} value={String(t)}>TEER {t}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+        <Field label="Job title (as in NOC)">
+          <Input
+            value={title}
+            onChange={(e) => {
+              onApply({ title: e.target.value });
+              setQuery(e.target.value);
+            }}
+            placeholder="Auto-filled from suggestion"
+          />
+        </Field>
+      </div>
+    </div>
+  );
+}
+
 function MainApplicantTab({
   data,
   onChange,
+  onPatch,
   onDocUpload,
   fieldRemarks,
 }: {
   data: MainData;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onChange: (f: keyof MainData, v: any) => void;
+  onPatch?: (patch: Record<string, string>) => void;
   onDocUpload?: (file: File) => Promise<string>;
   fieldRemarks?: Record<string, FieldRemark>;
 }) {
@@ -756,14 +1209,27 @@ function MainApplicantTab({
           onFileChange={(n) => onChange("passportName", n)}
           onUpload={onDocUpload}
           onNewFile={() => {
-            onChange("passportFullName", "");
-            onChange("passportNumber", "");
-            onChange("dob", "");
-            onChange("passportIssueDate", "");
-            onChange("passportExpiry", "");
-            onChange("passportNationality", "");
-            onChange("passportGender", "");
+            const clear = {
+              passportFullName: "",
+              passportNumber: "",
+              dob: "",
+              passportIssueDate: "",
+              passportExpiry: "",
+              passportNationality: "",
+              passportGender: "",
+            };
+            if (onPatch) onPatch(clear);
+            else {
+              onChange("passportFullName", "");
+              onChange("passportNumber", "");
+              onChange("dob", "");
+              onChange("passportIssueDate", "");
+              onChange("passportExpiry", "");
+              onChange("passportNationality", "");
+              onChange("passportGender", "");
+            }
           }}
+          onScanPatch={onPatch}
           onScanComplete={(result) => {
             applyPassportOcrFields(result.extracted_data, (f, v) => onChange(f as keyof MainData, v));
           }}
@@ -835,11 +1301,13 @@ function MainApplicantTab({
             const d = result.extracted_data;
             if (d.fullName) onChange("nicFullName", d.fullName);
             if (d.idNumber) onChange("nicNumber", d.idNumber);
-            if (d.dob)      onChange("nicDob", d.dob);
-            if (d.address)                        onChange("nicAddress", d.address);
-            if (d.birthPlace)                     onChange("nicBirthPlace", d.birthPlace);
-            if (d.issueDate)                      onChange("nicIssueDate", d.issueDate);
-            if (d.gender && !data.passportGender) onChange("passportGender", d.gender);
+            const nicDob = toInputDate(d.dob);
+            if (nicDob) onChange("nicDob", nicDob);
+            if (d.address) onChange("nicAddress", d.address);
+            if (d.birthPlace) onChange("nicBirthPlace", d.birthPlace);
+            const nicIssue = toInputDate(d.issueDate);
+            if (nicIssue) onChange("nicIssueDate", nicIssue);
+            if (d.gender && !data.passportGender) onChange("passportGender", mapPassportGender(d.gender) || d.gender);
             if (d.nationality && !data.passportNationality) onChange("passportNationality", d.nationality);
           }}
         />
@@ -847,6 +1315,7 @@ function MainApplicantTab({
           title="Driving Licence"
           description="Current valid licence"
           icon={Car}
+          scanKind="licence"
           frontFileName={data.drivingLicenseName}
           backFileName={data.drivingLicenseBackName}
           frontRemarkKey={clientToConsultantKey("main", "drivingLicenseName")}
@@ -855,6 +1324,16 @@ function MainApplicantTab({
           onFrontChange={(n) => onChange("drivingLicenseName", n)}
           onBackChange={(n) => onChange("drivingLicenseBackName", n)}
           onUpload={onDocUpload}
+          onScanComplete={(result) => {
+            const d = result.extracted_data;
+            if (d.fullName && !data.nicFullName) onChange("nicFullName", d.fullName);
+            if (d.idNumber && !data.nicNumber) onChange("nicNumber", d.idNumber);
+            const nicDob = toInputDate(d.dob);
+            if (nicDob && !data.nicDob) onChange("nicDob", nicDob);
+            if (d.address && !data.nicAddress) onChange("nicAddress", d.address);
+            const nicIssue = toInputDate(d.issueDate);
+            if (nicIssue && !data.nicIssueDate) onChange("nicIssueDate", nicIssue);
+          }}
         />
       </div>
       <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
@@ -956,6 +1435,7 @@ function MainApplicantTab({
             description="Study permit, enrollment confirmation or transcript"
             accept=".pdf,.jpg,.jpeg,.png"
             icon={FileText}
+            scanKind="study"
             fileName={data.canadaStudyDocName}
             onFileChange={(n) => onChange("canadaStudyDocName", n)}
             onUpload={onDocUpload}
@@ -969,6 +1449,10 @@ function MainApplicantTab({
               if (d.institutionName) onChange("canadaStudyInstitution", d.institutionName);
               else if (d.fullName)   onChange("canadaStudyInstitution", d.fullName);
               if (d.degreeName)      onChange("canadaStudyProgram", d.degreeName);
+              const start = toInputDate(d.issueDate);
+              const end = toInputDate(d.expiryDate);
+              if (start) onChange("canadaStudyStart", start);
+              if (end) onChange("canadaStudyEnd", end);
             }}
           />
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -1020,6 +1504,7 @@ function MainApplicantTab({
               description="Upload your official test result"
               accept=".pdf,.jpg,.jpeg,.png"
               icon={FileText}
+              scanKind="language"
               fileName={data.languageTestDocName}
               onFileChange={(n) => onChange("languageTestDocName", n)}
               onUpload={onDocUpload}
@@ -1076,25 +1561,29 @@ function MainApplicantTab({
 
       <div className="rounded-lg border bg-muted/30 p-4 space-y-4">
         <p className="text-sm font-semibold">Target Occupation (NOC 2021)</p>
-        <p className="text-xs text-muted-foreground">Used by your consultant for pathway &amp; CRS assessment. Find your NOC at <a href="https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/express-entry/eligibility/find-national-occupation-code.html" target="_blank" rel="noopener noreferrer" className="underline">Canada.ca NOC finder</a>.</p>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <Field label="NOC code (5 digits)">
-            <Input value={data.intendedNocCode} onChange={(e) => onChange("intendedNocCode", e.target.value.replace(/\D/g, "").slice(0, 5))} placeholder="e.g. 21231" />
-          </Field>
-          <Field label="TEER category">
-            <Select value={data.intendedNocTeer || undefined} onValueChange={(v) => onChange("intendedNocTeer", v)}>
-              <SelectTrigger><SelectValue placeholder="Select TEER…" /></SelectTrigger>
-              <SelectContent>
-                {[0, 1, 2, 3, 4, 5].map((t) => (
-                  <SelectItem key={t} value={String(t)}>TEER {t}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
-          <Field label="Job title (as in NOC)">
-            <Input value={data.intendedNocTitle} onChange={(e) => onChange("intendedNocTitle", e.target.value)} placeholder="e.g. Software engineer" />
-          </Field>
-        </div>
+        <p className="text-xs text-muted-foreground">
+          Most clients do not know their NOC code. Type your job in plain words and we will suggest the official NOC 2021 code, TEER, and title.
+          You can still edit the fields below. Official search:{" "}
+          <a
+            href="https://www.canada.ca/en/immigration-refugees-citizenship/services/immigrate-canada/express-entry/eligibility/find-national-occupation-code.html"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline"
+          >
+            Canada.ca NOC finder
+          </a>
+          .
+        </p>
+        <NocSmartLookup
+          code={data.intendedNocCode}
+          teer={data.intendedNocTeer}
+          title={data.intendedNocTitle}
+          onApply={(patch) => {
+            if (patch.code !== undefined) onChange("intendedNocCode", patch.code);
+            if (patch.teer !== undefined) onChange("intendedNocTeer", patch.teer);
+            if (patch.title !== undefined) onChange("intendedNocTitle", patch.title);
+          }}
+        />
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Field label="Certificate of qualification in a skilled trade?">
             <RadioGroup value={data.tradeCertificate} onValueChange={(v) => onChange("tradeCertificate", v)} className="flex gap-4 pt-1">
@@ -1137,6 +1626,7 @@ function MainApplicantTab({
               <SelectItem value="less_than_1">Less than 1 year</SelectItem>
               <SelectItem value="1_to_2">1–2 years</SelectItem>
               <SelectItem value="3_or_more">3 years or more</SelectItem>
+              <SelectItem value="none">No skilled foreign work experience</SelectItem>
             </SelectContent>
           </Select>
         </Field>
@@ -1150,6 +1640,14 @@ function MainApplicantTab({
           />
         </Field>
       </div>
+
+      {data.workExperience && data.workExperience !== "none" && (
+        <ForeignWorkEntriesEditor
+          entries={data.foreignWorkEntries ?? []}
+          onChange={(next) => onChange("foreignWorkEntries", next)}
+          personLabel="you"
+        />
+      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
         <Field label="Do you have 1 year of authorized Canadian work experience?">
@@ -1263,12 +1761,14 @@ function MainApplicantTab({
 function SpouseTab({
   data,
   onChange,
+  onPatch,
   onDocUpload,
   fieldRemarks,
 }: {
   data: SpouseData;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onChange: (f: keyof SpouseData, v: any) => void;
+  onPatch?: (patch: Record<string, string>) => void;
   onDocUpload?: (file: File) => Promise<string>;
   fieldRemarks?: Record<string, FieldRemark>;
 }) {
@@ -1291,14 +1791,27 @@ function SpouseTab({
           onFileChange={(n) => onChange("passportName", n)}
           onUpload={onDocUpload}
           onNewFile={() => {
-            onChange("passportFullName", "");
-            onChange("passportNumber", "");
-            onChange("dob", "");
-            onChange("passportIssueDate", "");
-            onChange("passportExpiry", "");
-            onChange("passportNationality", "");
-            onChange("passportGender", "");
+            const clear = {
+              passportFullName: "",
+              passportNumber: "",
+              dob: "",
+              passportIssueDate: "",
+              passportExpiry: "",
+              passportNationality: "",
+              passportGender: "",
+            };
+            if (onPatch) onPatch(clear);
+            else {
+              onChange("passportFullName", "");
+              onChange("passportNumber", "");
+              onChange("dob", "");
+              onChange("passportIssueDate", "");
+              onChange("passportExpiry", "");
+              onChange("passportNationality", "");
+              onChange("passportGender", "");
+            }
           }}
+          onScanPatch={onPatch}
           onScanComplete={(result) => {
             applyPassportOcrFields(result.extracted_data, (f, v) => onChange(f as keyof SpouseData, v));
           }}
@@ -1370,11 +1883,13 @@ function SpouseTab({
             const d = result.extracted_data;
             if (d.fullName) onChange("nicFullName", d.fullName);
             if (d.idNumber) onChange("nicNumber", d.idNumber);
-            if (d.dob)      onChange("nicDob", d.dob);
-            if (d.address)                        onChange("nicAddress", d.address);
-            if (d.birthPlace)                     onChange("nicBirthPlace", d.birthPlace);
-            if (d.issueDate)                      onChange("nicIssueDate", d.issueDate);
-            if (d.gender && !data.passportGender) onChange("passportGender", d.gender);
+            const nicDob = toInputDate(d.dob);
+            if (nicDob) onChange("nicDob", nicDob);
+            if (d.address) onChange("nicAddress", d.address);
+            if (d.birthPlace) onChange("nicBirthPlace", d.birthPlace);
+            const nicIssue = toInputDate(d.issueDate);
+            if (nicIssue) onChange("nicIssueDate", nicIssue);
+            if (d.gender && !data.passportGender) onChange("passportGender", mapPassportGender(d.gender) || d.gender);
             if (d.nationality && !data.passportNationality) onChange("passportNationality", d.nationality);
           }}
         />
@@ -1382,6 +1897,7 @@ function SpouseTab({
           title="Driving Licence"
           description="Current valid licence"
           icon={Car}
+          scanKind="licence"
           frontFileName={data.drivingLicenseName}
           backFileName={data.drivingLicenseBackName}
           frontRemarkKey={clientToConsultantKey("spouse", "drivingLicenseName")}
@@ -1390,6 +1906,16 @@ function SpouseTab({
           onFrontChange={(n) => onChange("drivingLicenseName", n)}
           onBackChange={(n) => onChange("drivingLicenseBackName", n)}
           onUpload={onDocUpload}
+          onScanComplete={(result) => {
+            const d = result.extracted_data;
+            if (d.fullName && !data.nicFullName) onChange("nicFullName", d.fullName);
+            if (d.idNumber && !data.nicNumber) onChange("nicNumber", d.idNumber);
+            const nicDob = toInputDate(d.dob);
+            if (nicDob && !data.nicDob) onChange("nicDob", nicDob);
+            if (d.address && !data.nicAddress) onChange("nicAddress", d.address);
+            const nicIssue = toInputDate(d.issueDate);
+            if (nicIssue && !data.nicIssueDate) onChange("nicIssueDate", nicIssue);
+          }}
         />
       </div>
       <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
@@ -1507,6 +2033,7 @@ function SpouseTab({
               description="Upload your spouse's official test result"
               accept=".pdf,.jpg,.jpeg,.png"
               icon={FileText}
+              scanKind="language"
               fileName={data.languageTestDocName}
               onFileChange={(n) => onChange("languageTestDocName", n)}
               onUpload={onDocUpload}
@@ -1563,9 +2090,18 @@ function SpouseTab({
             <SelectItem value="less_than_1">Less than 1 year</SelectItem>
             <SelectItem value="1_to_2">1–2 years</SelectItem>
             <SelectItem value="3_or_more">3 years or more</SelectItem>
+            <SelectItem value="none">No skilled foreign work experience</SelectItem>
           </SelectContent>
         </Select>
       </Field>
+
+      {data.workExperience && data.workExperience !== "none" && (
+        <ForeignWorkEntriesEditor
+          entries={data.foreignWorkEntries ?? []}
+          onChange={(next) => onChange("foreignWorkEntries", next)}
+          personLabel={data.fullName ? data.fullName : "your spouse"}
+        />
+      )}
 
       <Field label="Does your spouse have 1 year of authorized Canadian work experience?">
         <RadioGroup value={data.canadianWork} onValueChange={(v) => onChange("canadianWork", v)} className="flex gap-6 pt-1">
@@ -1648,6 +2184,9 @@ function ChildrenTab({
                   onChange(i, "passportNationality", "");
                   onChange(i, "passportGender", "");
                 }}
+                onScanPatch={(patch) => {
+                  Object.entries(patch).forEach(([f, v]) => onChange(i, f as keyof ChildData, v));
+                }}
                 onScanComplete={(result) => {
                   applyPassportOcrFields(result.extracted_data, (f, v) => onChange(i, f as keyof ChildData, v));
                 }}
@@ -1721,11 +2260,19 @@ function ChildrenTab({
                 title="Driving Licence"
                 description="If applicable"
                 icon={Car}
+                scanKind="licence"
                 frontFileName={child.drivingLicenseName}
                 backFileName={child.drivingLicenseBackName}
                 onFrontChange={(n) => onChange(i, "drivingLicenseName", n)}
                 onBackChange={(n) => onChange(i, "drivingLicenseBackName", n)}
                 onUpload={onDocUpload}
+                onScanComplete={(result) => {
+                  const d = result.extracted_data;
+                  if (d.fullName && !child.nicFullName) onChange(i, "nicFullName", d.fullName);
+                  if (d.idNumber && !child.nicNumber) onChange(i, "nicNumber", d.idNumber);
+                  const nicDob = toInputDate(d.dob);
+                  if (nicDob && !child.nicDob) onChange(i, "nicDob", nicDob);
+                }}
               />
             </div>
             <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
@@ -1827,6 +2374,9 @@ function AccompanyingPersonsTab({
                   onChange(i, "passportNationality", "");
                   onChange(i, "passportGender", "");
                 }}
+                onScanPatch={(patch) => {
+                  Object.entries(patch).forEach(([f, v]) => onChange(i, f as keyof AccompanyingPerson, v));
+                }}
                 onScanComplete={(result) => {
                   applyPassportOcrFields(result.extracted_data, (f, v) => onChange(i, f as keyof AccompanyingPerson, v));
                 }}
@@ -1900,11 +2450,19 @@ function AccompanyingPersonsTab({
                 title="Driving Licence"
                 description="If applicable"
                 icon={Car}
+                scanKind="licence"
                 frontFileName={person.drivingLicenseName}
                 backFileName={person.drivingLicenseBackName}
                 onFrontChange={(n) => onChange(i, "drivingLicenseName", n)}
                 onBackChange={(n) => onChange(i, "drivingLicenseBackName", n)}
                 onUpload={onDocUpload}
+                onScanComplete={(result) => {
+                  const d = result.extracted_data;
+                  if (d.fullName && !person.nicFullName) onChange(i, "nicFullName", d.fullName);
+                  if (d.idNumber && !person.nicNumber) onChange(i, "nicNumber", d.idNumber);
+                  const nicDob = toInputDate(d.dob);
+                  if (nicDob && !person.nicDob) onChange(i, "nicDob", nicDob);
+                }}
               />
             </div>
             <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
@@ -1982,6 +2540,7 @@ function AccompanyingPersonsTab({
 function ChildSingleTab({
   data,
   onChange,
+  onPatch,
   onDocUpload,
   fieldRemarks,
   childIndex,
@@ -1989,6 +2548,7 @@ function ChildSingleTab({
   data: ChildData;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onChange: (f: keyof ChildData, v: any) => void;
+  onPatch?: (patch: Record<string, string>) => void;
   onDocUpload?: (file: File) => Promise<string>;
   fieldRemarks?: Record<string, FieldRemark>;
   childIndex: number;
@@ -2011,10 +2571,19 @@ function ChildSingleTab({
           onFileChange={(n) => onChange("passportName", n)}
           onUpload={onDocUpload}
           onNewFile={() => {
-            onChange("passportFullName", ""); onChange("passportNumber", "");
-            onChange("dob", ""); onChange("passportIssueDate", ""); onChange("passportExpiry", "");
-            onChange("passportNationality", ""); onChange("passportGender", "");
+            const clear = {
+              passportFullName: "", passportNumber: "", dob: "",
+              passportIssueDate: "", passportExpiry: "",
+              passportNationality: "", passportGender: "",
+            };
+            if (onPatch) onPatch(clear);
+            else {
+              onChange("passportFullName", ""); onChange("passportNumber", "");
+              onChange("dob", ""); onChange("passportIssueDate", ""); onChange("passportExpiry", "");
+              onChange("passportNationality", ""); onChange("passportGender", "");
+            }
           }}
+          onScanPatch={onPatch}
           onScanComplete={(result) => {
             applyPassportOcrFields(result.extracted_data, (f, v) => onChange(f as keyof ChildData, v));
           }}
@@ -2087,7 +2656,7 @@ function ChildSingleTab({
           }}
         />
         <TwoSidedDocumentCard
-          title="Driving Licence" description="If applicable" icon={Car}
+          title="Driving Licence" description="If applicable" icon={Car} scanKind="licence"
           frontFileName={data.drivingLicenseName} backFileName={data.drivingLicenseBackName}
           frontRemarkKey={clientToConsultantKey("child", "drivingLicenseName", childIndex)}
           backRemarkKey={clientToConsultantKey("child", "drivingLicenseBackName", childIndex)}
@@ -2095,6 +2664,13 @@ function ChildSingleTab({
           onFrontChange={(n) => onChange("drivingLicenseName", n)}
           onBackChange={(n) => onChange("drivingLicenseBackName", n)}
           onUpload={onDocUpload}
+          onScanComplete={(result) => {
+            const d = result.extracted_data;
+            if (d.fullName && !data.nicFullName) onChange("nicFullName", d.fullName);
+            if (d.idNumber && !data.nicNumber) onChange("nicNumber", d.idNumber);
+            const nicDob = toInputDate(d.dob);
+            if (nicDob && !data.nicDob) onChange("nicDob", nicDob);
+          }}
         />
       </div>
       <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
@@ -2141,6 +2717,7 @@ function ChildSingleTab({
 function AccompanyingPersonSingleTab({
   data,
   onChange,
+  onPatch,
   onDocUpload,
   fieldRemarks,
   personIndex,
@@ -2148,6 +2725,7 @@ function AccompanyingPersonSingleTab({
   data: AccompanyingPerson;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onChange: (f: keyof AccompanyingPerson, v: any) => void;
+  onPatch?: (patch: Record<string, string>) => void;
   onDocUpload?: (file: File) => Promise<string>;
   fieldRemarks?: Record<string, FieldRemark>;
   personIndex: number;
@@ -2170,10 +2748,19 @@ function AccompanyingPersonSingleTab({
           onFileChange={(n) => onChange("passportName", n)}
           onUpload={onDocUpload}
           onNewFile={() => {
-            onChange("passportFullName", ""); onChange("passportNumber", "");
-            onChange("dob", ""); onChange("passportIssueDate", ""); onChange("passportExpiry", "");
-            onChange("passportNationality", ""); onChange("passportGender", "");
+            const clear = {
+              passportFullName: "", passportNumber: "", dob: "",
+              passportIssueDate: "", passportExpiry: "",
+              passportNationality: "", passportGender: "",
+            };
+            if (onPatch) onPatch(clear);
+            else {
+              onChange("passportFullName", ""); onChange("passportNumber", "");
+              onChange("dob", ""); onChange("passportIssueDate", ""); onChange("passportExpiry", "");
+              onChange("passportNationality", ""); onChange("passportGender", "");
+            }
           }}
+          onScanPatch={onPatch}
           onScanComplete={(result) => {
             applyPassportOcrFields(result.extracted_data, (f, v) => onChange(f as keyof AccompanyingPerson, v));
           }}
@@ -2246,7 +2833,7 @@ function AccompanyingPersonSingleTab({
           }}
         />
         <TwoSidedDocumentCard
-          title="Driving Licence" description="If applicable" icon={Car}
+          title="Driving Licence" description="If applicable" icon={Car} scanKind="licence"
           frontFileName={data.drivingLicenseName} backFileName={data.drivingLicenseBackName}
           frontRemarkKey={clientToConsultantKey("accompanying", "drivingLicenseName", personIndex)}
           backRemarkKey={clientToConsultantKey("accompanying", "drivingLicenseBackName", personIndex)}
@@ -2254,6 +2841,13 @@ function AccompanyingPersonSingleTab({
           onFrontChange={(n) => onChange("drivingLicenseName", n)}
           onBackChange={(n) => onChange("drivingLicenseBackName", n)}
           onUpload={onDocUpload}
+          onScanComplete={(result) => {
+            const d = result.extracted_data;
+            if (d.fullName && !data.nicFullName) onChange("nicFullName", d.fullName);
+            if (d.idNumber && !data.nicNumber) onChange("nicNumber", d.idNumber);
+            const nicDob = toInputDate(d.dob);
+            if (nicDob && !data.nicDob) onChange("nicDob", nicDob);
+          }}
         />
       </div>
       <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
@@ -2358,6 +2952,7 @@ function TwoSidedDocumentCard({
           description=""
           accept=".pdf,.jpg,.jpeg,.png"
           icon={Icon}
+          scanKind={scanKind}
           fileName={backFileName}
           remarkKey={backRemarkKey}
           fieldRemarks={fieldRemarks}
@@ -2381,6 +2976,7 @@ function DocumentUploadCard({
   onFileChange,
   onUpload,
   onScanComplete,
+  onScanPatch,
   onNewFile,
 }: {
   title: string;
@@ -2394,6 +2990,8 @@ function DocumentUploadCard({
   onFileChange: (name: string) => void;
   onUpload?: (file: File) => Promise<string>;
   onScanComplete?: (result: OcrResult) => void;
+  /** Preferred: apply all passport fields in one state update */
+  onScanPatch?: (patch: Record<string, string>) => void;
   onNewFile?: () => void;
 }) {
   const inputRef                      = useRef<HTMLInputElement>(null);
@@ -2413,17 +3011,34 @@ function DocumentUploadCard({
   const refillRemark = remarkKey ? getPendingRemark(fieldRemarks ?? {}, remarkKey) : undefined;
 
   function processScanResult(result: OcrResult) {
+    const useful = scanKind === "passport"
+      ? hasUsefulPassportFields(result.extracted_data)
+      : hasUsefulExtractedFields(result.extracted_data);
     if (scanKind) {
       const mismatch = scanKindMismatch(scanKind, result.document_type);
-      if (mismatch) {
+      if (mismatch && !useful) {
         setScanError(mismatch);
         setScanResult(result);
         return;
       }
+      if (mismatch && useful) {
+        setScanError(`${mismatch} Some fields were still filled — please verify them.`);
+      } else {
+        setScanError(result.message ?? null);
+      }
+    } else {
+      setScanError(result.message ?? null);
     }
-    setScanError(result.message ?? null);
     setScanResult(result);
-    onScanComplete?.(result);
+    if (useful) {
+      if (scanKind === "passport" && onScanPatch) {
+        applyPassportOcrPatch(result.extracted_data, onScanPatch);
+      } else {
+        onScanComplete?.(result);
+      }
+    } else if (!scanKind) {
+      onScanComplete?.(result);
+    }
   }
 
   // S3 paths look like "client-document/2026/05/name.pdf" — show only basename
@@ -2510,7 +3125,7 @@ function DocumentUploadCard({
     setScanResult(null);
     setScanError(null);
     try {
-      const { result, error } = await scanDocumentFile(file);
+      const { result, error } = await scanDocumentFile(file, scanKind);
       if (error) {
         setScanError(error);
         return;
@@ -2556,7 +3171,7 @@ function DocumentUploadCard({
     setScanResult(null);
     setScanError(null);
     try {
-      const { result, error } = await scanDocumentFile(uploadedFile);
+      const { result, error } = await scanDocumentFile(uploadedFile, scanKind);
       if (error) {
         setScanError(error);
         return;
@@ -2677,7 +3292,7 @@ function DocumentUploadCard({
                     <div className="absolute bottom-8 right-2 w-5 h-5 border-b-2 border-r-2 border-primary" />
                     <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex items-center gap-1.5 bg-primary text-primary-foreground text-[10px] font-bold px-2.5 py-1 rounded-full whitespace-nowrap shadow-lg">
                       <Loader2 className="h-3 w-3 animate-spin" />
-                      Scanning document… (may take up to 2 min)
+                      Scanning document…
                     </div>
                   </div>
                 </>
@@ -2710,12 +3325,12 @@ function DocumentUploadCard({
                       Choose file or PDF
                     </Button>
                   </div>
-                  <p className="text-[11px] text-muted-foreground/60">JPG, PNG, or PDF — up to 10 MB</p>
+                  <p className="text-[11px] text-muted-foreground/60">JPG, PNG, or PDF — up to 10 MB · PDF page 1 is scanned automatically</p>
                 </>
               ) : (
                 <div className="space-y-1.5">
                   <p className="text-xs font-medium text-muted-foreground">Click to upload</p>
-                  <p className="text-[11px] text-muted-foreground/60">PDF, JPG, PNG — up to 10 MB</p>
+                  <p className="text-[11px] text-muted-foreground/60">PDF, JPG, PNG — up to 10 MB · PDFs are scanned too</p>
                 </div>
               )}
             </div>
@@ -2747,20 +3362,58 @@ function DocumentUploadCard({
           </div>
         )}
 
+        {scanResult?.authenticity && scanResult.authenticity.verdict !== "unknown" && (() => {
+          const tone = authenticityTone(scanResult.authenticity.verdict);
+          const AuthIcon = ["suspicious", "likely_fake"].includes(scanResult.authenticity.verdict)
+            ? ShieldAlert
+            : ShieldCheck;
+          return (
+            <div className={cn("rounded-lg border px-3 py-2 space-y-1", tone.className)}>
+              <p className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide">
+                <AuthIcon className="h-3.5 w-3.5 shrink-0" />
+                {tone.label}
+                {typeof scanResult.authenticity.score === "number" && scanResult.authenticity.score > 0 && (
+                  <span className="font-normal normal-case opacity-80">
+                    · score {Math.round(scanResult.authenticity.score * 100)}%
+                  </span>
+                )}
+              </p>
+              {scanResult.authenticity.summary && (
+                <p className="text-[10px] leading-snug opacity-90">{scanResult.authenticity.summary}</p>
+              )}
+              {(scanResult.authenticity.flags?.length ?? 0) > 0 && (
+                <p className="text-[10px] opacity-80">
+                  Flags: {scanResult.authenticity.flags!.join(", ")}
+                </p>
+              )}
+              <p className="text-[9px] opacity-70">
+                Assistive AI screen only — not a legal authenticity decision. Consultant should verify originals.
+              </p>
+            </div>
+          );
+        })()}
+
         {scanResult && (() => {
           const d = scanResult.extracted_data;
           const fields: Array<[string, string | undefined]> = [
-            ["Name",       d.fullName || undefined],
-            ["DOB",        d.dob || undefined],
-            ["Issue",      d.issueDate || undefined],
-            ["ID / No.",   d.passportNumber || d.idNumber || undefined],
-            ["Expiry",     d.expiryDate || undefined],
-            ["Nationality",d.nationality || undefined],
+            ["Name",        d.fullName || undefined],
+            ["DOB",         d.dob || undefined],
+            ["Issue",       d.issueDate || undefined],
+            ["ID / No.",    d.passportNumber || d.idNumber || undefined],
+            ["Expiry",      d.expiryDate || undefined],
+            ["Nationality", d.nationality || undefined],
+            ["Institution", d.institutionName || undefined],
+            ["Program",     d.degreeName || undefined],
+            ["Grad year",   d.graduationYear || undefined],
+            ["Country",     d.country || undefined],
+            ["Listening",   d.testListening || undefined],
+            ["Reading",     d.testReading || undefined],
+            ["Writing",     d.testWriting || undefined],
+            ["Speaking",    d.testSpeaking || undefined],
           ].filter(([, v]) => !!v) as Array<[string, string]>;
 
           const isPartial = scanResult.status === "partial_success";
           if (fields.length === 0) {
-            // Nothing extracted — show a helpful message
             return (
               <div className="rounded-lg bg-yellow-50 border border-yellow-200 px-3 py-2">
                 <p className="text-[10px] font-semibold text-yellow-700">
@@ -3014,6 +3667,7 @@ function EduQualCard({
         description="Degree, diploma or transcript"
         accept=".pdf,.jpg,.jpeg,.png"
         icon={Upload}
+        scanKind="education"
         fileName={qual.documentName}
         onFileChange={(n) => onChange({ ...qual, documentName: n })}
         onUpload={onUpload}
@@ -3026,6 +3680,8 @@ function EduQualCard({
           if (d.degreeName)          updated.courseName     = d.degreeName;
           if (d.graduationYear)      updated.graduationYear = d.graduationYear;
           else if (d.issueDate)      updated.graduationYear = d.issueDate.slice(0, 4);
+          if (d.country)             updated.country        = d.country;
+          else if (d.nationality)    updated.country        = d.nationality;
           onChange(updated);
         }}
       />
@@ -3158,7 +3814,7 @@ function ReviewStep({
         <RR label="Full Name"           v={data.fullName} />
         <RR label="Email"               v={data.email} />
         <RR label="WhatsApp"            v={data.whatsapp} />
-        <RR label="Visa Type"           v={data.visaType} />
+        {data.visaType ? <RR label="Visa Type" v={data.visaType} /> : null}
         <RR label="Marital Status"      v={data.married === "yes" ? "Married" : data.married === "no" ? "Not Married" : null} />
         <RR label="Dependent Children"  v={data.dependentChildren !== "0" ? data.dependentChildren : null} />
         {data.married === "yes" && <RR label="Spouse Name"          v={data.spouse.fullName} />}
@@ -3182,6 +3838,19 @@ function ReviewStep({
         <RR label="PNP Interest"      v={yesno(data.main.provincialNominationInterest)} />
         <RR label="Prov. Nomination"  v={yesno(data.main.provincialNomination)} />
         <RR label="Work Experience"   v={data.main.workExperience} />
+        {(data.main.foreignWorkEntries ?? []).length > 0 && (
+          <RR
+            label="Foreign jobs"
+            v={(data.main.foreignWorkEntries ?? [])
+              .map((j, i) => {
+                const when = j.currentlyWorking === "yes"
+                  ? `${j.startDate || "?"} – present`
+                  : `${j.startDate || "?"} – ${j.endDate || "?"}`;
+                return `${i + 1}. ${j.jobTitle || "Role"} @ ${j.companyName || "Company"} (${j.country || "?"}, ${when})`;
+              })
+              .join(" · ")}
+          />
+        )}
         <RR label="Canadian Work"     v={yesno(data.main.canadianWork)} />
         {data.main.canadianWork === "yes" && <>
           <RR label="Employer"        v={data.main.canadianWorkEmployer} />
@@ -3215,6 +3884,19 @@ function ReviewStep({
           <RR label="Test Scores"    v={fmtScore(data.spouse.scores)} />
           <RR label="French Test"    v={yesno(data.spouse.frenchTestTaken)} />
           <RR label="Foreign Work"   v={data.spouse.workExperience} />
+          {(data.spouse.foreignWorkEntries ?? []).length > 0 && (
+            <RR
+              label="Foreign jobs"
+              v={(data.spouse.foreignWorkEntries ?? [])
+                .map((j, i) => {
+                  const when = j.currentlyWorking === "yes"
+                    ? `${j.startDate || "?"} – present`
+                    : `${j.startDate || "?"} – ${j.endDate || "?"}`;
+                  return `${i + 1}. ${j.jobTitle || "Role"} @ ${j.companyName || "Company"} (${j.country || "?"}, ${when})`;
+                })
+                .join(" · ")}
+            />
+          )}
           <RR label="Canadian Work"  v={yesno(data.spouse.canadianWork)} />
           {data.spouse.canadianWork === "yes" && <>
             <RR label="Employer"     v={data.spouse.canadianWorkEmployer} />
@@ -3282,6 +3964,12 @@ function PathwayDataChecklist({ data }: { data: FormData }) {
     { ok: (data.main.educationLevels ?? []).length > 0, label: "Main applicant — education level" },
     { ok: data.main.languageTest === "yes" && Object.values(data.main.scores).some(Boolean), label: "Main applicant — English test scores" },
     { ok: !!data.main.workExperience, label: "Main applicant — foreign work experience" },
+    {
+      ok: data.main.workExperience === "none"
+        || data.main.workExperience === ""
+        || (data.main.foreignWorkEntries ?? []).some((j) => j.companyName && j.jobTitle && j.startDate),
+      label: "Main applicant — foreign job details (company & dates)",
+    },
     { ok: !!data.main.intendedNocCode, label: "Main applicant — target NOC code" },
     ...(data.married === "yes"
       ? [
@@ -3460,8 +4148,24 @@ export function QuestionnaireForm() {
               ...prev,
               ...(s.step1_data ?? {}),
               ...(s.step3_data ?? {}),
-              main:         s.main_data         ? { ...prev.main,   ...s.main_data }   : prev.main,
-              spouse:       s.spouse_data       ? { ...prev.spouse, ...s.spouse_data } : prev.spouse,
+              main: s.main_data
+                ? {
+                    ...prev.main,
+                    ...s.main_data,
+                    foreignWorkEntries: Array.isArray((s.main_data as MainData).foreignWorkEntries)
+                      ? (s.main_data as MainData).foreignWorkEntries
+                      : [],
+                  }
+                : prev.main,
+              spouse: s.spouse_data
+                ? {
+                    ...prev.spouse,
+                    ...s.spouse_data,
+                    foreignWorkEntries: Array.isArray((s.spouse_data as SpouseData).foreignWorkEntries)
+                      ? (s.spouse_data as SpouseData).foreignWorkEntries
+                      : [],
+                  }
+                : prev.spouse,
               children:     s.children_data     ?? prev.children,
               accompanying: s.accompanying_data ?? prev.accompanying,
             }));
@@ -3629,7 +4333,6 @@ export function QuestionnaireForm() {
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email))
                                     e.email    = "Enter a valid email address.";
     if (!formData.whatsapp.trim())  e.whatsapp = "WhatsApp number is required.";
-    if (!formData.visaType)         e.visaType = "Please select a visa type.";
     if (!formData.married)          e.married  = "Please select your marital status.";
     setErrors(e);
     return Object.keys(e).length === 0;
@@ -3689,9 +4392,15 @@ export function QuestionnaireForm() {
   function setMain(f: keyof MainData, v: any) {
     setFormData((p) => ({ ...p, main: { ...p.main, [f]: v } }));
   }
+  function setMainPatch(patch: Record<string, string>) {
+    setFormData((p) => ({ ...p, main: { ...p.main, ...patch } }));
+  }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   function setSpouse(f: keyof SpouseData, v: any) {
     setFormData((p) => ({ ...p, spouse: { ...p.spouse, [f]: v } }));
+  }
+  function setSpousePatch(patch: Record<string, string>) {
+    setFormData((p) => ({ ...p, spouse: { ...p.spouse, ...patch } }));
   }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   function setChild(i: number, f: keyof ChildData, v: any) {
@@ -3701,11 +4410,25 @@ export function QuestionnaireForm() {
       return { ...p, children };
     });
   }
+  function setChildPatch(i: number, patch: Record<string, string>) {
+    setFormData((p) => {
+      const children = [...p.children];
+      children[i] = { ...children[i], ...patch };
+      return { ...p, children };
+    });
+  }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   function setAccompanying(i: number, f: keyof AccompanyingPerson, v: any) {
     setFormData((p) => {
       const accompanying = [...p.accompanying];
       accompanying[i] = { ...accompanying[i], [f]: v };
+      return { ...p, accompanying };
+    });
+  }
+  function setAccompanyingPatch(i: number, patch: Record<string, string>) {
+    setFormData((p) => {
+      const accompanying = [...p.accompanying];
+      accompanying[i] = { ...accompanying[i], ...patch };
       return { ...p, accompanying };
     });
   }
@@ -3817,6 +4540,7 @@ export function QuestionnaireForm() {
                 <MainApplicantTab
                   data={formData.main}
                   onChange={setMain}
+                  onPatch={setMainPatch}
                   onDocUpload={handleDocUpload}
                   fieldRemarks={fieldRemarks}
                 />
@@ -3825,6 +4549,7 @@ export function QuestionnaireForm() {
                 <SpouseTab
                   data={formData.spouse}
                   onChange={setSpouse}
+                  onPatch={setSpousePatch}
                   onDocUpload={handleDocUpload}
                   fieldRemarks={fieldRemarks}
                 />
@@ -3834,6 +4559,7 @@ export function QuestionnaireForm() {
                   <ChildSingleTab
                     data={child}
                     onChange={(f, v) => setChild(i, f, v)}
+                    onPatch={(patch) => setChildPatch(i, patch)}
                     onDocUpload={handleDocUpload}
                     fieldRemarks={fieldRemarks}
                     childIndex={i}
@@ -3845,6 +4571,7 @@ export function QuestionnaireForm() {
                   <AccompanyingPersonSingleTab
                     data={person}
                     onChange={(f, v) => setAccompanying(i, f, v)}
+                    onPatch={(patch) => setAccompanyingPatch(i, patch)}
                     onDocUpload={handleDocUpload}
                     fieldRemarks={fieldRemarks}
                     personIndex={i}

@@ -71,6 +71,10 @@ return [
         'url'     => env('OCR_SERVICE_URL', 'http://127.0.0.1:8001/api/v1'),
         // EasyOCR on CPU can exceed 60s (cold start + large phone photos).
         'timeout' => (int) env('OCR_SCAN_TIMEOUT', 300),
+        // Prefer OpenAI Vision (same OPENAI_API_KEY as legislation) when available.
+        'openai_enabled' => filter_var(env('DOCUMENT_OCR_OPENAI_ENABLED', true), FILTER_VALIDATE_BOOL),
+        'openai_model'   => env('DOCUMENT_OCR_OPENAI_MODEL', env('LEGISLATION_OPENAI_MODEL', 'gpt-4o-mini')),
+        'openai_timeout' => (int) env('DOCUMENT_OCR_OPENAI_TIMEOUT', 60),
     ],
 
     'openai' => [

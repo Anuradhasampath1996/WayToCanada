@@ -62,11 +62,47 @@ def extract_text(image: np.ndarray) -> tuple[str, float]:
         batch_size=4,
     )
 
+    return _format_ocr_results(results)
+
+
+def extract_mrz_region_text(image: np.ndarray) -> tuple[str, float]:
+    """
+    OCR only the bottom ~32% of a passport image (MRZ strip).
+
+    Uses a character allowlist matching ICAO OCR-B MRZ glyphs so EasyOCR
+    is much more accurate and faster on the machine-readable zone.
+    """
+    import cv2
+
+    if image is None or image.size == 0:
+        return "", 0.0
+
+    h = int(image.shape[0])
+    y0 = max(0, int(h * 0.68))
+    crop = image[y0:, :]
+    if crop.size == 0:
+        return "", 0.0
+
+    # Upscale MRZ strip — thin OCR-B characters need more pixels
+    crop = cv2.resize(crop, None, fx=2.2, fy=2.2, interpolation=cv2.INTER_CUBIC)
+
+    reader = get_ocr_engine()
+    results: list[tuple] = reader.readtext(
+        crop,
+        detail=1,
+        paragraph=False,
+        allowlist="ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789<",
+        width_ths=0.95,
+        batch_size=4,
+    )
+    return _format_ocr_results(results)
+
+
+def _format_ocr_results(results: list[tuple]) -> tuple[str, float]:
     if not results:
         return "", 0.0
 
-    # Sort top-to-bottom, left-to-right (by the top-left corner of each bbox)
-    results.sort(key=lambda r: (r[0][0][1], r[0][0][0]))
+    results = sorted(results, key=lambda r: (r[0][0][1], r[0][0][0]))
 
     lines: list[str] = []
     confidences: list[float] = []

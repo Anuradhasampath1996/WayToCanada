@@ -1,21 +1,39 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import {
-  Loader2, MessageSquare, Plus, Search, ThumbsUp, Paperclip, Flag,
-  Trash2, Download, ChevronLeft, Users, Eye, FileText, ImageIcon,
+  Loader2,
+  MessageSquare,
+  Search,
+  ThumbsUp,
+  Paperclip,
+  Flag,
+  Trash2,
+  Download,
+  Users,
+  FileText,
+  ImageIcon,
+  Send,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { RichTextEditorDemo } from "@/components/ui/custom/tiptap/rich-text-editor";
 import { cn } from "@/lib/utils";
+
+import "./rcic-community.css";
 
 const API = (process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000") + "/api/v1";
 
@@ -55,16 +73,99 @@ function authHeaders(json = true): Record<string, string> {
   };
 }
 
-function fmtDate(iso: string) {
-  return new Date(iso).toLocaleString("en-CA", {
-    month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit",
-  });
+function initials(name: string) {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((p) => p[0]?.toUpperCase() ?? "")
+    .join("") || "?";
+}
+
+function avatarTone(name: string) {
+  const tones = [
+    "bg-primary/15 text-primary",
+    "bg-sky-500/15 text-sky-700 dark:text-sky-300",
+    "bg-violet-500/15 text-violet-700 dark:text-violet-300",
+    "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300",
+    "bg-amber-500/15 text-amber-800 dark:text-amber-300",
+  ];
+  const idx = name.split("").reduce((sum, c) => sum + c.charCodeAt(0), 0) % tones.length;
+  return tones[idx];
+}
+
+function timeAgo(iso: string) {
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diff / 60_000);
+  if (mins < 1) return "Just now";
+  if (mins < 60) return `${mins}m`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days}d`;
+  return new Date(iso).toLocaleDateString("en-CA", { month: "short", day: "numeric" });
 }
 
 function fmtSize(bytes: number | null) {
   if (!bytes) return "";
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function richTextHasContent(value: string) {
+  return value
+    .replace(/<[^>]*>/g, "")
+    .replace(/&nbsp;|&#160;/gi, " ")
+    .trim().length > 0;
+}
+
+function sanitizeCommunityHtml(value: string) {
+  if (typeof window === "undefined" || !value.includes("<")) return value;
+
+  const doc = new DOMParser().parseFromString(value, "text/html");
+  const allowedTags = new Set([
+    "P", "BR", "STRONG", "B", "EM", "I", "U", "S", "H1", "H2", "H3", "H4",
+    "UL", "OL", "LI", "BLOCKQUOTE", "CODE", "PRE", "A", "SPAN", "MARK", "HR",
+    "SUB", "SUP",
+  ]);
+  const blockedTags = new Set(["SCRIPT", "STYLE", "IFRAME", "OBJECT", "EMBED", "FORM", "SVG", "MATH"]);
+
+  Array.from(doc.body.querySelectorAll("*")).forEach((element) => {
+    if (blockedTags.has(element.tagName)) {
+      element.remove();
+      return;
+    }
+    if (!allowedTags.has(element.tagName)) {
+      element.replaceWith(...Array.from(element.childNodes));
+      return;
+    }
+
+    Array.from(element.attributes).forEach((attribute) => {
+      const name = attribute.name.toLowerCase();
+      if (element.tagName === "A" && name === "href") {
+        if (!/^(https?:|mailto:)/i.test(attribute.value)) element.removeAttribute(attribute.name);
+        return;
+      }
+      if (name === "style") {
+        const safeStyles = attribute.value
+          .split(";")
+          .map((rule) => rule.trim())
+          .filter((rule) => /^(color|background-color|text-align)\s*:/i.test(rule))
+          .join("; ");
+        if (safeStyles) element.setAttribute("style", safeStyles);
+        else element.removeAttribute("style");
+        return;
+      }
+      element.removeAttribute(attribute.name);
+    });
+
+    if (element.tagName === "A" && element.hasAttribute("href")) {
+      element.setAttribute("target", "_blank");
+      element.setAttribute("rel", "noopener noreferrer");
+    }
+  });
+
+  return doc.body.innerHTML;
 }
 
 type AttachmentKind = "image" | "pdf" | "other";
@@ -75,6 +176,22 @@ function attachmentKind(mime: string | null, name: string | null): AttachmentKin
   if (m.startsWith("image/") || /\.(jpe?g|png|gif|webp|bmp)$/.test(n)) return "image";
   if (m === "application/pdf" || n.endsWith(".pdf")) return "pdf";
   return "other";
+}
+
+function AuthorAvatar({ author, size = "md" }: { author: Author; size?: "sm" | "md" | "lg" }) {
+  return (
+    <span
+      className={cn(
+        "inline-flex shrink-0 items-center justify-center rounded-full font-bold",
+        size === "sm" && "size-8 text-[11px]",
+        size === "md" && "size-10 text-sm",
+        size === "lg" && "size-11 text-sm",
+        avatarTone(author.name || "?"),
+      )}
+    >
+      {initials(author.name || "?")}
+    </span>
+  );
 }
 
 function PostAttachmentBlock({
@@ -118,17 +235,13 @@ function PostAttachmentBlock({
         blobRef.current = objectUrl;
         setBlobUrl(objectUrl);
       } catch {
-        if (active) {
-          setBlobUrl(null);
-          onError("Could not preview attachment.");
-        }
+        if (active) onError("Could not load attachment preview.");
       } finally {
         if (active) setLoading(false);
       }
     };
 
     void load();
-
     return () => {
       active = false;
       if (blobRef.current) {
@@ -138,35 +251,28 @@ function PostAttachmentBlock({
     };
   }, [post.id, post.has_attachment, kind, onError]);
 
+  if (!post.has_attachment) return null;
+
   if (kind === "image") {
     return (
-      <div className="overflow-hidden rounded-xl border border-border/60 bg-muted/10 shadow-sm">
-        <div className="relative flex min-h-[160px] items-center justify-center bg-gradient-to-b from-muted/30 to-muted/10 p-2">
-          {loading ? (
-            <Loader2 className="size-8 animate-spin text-muted-foreground" />
-          ) : blobUrl ? (
-            <img
-              src={blobUrl}
-              alt={name}
-              className="max-h-[min(420px,55vh)] w-full rounded-lg object-contain"
-            />
-          ) : (
-            <div className="flex flex-col items-center gap-2 py-8 text-muted-foreground">
-              <ImageIcon className="size-10 opacity-40" />
-              <p className="text-xs">Preview unavailable</p>
-            </div>
-          )}
-        </div>
-        <div className="flex flex-col gap-2 border-t border-border/50 bg-background/80 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between">
-          <div className="min-w-0">
-            <p className="text-sm font-medium break-words">{name}</p>
-            {post.attachment_size ? (
-              <p className="text-xs text-muted-foreground">{fmtSize(post.attachment_size)}</p>
-            ) : null}
+      <div className="overflow-hidden rounded-xl border border-border/50 bg-muted/20">
+        {loading && (
+          <div className="flex h-40 items-center justify-center text-muted-foreground">
+            <Loader2 className="size-5 animate-spin" />
           </div>
-          <Button variant="outline" size="sm" className="h-9 w-full shrink-0 gap-1.5 sm:w-auto" onClick={onDownload}>
-            <Download className="size-4" />
-            Download
+        )}
+        {blobUrl && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={blobUrl} alt={name} className="max-h-[420px] w-full object-contain bg-black/5" />
+        )}
+        <div className="flex items-center justify-between gap-2 border-t border-border/40 px-3 py-2">
+          <span className="truncate text-xs text-muted-foreground">
+            <ImageIcon className="mr-1 inline size-3.5" />
+            {name}
+            {post.attachment_size ? ` · ${fmtSize(post.attachment_size)}` : ""}
+          </span>
+          <Button type="button" variant="ghost" size="sm" className="h-7 text-xs" onClick={onDownload}>
+            <Download className="mr-1 size-3.5" /> Download
           </Button>
         </div>
       </div>
@@ -175,70 +281,241 @@ function PostAttachmentBlock({
 
   if (kind === "pdf") {
     return (
-      <>
-        <div className="flex flex-col gap-3 rounded-xl border border-border/60 bg-muted/10 p-3 sm:flex-row sm:flex-wrap sm:items-center">
-          <span className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-red-500/10 text-red-600">
+      <div className="overflow-hidden rounded-xl border border-border/50 bg-muted/20">
+        <button
+          type="button"
+          className="flex w-full items-center gap-3 px-3 py-3 text-left hover:bg-muted/40"
+          onClick={() => setPdfOpen(true)}
+        >
+          <span className="flex size-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
             <FileText className="size-5" />
           </span>
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-medium break-words">{name}</p>
-            {post.attachment_size ? (
-              <p className="text-xs text-muted-foreground">{fmtSize(post.attachment_size)} · PDF</p>
-            ) : (
-              <p className="text-xs text-muted-foreground">PDF document</p>
-            )}
-          </div>
-          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
-            <Button
-              size="sm"
-              className="h-9 w-full gap-1.5 sm:w-auto"
-              disabled={loading || !blobUrl}
-              onClick={() => setPdfOpen(true)}
-            >
-              {loading ? <Loader2 className="size-4 animate-spin" /> : <Eye className="size-4" />}
-              View
-            </Button>
-            <Button variant="outline" size="sm" className="h-9 w-full gap-1.5 sm:w-auto" onClick={onDownload}>
-              <Download className="size-4" />
-              Download
-            </Button>
-          </div>
-        </div>
-
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-sm font-medium">{name}</span>
+            <span className="text-xs text-muted-foreground">
+              PDF{post.attachment_size ? ` · ${fmtSize(post.attachment_size)}` : ""} · Tap to preview
+            </span>
+          </span>
+        </button>
         <Dialog open={pdfOpen} onOpenChange={setPdfOpen}>
-          <DialogContent className="flex max-h-[92vh] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-4xl">
+          <DialogContent className="max-h-[90vh] max-w-3xl overflow-hidden p-0">
             <DialogHeader className="border-b px-4 py-3">
-              <DialogTitle className="truncate pr-8 text-sm font-medium break-words sm:text-base">{name}</DialogTitle>
+              <DialogTitle className="truncate text-base">{name}</DialogTitle>
             </DialogHeader>
             {blobUrl ? (
-              <iframe
-                title={name}
-                src={blobUrl}
-                className="h-[min(70vh,32rem)] w-full bg-muted/20 sm:h-[min(78vh,820px)]"
-              />
+              <iframe src={blobUrl} title={name} className="h-[70vh] w-full" />
             ) : (
-              <div className="flex items-center justify-center py-16 text-sm text-muted-foreground">
-                PDF preview unavailable
+              <div className="flex h-40 items-center justify-center">
+                <Loader2 className="size-5 animate-spin" />
               </div>
             )}
             <DialogFooter className="border-t px-4 py-3">
-              <Button variant="outline" className="h-9 w-full sm:w-auto" onClick={onDownload}>
-                <Download className="mr-2 size-4" />
-                Download
+              <Button type="button" variant="outline" onClick={onDownload}>
+                <Download className="mr-1.5 size-4" /> Download
               </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
-      </>
+      </div>
     );
   }
 
   return (
-    <Button variant="outline" size="sm" className="h-9 w-full gap-2 break-words sm:w-auto" onClick={onDownload}>
-      <Download className="size-4" />
+    <Button type="button" variant="outline" className="h-10 gap-2 rounded-xl" onClick={onDownload}>
+      <Paperclip className="size-4" />
       {name}
       {post.attachment_size ? ` (${fmtSize(post.attachment_size)})` : ""}
     </Button>
+  );
+}
+
+function FeedPostCard({
+  post,
+  expanded,
+  replies,
+  repliesLoading,
+  replyText,
+  replying,
+  onToggleExpand,
+  onReact,
+  onReplyChange,
+  onSubmitReply,
+  onReport,
+  onDelete,
+  onDownload,
+  onError,
+}: {
+  post: Post;
+  expanded: boolean;
+  replies: Reply[];
+  repliesLoading: boolean;
+  replyText: string;
+  replying: boolean;
+  onToggleExpand: () => void;
+  onReact: () => void;
+  onReplyChange: (v: string) => void;
+  onSubmitReply: () => void;
+  onReport: () => void;
+  onDelete: () => void;
+  onDownload: () => void;
+  onError: (msg: string) => void;
+}) {
+  return (
+    <article className="rcic-feed-card overflow-hidden rounded-2xl border border-border/60 bg-card shadow-sm">
+      <div className="flex items-start gap-3 px-4 pt-4 sm:px-5 sm:pt-5">
+        <AuthorAvatar author={post.author} size="lg" />
+        <div className="min-w-0 flex-1">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <p className="truncate font-semibold leading-tight">{post.author.name}</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                {post.author.company_name || "RCIC"}
+                {post.author.rcic_number ? ` · ${post.author.rcic_number}` : ""}
+                {" · "}
+                <span title={new Date(post.created_at).toLocaleString()}>{timeAgo(post.created_at)}</span>
+              </p>
+            </div>
+            <div className="flex shrink-0 items-center gap-0.5">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="size-8 text-muted-foreground"
+                onClick={onReport}
+                aria-label="Report post"
+              >
+                <Flag className="size-3.5" />
+              </Button>
+              {post.is_mine ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="size-8 text-muted-foreground hover:text-destructive"
+                  onClick={onDelete}
+                  aria-label="Delete post"
+                >
+                  <Trash2 className="size-3.5" />
+                </Button>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="space-y-3 px-4 py-3 sm:px-5">
+        <h3 className="text-[17px] font-bold leading-snug tracking-tight">{post.title}</h3>
+        {post.body.includes("<") ? (
+          <div
+            className="rcic-rich-content text-[15px] leading-relaxed text-foreground/90"
+            dangerouslySetInnerHTML={{ __html: sanitizeCommunityHtml(post.body) }}
+          />
+        ) : (
+          <p className="whitespace-pre-line text-[15px] leading-relaxed text-foreground/90">{post.body}</p>
+        )}
+        {post.has_attachment && post.attachment_name ? (
+          <PostAttachmentBlock post={post} onDownload={onDownload} onError={onError} />
+        ) : null}
+      </div>
+
+      <div className="flex items-center justify-between gap-3 border-t border-border/40 px-4 py-2 text-xs text-muted-foreground sm:px-5">
+        <span className="inline-flex items-center gap-1.5">
+          <span className="flex size-5 items-center justify-center rounded-full bg-primary/15 text-primary">
+            <ThumbsUp className="size-3" />
+          </span>
+          {post.reactions_count} helpful
+        </span>
+        <button type="button" className="hover:underline" onClick={onToggleExpand}>
+          {post.replies_count} {post.replies_count === 1 ? "comment" : "comments"}
+        </button>
+      </div>
+
+      <div className="grid grid-cols-2 border-t border-border/40">
+        <button
+          type="button"
+          onClick={onReact}
+          className={cn(
+            "flex h-11 items-center justify-center gap-2 text-sm font-medium transition-colors hover:bg-muted/40",
+            post.reacted ? "text-primary" : "text-muted-foreground",
+          )}
+        >
+          <ThumbsUp className={cn("size-4", post.reacted && "fill-current")} />
+          Helpful
+        </button>
+        <button
+          type="button"
+          onClick={onToggleExpand}
+          className="flex h-11 items-center justify-center gap-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted/40"
+        >
+          <MessageSquare className="size-4" />
+          Comment
+        </button>
+      </div>
+
+      {expanded ? (
+        <div className="space-y-3 border-t border-border/40 bg-muted/15 px-4 py-4 sm:px-5">
+          {repliesLoading ? (
+            <div className="flex items-center gap-2 py-3 text-sm text-muted-foreground">
+              <Loader2 className="size-4 animate-spin" /> Loading comments…
+            </div>
+          ) : (
+            <ul className="space-y-3">
+              {replies.map((r) => (
+                <li key={r.id} className="flex gap-2.5">
+                  <AuthorAvatar author={r.author} size="sm" />
+                  <div className="min-w-0 flex-1">
+                    <div className="rounded-2xl bg-background px-3.5 py-2.5 shadow-sm ring-1 ring-border/50">
+                      <p className="text-xs font-semibold">
+                        {r.author.name}
+                        <span className="ml-1.5 font-normal text-muted-foreground">{timeAgo(r.created_at)}</span>
+                      </p>
+                      <p className="mt-1 whitespace-pre-line text-sm leading-relaxed">{r.body}</p>
+                    </div>
+                    {!r.is_mine ? (
+                      <button
+                        type="button"
+                        className="mt-1 ml-2 text-[11px] font-medium text-muted-foreground hover:text-foreground"
+                        onClick={onReport}
+                      >
+                        Report
+                      </button>
+                    ) : null}
+                  </div>
+                </li>
+              ))}
+              {replies.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No comments yet — start the conversation.</p>
+              ) : null}
+            </ul>
+          )}
+
+          <div className="flex items-start gap-2.5 pt-1">
+            <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[11px] font-bold text-primary">
+              You
+            </span>
+            <div className="min-w-0 flex-1 space-y-2">
+              <Textarea
+                value={replyText}
+                onChange={(e) => onReplyChange(e.target.value)}
+                placeholder="Write a comment…"
+                className="min-h-[72px] resize-none rounded-2xl bg-background"
+              />
+              <div className="flex justify-end">
+                <Button
+                  size="sm"
+                  className="h-8 rounded-full px-4"
+                  disabled={replying || !replyText.trim()}
+                  onClick={onSubmitReply}
+                >
+                  {replying ? <Loader2 className="mr-1.5 size-3.5 animate-spin" /> : <Send className="mr-1.5 size-3.5" />}
+                  Post
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </article>
   );
 }
 
@@ -246,24 +523,28 @@ export function RcicCommunityClient() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const deepLinkHandled = useRef(false);
+
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [error, setError] = useState("");
-  const [selected, setSelected] = useState<Post | null>(null);
-  const [replies, setReplies] = useState<Reply[]>([]);
-  const [detailLoading, setDetailLoading] = useState(false);
-  const [replyText, setReplyText] = useState("");
-  const [replying, setReplying] = useState(false);
-  const [composeOpen, setComposeOpen] = useState(false);
+  const [toast, setToast] = useState("");
+
+  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [repliesByPost, setRepliesByPost] = useState<Record<number, Reply[]>>({});
+  const [repliesLoadingId, setRepliesLoadingId] = useState<number | null>(null);
+  const [replyDrafts, setReplyDrafts] = useState<Record<number, string>>({});
+  const [replyingId, setReplyingId] = useState<number | null>(null);
+
+  const [composerOpen, setComposerOpen] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [newBody, setNewBody] = useState("");
   const [newFile, setNewFile] = useState<File | null>(null);
   const [posting, setPosting] = useState(false);
+
   const [reportOpen, setReportOpen] = useState<{ type: "post" | "reply"; id: number } | null>(null);
   const [reportReason, setReportReason] = useState("");
   const [reporting, setReporting] = useState(false);
-  const [toast, setToast] = useState("");
 
   const showToast = useCallback((msg: string) => {
     setToast(msg);
@@ -274,12 +555,15 @@ export function RcicCommunityClient() {
     setLoading(true);
     setError("");
     try {
-      const params = new URLSearchParams({ per_page: "20" });
+      const params = new URLSearchParams({ per_page: "30" });
       if (search.trim()) params.set("search", search.trim());
       const res = await fetch(`${API}/consultant/rcic-community/posts?${params}`, { headers: authHeaders() });
       const json = await res.json();
       if (!res.ok) throw new Error(json?.message ?? "Failed to load posts.");
-      setPosts(json.data ?? []);
+      const list: Post[] = json.data ?? [];
+      // Newest posts always first
+      list.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      setPosts(list);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Failed to load posts.");
     } finally {
@@ -300,71 +584,48 @@ export function RcicCommunityClient() {
     });
   }, []);
 
-  const openPost = async (post: Post) => {
-    setSelected(post);
-    setDetailLoading(true);
-    setReplies([]);
+  const loadReplies = useCallback(async (postId: number) => {
+    setRepliesLoadingId(postId);
     try {
-      const res = await fetch(`${API}/consultant/rcic-community/posts/${post.id}`, { headers: authHeaders() });
+      const res = await fetch(`${API}/consultant/rcic-community/posts/${postId}`, { headers: authHeaders() });
       const json = await res.json();
-      if (!res.ok) throw new Error(json?.message ?? "Failed to load post.");
-      setSelected(json.data.post);
-      setReplies(json.data.replies ?? []);
+      if (!res.ok) throw new Error(json?.message ?? "Failed to load comments.");
+      setRepliesByPost((prev) => ({ ...prev, [postId]: json.data.replies ?? [] }));
+      if (json.data?.post) {
+        setPosts((list) => list.map((p) => (p.id === postId ? { ...p, ...json.data.post } : p)));
+      }
     } catch (e: unknown) {
-      showToast(e instanceof Error ? e.message : "Could not open post.");
-      setSelected(null);
+      showToast(e instanceof Error ? e.message : "Could not load comments.");
     } finally {
-      setDetailLoading(false);
+      setRepliesLoadingId(null);
     }
-  };
+  }, [showToast]);
+
+  const toggleExpand = useCallback(async (postId: number) => {
+    if (expandedId === postId) {
+      setExpandedId(null);
+      return;
+    }
+    setExpandedId(postId);
+    if (!repliesByPost[postId]) {
+      await loadReplies(postId);
+    }
+  }, [expandedId, repliesByPost, loadReplies]);
 
   useEffect(() => {
     const postId = searchParams.get("post");
-    if (!postId || deepLinkHandled.current) return;
-
-    const match = posts.find((p) => String(p.id) === postId);
-    if (match) {
-      deepLinkHandled.current = true;
-      void openPost(match);
-      return;
-    }
-
-    if (loading) return;
-
+    if (!postId || deepLinkHandled.current || loading) return;
     deepLinkHandled.current = true;
-    setSelected({
-      id: Number(postId),
-      title: "",
-      body: "",
-      reactions_count: 0,
-      replies_count: 0,
-      has_attachment: false,
-      attachment_name: null,
-      attachment_mime: null,
-      attachment_size: null,
-      reacted: false,
-      is_mine: false,
-      created_at: new Date().toISOString(),
-      author: { id: 0, name: "", rcic_number: null, company_name: null },
+    const id = Number(postId);
+    setExpandedId(id);
+    void loadReplies(id);
+    requestAnimationFrame(() => {
+      document.getElementById(`rcic-post-${id}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
     });
-    void (async () => {
-      setDetailLoading(true);
-      try {
-        const res = await fetch(`${API}/consultant/rcic-community/posts/${postId}`, { headers: authHeaders() });
-        const json = await res.json();
-        if (!res.ok) throw new Error(json?.message ?? "Post not found.");
-        setSelected(json.data.post);
-        setReplies(json.data.replies ?? []);
-      } catch (e: unknown) {
-        showToast(e instanceof Error ? e.message : "Post not found.");
-      } finally {
-        setDetailLoading(false);
-      }
-    })();
-  }, [searchParams, posts, loading, showToast]);
+  }, [searchParams, loading, loadReplies]);
 
   const submitPost = async () => {
-    if (!newTitle.trim() || !newBody.trim()) return;
+    if (!newTitle.trim() || !richTextHasContent(newBody)) return;
     setPosting(true);
     try {
       const form = new FormData();
@@ -378,12 +639,17 @@ export function RcicCommunityClient() {
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json?.message ?? "Failed to publish.");
-      setComposeOpen(false);
+      setComposerOpen(false);
       setNewTitle("");
       setNewBody("");
       setNewFile(null);
-      showToast("Post published!");
-      await loadPosts();
+      showToast("Posted to the community!");
+      // New post appears at the top of the feed immediately
+      if (json.data) {
+        setPosts((list) => [json.data as Post, ...list.filter((p) => p.id !== json.data.id)]);
+      } else {
+        await loadPosts();
+      }
     } catch (e: unknown) {
       showToast(e instanceof Error ? e.message : "Failed to publish.");
     } finally {
@@ -391,25 +657,30 @@ export function RcicCommunityClient() {
     }
   };
 
-  const submitReply = async () => {
-    if (!selected || !replyText.trim()) return;
-    setReplying(true);
+  const submitReply = async (postId: number) => {
+    const text = (replyDrafts[postId] ?? "").trim();
+    if (!text) return;
+    setReplyingId(postId);
     try {
-      const res = await fetch(`${API}/consultant/rcic-community/posts/${selected.id}/replies`, {
+      const res = await fetch(`${API}/consultant/rcic-community/posts/${postId}/replies`, {
         method: "POST",
         headers: authHeaders(),
-        body: JSON.stringify({ body: replyText.trim() }),
+        body: JSON.stringify({ body: text }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json?.message ?? "Failed to reply.");
-      setReplies((r) => [...r, json.data]);
-      setReplyText("");
-      setSelected((p) => p ? { ...p, replies_count: p.replies_count + 1 } : p);
-      setPosts((list) => list.map((p) => (p.id === selected.id ? { ...p, replies_count: p.replies_count + 1 } : p)));
+      setRepliesByPost((prev) => ({
+        ...prev,
+        [postId]: [...(prev[postId] ?? []), json.data],
+      }));
+      setReplyDrafts((prev) => ({ ...prev, [postId]: "" }));
+      setPosts((list) =>
+        list.map((p) => (p.id === postId ? { ...p, replies_count: p.replies_count + 1 } : p)),
+      );
     } catch (e: unknown) {
       showToast(e instanceof Error ? e.message : "Failed to reply.");
     } finally {
-      setReplying(false);
+      setReplyingId(null);
     }
   };
 
@@ -422,13 +693,13 @@ export function RcicCommunityClient() {
       });
       const json = await res.json();
       if (!res.ok) throw new Error();
-      const update = (p: Post): Post => ({
-        ...p,
-        reacted: json.reacted,
-        reactions_count: json.reactions_count,
-      });
-      setPosts((list) => list.map((p) => (p.id === post.id ? update(p) : p)));
-      if (selected?.id === post.id) setSelected(update(selected));
+      setPosts((list) =>
+        list.map((p) =>
+          p.id === post.id
+            ? { ...p, reacted: json.reacted, reactions_count: json.reactions_count }
+            : p,
+        ),
+      );
     } catch {
       showToast("Could not update reaction.");
     }
@@ -467,8 +738,8 @@ export function RcicCommunityClient() {
         headers: authHeaders(),
       });
       if (!res.ok) throw new Error();
-      setSelected(null);
-      await loadPosts();
+      setPosts((list) => list.filter((p) => p.id !== post.id));
+      if (expandedId === post.id) setExpandedId(null);
       showToast("Post deleted.");
     } catch {
       showToast("Could not delete post.");
@@ -493,235 +764,185 @@ export function RcicCommunityClient() {
     URL.revokeObjectURL(url);
   };
 
-  const postIdFromUrl = searchParams.get("post");
-  const showPostDetail = selected !== null || (postIdFromUrl !== null && deepLinkHandled.current);
+  const activeCount = useMemo(() => posts.length, [posts]);
 
   return (
-    <div className="min-w-0 space-y-4 overflow-x-hidden pb-8 sm:space-y-6 sm:pb-10">
-      {toast && (
+    <div className="rcic-community-page min-w-0 w-full space-y-4 overflow-x-hidden pb-10">
+      {toast ? (
         <div className="fixed top-4 right-3 left-3 z-50 rounded-xl border bg-background px-4 py-2 text-sm shadow-lg sm:left-auto sm:max-w-sm">
           {toast}
         </div>
-      )}
+      ) : null}
 
-      <section className="rounded-2xl border border-border/70 bg-gradient-to-br from-background via-background to-emerald-500/5 p-4 shadow-sm sm:p-5">
-        <div className="flex flex-col gap-3 sm:gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div className="min-w-0">
-            <h1 className="flex items-center gap-2 text-xl font-bold tracking-tight sm:text-2xl">
-              <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-700 sm:size-10">
-                <Users className="size-4 sm:size-5" />
-              </span>
-              RCIC Community
-            </h1>
-            <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-              A private peer space for RCICMASTER consultants — ask questions, share experience, and learn from colleagues.
-            </p>
+      <section className="rcic-community-hero overflow-hidden rounded-2xl border border-border/50 shadow-sm">
+        <div className="relative px-4 py-5 sm:px-5">
+          <div className="relative z-[1] flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex min-w-0 items-start gap-3">
+              <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-sm">
+                <Users className="size-5" />
+              </div>
+              <div className="min-w-0">
+                <h1 className="text-xl font-bold tracking-tight sm:text-2xl">RCIC Community</h1>
+                <p className="mt-0.5 text-sm text-muted-foreground">
+                  Ongoing peer conversation — ask, advise, and stay in the loop.
+                </p>
+              </div>
+            </div>
+            {!loading && activeCount > 0 ? (
+              <Badge variant="secondary" className="w-fit rounded-lg font-normal">
+                {activeCount} active posts
+              </Badge>
+            ) : null}
           </div>
-          <Button className="h-10 w-full rounded-xl sm:w-auto" onClick={() => setComposeOpen(true)}>
-            <Plus className="mr-2 size-4" />
-            New post
-          </Button>
         </div>
       </section>
 
-      {!showPostDetail ? (
-        <Card className="border-border/70">
-          <CardHeader className="border-b border-border/50 p-4 pb-4 sm:p-6">
-            <div className="flex flex-wrap gap-2">
-              <div className="relative min-w-0 flex-1">
-                <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  className="h-10 w-full rounded-xl pl-9"
-                  placeholder="Search posts…"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                />
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="p-0">
-            {loading ? (
-              <div className="flex justify-center py-16 text-muted-foreground">
-                <Loader2 className="mr-2 size-5 animate-spin" /> Loading…
-              </div>
-            ) : error ? (
-              <p className="p-4 text-sm text-destructive break-words sm:p-6">{error}</p>
-            ) : posts.length === 0 ? (
-              <p className="p-6 text-center text-sm text-muted-foreground sm:p-8">
-                No posts yet. Be the first to start a conversation.
-              </p>
-            ) : (
-              <ul className="divide-y divide-border/50">
-                {posts.map((post) => (
-                  <li key={post.id}>
-                    <button
-                      type="button"
-                      className="w-full px-4 py-4 text-left transition-colors hover:bg-muted/30 sm:px-5"
-                      onClick={() => void openPost(post)}
-                    >
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="font-semibold leading-tight break-words">{post.title}</p>
-                        {post.has_attachment && (
-                          <Badge variant="outline" className="shrink-0 gap-1 text-[10px]">
-                            <Paperclip className="size-3" /> File
-                          </Badge>
-                        )}
-                      </div>
-                      <p className="mt-1 line-clamp-2 text-sm text-muted-foreground break-words">{post.body}</p>
-                      <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                        <span className="break-words">{post.author.name}{post.author.rcic_number ? ` · ${post.author.rcic_number}` : ""}</span>
-                        <span className="shrink-0">{fmtDate(post.created_at)}</span>
-                        <span className="flex shrink-0 items-center gap-1">
-                          <ThumbsUp className="size-3" /> {post.reactions_count}
-                        </span>
-                        <span className="flex shrink-0 items-center gap-1">
-                          <MessageSquare className="size-3" /> {post.replies_count}
-                        </span>
-                      </div>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </CardContent>
-        </Card>
+      {/* Composer — Facebook-style */}
+      <div className="rounded-2xl border border-border/60 bg-card p-4 shadow-sm">
+        <button
+          type="button"
+          onClick={() => setComposerOpen(true)}
+          className="flex w-full items-center gap-3 text-left"
+        >
+          <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
+            You
+          </span>
+          <span className="flex h-11 min-w-0 flex-1 items-center rounded-full bg-muted/50 px-4 text-sm text-muted-foreground transition-colors hover:bg-muted">
+            What&apos;s on your mind, colleague?
+          </span>
+        </button>
+        <div className="mt-3 flex items-center justify-between border-t border-border/40 pt-3">
+          <span className="text-xs text-muted-foreground">Share a question or tip with fellow RCICs</span>
+          <Button size="sm" className="h-8 rounded-full px-4" onClick={() => setComposerOpen(true)}>
+            Create post
+          </Button>
+        </div>
+      </div>
+
+      <div className="relative">
+        <Search className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          className="h-11 rounded-full border-border/60 bg-card pl-10 shadow-sm"
+          placeholder="Search the community feed…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+      </div>
+
+      {loading ? (
+        <div className="space-y-4">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="h-48 animate-pulse rounded-2xl bg-muted/45" />
+          ))}
+        </div>
+      ) : error ? (
+        <div className="rounded-2xl border border-destructive/25 bg-destructive/5 px-4 py-6 text-sm text-destructive">
+          {error}
+        </div>
+      ) : posts.length === 0 ? (
+        <div className="rounded-2xl border border-dashed px-6 py-16 text-center">
+          <Users className="mx-auto size-8 text-muted-foreground/50" />
+          <p className="mt-3 font-semibold">No posts yet</p>
+          <p className="mt-1 text-sm text-muted-foreground">Be the first to start the conversation.</p>
+          <Button className="mt-4 rounded-full" onClick={() => setComposerOpen(true)}>
+            Create post
+          </Button>
+        </div>
       ) : (
-        <Card className="border-border/70">
-          <CardHeader className="border-b border-border/50 p-4 sm:p-6">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="mb-2 h-9 w-full justify-start sm:w-fit"
-              onClick={() => {
-                setSelected(null);
-                deepLinkHandled.current = false;
-                router.replace("/dashboard/rcic-community");
-              }}
-            >
-              <ChevronLeft className="mr-1 size-4" /> Back to feed
-            </Button>
-            {detailLoading ? (
-              <Loader2 className="size-5 animate-spin text-muted-foreground" />
-            ) : selected ? (
-              <>
-                <CardTitle className="text-lg leading-tight break-words sm:text-xl">{selected.title}</CardTitle>
-                <CardDescription className="break-words">
-                  {selected.author.name}
-                  {selected.author.rcic_number ? ` · ${selected.author.rcic_number}` : ""}
-                  {selected.author.company_name ? ` · ${selected.author.company_name}` : ""}
-                  {" · "}{fmtDate(selected.created_at)}
-                </CardDescription>
-              </>
-            ) : null}
-          </CardHeader>
-          {!detailLoading && selected && (
-            <CardContent className="space-y-5 p-4 pt-4 sm:space-y-6 sm:p-6 sm:pt-5">
-              <p className="whitespace-pre-line text-sm leading-relaxed break-words">{selected.body}</p>
-
-              {selected.has_attachment && selected.attachment_name && (
-                <PostAttachmentBlock
-                  post={selected}
-                  onDownload={() => void downloadAttachment(selected.id, selected.attachment_name!)}
-                  onError={showToast}
-                />
-              )}
-
-              <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-                <Button
-                  variant={selected.reacted ? "default" : "outline"}
-                  size="sm"
-                  className="h-9 w-full gap-1.5 sm:w-auto"
-                  onClick={() => void toggleReact(selected)}
-                >
-                  <ThumbsUp className="size-4" />
-                  Helpful ({selected.reactions_count})
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-9 w-full gap-1.5 text-muted-foreground sm:w-auto"
-                  onClick={() => setReportOpen({ type: "post", id: selected.id })}
-                >
-                  <Flag className="size-4" /> Report
-                </Button>
-                {selected.is_mine && (
-                  <Button variant="ghost" size="sm" className="h-9 w-full text-destructive sm:w-auto" onClick={() => void deletePost(selected)}>
-                    <Trash2 className="mr-1 size-4" /> Delete
-                  </Button>
-                )}
-              </div>
-
-              <div className="space-y-4 border-t border-border/50 pt-4">
-                <h3 className="text-sm font-semibold">Replies ({replies.length})</h3>
-                {replies.map((r) => (
-                  <div key={r.id} className="rounded-xl border border-border/50 bg-muted/20 p-3">
-                    <p className="text-xs font-medium text-muted-foreground break-words">
-                      {r.author.name}{r.author.rcic_number ? ` · ${r.author.rcic_number}` : ""} · {fmtDate(r.created_at)}
-                    </p>
-                    <p className="mt-1 whitespace-pre-line text-sm break-words">{r.body}</p>
-                    {!r.is_mine && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="mt-1 h-8 w-full justify-start text-xs text-muted-foreground sm:h-7 sm:w-auto"
-                        onClick={() => setReportOpen({ type: "reply", id: r.id })}
-                      >
-                        <Flag className="mr-1 size-3" /> Report
-                      </Button>
-                    )}
-                  </div>
-                ))}
-                <div className="space-y-2">
-                  <Textarea
-                    placeholder="Share your advice or experience…"
-                    value={replyText}
-                    onChange={(e) => setReplyText(e.target.value)}
-                    className="min-h-[88px] rounded-xl"
-                  />
-                  <Button className="h-10 w-full sm:w-auto" onClick={() => void submitReply()} disabled={replying || !replyText.trim()}>
-                    {replying ? <Loader2 className="mr-2 size-4 animate-spin" /> : null}
-                    Reply
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          )}
-        </Card>
+        <div className="space-y-4">
+          {posts.map((post) => (
+            <div key={post.id} id={`rcic-post-${post.id}`}>
+              <FeedPostCard
+                post={post}
+                expanded={expandedId === post.id}
+                replies={repliesByPost[post.id] ?? []}
+                repliesLoading={repliesLoadingId === post.id}
+                replyText={replyDrafts[post.id] ?? ""}
+                replying={replyingId === post.id}
+                onToggleExpand={() => void toggleExpand(post.id)}
+                onReact={() => void toggleReact(post)}
+                onReplyChange={(v) => setReplyDrafts((prev) => ({ ...prev, [post.id]: v }))}
+                onSubmitReply={() => void submitReply(post.id)}
+                onReport={() => setReportOpen({ type: "post", id: post.id })}
+                onDelete={() => void deletePost(post)}
+                onDownload={() => void downloadAttachment(post.id, post.attachment_name ?? "attachment")}
+                onError={showToast}
+              />
+            </div>
+          ))}
+        </div>
       )}
 
-      <Dialog open={composeOpen} onOpenChange={setComposeOpen}>
-        <DialogContent className="max-h-[90vh] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] overflow-y-auto p-4 sm:max-w-lg sm:p-6">
+      <Dialog
+        open={composerOpen}
+        onOpenChange={(open) => {
+          setComposerOpen(open);
+          if (!open) {
+            setNewFile(null);
+          }
+        }}
+      >
+        <DialogContent className="max-h-[92vh] w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] overflow-y-auto p-4 sm:max-w-3xl sm:p-6">
           <DialogHeader>
-            <DialogTitle>New community post</DialogTitle>
+            <DialogTitle>Create post</DialogTitle>
             <DialogDescription>
-              Ask a question or share experience with fellow RCICs. Optional attachment up to 10 MB (PDF, Word, images).
+              Share with the RCIC community. Optional attachment up to 10 MB.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
             <div>
               <Label>Title</Label>
-              <Input value={newTitle} onChange={(e) => setNewTitle(e.target.value)} className="mt-1 h-10" maxLength={255} />
+              <Input
+                value={newTitle}
+                onChange={(e) => setNewTitle(e.target.value)}
+                className="mt-1 h-10"
+                maxLength={255}
+                placeholder="What do you want to discuss?"
+              />
             </div>
             <div>
               <Label>Details</Label>
-              <Textarea value={newBody} onChange={(e) => setNewBody(e.target.value)} className="mt-1 min-h-[120px]" />
+              <RichTextEditorDemo
+                output="html"
+                value={newBody}
+                onChange={(value) => setNewBody(value as string)}
+                className="mt-1 min-h-[240px] max-h-[430px] rounded-lg"
+                editorContentClassName="min-h-[190px] px-4 py-3"
+                editorClassName="min-h-[190px]"
+                placeholder="Add more context for colleagues…"
+              />
             </div>
             <div>
               <Label>Attachment (optional)</Label>
-              <Input
-                type="file"
-                className="mt-1 h-auto min-h-10 py-2"
-                accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
-                onChange={(e) => setNewFile(e.target.files?.[0] ?? null)}
-              />
-              <p className="mt-1 text-xs text-muted-foreground">Max 10 MB</p>
+              <div className="mt-1 flex items-center gap-2">
+                <Input
+                  type="file"
+                  className="h-auto min-h-10 py-2"
+                  accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                  onChange={(e) => setNewFile(e.target.files?.[0] ?? null)}
+                />
+                {newFile ? (
+                  <Button type="button" variant="ghost" size="icon" className="size-9 shrink-0" onClick={() => setNewFile(null)}>
+                    <X className="size-4" />
+                  </Button>
+                ) : null}
+              </div>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Max 10 MB{newFile ? ` · Selected: ${newFile.name}` : ""}
+              </p>
             </div>
           </div>
           <DialogFooter className="flex-col-reverse gap-2 sm:flex-row">
-            <Button variant="outline" className="h-9 w-full sm:w-auto" onClick={() => setComposeOpen(false)}>Cancel</Button>
-            <Button className="h-9 w-full sm:w-auto" onClick={() => void submitPost()} disabled={posting || !newTitle.trim() || !newBody.trim()}>
+            <Button variant="outline" className="h-9 w-full sm:w-auto" onClick={() => setComposerOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              className="h-9 w-full sm:w-auto"
+              onClick={() => void submitPost()}
+              disabled={posting || !newTitle.trim() || !richTextHasContent(newBody)}
+            >
               {posting ? <Loader2 className="mr-2 size-4 animate-spin" /> : null}
-              Publish
+              Post
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -732,7 +953,7 @@ export function RcicCommunityClient() {
           <DialogHeader>
             <DialogTitle>Report content</DialogTitle>
             <DialogDescription>
-              Tell us why this post or reply should be reviewed. Admins will see your report.
+              Tell us why this should be reviewed. Admins will see your report.
             </DialogDescription>
           </DialogHeader>
           <Textarea
@@ -742,8 +963,14 @@ export function RcicCommunityClient() {
             className="min-h-[100px]"
           />
           <DialogFooter className="flex-col-reverse gap-2 sm:flex-row">
-            <Button variant="outline" className="h-9 w-full sm:w-auto" onClick={() => setReportOpen(null)}>Cancel</Button>
-            <Button className="h-9 w-full sm:w-auto" onClick={() => void submitReport()} disabled={reporting || !reportReason.trim()}>
+            <Button variant="outline" className="h-9 w-full sm:w-auto" onClick={() => setReportOpen(null)}>
+              Cancel
+            </Button>
+            <Button
+              className="h-9 w-full sm:w-auto"
+              onClick={() => void submitReport()}
+              disabled={reporting || !reportReason.trim()}
+            >
               Submit report
             </Button>
           </DialogFooter>

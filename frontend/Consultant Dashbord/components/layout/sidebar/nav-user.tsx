@@ -39,13 +39,22 @@ export function NavUser() {
   const [user, setUser] = useState<{ name: string; email: string; avatar?: string } | null>(null);
 
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem("wtc_consultant_user");
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        setUser({ name: parsed.name ?? "Consultant", email: parsed.email ?? "", avatar: parsed.avatar ?? undefined });
-      }
-    } catch {}
+    function readUser() {
+      try {
+        const raw = localStorage.getItem("wtc_consultant_user");
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          setUser({ name: parsed.name ?? "Consultant", email: parsed.email ?? "", avatar: parsed.avatar ?? undefined });
+        }
+      } catch {}
+    }
+    readUser();
+    window.addEventListener("wtc-consultant-user-updated", readUser);
+    window.addEventListener("storage", readUser);
+    return () => {
+      window.removeEventListener("wtc-consultant-user-updated", readUser);
+      window.removeEventListener("storage", readUser);
+    };
   }, []);
 
   const handleLogout = async () => {
@@ -72,16 +81,16 @@ export function NavUser() {
           <DropdownMenuTrigger asChild>
             <SidebarMenuButton
               size="lg"
-              className="h-12 rounded-xl bg-sidebar/50 ring-1 ring-sidebar-border/40 transition-all hover:bg-sidebar-accent/50 data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground">
-              <Avatar className="rounded-full">
+              className="h-12 rounded-xl bg-sidebar/50 ring-1 ring-sidebar-border/40 transition-all hover:bg-sidebar-accent/50 data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground group-data-[collapsible=icon]:!size-9 group-data-[collapsible=icon]:!p-0.5 group-data-[collapsible=icon]:justify-center">
+              <Avatar className="rounded-full group-data-[collapsible=icon]:size-8">
                 <AvatarImage src={user?.avatar ?? ""} alt={displayName} />
                 <AvatarFallback className="rounded-full">{initials(displayName)}</AvatarFallback>
               </Avatar>
-              <div className="grid flex-1 text-left text-sm leading-tight" suppressHydrationWarning>
+              <div className="grid flex-1 text-left text-sm leading-tight group-data-[collapsible=icon]:hidden" suppressHydrationWarning>
                 <span className="truncate font-medium">{displayName}</span>
                 <span className="text-muted-foreground truncate text-xs">{displayEmail}</span>
               </div>
-              <DotsVerticalIcon className="ml-auto size-4" />
+              <DotsVerticalIcon className="ml-auto size-4 group-data-[collapsible=icon]:hidden" />
             </SidebarMenuButton>
           </DropdownMenuTrigger>
           <DropdownMenuContent

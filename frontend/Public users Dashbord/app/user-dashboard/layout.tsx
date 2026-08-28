@@ -19,7 +19,7 @@ export default async function UserDashboardLayout({
       defaultOpen={defaultOpen}
       style={
         {
-          "--sidebar-width": "calc(var(--spacing) * 56)",
+          "--sidebar-width": "18.5rem",
           "--header-height": "calc(var(--spacing) * 14)",
         } as React.CSSProperties
       }
@@ -28,8 +28,8 @@ export default async function UserDashboardLayout({
         <AppSidebar variant="sidebar" />
         <SidebarInset className="flex min-w-0 flex-1 flex-col overflow-x-hidden">
           <SiteHeader />
-          <div className="flex min-w-0 flex-1 flex-col w-full overflow-x-hidden">
-            <div className="w-full min-w-0 flex-1 overflow-x-hidden px-3 py-4 sm:px-4 md:px-6 md:py-5">
+          <div className="flex min-w-0 flex-1 flex-col w-full overflow-x-hidden bg-muted/40">
+            <div className="w-full min-w-0 flex-1 overflow-x-hidden px-3 py-4 sm:px-5 md:px-8 md:py-6">
               {children}
             </div>
           </div>

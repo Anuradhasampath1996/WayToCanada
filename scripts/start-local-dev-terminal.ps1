@@ -39,7 +39,7 @@ Push-Location $Backend
 if (-not (Select-String -Path ".env" -Pattern "^APP_KEY=base64:" -Quiet)) {
     php artisan key:generate --force | Out-Null
 }
-# Uses backend/.env — do NOT override DB to Docker 5433 / db_cws_test
+# Uses backend/.env - do NOT override DB to Docker 5433 / db_cws_test
 php artisan migrate --force 2>$null
 php artisan db:seed --class=RolesAndPermissionsSeeder --force 2>$null
 Pop-Location
@@ -66,10 +66,11 @@ function New-FrontendBat {
         [int]$Port,
         [string[]]$ExtraEnv = @()
     )
+    # Next.js 16: use `next dev -p` (npm -- --port can be misparsed as a directory)
     $dev = if (Test-Path (Join-Path $Dir "pnpm-lock.yaml")) {
-        "pnpm dev --port $Port"
+        "pnpm exec next dev -p $Port"
     } else {
-        "npm run dev -- --port $Port"
+        "npx next dev -p $Port"
     }
     $lines = @("set NEXT_PUBLIC_API_URL=http://127.0.0.1:8000") + $ExtraEnv + $dev
     return New-WtcBat $Name $Dir $lines
@@ -112,11 +113,11 @@ $consSiteBat = New-FrontendBat "cons-site" (Join-Path $Fe "Consultant Website") 
 )
 $consDashDir = Join-Path $Fe "Consultant Dashbord"
 $consDashRoutesFile = Join-Path $consDashDir ".next\dev\types\routes.d.ts"
-$consDashWorkspacePage = Join-Path $consDashDir "app\dashboard\(auth)\clients\[id]\workspace\page.tsx"
-if ((Test-Path -LiteralPath $consDashWorkspacePage) -and (Test-Path -LiteralPath $consDashRoutesFile)) {
+if (Test-Path -LiteralPath $consDashRoutesFile) {
     $routesText = Get-Content -Raw -LiteralPath $consDashRoutesFile
-    if ($routesText -notmatch '/workspace') {
-        Write-Host ">>> Consultant dashboard: stale dev routes cache (missing /workspace) - clearing .next" -ForegroundColor Yellow
+    $staleRoutes = $routesText -notmatch '/consultantdashboard' -or $routesText -match 'PageRoutes = never'
+    if ($staleRoutes) {
+        Write-Host ">>> Consultant dashboard: stale .next routes cache - clearing .next" -ForegroundColor Yellow
         Remove-Item -Recurse -Force (Join-Path $consDashDir ".next") -ErrorAction SilentlyContinue
     }
 }

@@ -1,0 +1,67 @@
+.ircc-brief {
+  background:
+    radial-gradient(90% 70% at 0% 0%, color-mix(in oklch, var(--primary) 8%, transparent), transparent 55%),
+    radial-gradient(70% 60% at 100% 0%, color-mix(in oklch, var(--muted) 45%, transparent), transparent 50%),
+    var(--card);
+}
+
+.ircc-brief__header::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(
+      110deg,
+      color-mix(in oklch, var(--primary) 9%, transparent) 0%,
+      transparent 46%,
+      color-mix(in oklch, var(--muted) 30%, transparent) 100%
+    );
+  pointer-events: none;
+}
+
+.ircc-brief__featured {
+  background:
+    linear-gradient(
+      145deg,
+      color-mix(in oklch, var(--primary) 10%, transparent) 0%,
+      color-mix(in oklch, var(--card) 92%, transparent) 42%,
+      color-mix(in oklch, var(--muted) 35%, transparent) 100%
+    );
+  box-shadow: inset 0 1px 0 color-mix(in oklch, var(--primary-foreground) 8%, transparent);
+  transition: border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.ircc-brief__featured::after {
+  content: "";
+  position: absolute;
+  right: -12%;
+  top: -20%;
+  width: 55%;
+  height: 80%;
+  border-radius: 999px;
+  background: color-mix(in oklch, var(--primary) 12%, transparent);
+  filter: blur(40px);
+  pointer-events: none;
+  opacity: 0.55;
+}
+
+.ircc-brief__featured:hover {
+  border-color: color-mix(in oklch, var(--primary) 35%, transparent);
+  box-shadow: 0 14px 36px color-mix(in oklch, var(--foreground) 7%, transparent);
+  transform: translateY(-2px);
+}
+
+.ircc-brief__side-item {
+  box-shadow: 0 1px 0 color-mix(in oklch, var(--border) 60%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ircc-brief__featured,
+  .ircc-brief__side-item {
+    transition: none;
+  }
+
+  .ircc-brief__featured:hover {
+    transform: none;
+  }
+}

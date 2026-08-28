@@ -132,7 +132,7 @@ class CaseManagementHubService
                     'total'     => (int) ($verification['total_forms'] ?? 0),
                     'submitted' => (int) ($verification['submitted_count'] ?? 0),
                     'reviewed'  => (int) ($verification['reviewed_count'] ?? 0),
-                    'complete'  => (bool) ($verification['all_reviewed'] ?? true),
+                    'complete'  => (bool) ($verification['all_reviewed'] ?? false),
                 ],
                 'pipeline'  => $pipeline,
                 'overall_percent' => $this->overallPercent($docStats, $verification, $pipeline),
@@ -338,8 +338,11 @@ class CaseManagementHubService
     private function overallPercent(array $docStats, array $verification, array $pipeline): int
     {
         $docPct = (int) ($docStats['percent'] ?? 0);
-        $formsComplete = ($verification['total_forms'] ?? 0) === 0
-            || ($verification['all_reviewed'] ?? false);
+        $formsComplete = (bool) ($verification['agreement_signed'] ?? false)
+            && (
+                ($verification['total_forms'] ?? 0) === 0
+                || ($verification['all_reviewed'] ?? false)
+            );
         $formsPct = $formsComplete ? 100 : (int) round(
             (($verification['reviewed_count'] ?? 0) / max(1, $verification['total_forms'] ?? 1)) * 100
         );

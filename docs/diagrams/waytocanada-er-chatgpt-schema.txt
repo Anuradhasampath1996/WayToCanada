@@ -1,0 +1,618 @@
+CHATGPT PROMPT (copy everything below this line to ChatGPT):
+================================================================================
+Create a complete Entity Relationship Diagram (ERD) for the WayToCanada immigration consultant platform.
+
+Requirements:
+- Use Chen notation OR Crow's Foot notation (your choice, but be consistent)
+- Show ALL tables listed below
+- Mark Primary Keys (PK) and Foreign Keys (FK) clearly
+- Show cardinality: 1:1, 1:N, M:N
+- Group tables by domain with colored sections:
+  1) Users & Auth
+  2) Clients & Cases
+  3) IRCC
+  4) Legislation
+  5) Payments & Trust
+  6) Consultant Tools
+  7) Notifications & Support
+  8) RCIC Community
+  9) LMS (db_lms - separate database)
+- Note: lms_course_assignments.client_user_id references users.id across databases (no DB FK)
+- Output as Mermaid erDiagram code OR draw.io XML OR a visual diagram
+
+DATABASE SCHEMA:
+================================================================================
+
+
+Database: PostgreSQL
+db_cws = main application database
+db_lms = LMS database (separate)
+
+TABLE: users
+  PRIMARY KEY: id
+  UNIQUE: email, google_id, github_id
+  FOREIGN KEYS: consultant_id -> users.id
+  COLUMNS: id (bigint), consultant_id (bigint), name (varchar), email (varchar), phone (varchar(30)), cicc_email (varchar), email_verified_at (timestamp), password (varchar), google_id (varchar), github_id (varchar), avatar (varchar), locale (varchar), is_verified (boolean), is_license_verified (boolean), license_verified_at (timestamp), rcic_number (varchar(30)), company_name (varchar), company_logo (varchar), company_bio (text), company_website (varchar), company_phone (varchar), company_address_line1 (varchar), company_address_line2 (varchar), company_city (varchar), company_province (varchar), company_postal_code (varchar), company_country (varchar), digital_signature (text), rcic_community_last_seen_at (timestamp), remember_token (varchar), created_at (timestamp), updated_at (timestamp)
+
+TABLE: personal_access_tokens
+  PRIMARY KEY: id
+  UNIQUE: token
+  COLUMNS: id (bigint), tokenable_type (varchar), tokenable_id (bigint), name (text), token (varchar(64)), abilities (text), last_used_at (timestamp), expires_at (timestamp), created_at (timestamp), updated_at (timestamp)
+
+TABLE: permissions
+  PRIMARY KEY: id
+  COLUMNS: id (bigint), name (varchar), guard_name (varchar), created_at (timestamp), updated_at (timestamp)
+
+TABLE: roles
+  PRIMARY KEY: id
+  COLUMNS: id (bigint), name (varchar), guard_name (varchar), created_at (timestamp), updated_at (timestamp)
+
+TABLE: model_has_permissions
+  PRIMARY KEY: id
+  FOREIGN KEYS: permission_id -> permissions.id
+  COLUMNS: permission_id (bigint), model_type (varchar), model_id (bigint)
+
+TABLE: model_has_roles
+  PRIMARY KEY: id
+  FOREIGN KEYS: role_id -> roles.id
+  COLUMNS: role_id (bigint), model_type (varchar), model_id (bigint)
+
+TABLE: role_has_permissions
+  PRIMARY KEY: id
+  FOREIGN KEYS: permission_id -> permissions.id; role_id -> roles.id
+  COLUMNS: permission_id (bigint), role_id (bigint)
+
+TABLE: rcic_consultants
+  PRIMARY KEY: id
+  UNIQUE: profile_id
+  COLUMNS: id (bigint), profile_id (integer), college_id (varchar(20)), full_name (varchar), first_name (varchar), last_name (varchar), type (varchar(50)), status (varchar(50)), company (text), city (varchar(100)), province (varchar(100)), country (varchar(100)), postal_code (varchar(20)), phone (varchar(50)), email (text), website (text), entitled_to_practise (boolean), scrape_status (varchar(30)), scraped_at (timestamp), created_at (timestamp), updated_at (timestamp)
+
+TABLE: immigration_consultants
+  PRIMARY KEY: id
+  COLUMNS: id (bigint), name (varchar), email (varchar), phone (varchar(50)), company (varchar), city (varchar(100)), province (varchar(100)), country (varchar(100)), specialization (varchar), notes (text), is_active (boolean), created_at (timestamp), updated_at (timestamp)
+
+TABLE: client_profiles
+  PRIMARY KEY: id
+  UNIQUE: user_id
+  FOREIGN KEYS: user_id -> users.id; consultant_id -> users.id; active_case_file_id -> case_files.id
+  COLUMNS: id (bigint), user_id (bigint), consultant_id (bigint), active_case_file_id (bigint), phone (varchar), passport_number (varchar), immigration_pathway (varchar), family_id (bigint), notes (text), notes_updated_at (timestamp), invited_at (timestamp), created_at (timestamp), updated_at (timestamp)
+
+TABLE: case_files
+  PRIMARY KEY: id
+  UNIQUE: agreement_token
+  FOREIGN KEYS: client_profile_id -> client_profiles.id; consultant_id -> users.id; assigned_ircc_category_id -> ircc_categories.id
+  COLUMNS: id (bigint), client_profile_id (bigint), case_number (smallint), consultant_id (bigint), status (varchar), lifecycle_status (varchar(32)), lifecycle_note (text), lifecycle_changed_at (timestamp), immigration_pathway (varchar), pathway_assessment_notes (text), pathway_assessment_crs_score (smallint), pathway_assessment_ircc_crs_score (smallint), pathway_assessment_snapshot (jsonb), pathway_assessment_rules_version (varchar(32)), pathway_assessment_at (timestamp), assigned_ircc_category_id (bigint), application_package_assigned_at (timestamp), agreement_token (varchar(64)), agreement_sent_at (timestamp), agreement_signed_at (timestamp), application_forms_verified_at (timestamp), client_signature (text), signed_document_path (varchar(500)), agreement_fee (decimal(10,2)), agreement_notes (text), agreement_config (jsonb), agreement_version (smallint), agreement_milestone_payments (jsonb), checklist_data (jsonb), created_at (timestamp), updated_at (timestamp)
+
+TABLE: questionnaire_submissions
+  PRIMARY KEY: id
+  UNIQUE: user_id
+  FOREIGN KEYS: user_id -> users.id
+  COLUMNS: id (bigint), user_id (bigint), step1_data (jsonb), main_data (jsonb), spouse_data (jsonb), children_data (jsonb), accompanying_data (jsonb), is_submitted (boolean), submitted_at (timestamp), created_at (timestamp), updated_at (timestamp)
+
+TABLE: document_submissions
+  PRIMARY KEY: id
+  FOREIGN KEYS: case_file_id -> case_files.id; uploaded_by -> users.id; reviewed_by -> users.id
+  COLUMNS: id (bigint), case_file_id (bigint), uploaded_by (bigint), document_type (varchar), document_label (varchar), file_path (varchar), original_filename (varchar), mime_type (varchar), file_size (bigint), status (varchar), ai_result (jsonb), ai_confidence (decimal(4,3)), rejection_comment (text), reviewed_by (bigint), reviewed_at (timestamp), created_at (timestamp), updated_at (timestamp)
+
+TABLE: case_messages
+  PRIMARY KEY: id
+  FOREIGN KEYS: case_file_id -> case_files.id; sender_id -> users.id; document_submission_id -> document_submissions.id
+  COLUMNS: id (bigint), case_file_id (bigint), sender_id (bigint), sender_type (varchar), message (text), document_submission_id (bigint), read_at (timestamp), created_at (timestamp), updated_at (timestamp)
+
+TABLE: client_activity_logs
+  PRIMARY KEY: id
+  FOREIGN KEYS: client_profile_id -> client_profiles.id; case_file_id -> case_files.id; actor_user_id -> users.id
+  COLUMNS: id (bigint), client_profile_id (bigint), case_file_id (bigint), actor_user_id (bigint), actor_type (varchar(32)), actor_name (varchar), event_type (varchar(64)), title (varchar), description (text), metadata (jsonb), ip_address (varchar(45)), dedupe_key (varchar(128)), occurred_at (timestamp), created_at (timestamp), updated_at (timestamp)
+
+TABLE: consultant_agreement_templates
+  PRIMARY KEY: id
+  COLUMNS: id (bigint), consultant_id (bigint), name (varchar(120)), pathway (varchar(150)), config (jsonb), is_default (boolean), created_at (timestamp), updated_at (timestamp)
+
+TABLE: consultant_client_requests
+  PRIMARY KEY: id
+  FOREIGN KEYS: client_user_id -> users.id; consultant_id -> users.id
+  COLUMNS: id (bigint), client_user_id (bigint), consultant_id (bigint), status (varchar(20)), message (text), responded_at (timestamp), created_at (timestamp), updated_at (timestamp)
+
+TABLE: ircc_categories
+  PRIMARY KEY: id
+  FOREIGN KEYS: parent_id -> ircc_categories.id
+  COLUMNS: id (bigint), parent_id (bigint), level (smallint), label (varchar), result (jsonb), sort_order (smallint), created_at (timestamp), updated_at (timestamp)
+
+TABLE: ircc_category_documents
+  PRIMARY KEY: id
+  FOREIGN KEYS: ircc_category_id -> ircc_categories.id
+  COLUMNS: id (bigint), ircc_category_id (bigint), label (varchar), doc_type (varchar), source_form_code (varchar), file_path (varchar), original_filename (varchar), sort_order (integer), is_active (boolean), created_at (timestamp), updated_at (timestamp)
+
+TABLE: ircc_form_catalog
+  PRIMARY KEY: id
+  UNIQUE: normalized_code
+  COLUMNS: id (bigint), form_code (varchar), normalized_code (varchar), title (varchar), page_url (varchar), pdf_url (varchar), last_fetched_at (timestamp), created_at (timestamp), updated_at (timestamp)
+
+TABLE: ircc_interactive_forms
+  PRIMARY KEY: id
+  FOREIGN KEYS: ircc_category_id -> ircc_categories.id
+  COLUMNS: id (bigint), ircc_category_id (bigint), slug (varchar(100)), title (varchar), description (text), form_schema (jsonb), sort_order (smallint), is_active (boolean), created_at (timestamp), updated_at (timestamp)
+
+TABLE: ircc_interactive_form_responses
+  PRIMARY KEY: id
+  FOREIGN KEYS: ircc_interactive_form_id -> ircc_interactive_forms.id; case_file_id -> case_files.id; user_id -> users.id; reviewed_by -> users.id
+  COLUMNS: id (bigint), ircc_interactive_form_id (bigint), case_file_id (bigint), user_id (bigint), response_data (jsonb), status (varchar), submitted_at (timestamp), consultant_notes (text), reviewed_by (bigint), reviewed_at (timestamp), created_at (timestamp), updated_at (timestamp)
+
+TABLE: ircc_package_document_submissions
+  PRIMARY KEY: id
+  FOREIGN KEYS: case_file_id -> case_files.id; uploaded_by -> users.id
+  COLUMNS: id (bigint), case_file_id (bigint), ircc_category_document_id (bigint), uploaded_by (bigint), file_path (varchar), original_filename (varchar), status (varchar), submitted_at (timestamp), created_at (timestamp), updated_at (timestamp)
+
+TABLE: ircc_news_cache
+  PRIMARY KEY: id
+  UNIQUE: guid
+  COLUMNS: id (bigint), guid (text), title (text), link (text), description (text), category (varchar), published_at (timestamp), created_at (timestamp), updated_at (timestamp)
+
+TABLE: crs_rule_versions
+  PRIMARY KEY: id
+  UNIQUE: version
+  COLUMNS: id (bigint), version (varchar(32)), effective_date (date), rules (jsonb), is_active (boolean), last_synced_at (timestamp), created_at (timestamp), updated_at (timestamp)
+
+TABLE: express_entry_draws
+  PRIMARY KEY: id
+  UNIQUE: draw_number
+  COLUMNS: id (bigint), draw_number (integer), draw_date (date), draw_name (varchar), minimum_crs_score (smallint), invitations_issued (integer), round_type (varchar), raw_data (jsonb), created_at (timestamp), updated_at (timestamp)
+
+TABLE: legislation_catalog
+  PRIMARY KEY: id
+  UNIQUE: act_code
+  COLUMNS: id (bigint), act_code (varchar(40)), title (text), category (varchar(20)), is_active (boolean), last_synced_at (timestamp), created_at (timestamp), updated_at (timestamp)
+
+TABLE: legislation_sync_runs
+  PRIMARY KEY: id
+  COLUMNS: id (bigint), status (varchar(20)), scope (varchar(40)), total_steps (integer), completed_steps (integer), error_message (text), started_at (timestamp), finished_at (timestamp), created_at (timestamp), updated_at (timestamp)
+
+TABLE: legislation_documents
+  PRIMARY KEY: id
+  UNIQUE: slug
+  COLUMNS: id (bigint), slug (varchar), source_slug (varchar(80)), act_code (varchar(40)), title (varchar), language (varchar(5)), format (varchar(10)), category (varchar(20)), source_url (varchar), storage_path (varchar), content_hash (varchar(64)), provisions_count (integer), ai_analyzed (boolean), paired_document_id (bigint), created_at (timestamp), updated_at (timestamp)
+
+TABLE: legislation_provisions
+  PRIMARY KEY: id
+  FOREIGN KEYS: document_id -> legislation_documents.id
+  COLUMNS: id (bigint), document_id (bigint), act_code (varchar(40)), language (varchar(5)), provision_key (varchar(80)), section_label (varchar(20)), text_content (text), html_fragment (text), created_at (timestamp), updated_at (timestamp)
+
+TABLE: legislation_references
+  PRIMARY KEY: id
+  FOREIGN KEYS: document_id -> legislation_documents.id
+  COLUMNS: id (bigint), document_id (bigint), target_act_code (varchar(40)), target_provision_key (varchar(80)), label (varchar(200)), source_type (varchar), is_external (boolean), is_active (boolean), created_at (timestamp), updated_at (timestamp)
+
+TABLE: legislation_amendment_alerts
+  PRIMARY KEY: id
+  FOREIGN KEYS: document_id -> legislation_documents.id
+  COLUMNS: id (bigint), document_id (bigint), act_code (varchar(40)), language (varchar(5)), new_hash (varchar(64)), detected_at (timestamp), acknowledged_by (bigint), created_at (timestamp), updated_at (timestamp)
+
+TABLE: consultant_legislation_bookmarks
+  PRIMARY KEY: id
+  FOREIGN KEYS: consultant_id -> users.id; client_profile_id -> client_profiles.id
+  COLUMNS: id (bigint), consultant_id (bigint), client_profile_id (bigint), act_code (varchar(40)), provision_key (varchar(80)), language (varchar(8)), label (varchar), note (text), created_at (timestamp), updated_at (timestamp)
+
+TABLE: payment_gateway_settings
+  PRIMARY KEY: id
+  UNIQUE: gateway
+  COLUMNS: id (bigint), gateway (varchar), mode (varchar), is_active (boolean), publishable_key (text), secret_key (text), webhook_id (varchar), created_at (timestamp), updated_at (timestamp)
+
+TABLE: subscription_packages
+  PRIMARY KEY: id
+  COLUMNS: id (bigint), name (varchar), monthly_price (decimal(10,2)), yearly_price (decimal(10,2)), features (jsonb), is_active (boolean), sort_order (integer), stripe_product_id (varchar(64)), created_at (timestamp), updated_at (timestamp)
+
+TABLE: consultant_subscriptions
+  PRIMARY KEY: id
+  FOREIGN KEYS: user_id -> users.id; subscription_package_id -> subscription_packages.id
+  COLUMNS: id (bigint), user_id (bigint), subscription_package_id (bigint), status (varchar), is_trial (boolean), trial_ends_at (timestamp), starts_at (timestamp), ends_at (timestamp), billing_cycle (varchar), billing_country (varchar(8)), stripe_customer_id (varchar(64)), stripe_subscription_id (varchar(64)), created_at (timestamp), updated_at (timestamp)
+
+TABLE: subscription_payment_records
+  PRIMARY KEY: id
+  FOREIGN KEYS: user_id -> users.id; consultant_subscription_id -> consultant_subscriptions.id; subscription_package_id -> subscription_packages.id; consultant_marketing_order_id -> consultant_marketing_orders.id; consultant_storage_addon_id -> consultant_storage_addons.id
+  COLUMNS: id (bigint), user_id (bigint), payment_category (varchar(20)), consultant_subscription_id (bigint), subscription_package_id (bigint), consultant_marketing_order_id (bigint), consultant_storage_addon_id (bigint), invoice_number (varchar), currency (varchar(8)), subtotal (decimal(10,2)), tax_amount (decimal(10,2)), total (decimal(10,2)), payment_status (varchar(20)), paid_at (timestamp), created_at (timestamp), updated_at (timestamp)
+
+TABLE: tax_rate_versions
+  PRIMARY KEY: id
+  UNIQUE: version
+  COLUMNS: id (bigint), version (varchar(32)), tax_year (smallint), effective_date (date), rates (jsonb), is_active (boolean), created_at (timestamp), updated_at (timestamp)
+
+TABLE: gst_hst_rate_versions
+  PRIMARY KEY: id
+  UNIQUE: version
+  COLUMNS: id (bigint), version (varchar(32)), effective_date (date), rates (jsonb), is_active (boolean), created_at (timestamp), updated_at (timestamp)
+
+TABLE: platform_company_settings
+  PRIMARY KEY: id
+  FOREIGN KEYS: updated_by -> users.id
+  COLUMNS: id (bigint), legal_name (varchar), trade_name (varchar), business_number (varchar(32)), gst_hst_number (varchar(32)), invoice_prefix (varchar(16)), updated_by (bigint), created_at (timestamp), updated_at (timestamp)
+
+TABLE: marketing_services
+  PRIMARY KEY: id
+  UNIQUE: slug
+  COLUMNS: id (bigint), slug (varchar), name (varchar), price (decimal(10,2)), is_active (boolean), created_at (timestamp), updated_at (timestamp)
+
+TABLE: consultant_marketing_orders
+  PRIMARY KEY: id
+  FOREIGN KEYS: user_id -> users.id; marketing_service_id -> marketing_services.id
+  COLUMNS: id (bigint), user_id (bigint), marketing_service_id (bigint), status (varchar), amount (decimal(10,2)), paid_at (timestamp), created_at (timestamp), updated_at (timestamp)
+
+TABLE: consultant_payment_accounts
+  PRIMARY KEY: id
+  UNIQUE: user_id
+  FOREIGN KEYS: user_id -> users.id
+  COLUMNS: id (bigint), user_id (bigint), stripe_connect_account_id (varchar), paypal_email (varchar), preferred_provider (varchar), created_at (timestamp), updated_at (timestamp)
+
+TABLE: client_payment_requests
+  PRIMARY KEY: id
+  UNIQUE: token
+  FOREIGN KEYS: case_file_id -> case_files.id; client_profile_id -> client_profiles.id; consultant_id -> users.id
+  COLUMNS: id (bigint), token (varchar(64)), case_file_id (bigint), client_profile_id (bigint), consultant_id (bigint), title (varchar), amount (decimal(10,2)), currency (varchar(3)), provider (varchar), status (varchar), paid_at (timestamp), created_at (timestamp), updated_at (timestamp)
+
+TABLE: client_trust_accounts
+  PRIMARY KEY: id
+  UNIQUE: case_file_id
+  FOREIGN KEYS: case_file_id -> case_files.id; client_profile_id -> client_profiles.id; consultant_id -> users.id
+  COLUMNS: id (bigint), case_file_id (bigint), client_profile_id (bigint), consultant_id (bigint), currency (varchar(3)), total_deposited (decimal(12,2)), balance_held (decimal(12,2)), status (varchar(32)), created_at (timestamp), updated_at (timestamp)
+
+TABLE: case_fee_milestones
+  PRIMARY KEY: id
+  FOREIGN KEYS: case_file_id -> case_files.id; client_profile_id -> client_profiles.id; completed_by -> users.id
+  COLUMNS: id (bigint), case_file_id (bigint), client_profile_id (bigint), milestone_key (varchar(8)), label (varchar), percentage (smallint), amount (decimal(12,2)), status (varchar(32)), completed_by (bigint), created_at (timestamp), updated_at (timestamp)
+
+TABLE: milestone_invoices
+  PRIMARY KEY: id
+  UNIQUE: invoice_number
+  FOREIGN KEYS: case_fee_milestone_id -> case_fee_milestones.id; client_trust_account_id -> client_trust_accounts.id; case_file_id -> case_files.id; client_profile_id -> client_profiles.id; consultant_id -> users.id; released_by -> users.id
+  COLUMNS: id (bigint), case_fee_milestone_id (bigint), client_trust_account_id (bigint), case_file_id (bigint), client_profile_id (bigint), consultant_id (bigint), invoice_number (varchar(64)), amount (decimal(12,2)), status (varchar(32)), released_by (bigint), created_at (timestamp), updated_at (timestamp)
+
+TABLE: trust_ledger_entries
+  PRIMARY KEY: id
+  FOREIGN KEYS: client_trust_account_id -> client_trust_accounts.id; case_file_id -> case_files.id; client_profile_id -> client_profiles.id; case_fee_milestone_id -> case_fee_milestones.id; milestone_invoice_id -> milestone_invoices.id; actor_user_id -> users.id
+  COLUMNS: id (bigint), client_trust_account_id (bigint), case_file_id (bigint), client_profile_id (bigint), entry_type (varchar(32)), direction (varchar(8)), amount (decimal(12,2)), balance_after (decimal(12,2)), title (varchar), case_fee_milestone_id (bigint), milestone_invoice_id (bigint), actor_user_id (bigint), occurred_at (timestamp), created_at (timestamp), updated_at (timestamp)
+
+TABLE: storage_addon_packages
+  PRIMARY KEY: id
+  COLUMNS: id (bigint), name (varchar), extra_gb (integer), monthly_price (decimal(10,2)), yearly_price (decimal(10,2)), is_active (boolean), created_at (timestamp), updated_at (timestamp)
+
+TABLE: consultant_storage_addons
+  PRIMARY KEY: id
+  FOREIGN KEYS: user_id -> users.id; storage_addon_package_id -> storage_addon_packages.id
+  COLUMNS: id (bigint), user_id (bigint), storage_addon_package_id (bigint), status (varchar(20)), extra_bytes (bigint), created_at (timestamp), updated_at (timestamp)
+
+TABLE: consultant_storage_folders
+  PRIMARY KEY: id
+  FOREIGN KEYS: user_id -> users.id; parent_id -> consultant_storage_folders.id
+  COLUMNS: id (bigint), user_id (bigint), parent_id (bigint), name (varchar), created_at (timestamp), updated_at (timestamp)
+
+TABLE: consultant_storage_files
+  PRIMARY KEY: id
+  FOREIGN KEYS: user_id -> users.id; folder_id -> consultant_storage_folders.id
+  COLUMNS: id (bigint), user_id (bigint), folder_id (bigint), disk_path (varchar), original_filename (varchar), mime_type (varchar(120)), size_bytes (bigint), created_at (timestamp), updated_at (timestamp)
+
+TABLE: consultant_letter_templates
+  PRIMARY KEY: id
+  COLUMNS: id (bigint), consultant_id (bigint), name (varchar(120)), letter_type (varchar(60)), body_html (text), is_default (boolean), created_at (timestamp), updated_at (timestamp)
+
+TABLE: consultant_letters
+  PRIMARY KEY: id
+  FOREIGN KEYS: client_profile_id -> client_profiles.id; template_id -> consultant_letter_templates.id
+  COLUMNS: id (bigint), consultant_id (bigint), client_profile_id (bigint), template_id (bigint), title (varchar(200)), letter_type (varchar(60)), status (varchar(20)), subject (varchar(500)), body_html (text), openai_used (boolean), created_at (timestamp), updated_at (timestamp)
+
+TABLE: consultant_client_ai_advisories
+  PRIMARY KEY: id
+  FOREIGN KEYS: client_profile_id -> client_profiles.id; consultant_id -> users.id
+  COLUMNS: id (bigint), client_profile_id (bigint), consultant_id (bigint), workflow_stage (varchar(64)), advisory_payload (jsonb), created_at (timestamp), updated_at (timestamp)
+
+TABLE: consultant_client_ai_chat_messages
+  PRIMARY KEY: id
+  FOREIGN KEYS: client_profile_id -> client_profiles.id; consultant_id -> users.id
+  COLUMNS: id (bigint), client_profile_id (bigint), consultant_id (bigint), role (varchar(16)), content (text), created_at (timestamp), updated_at (timestamp)
+
+TABLE: consultant_client_ai_documents
+  PRIMARY KEY: id
+  FOREIGN KEYS: client_profile_id -> client_profiles.id; consultant_id -> users.id
+  COLUMNS: id (bigint), client_profile_id (bigint), consultant_id (bigint), original_filename (varchar), storage_path (varchar), extracted_text (text), status (varchar(16)), created_at (timestamp), updated_at (timestamp)
+
+TABLE: consultant_meeting_accounts
+  PRIMARY KEY: id
+  UNIQUE: user_id
+  FOREIGN KEYS: user_id -> users.id
+  COLUMNS: id (bigint), user_id (bigint), preferred_provider (varchar), google_meet_url (varchar), zoom_meeting_url (varchar), created_at (timestamp), updated_at (timestamp)
+
+TABLE: client_meetings
+  PRIMARY KEY: id
+  UNIQUE: token
+  FOREIGN KEYS: case_file_id -> case_files.id; client_profile_id -> client_profiles.id; consultant_id -> users.id
+  COLUMNS: id (bigint), token (varchar(64)), case_file_id (bigint), client_profile_id (bigint), consultant_id (bigint), title (varchar), scheduled_at (timestamp), duration_minutes (smallint), provider (varchar), meeting_url (varchar), status (varchar), created_at (timestamp), updated_at (timestamp)
+
+TABLE: consultant_website_feature_sections
+  PRIMARY KEY: id
+  UNIQUE: slug
+  COLUMNS: id (bigint), slug (varchar), title (varchar), description (text), sort_order (smallint), is_active (boolean), created_at (timestamp), updated_at (timestamp)
+
+TABLE: user_notifications
+  PRIMARY KEY: id
+  FOREIGN KEYS: user_id -> users.id
+  COLUMNS: id (bigint), user_id (bigint), type (varchar(64)), title (varchar), body (text), action_url (varchar(500)), related_type (varchar), related_id (bigint), read_at (timestamp), created_at (timestamp), updated_at (timestamp)
+
+TABLE: notification_deliveries
+  PRIMARY KEY: id
+  FOREIGN KEYS: user_notification_id -> user_notifications.id
+  COLUMNS: id (bigint), user_notification_id (bigint), channel (varchar(32)), status (varchar(32)), sent_at (timestamp), created_at (timestamp), updated_at (timestamp)
+
+TABLE: user_notification_preferences
+  PRIMARY KEY: id
+  UNIQUE: user_id
+  FOREIGN KEYS: user_id -> users.id
+  COLUMNS: id (bigint), user_id (bigint), in_app_enabled (boolean), email_enabled (boolean), whatsapp_enabled (boolean), whatsapp_phone (varchar(32)), created_at (timestamp), updated_at (timestamp)
+
+TABLE: admin_broadcasts
+  PRIMARY KEY: id
+  FOREIGN KEYS: admin_user_id -> users.id
+  COLUMNS: id (bigint), admin_user_id (bigint), title (varchar), body (text), channels (jsonb), target_type (varchar), sent_at (timestamp), created_at (timestamp), updated_at (timestamp)
+
+TABLE: whatsapp_conversations
+  PRIMARY KEY: id
+  UNIQUE: wa_id
+  FOREIGN KEYS: user_id -> users.id
+  COLUMNS: id (bigint), wa_id (varchar(32)), user_id (bigint), last_message_at (timestamp), unread_count (integer), created_at (timestamp), updated_at (timestamp)
+
+TABLE: whatsapp_messages
+  PRIMARY KEY: id
+  FOREIGN KEYS: whatsapp_conversation_id -> whatsapp_conversations.id; sent_by_user_id -> users.id
+  COLUMNS: id (bigint), whatsapp_conversation_id (bigint), direction (varchar(16)), body (text), status (varchar(32)), sent_by_user_id (bigint), created_at (timestamp), updated_at (timestamp)
+
+TABLE: support_tickets
+  PRIMARY KEY: id
+  FOREIGN KEYS: user_id -> users.id; closed_by -> users.id
+  COLUMNS: id (bigint), user_id (bigint), category (varchar(30)), subject (varchar(255)), body (text), status (varchar(20)), closed_by (bigint), created_at (timestamp), updated_at (timestamp)
+
+TABLE: support_ticket_messages
+  PRIMARY KEY: id
+  FOREIGN KEYS: support_ticket_id -> support_tickets.id; user_id -> users.id
+  COLUMNS: id (bigint), support_ticket_id (bigint), user_id (bigint), sender_role (varchar(20)), body (text), created_at (timestamp), updated_at (timestamp)
+
+TABLE: rcic_community_posts
+  PRIMARY KEY: id
+  FOREIGN KEYS: user_id -> users.id; hidden_by -> users.id
+  COLUMNS: id (bigint), user_id (bigint), title (varchar(255)), body (text), reactions_count (integer), replies_count (integer), is_hidden (boolean), hidden_by (bigint), created_at (timestamp), updated_at (timestamp)
+
+TABLE: rcic_community_replies
+  PRIMARY KEY: id
+  FOREIGN KEYS: post_id -> rcic_community_posts.id; user_id -> users.id
+  COLUMNS: id (bigint), post_id (bigint), user_id (bigint), body (text), is_hidden (boolean), created_at (timestamp), updated_at (timestamp)
+
+TABLE: rcic_community_reactions
+  PRIMARY KEY: id
+  FOREIGN KEYS: post_id -> rcic_community_posts.id; user_id -> users.id
+  COLUMNS: id (bigint), post_id (bigint), user_id (bigint), reaction (varchar(20))
+
+TABLE: rcic_community_reports
+  PRIMARY KEY: id
+  FOREIGN KEYS: reporter_id -> users.id; reviewed_by -> users.id
+  COLUMNS: id (bigint), reporter_id (bigint), reportable_type (varchar(20)), reportable_id (bigint), reason (text), status (varchar(20)), reviewed_by (bigint), created_at (timestamp), updated_at (timestamp)
+
+TABLE: integration_settings
+  PRIMARY KEY: id
+  UNIQUE: group_key
+  FOREIGN KEYS: updated_by -> users.id
+  COLUMNS: id (bigint), group_key (varchar(64)), payload (text), updated_by (bigint), created_at (timestamp), updated_at (timestamp)
+
+TABLE: lms_categories
+  PRIMARY KEY: id
+  UNIQUE: slug
+  COLUMNS: id (bigint), name (varchar), slug (varchar), description (text), sort_order (smallint), is_active (boolean), created_at (timestamp), updated_at (timestamp)
+
+TABLE: lms_courses
+  PRIMARY KEY: id
+  FOREIGN KEYS: category_id -> lms_categories.id
+  COLUMNS: id (bigint), category_id (bigint), title (varchar), slug (varchar), description (text), thumbnail_url (varchar), is_published (boolean), sort_order (smallint), created_at (timestamp), updated_at (timestamp)
+
+TABLE: lms_modules
+  PRIMARY KEY: id
+  FOREIGN KEYS: course_id -> lms_courses.id
+  COLUMNS: id (bigint), course_id (bigint), title (varchar), sort_order (smallint), created_at (timestamp), updated_at (timestamp)
+
+TABLE: lms_lessons
+  PRIMARY KEY: id
+  FOREIGN KEYS: module_id -> lms_modules.id
+  COLUMNS: id (bigint), module_id (bigint), title (varchar), lesson_type (varchar(20)), video_url (text), pdf_url (text), text_content (text), duration_minutes (smallint), sort_order (smallint), created_at (timestamp), updated_at (timestamp)
+
+TABLE: lms_quizzes
+  PRIMARY KEY: id
+  FOREIGN KEYS: course_id -> lms_courses.id; module_id -> lms_modules.id
+  COLUMNS: id (bigint), course_id (bigint), module_id (bigint), title (varchar), source_mode (varchar(20)), passing_score (smallint), sort_order (smallint), created_at (timestamp), updated_at (timestamp)
+
+TABLE: lms_questions
+  PRIMARY KEY: id
+  FOREIGN KEYS: quiz_id -> lms_quizzes.id
+  COLUMNS: id (bigint), quiz_id (bigint), question_text (text), sort_order (smallint), created_at (timestamp), updated_at (timestamp)
+
+TABLE: lms_question_options
+  PRIMARY KEY: id
+  FOREIGN KEYS: question_id -> lms_questions.id
+  COLUMNS: id (bigint), question_id (bigint), option_text (text), is_correct (boolean), sort_order (smallint), created_at (timestamp), updated_at (timestamp)
+
+TABLE: lms_question_bank
+  PRIMARY KEY: id
+  FOREIGN KEYS: course_id -> lms_courses.id
+  COLUMNS: id (bigint), course_id (bigint), question_text (text), topic (varchar(120)), difficulty (varchar(20)), created_at (timestamp), updated_at (timestamp)
+
+TABLE: lms_question_bank_options
+  PRIMARY KEY: id
+  FOREIGN KEYS: bank_question_id -> lms_question_bank.id
+  COLUMNS: id (bigint), bank_question_id (bigint), option_text (text), is_correct (boolean), created_at (timestamp), updated_at (timestamp)
+
+TABLE: lms_quiz_bank_questions
+  PRIMARY KEY: id
+  FOREIGN KEYS: quiz_id -> lms_quizzes.id; bank_question_id -> lms_question_bank.id
+  COLUMNS: id (bigint), quiz_id (bigint), bank_question_id (bigint), sort_order (smallint)
+
+TABLE: lms_course_assignments
+  PRIMARY KEY: id
+  FOREIGN KEYS: course_id -> lms_courses.id
+  COLUMNS: id (bigint), course_id (bigint), client_user_id (bigint), assigned_by_user_id (bigint), progress_percent (smallint), status (varchar(20)), assigned_at (timestamp), completed_at (timestamp), created_at (timestamp), updated_at (timestamp)
+
+TABLE: lms_lesson_completions
+  PRIMARY KEY: id
+  FOREIGN KEYS: assignment_id -> lms_course_assignments.id; lesson_id -> lms_lessons.id
+  COLUMNS: id (bigint), assignment_id (bigint), lesson_id (bigint), completed_at (timestamp)
+
+TABLE: lms_quiz_attempts
+  PRIMARY KEY: id
+  FOREIGN KEYS: assignment_id -> lms_course_assignments.id; quiz_id -> lms_quizzes.id
+  COLUMNS: id (bigint), assignment_id (bigint), quiz_id (bigint), score_percent (smallint), passed (boolean), answers_json (jsonb), attempted_at (timestamp)
+
+TABLE: lms_homework
+  PRIMARY KEY: id
+  FOREIGN KEYS: course_id -> lms_courses.id; module_id -> lms_modules.id
+  COLUMNS: id (bigint), course_id (bigint), module_id (bigint), title (varchar), instructions (text), max_score (smallint), created_at (timestamp), updated_at (timestamp)
+
+TABLE: lms_homework_submissions
+  PRIMARY KEY: id
+  FOREIGN KEYS: homework_id -> lms_homework.id; assignment_id -> lms_course_assignments.id
+  COLUMNS: id (bigint), homework_id (bigint), assignment_id (bigint), content (text), score (smallint), status (varchar(20)), submitted_at (timestamp), created_at (timestamp), updated_at (timestamp)
+
+================================================================================
+RELATIONSHIP SUMMARY (all foreign keys):
+================================================================================
+
+consultant_agreement_templates.consultant_id > users.id
+consultant_letter_templates.consultant_id > users.id
+consultant_letters.consultant_id > users.id
+ircc_package_document_submissions.ircc_category_document_id > ircc_category_documents.id
+legislation_amendment_alerts.acknowledged_by > users.id
+lms_course_assignments.client_user_id > users.id [note: 'cross-DB db_lms → db_cws']
+lms_course_assignments.assigned_by_user_id > users.id [note: 'cross-DB db_lms → db_cws']
+
+================================================================================
+INLINE FK LIST:
+================================================================================
+
+admin_broadcasts.admin_user_id > users.id
+case_fee_milestones.case_file_id > case_files.id
+case_fee_milestones.client_profile_id > client_profiles.id
+case_fee_milestones.completed_by > users.id
+case_files.assigned_ircc_category_id > ircc_categories.id
+case_files.client_profile_id > client_profiles.id
+case_files.consultant_id > users.id
+case_messages.case_file_id > case_files.id
+case_messages.document_submission_id > document_submissions.id
+case_messages.sender_id > users.id
+client_activity_logs.actor_user_id > users.id
+client_activity_logs.case_file_id > case_files.id
+client_activity_logs.client_profile_id > client_profiles.id
+client_meetings.case_file_id > case_files.id
+client_meetings.client_profile_id > client_profiles.id
+client_meetings.consultant_id > users.id
+client_payment_requests.case_file_id > case_files.id
+client_payment_requests.client_profile_id > client_profiles.id
+client_payment_requests.consultant_id > users.id
+client_profiles.active_case_file_id > case_files.id
+client_profiles.consultant_id > users.id
+client_profiles.user_id > users.id
+client_trust_accounts.case_file_id > case_files.id
+client_trust_accounts.client_profile_id > client_profiles.id
+client_trust_accounts.consultant_id > users.id
+consultant_client_ai_advisories.client_profile_id > client_profiles.id
+consultant_client_ai_advisories.consultant_id > users.id
+consultant_client_ai_chat_messages.client_profile_id > client_profiles.id
+consultant_client_ai_chat_messages.consultant_id > users.id
+consultant_client_ai_documents.client_profile_id > client_profiles.id
+consultant_client_ai_documents.consultant_id > users.id
+consultant_client_requests.client_user_id > users.id
+consultant_client_requests.consultant_id > users.id
+consultant_legislation_bookmarks.client_profile_id > client_profiles.id
+consultant_legislation_bookmarks.consultant_id > users.id
+consultant_letters.client_profile_id > client_profiles.id
+consultant_letters.template_id > consultant_letter_templates.id
+consultant_marketing_orders.marketing_service_id > marketing_services.id
+consultant_marketing_orders.user_id > users.id
+consultant_meeting_accounts.user_id > users.id
+consultant_payment_accounts.user_id > users.id
+consultant_storage_addons.storage_addon_package_id > storage_addon_packages.id
+consultant_storage_addons.user_id > users.id
+consultant_storage_files.folder_id > consultant_storage_folders.id
+consultant_storage_files.user_id > users.id
+consultant_storage_folders.parent_id > consultant_storage_folders.id
+consultant_storage_folders.user_id > users.id
+consultant_subscriptions.subscription_package_id > subscription_packages.id
+consultant_subscriptions.user_id > users.id
+document_submissions.case_file_id > case_files.id
+document_submissions.reviewed_by > users.id
+document_submissions.uploaded_by > users.id
+integration_settings.updated_by > users.id
+ircc_categories.parent_id > ircc_categories.id
+ircc_category_documents.ircc_category_id > ircc_categories.id
+ircc_interactive_form_responses.case_file_id > case_files.id
+ircc_interactive_form_responses.ircc_interactive_form_id > ircc_interactive_forms.id
+ircc_interactive_form_responses.reviewed_by > users.id
+ircc_interactive_form_responses.user_id > users.id
+ircc_interactive_forms.ircc_category_id > ircc_categories.id
+ircc_package_document_submissions.case_file_id > case_files.id
+ircc_package_document_submissions.uploaded_by > users.id
+legislation_amendment_alerts.document_id > legislation_documents.id
+legislation_provisions.document_id > legislation_documents.id
+legislation_references.document_id > legislation_documents.id
+lms_course_assignments.course_id > lms_courses.id
+lms_courses.category_id > lms_categories.id
+lms_homework.course_id > lms_courses.id
+lms_homework.module_id > lms_modules.id
+lms_homework_submissions.assignment_id > lms_course_assignments.id
+lms_homework_submissions.homework_id > lms_homework.id
+lms_lesson_completions.assignment_id > lms_course_assignments.id
+lms_lesson_completions.lesson_id > lms_lessons.id
+lms_lessons.module_id > lms_modules.id
+lms_modules.course_id > lms_courses.id
+lms_question_bank.course_id > lms_courses.id
+lms_question_bank_options.bank_question_id > lms_question_bank.id
+lms_question_options.question_id > lms_questions.id
+lms_questions.quiz_id > lms_quizzes.id
+lms_quiz_attempts.assignment_id > lms_course_assignments.id
+lms_quiz_attempts.quiz_id > lms_quizzes.id
+lms_quiz_bank_questions.bank_question_id > lms_question_bank.id
+lms_quiz_bank_questions.quiz_id > lms_quizzes.id
+lms_quizzes.course_id > lms_courses.id
+lms_quizzes.module_id > lms_modules.id
+milestone_invoices.case_fee_milestone_id > case_fee_milestones.id
+milestone_invoices.case_file_id > case_files.id
+milestone_invoices.client_profile_id > client_profiles.id
+milestone_invoices.client_trust_account_id > client_trust_accounts.id
+milestone_invoices.consultant_id > users.id
+milestone_invoices.released_by > users.id
+model_has_permissions.permission_id > permissions.id
+model_has_roles.role_id > roles.id
+notification_deliveries.user_notification_id > user_notifications.id
+platform_company_settings.updated_by > users.id
+questionnaire_submissions.user_id > users.id
+rcic_community_posts.hidden_by > users.id
+rcic_community_posts.user_id > users.id
+rcic_community_reactions.post_id > rcic_community_posts.id
+rcic_community_reactions.user_id > users.id
+rcic_community_replies.post_id > rcic_community_posts.id
+rcic_community_replies.user_id > users.id
+rcic_community_reports.reporter_id > users.id
+rcic_community_reports.reviewed_by > users.id
+role_has_permissions.permission_id > permissions.id
+role_has_permissions.role_id > roles.id
+subscription_payment_records.consultant_marketing_order_id > consultant_marketing_orders.id
+subscription_payment_records.consultant_storage_addon_id > consultant_storage_addons.id
+subscription_payment_records.consultant_subscription_id > consultant_subscriptions.id
+subscription_payment_records.subscription_package_id > subscription_packages.id
+subscription_payment_records.user_id > users.id
+support_ticket_messages.support_ticket_id > support_tickets.id
+support_ticket_messages.user_id > users.id
+support_tickets.closed_by > users.id
+support_tickets.user_id > users.id
+trust_ledger_entries.actor_user_id > users.id
+trust_ledger_entries.case_fee_milestone_id > case_fee_milestones.id
+trust_ledger_entries.case_file_id > case_files.id
+trust_ledger_entries.client_profile_id > client_profiles.id
+trust_ledger_entries.client_trust_account_id > client_trust_accounts.id
+trust_ledger_entries.milestone_invoice_id > milestone_invoices.id
+user_notification_preferences.user_id > users.id
+user_notifications.user_id > users.id
+users.consultant_id > users.id
+whatsapp_conversations.user_id > users.id
+whatsapp_messages.sent_by_user_id > users.id
+whatsapp_messages.whatsapp_conversation_id > whatsapp_conversations.id

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\DocumentOcrVisionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
@@ -10,19 +11,16 @@ use Illuminate\Support\Facades\Log;
 class DocumentOcrController extends Controller
 {
     /**
-     * Proxy an identity-document image to the OCR / AI service and return
-     * the structured extraction result to the frontend.
+     * Scan an identity-document image and return structured fields.
      *
      * POST /api/v1/documents/scan
      *
-     * The AI service URL is driven by the OCR_SERVICE_URL environment variable,
-     * so switching from the local FastAPI server to a Google Colab endpoint (or
-     * any other hosted model) only requires changing that single .env value —
-     * no code changes needed.
+     * Order:
+     *   1. OpenAI Vision (same OPENAI_API_KEY as legislation) — fast + accurate
+     *   2. Local EasyOCR microservice — fallback (PDF / offline / Vision miss)
      */
-    public function scan(Request $request): JsonResponse
+    public function scan(Request $request, DocumentOcrVisionService $vision): JsonResponse
     {
-        // ── 1. Validate ───────────────────────────────────────────────────────
         $request->validate([
             'file' => [
                 'required',
@@ -30,29 +28,55 @@ class DocumentOcrController extends Controller
                 'mimes:png,jpg,jpeg,webp,pdf',
                 'max:10240',   // 10 MB
             ],
+            'document_hint' => ['nullable', 'string', 'in:passport,id,licence,education,language,study'],
         ]);
 
-        $file       = $request->file('file');
+        $file = $request->file('file');
+        $hint = $request->input('document_hint');
+        $hint = is_string($hint) && in_array($hint, DocumentOcrVisionService::HINTS, true) ? $hint : null;
+
+        // ── 1. OpenAI Vision (shared legislation API key) ─────────────────────
+        $visionResult = $vision->extract($file, $hint);
+        if (is_array($visionResult) && (
+            $this->hasUsefulFields($visionResult['extracted_data'] ?? [])
+            || $this->hasAuthenticitySignal($visionResult['authenticity'] ?? null)
+        )) {
+            return response()->json($visionResult);
+        }
+
+        // ── 2. Local OCR microservice fallback ────────────────────────────────
         $serviceUrl = rtrim(config('services.ocr.url'), '/') . '/scan-document';
         $timeout    = (int) config('services.ocr.timeout', 300);
 
-        // ── 2. Forward to AI service ──────────────────────────────────────────
         try {
-            $response = Http::timeout($timeout)
+            $pendingRequest = Http::timeout($timeout)
                 ->connectTimeout(15)
                 ->attach(
                     'file',
                     file_get_contents($file->getRealPath()),
                     $file->getClientOriginalName(),
                     ['Content-Type' => $file->getMimeType()]
-                )
-                ->post($serviceUrl);
+                );
 
+            $response = $pendingRequest->post(
+                $serviceUrl,
+                array_filter([
+                    'document_hint' => $hint,
+                ]),
+            );
         } catch (\Illuminate\Http\Client\ConnectionException $e) {
             Log::error('[OCR] AI service unreachable', [
                 'url'   => $serviceUrl,
                 'error' => $e->getMessage(),
             ]);
+
+            // If Vision already ran but found nothing, and local OCR is down, say so clearly.
+            if ($vision->available()) {
+                return response()->json([
+                    'status'  => 'error',
+                    'message' => 'Could not read this document. Try a clearer photo of the bio-data page, or fill the fields manually.',
+                ], 422);
+            }
 
             $msg = $e->getMessage();
             $userMessage = str_contains($msg, 'timed out') || str_contains($msg, 'cURL error 28')
@@ -65,7 +89,6 @@ class DocumentOcrController extends Controller
             ], 503);
         }
 
-        // ── 3. Handle AI service errors ───────────────────────────────────────
         if ($response->failed()) {
             Log::error('[OCR] AI service returned error', [
                 'url'    => $serviceUrl,
@@ -85,9 +108,34 @@ class DocumentOcrController extends Controller
             ], $response->status() >= 400 && $response->status() < 600 ? $response->status() : 502);
         }
 
-        // ── 4. Return the AI response as-is to the frontend ───────────────────
-        // The response shape is:
-        //   { status, document_type, extracted_data, confidence_score, message? }
         return response()->json($response->json(), $response->status());
+    }
+
+    /** @param  array<string, mixed>  $data */
+    private function hasUsefulFields(array $data): bool
+    {
+        foreach ([
+            'fullName', 'passportNumber', 'idNumber', 'dob', 'expiryDate', 'issueDate',
+            'nationality', 'gender', 'address', 'birthPlace',
+            'institutionName', 'degreeName', 'graduationYear', 'country',
+            'testListening', 'testReading', 'testWriting', 'testSpeaking', 'testOverall', 'testDate',
+        ] as $key) {
+            if (! empty($data[$key])) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /** @param  mixed  $auth */
+    private function hasAuthenticitySignal(mixed $auth): bool
+    {
+        if (! is_array($auth)) {
+            return false;
+        }
+        $verdict = (string) ($auth['verdict'] ?? 'unknown');
+
+        return in_array($verdict, ['likely_authentic', 'needs_review', 'suspicious', 'likely_fake'], true);
     }
 }

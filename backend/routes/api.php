@@ -63,6 +63,7 @@ use App\Http\Controllers\Consultant\ConsultantBillingController;
 use App\Http\Controllers\GstHstController;
 use App\Http\Controllers\CrsController;
 use App\Http\Controllers\DocumentOcrController;
+use App\Http\Controllers\NocLookupController;
 use App\Http\Controllers\DocumentSubmissionController;
 use App\Http\Controllers\FileUploadController;
 use App\Http\Controllers\PackageDocumentSubmissionController;
@@ -179,6 +180,9 @@ Route::prefix('auth')->group(function () {
     Route::post('login',                       [AuthController::class, 'login'])->name('auth.login');
     Route::post('forgot-password',             [AuthController::class, 'forgotPassword'])->name('auth.forgot-password');
     Route::post('reset-password',              [AuthController::class, 'resetPassword'])->name('auth.reset-password');
+    Route::post('set-password',                [AuthController::class, 'setPassword'])
+        ->middleware('auth:sanctum')
+        ->name('auth.set-password');
 
     // Public (client) registration
     Route::post('register',                    [PublicRegisterController::class, 'register'])->name('auth.register');
@@ -214,11 +218,14 @@ Route::middleware('auth:sanctum')->prefix('documents')->name('documents.')->grou
     Route::post('scan',   [DocumentOcrController::class, 'scan'])->name('scan');
 });
 
+Route::middleware(['auth:sanctum', 'throttle:20,1'])->prefix('noc')->name('noc.')->group(function () {
+    Route::post('suggest', [NocLookupController::class, 'suggest'])->name('suggest');
+});
+
 // ── Protected routes ─────────────────────────────────────────────────────────
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('me',      [AuthController::class, 'me'])->name('auth.me');
     Route::post('logout', [AuthController::class, 'logout'])->name('auth.logout');
-    Route::post('set-password', [AuthController::class, 'setPassword'])->name('auth.set-password');
 
     // ── In-app notifications (all authenticated users) ────────────────────────
     Route::prefix('notifications')->name('notifications.')->group(function () {
@@ -236,6 +243,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('consultant/profile',        [ConsultantProfileController::class, 'show'])->name('consultant.profile.show');
     Route::put('consultant/profile',        [ConsultantProfileController::class, 'update'])->name('consultant.profile.update');
     Route::post('consultant/profile/logo',      [ConsultantProfileController::class, 'uploadLogo'])->name('consultant.profile.logo');
+    Route::post('consultant/profile/avatar',    [ConsultantProfileController::class, 'uploadAvatar'])->name('consultant.profile.avatar');
+    Route::delete('consultant/profile/avatar',  [ConsultantProfileController::class, 'deleteAvatar'])->name('consultant.profile.avatar.delete');
     Route::post('consultant/profile/signature', [ConsultantProfileController::class, 'saveSignature'])->name('consultant.profile.signature');
 
     // ── Consultant: client payment collection (Stripe Connect / PayPal / Interac) ─

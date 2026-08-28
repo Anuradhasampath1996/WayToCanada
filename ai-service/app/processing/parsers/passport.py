@@ -104,12 +104,15 @@ class PassportParser(BaseParser):
 
     # Flexible MRZ line-2: handles OCR output where '<' fillers are dropped/spaced.
     # Captures: (passport_num)(nationality)(dob_yymmdd)(sex)(expiry_yymmdd)
+    # Non-greedy digit length so check digit is not swallowed into the passport no.
     _MRZ_FLEX_L2 = re.compile(
-        r"([A-Z]{1,2}[0-9]{6,9})"  # passport number (variable length)
-        r"[A-Z0-9 <]{0,6}"          # optional filler / check digit
+        r"([A-Z]{1,2}[0-9]{6,8}?)"  # passport number
+        r"(?:\s*[0-9<])?"           # optional check digit
+        r"\s*"
         r"([A-Z]{3})"               # nationality (3 capitals)
         r"([0-9]{6})"               # DOB YYMMDD
-        r"[A-Z0-9 <]{0,3}"          # optional check digit
+        r"(?:\s*[0-9<])?"           # optional check digit
+        r"\s*"
         r"([MFX])"                  # sex
         r"([0-9]{6})",              # expiry YYMMDD
     )
@@ -234,31 +237,28 @@ class PassportParser(BaseParser):
         """Find MRZ lines and extract structured data from them.
 
         EasyOCR often splits a single 44-char MRZ line into several detection
-        boxes (returned as separate "lines").  We therefore try two strategies:
+        boxes (returned as separate "lines").  We therefore try:
 
-        1. Exact match after stripping intra-line spaces  (fast, clean MRZs).
-        2. Reconstruct by concatenating all MRZ-looking segments and searching
-           for the TD3 line-1 and line-2 patterns within the blob.
+        1. Exact 44-char lines after stripping spaces
+        2. Reconstruct TD3 patterns from an MRZ character blob
+        3. Flex line-2 (passport + nat + DOB + sex + expiry) when fillers are dropped
         """
         # ── Strategy 1: per-line exact match after collapsing spaces ─────────
-        mrz_lines = []
+        mrz_lines: list[str] = []
         for ln in text.splitlines():
             clean = re.sub(r"\s+", "", ln.strip()).upper()
             if re.fullmatch(r"[A-Z0-9<]{44}", clean):
                 mrz_lines.append(clean)
 
+        mrz_blob = "".join(
+            re.sub(r"\s+", "", ln.strip()).upper()
+            for ln in text.splitlines()
+            if re.fullmatch(r"[A-Z0-9< ]+", ln.strip(), re.I) and len(ln.strip()) >= 3
+        )
+
         # ── Strategy 2: reconstruct from fragmented boxes ────────────────────
         if len(mrz_lines) < 2:
-            # Gather every segment that consists only of MRZ-legal characters
-            mrz_blob = "".join(
-                re.sub(r"\s+", "", ln.strip()).upper()
-                for ln in text.splitlines()
-                if re.fullmatch(r"[A-Z0-9< ]+", ln.strip(), re.I) and len(ln.strip()) >= 3
-            )
-            # TD3 line 1: P< + 3-char country + 39-char name field
-            # Require 'P<' specifically — avoids false match on words like 'PASSPORT' (PA...).
             l1 = re.search(r"(P<[A-Z]{3}[A-Z<]{39})", mrz_blob)
-            # TD3 line 2: doc-no(9)+chk+nat(3)+dob(6)+chk+sex+exp(6)+chk+opt(14)+chk(2)
             l2 = re.search(
                 r"([A-Z0-9<]{9}[0-9][A-Z]{3}[0-9]{6}[0-9][MFX<][0-9]{6}[0-9][A-Z0-9<]{14}[0-9]{2})",
                 mrz_blob,
@@ -266,41 +266,63 @@ class PassportParser(BaseParser):
             if l1 and l2:
                 mrz_lines = [l1.group(1), l2.group(1)]
 
-        if len(mrz_lines) < 2:
-            return None
-
-        line1, line2 = mrz_lines[0], mrz_lines[1]
         data = ExtractedData()
 
-        # ── Line 1: names ─────────────────────────────────────────────────────
-        m1 = self._MRZ_L1.match(line1)
-        if m1:
-            name_field = m1.group(3)          # 39 chars after doc-type + nationality
-            # Surname and given names separated by '<<'
-            if "<<" in name_field:
+        if len(mrz_lines) >= 2:
+            line1, line2 = mrz_lines[0], mrz_lines[1]
+
+            m1 = self._MRZ_L1.match(line1)
+            if m1:
+                name_field = m1.group(3)
+                if "<<" in name_field:
+                    surname_raw, *given_parts = name_field.split("<<")
+                    given_raw = " ".join(" ".join(given_parts).split("<"))
+                    surname = self.clean_name(surname_raw)
+                    given = self.clean_name(given_raw)
+                    data.fullName = f"{given} {surname}".strip()
+
+            m2 = self._MRZ_L2.match(line2)
+            if m2:
+                passport_raw = m2.group(1).rstrip("<")
+                nationality = m2.group(3).replace("<", "")
+                data.passportNumber = passport_raw.upper()
+                data.nationality = self._ISO_NATIONALITY.get(nationality, nationality.title())
+                data.dob = self.normalize_date(m2.group(4))
+                data.expiryDate = self.normalize_date(m2.group(7))
+                data.gender = self._map_sex(m2.group(6))
+
+        # ── Strategy 3: flex line-2 when exact TD3 failed / incomplete ────────
+        if not data.passportNumber or not data.dob:
+            flex = self._MRZ_FLEX_L2.search(mrz_blob) or self._MRZ_FLEX_L2.search(
+                re.sub(r"[\n\r]+", " ", text).upper()
+            )
+            if flex:
+                if not data.passportNumber:
+                    data.passportNumber = flex.group(1).upper()
+                nat = flex.group(2)
+                if not data.nationality:
+                    data.nationality = self._ISO_NATIONALITY.get(nat, nat.title())
+                if not data.dob:
+                    data.dob = self.normalize_date(flex.group(3))
+                if not data.gender:
+                    data.gender = self._map_sex(flex.group(4))
+                if not data.expiryDate:
+                    data.expiryDate = self.normalize_date(flex.group(5))
+
+        # Name from blob if still missing (P<NATSurname<<Given…)
+        if not data.fullName and mrz_blob:
+            l1m = re.search(r"P<[A-Z]{3}([A-Z<]{2,39}<<[A-Z<]+)", mrz_blob)
+            if l1m:
+                name_field = l1m.group(1)
                 surname_raw, *given_parts = name_field.split("<<")
                 given_raw = " ".join(" ".join(given_parts).split("<"))
-                surname   = self.clean_name(surname_raw)
-                given     = self.clean_name(given_raw)
-                data.fullName = f"{given} {surname}".strip()
+                surname = self.clean_name(surname_raw)
+                given = self.clean_name(given_raw)
+                name = f"{given} {surname}".strip()
+                if name:
+                    data.fullName = name
 
-        # ── Line 2: numbers + dates ───────────────────────────────────────────
-        m2 = self._MRZ_L2.match(line2)
-        if m2:
-            passport_raw = m2.group(1).rstrip("<")
-            nationality  = m2.group(3).replace("<", "")
-            dob_raw      = m2.group(4)
-            sex_raw      = m2.group(6)
-            expiry_raw   = m2.group(7)
-
-            data.passportNumber = passport_raw.upper()
-            data.nationality    = self._ISO_NATIONALITY.get(nationality, nationality.title())
-            data.dob            = self.normalize_date(dob_raw)
-            data.expiryDate     = self.normalize_date(expiry_raw)
-            data.gender         = self._map_sex(sex_raw)
-
-        # Return only if we extracted something meaningful
-        return data if (data.passportNumber or data.fullName) else None
+        return data if (data.passportNumber or data.fullName or data.dob) else None
 
     # ── Flexible MRZ supplement ──────────────────────────────────────────────
 

@@ -14,7 +14,6 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
-use Illuminate\Validation\Rule;
 
 class ClientController extends Controller
 {
@@ -73,8 +72,8 @@ class ClientController extends Controller
 
     /**
      * POST /api/v1/consultant/clients
-     * Creates a User + ClientProfile in a single DB transaction.
-     * Auto-generates a secure password and dispatches an invitation email.
+     * Creates a ClientProfile for this consultant.
+     * Email uniqueness is consultant-scoped: the same client user may work with multiple consultants.
      */
     public function store(Request $request): JsonResponse
     {
@@ -82,7 +81,7 @@ class ClientController extends Controller
 
         $validated = $request->validate([
             'name'                 => ['required', 'string', 'max:255'],
-            'email'                => ['required', 'email', 'max:255', Rule::unique('users', 'email')],
+            'email'                => ['required', 'email', 'max:255'],
             'phone'                => ['nullable', 'string', 'max:30'],
             'passport_number'      => ['nullable', 'string', 'max:50'],
             'immigration_pathway'  => ['nullable', 'string', 'max:100'],
@@ -91,62 +90,136 @@ class ClientController extends Controller
             'send_invite'          => ['boolean'],
         ]);
 
+        $email = strtolower(trim($validated['email']));
         $shouldSendInvite = (bool) ($validated['send_invite'] ?? true);
 
-        // Generate a secure random password (16 chars)
-        $plainPassword = Str::password(16);
+        // Already linked to THIS consultant?
+        $existingForConsultant = ClientProfile::query()
+            ->where('consultant_id', $consultant->id)
+            ->whereHas('user', fn ($q) => $q->whereRaw('LOWER(email) = ?', [$email]))
+            ->first();
+
+        if ($existingForConsultant) {
+            return response()->json([
+                'message' => 'You already have a client with this email.',
+                'errors'  => ['email' => ['This email is already in your client list.']],
+            ], 422);
+        }
+
+        $existingUser = User::query()
+            ->whereRaw('LOWER(email) = ?', [$email])
+            ->first();
+
+        if ($existingUser && ! $existingUser->hasRole('client')) {
+            return response()->json([
+                'message' => 'This email belongs to a consultant or admin account.',
+                'errors'  => ['email' => ['This email cannot be used for a client profile.']],
+            ], 422);
+        }
+
+        $plainPassword = null;
+        $createdNewUser = false;
+        $linkedExisting = false;
 
         try {
-            $result = DB::connection('cws')->transaction(function () use ($validated, $consultant, $plainPassword) {
-                // 1. Create the user account
-                $user = User::create([
-                    'name'          => $validated['name'],
-                    'email'         => $validated['email'],
-                    'phone'         => $validated['phone'] ?? null,
-                    'password'      => Hash::make($plainPassword),
-                    'consultant_id' => $consultant->id,
-                    // Mark as verified since the consultant is registering them
-                    'email_verified_at' => now(),
-                    'is_verified'       => true,
-                ]);
+            $result = DB::connection('cws')->transaction(function () use (
+                $validated,
+                $consultant,
+                $email,
+                $existingUser,
+                $shouldSendInvite,
+                &$plainPassword,
+                &$createdNewUser,
+                &$linkedExisting,
+            ) {
+                if ($existingUser) {
+                    $user = $existingUser;
+                    $linkedExisting = true;
 
-                // 2. Assign the 'client' role
-                $user->assignRole('client');
+                    // Keep their login; refresh name/phone lightly if provided.
+                    $userUpdates = array_filter([
+                        'name'  => $validated['name'] ?? null,
+                        'phone' => $validated['phone'] ?? $user->phone,
+                    ], fn ($v) => $v !== null && $v !== '');
+                    if ($userUpdates !== []) {
+                        $user->update($userUpdates);
+                    }
+                    if (! $user->hasRole('client')) {
+                        $user->assignRole('client');
+                    }
+                } else {
+                    $createdNewUser = true;
+                    $plainPassword = Str::password(16);
+                    $user = User::create([
+                        'name'              => $validated['name'],
+                        'email'             => $email,
+                        'phone'             => $validated['phone'] ?? null,
+                        'password'          => Hash::make($plainPassword),
+                        'consultant_id'     => $consultant->id,
+                        'email_verified_at' => now(),
+                        'is_verified'       => true,
+                    ]);
+                    $user->assignRole('client');
+                }
 
-                // 3. Create the linked profile
+                // Point "current" consultant for portal resolution to the inviting RCIC.
+                $user->update(['consultant_id' => $consultant->id]);
+
                 $profile = ClientProfile::create([
                     'user_id'             => $user->id,
                     'consultant_id'       => $consultant->id,
-                    'phone'               => $validated['phone'] ?? null,
+                    'phone'               => $validated['phone'] ?? $user->phone,
                     'passport_number'     => $validated['passport_number'] ?? null,
                     'immigration_pathway' => $validated['immigration_pathway'] ?? null,
                     'family_id'           => $validated['family_id'] ?? null,
                     'notes'               => $validated['notes'] ?? null,
-                    'invited_at'          => now(),
+                    'invited_at'          => $shouldSendInvite ? now() : null,
                 ]);
 
-                return ['user' => $user, 'profile' => $profile];
+                return ['user' => $user->fresh(), 'profile' => $profile];
             });
 
-            // 4. Send invitation email (outside the transaction so a mail failure doesn't roll back)
-        if ($shouldSendInvite) {
-            $this->sendInvitationEmail($result['user'], $plainPassword, $consultant);
-            $this->activity->onClientInvited($result['profile'], $consultant, $request);
-        }
+            if ($shouldSendInvite) {
+                $mailOk = false;
+                if ($createdNewUser && $plainPassword) {
+                    $mailOk = $this->sendInvitationEmail($result['user'], $plainPassword, $consultant);
+                } else {
+                    $mailOk = $this->sendLinkedConsultantEmail($result['user'], $consultant);
+                }
+                $this->activity->onClientInvited($result['profile'], $consultant, $request);
+            } else {
+                $mailOk = null;
+            }
         } catch (\Illuminate\Database\UniqueConstraintViolationException $e) {
             return response()->json([
-                'message' => 'A user with this email already exists.',
-                'errors'  => ['email' => ['This email is already registered.']],
+                'message' => 'You already have a client with this email.',
+                'errors'  => ['email' => ['This email is already in your client list.']],
             ], 422);
         } catch (\Throwable $e) {
             Log::error('[ClientController] Failed to create client: ' . $e->getMessage());
             return response()->json(['message' => 'Failed to create client. Please try again.'], 500);
         }
 
+        $message = $shouldSendInvite
+            ? ($linkedExisting
+                ? 'Existing client linked to your practice.'
+                : 'Client created.')
+            : ($linkedExisting
+                ? 'Existing client linked to your practice. Invitation not sent.'
+                : 'Client created. Invitation not sent.');
+
+        if ($shouldSendInvite) {
+            $message .= ! empty($mailOk)
+                ? ' Invitation email sent.'
+                : ' Invitation email failed to send — use Resend invite, or check Admin → Integrations → Email.';
+        }
+
         return response()->json([
-            'message'      => $shouldSendInvite ? 'Client created and invitation sent.' : 'Client created. Invitation not sent.',
-            'invite_sent'  => $shouldSendInvite,
-            'client'       => $result['profile']->load('user:id,name,email,phone,created_at'),
+            'message'         => $message,
+            'invite_sent'     => $shouldSendInvite && ! empty($mailOk),
+            'mail_sent'       => $shouldSendInvite ? (bool) $mailOk : null,
+            'linked_existing' => $linkedExisting,
+            'client'          => $result['profile']->load('user:id,name,email,phone,created_at'),
         ], 201);
     }
 
@@ -225,16 +298,23 @@ class ClientController extends Controller
 
     /**
      * DELETE /api/v1/consultant/clients/{profile}
-     * Removes the profile and optionally the user account (if no other data).
+     * Removes this consultant's client profile. Deletes the user only if no other profiles remain.
      */
     public function destroy(Request $request, ClientProfile $profile): JsonResponse
     {
         $this->authorizeConsultant($request, $profile);
+        $consultantId = (int) $request->user()->id;
 
-        DB::connection('cws')->transaction(function () use ($profile) {
+        DB::connection('cws')->transaction(function () use ($profile, $consultantId) {
             $user = $profile->user;
-            $profile->delete();     // cascades via FK
-            $user?->delete();
+            $profile->delete();
+
+            if ($user && ! ClientProfile::where('user_id', $user->id)->exists()) {
+                $user->delete();
+            } elseif ($user && (int) $user->consultant_id === $consultantId) {
+                $next = ClientProfile::where('user_id', $user->id)->latest('id')->first();
+                $user->update(['consultant_id' => $next?->consultant_id]);
+            }
         });
 
         return response()->json(['message' => 'Client removed.']);
@@ -253,10 +333,15 @@ class ClientController extends Controller
         $profile->user->update(['password' => Hash::make($plainPassword)]);
         $profile->update(['invited_at' => now()]);
 
-        $this->sendInvitationEmail($profile->user, $plainPassword, $request->user());
+        $mailOk = $this->sendInvitationEmail($profile->user, $plainPassword, $request->user());
         $this->activity->onClientInvited($profile, $request->user(), $request);
 
-        return response()->json(['message' => 'Invitation resent.']);
+        return response()->json([
+            'message'   => $mailOk
+                ? 'Invitation resent.'
+                : 'Password reset, but email failed to send. Check Admin → Integrations → Email.',
+            'mail_sent' => $mailOk,
+        ], $mailOk ? 200 : 502);
     }
 
     // ── Toggle active / inactive ───────────────────────────────────────────────
@@ -292,24 +377,77 @@ class ClientController extends Controller
         }
     }
 
-    private function sendInvitationEmail(User $client, string $plainPassword, User $consultant): void
+    private function sendInvitationEmail(User $client, string $plainPassword, User $consultant): bool
     {
         try {
-            Mail::send([], [], function ($message) use ($client, $plainPassword, $consultant) {
+            app(\App\Services\IntegrationSettingsService::class)->applyRuntimeConfig();
+
+            $loginUrl = rtrim(
+                (string) (env('PUBLIC_FRONTEND_URL') ?: env('CLIENT_PORTAL_URL', 'http://localhost:3000')),
+                '/'
+            ) . '/login';
+
+            $html = view('emails.client-invitation', [
+                'client'     => $client,
+                'password'   => $plainPassword,
+                'consultant' => $consultant,
+                'loginUrl'   => $loginUrl,
+            ])->render();
+
+            Mail::html($html, function ($message) use ($client) {
                 $message
                     ->to($client->email, $client->name)
-                    ->subject('Your RCICMASTER Client Portal Invitation')
-                    ->html(
-                        view('emails.client-invitation', [
-                            'client'        => $client,
-                            'password'      => $plainPassword,
-                            'consultant'    => $consultant,
-                            'loginUrl'      => env('CLIENT_PORTAL_URL', 'http://localhost:3001') . '/login',
-                        ])->render()
-                    );
+                    ->subject('Your RCICMASTER Client Portal Invitation');
             });
+
+            Log::info('[ClientController] Invitation email sent', [
+                'to'     => $client->email,
+                'mailer' => config('mail.default'),
+                'host'   => config('mail.mailers.smtp.host'),
+            ]);
+
+            return true;
         } catch (\Throwable $e) {
-            Log::warning('[ClientController] Invitation email failed for ' . $client->email . ': ' . $e->getMessage());
+            Log::error('[ClientController] Invitation email failed for ' . $client->email . ': ' . $e->getMessage(), [
+                'mailer' => config('mail.default'),
+                'host'   => config('mail.mailers.smtp.host'),
+            ]);
+
+            return false;
+        }
+    }
+
+    private function sendLinkedConsultantEmail(User $client, User $consultant): bool
+    {
+        try {
+            app(\App\Services\IntegrationSettingsService::class)->applyRuntimeConfig();
+
+            $loginUrl = rtrim(
+                (string) (env('PUBLIC_FRONTEND_URL') ?: env('CLIENT_PORTAL_URL', 'http://localhost:3000')),
+                '/'
+            ) . '/login';
+            $consultantName = $consultant->company_name ?: $consultant->name;
+            $html = '<p>Hello '.e($client->name).',</p>'
+                .'<p><strong>'.e($consultantName).'</strong> has added you to their RCICMASTER practice workspace.</p>'
+                .'<p>Sign in with your existing account: <a href="'.e($loginUrl).'">'.e($loginUrl).'</a></p>'
+                .'<p>If you work with more than one consultant, each practice keeps its own case files.</p>';
+
+            Mail::html($html, function ($message) use ($client, $consultantName) {
+                $message
+                    ->to($client->email, $client->name)
+                    ->subject('You were added by '.$consultantName.' on RCICMASTER');
+            });
+
+            Log::info('[ClientController] Link email sent', [
+                'to'     => $client->email,
+                'mailer' => config('mail.default'),
+            ]);
+
+            return true;
+        } catch (\Throwable $e) {
+            Log::error('[ClientController] Link email failed for ' . $client->email . ': ' . $e->getMessage());
+
+            return false;
         }
     }
 }

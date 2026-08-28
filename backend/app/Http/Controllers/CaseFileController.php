@@ -590,8 +590,17 @@ class CaseFileController extends Controller
 
         // Find the client profile for this user
         $profile = ClientProfile::where('user_id', $user->id)
+            ->when(
+                $user->consultant_id,
+                fn ($q) => $q->where('consultant_id', $user->consultant_id),
+            )
             ->with('consultant:id,name,email,phone,rcic_number,avatar,company_logo,company_name')
-            ->first();
+            ->latest('id')
+            ->first()
+            ?? ClientProfile::where('user_id', $user->id)
+                ->with('consultant:id,name,email,phone,rcic_number,avatar,company_logo,company_name')
+                ->latest('id')
+                ->first();
 
         if (! $profile) {
             $pendingRequest = ConsultantClientRequest::query()
@@ -626,9 +635,7 @@ class CaseFileController extends Controller
         }
 
         $caseFile = $this->prepareCaseFile(
-            CaseFile::where('client_profile_id', $profile->id)
-                ->with('assignedIrccCategory.documents')
-                ->first()
+            $this->lifecycle->resolvePortalCaseFile($profile)?->loadMissing('assignedIrccCategory.documents')
         );
 
         return response()->json([
@@ -683,7 +690,17 @@ class CaseFileController extends Controller
     {
         $this->authorizeConsultant($request, $profile);
 
-        $caseFile = $this->lifecycle->openNewCase($profile, $request->user()->id);
+        $data = $request->validate([
+            'name' => 'required|string|max:120',
+            'note' => 'nullable|string|max:2000',
+        ]);
+
+        $caseFile = $this->lifecycle->openNewCase(
+            $profile,
+            $request->user()->id,
+            $data['name'],
+            $data['note'] ?? null,
+        );
         $caseFile->loadMissing('assignedIrccCategory.documents');
 
         return response()->json([

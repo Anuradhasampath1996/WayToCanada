@@ -19,7 +19,7 @@ services:
     build:
       context: .
       dockerfile: docker/php/Dockerfile
-    image: waytocanada-api
+    image: ${IMAGE_PREFIX:-}waytocanada-api:${IMAGE_TAG:-latest}
     container_name: wtc_api
     restart: unless-stopped
     ports:
@@ -34,7 +34,7 @@ services:
       - ./backend/storage:/var/www/storage
 
   frontend:
-    image: waytocanada-frontend-public
+    image: ${IMAGE_PREFIX:-}waytocanada-frontend-public:${IMAGE_TAG:-latest}
     container_name: wtc_frontend
     restart: unless-stopped
     ports:
@@ -43,7 +43,7 @@ services:
       - api
 
   frontend-admin:
-    image: waytocanada-frontend-admin
+    image: ${IMAGE_PREFIX:-}waytocanada-frontend-admin:${IMAGE_TAG:-latest}
     container_name: wtc_frontend_admin
     restart: unless-stopped
     ports:
@@ -52,7 +52,7 @@ services:
       - api
 
   frontend-users:
-    image: waytocanada-frontend-users
+    image: ${IMAGE_PREFIX:-}waytocanada-frontend-users:${IMAGE_TAG:-latest}
     container_name: wtc_frontend_users
     restart: unless-stopped
     ports:
@@ -61,7 +61,7 @@ services:
       - api
 
   frontend-consultant-site:
-    image: waytocanada-frontend-consultant-site
+    image: ${IMAGE_PREFIX:-}waytocanada-frontend-consultant-site:${IMAGE_TAG:-latest}
     container_name: wtc_frontend_consultant_site
     restart: unless-stopped
     ports:
@@ -70,7 +70,7 @@ services:
       - api
 
   frontend-consultant-dash:
-    image: waytocanada-frontend-consultant-dash
+    image: ${IMAGE_PREFIX:-}waytocanada-frontend-consultant-dash:${IMAGE_TAG:-latest}
     container_name: wtc_frontend_consultant_dash
     restart: unless-stopped
     ports:

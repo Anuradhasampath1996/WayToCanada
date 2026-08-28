@@ -38,10 +38,15 @@ export default function UserMenu() {
   const [user, setUser] = useState<WtcUser>({});
 
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem("wtc_consultant_user");
-      if (raw) setUser(JSON.parse(raw));
-    } catch {}
+    function readUser() {
+      try {
+        const raw = localStorage.getItem("wtc_consultant_user");
+        if (raw) setUser(JSON.parse(raw));
+      } catch {}
+    }
+    readUser();
+    window.addEventListener("wtc-consultant-user-updated", readUser);
+    return () => window.removeEventListener("wtc-consultant-user-updated", readUser);
   }, []);
 
   async function handleLogout() {

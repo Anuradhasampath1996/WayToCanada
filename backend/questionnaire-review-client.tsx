@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { use, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
@@ -35,7 +35,6 @@ const STEP1_FIELDS: FieldDef[] = [
   { key: "fullName",          label: "Full Name",                            section: "Basic Information" },
   { key: "email",             label: "Email Address",                        section: "Basic Information" },
   { key: "whatsapp",          label: "WhatsApp Number",                      section: "Basic Information" },
-  { key: "visaType",          label: "Intended Visa Type",                   section: "Basic Information" },
   { key: "married",           label: "Marital Status",                       section: "Family" },
   { key: "dependentChildren", label: "Number of Dependent Children",         section: "Family" },
   { key: "hasAccompanying",   label: "Other Persons Accompanying?",          section: "Family" },
@@ -73,6 +72,7 @@ const PERSON_FIELDS: FieldDef[] = [
   { key: "scores",                 label: "Test Scores",                             section: "Language Test",      type: "textarea" },
   { key: "languageTestDocName",    label: "Language Test Certificate (PDF/Image)",   section: "Language Test",      type: "document" },
   { key: "workExperience",         label: "Total Skilled Foreign Work Experience",   section: "Work Experience" },
+  { key: "foreignWorkEntries",     label: "Foreign Work History (company, title, dates)", section: "Work Experience" },
   { key: "settlementFunds",        label: "Settlement Funds Available (CAD)",        section: "Work Experience" },
   { key: "canadianWork",           label: "1 Year Authorized Canadian Work Exp.?",   section: "Canadian Work" },
   { key: "canadianWorkEmployer",   label: "Employer Name",                           section: "Canadian Work" },

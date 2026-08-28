@@ -36,13 +36,13 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
   return (
     <Sidebar collapsible="icon" {...props}>
-      <SidebarHeader className="border-b border-sidebar-border/40 bg-gradient-to-br from-sidebar-primary/[0.07] via-transparent to-transparent px-3 py-4">
+      <SidebarHeader className="border-b border-sidebar-border/40 bg-gradient-to-br from-sidebar-primary/[0.07] via-transparent to-transparent px-3 py-4 group-data-[collapsible=icon]:px-1.5 group-data-[collapsible=icon]:py-3">
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton
               size="lg"
               asChild
-              className="h-auto justify-center rounded-lg bg-transparent px-1 py-1 shadow-none ring-0 hover:bg-sidebar-accent/30 group-data-[collapsible=icon]:size-10! group-data-[collapsible=icon]:p-1!"
+              className="h-auto justify-center rounded-lg bg-transparent px-1 py-1 shadow-none ring-0 hover:bg-sidebar-accent/30 group-data-[collapsible=icon]:!size-9 group-data-[collapsible=icon]:!p-0.5"
             >
               <Link href="/consultantdashboard" className="flex w-full items-center justify-center">
                 <Logo variant="sidebar" />
@@ -51,12 +51,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarHeader>
-      <SidebarContent className="px-1.5">
+      <SidebarContent className="px-1.5 group-data-[collapsible=icon]:overflow-x-hidden group-data-[collapsible=icon]:px-1">
         <ScrollArea className="h-full [&>[data-radix-scroll-area-viewport]>div]:!block">
           <NavMain />
         </ScrollArea>
       </SidebarContent>
-      <SidebarFooter className="border-t border-sidebar-border/40 bg-sidebar-accent/10 p-2.5">
+      <SidebarFooter className="border-t border-sidebar-border/40 bg-sidebar-accent/10 p-2.5 group-data-[collapsible=icon]:p-1.5">
         <NavUser />
       </SidebarFooter>
     </Sidebar>

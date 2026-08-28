@@ -1,0 +1,24 @@
+.client-requests-shell {
+  background:
+    radial-gradient(90% 70% at 0% 0%, color-mix(in oklch, var(--primary) 7%, transparent), transparent 55%),
+    radial-gradient(70% 60% at 100% 0%, color-mix(in oklch, var(--muted) 45%, transparent), transparent 50%),
+    var(--card);
+}
+
+.client-requests-header::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(
+      110deg,
+      color-mix(in oklch, var(--primary) 8%, transparent) 0%,
+      transparent 46%,
+      color-mix(in oklch, var(--muted) 30%, transparent) 100%
+    );
+  pointer-events: none;
+}
+
+.client-request-row {
+  transition: background-color 0.15s ease;
+}

@@ -1,9 +1,48 @@
+.consultant-calendar-shell {
+  background:
+    radial-gradient(120% 80% at 0% 0%, color-mix(in oklch, var(--primary) 8%, transparent), transparent 55%),
+    radial-gradient(90% 70% at 100% 0%, color-mix(in oklch, var(--muted) 55%, transparent), transparent 50%),
+    var(--card);
+}
+
+.consultant-calendar-header::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(
+      105deg,
+      color-mix(in oklch, var(--primary) 10%, transparent) 0%,
+      transparent 42%,
+      color-mix(in oklch, var(--muted) 35%, transparent) 100%
+    );
+  pointer-events: none;
+}
+
+.consultant-day-panel {
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklch, var(--muted) 28%, transparent) 0%,
+      color-mix(in oklch, var(--muted) 12%, transparent) 100%
+    );
+}
+
+.consultant-day-card {
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+.consultant-day-card:hover {
+  box-shadow: 0 8px 24px color-mix(in oklch, var(--foreground) 6%, transparent);
+  transform: translateY(-1px);
+}
+
 .consultant-dashboard-calendar {
   --fc-small-font-size: 0.78rem;
   --fc-page-bg-color: transparent;
   --fc-neutral-bg-color: color-mix(in oklch, var(--muted) 35%, transparent);
   --fc-neutral-text-color: var(--muted-foreground);
-  --fc-border-color: color-mix(in oklch, var(--border) 85%, transparent);
+  --fc-border-color: color-mix(in oklch, var(--border) 75%, transparent);
   --fc-button-text-color: var(--primary-foreground);
   --fc-button-bg-color: var(--primary);
   --fc-button-border-color: var(--primary);
@@ -11,10 +50,10 @@
   --fc-button-hover-border-color: color-mix(in oklch, var(--primary) 90%, black);
   --fc-button-active-bg-color: color-mix(in oklch, var(--primary) 82%, black);
   --fc-button-active-border-color: color-mix(in oklch, var(--primary) 82%, black);
-  --fc-today-bg-color: color-mix(in oklch, var(--primary) 10%, transparent);
+  --fc-today-bg-color: color-mix(in oklch, var(--primary) 9%, transparent);
   --fc-now-indicator-color: var(--primary);
   --fc-event-border-color: transparent;
-  --fc-highlight-color: color-mix(in oklch, var(--primary) 18%, transparent);
+  --fc-highlight-color: color-mix(in oklch, var(--primary) 16%, transparent);
 }
 
 .consultant-dashboard-calendar .fc {
@@ -27,18 +66,24 @@
 }
 
 .consultant-dashboard-calendar .fc .fc-toolbar-title {
-  font-size: 1rem;
+  font-size: 1.05rem;
   font-weight: 700;
+  letter-spacing: -0.02em;
   color: var(--foreground);
 }
 
 .consultant-dashboard-calendar .fc .fc-button {
-  border-radius: 0.55rem;
+  border-radius: 0.65rem;
   font-size: 0.75rem;
   font-weight: 600;
-  padding: 0.38rem 0.7rem;
+  padding: 0.4rem 0.75rem;
   box-shadow: none;
   text-transform: capitalize;
+}
+
+.consultant-dashboard-calendar .fc .fc-button-primary:not(:disabled).fc-button-active,
+.consultant-dashboard-calendar .fc .fc-button-primary:not(:disabled):active {
+  box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--primary-foreground) 18%, transparent);
 }
 
 .consultant-dashboard-calendar .fc .fc-button:focus {
@@ -46,64 +91,229 @@
 }
 
 .consultant-dashboard-calendar .fc .fc-col-header-cell-cushion {
-  padding: 0.55rem 0;
-  font-size: 0.72rem;
-  font-weight: 600;
+  padding: 0.6rem 0;
+  font-size: 0.7rem;
+  font-weight: 650;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.06em;
   color: var(--muted-foreground);
+}
+
+.consultant-dashboard-calendar .fc .fc-daygrid-day {
+  transition: background-color 0.15s ease;
 }
 
 .consultant-dashboard-calendar .fc .fc-daygrid-day-number {
   font-size: 0.8rem;
-  font-weight: 500;
-  padding: 0.35rem 0.45rem;
+  font-weight: 600;
+  padding: 0.4rem 0.5rem;
+  color: var(--foreground);
 }
 
 .consultant-dashboard-calendar .fc .fc-daygrid-day.fc-day-today .fc-daygrid-day-number {
   background: var(--primary);
   color: var(--primary-foreground);
   border-radius: 9999px;
-  min-width: 1.6rem;
+  min-width: 1.65rem;
   text-align: center;
+  box-shadow: 0 2px 8px color-mix(in oklch, var(--primary) 35%, transparent);
 }
 
 .consultant-dashboard-calendar .fc .fc-day-selected {
-  background: color-mix(in oklch, var(--primary) 8%, transparent) !important;
-  outline: 2px solid color-mix(in oklch, var(--primary) 35%, transparent);
-  outline-offset: -2px;
+  background: color-mix(in oklch, var(--primary) 10%, transparent) !important;
+  box-shadow: inset 0 0 0 2px color-mix(in oklch, var(--primary) 45%, transparent);
 }
 
-.consultant-dashboard-calendar .fc-event {
-  border-radius: 0.35rem;
+.consultant-dashboard-calendar .fc .fc-day-selected .fc-daygrid-day-number {
+  font-weight: 700;
+}
+
+.consultant-dashboard-calendar .fc .fc-daygrid-day-frame {
+  min-height: 7.25rem;
+}
+
+.consultant-dashboard-calendar .fc .fc-daygrid-day-events {
+  margin-top: 0.2rem;
+  padding: 0 0.28rem 0.35rem;
+}
+
+.consultant-dashboard-calendar .fc .fc-daygrid-event-harness {
+  margin-top: 0.28rem !important;
+}
+
+.consultant-dashboard-calendar .fc-event.fc-event-stack {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+.consultant-dashboard-calendar .fc-event.fc-event-stack .fc-event-main {
+  padding: 0 !important;
+  color: inherit;
+}
+
+/* Soft modern chips — light surface + accent rail (no heavy solid fills) */
+.consultant-dashboard-calendar .fc-day-event-chip {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+  width: 100%;
+  border-radius: 0.65rem;
+  padding: 0.35rem 0.4rem;
+  line-height: 1.2;
+  background: color-mix(in oklch, var(--card) 92%, white);
+  border: 1px solid color-mix(in oklch, var(--border) 80%, transparent);
+  box-shadow: 0 1px 2px color-mix(in oklch, var(--foreground) 4%, transparent);
+  color: var(--foreground);
+  overflow: hidden;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+.consultant-dashboard-calendar .fc-day-event-chip:hover {
+  box-shadow: 0 4px 12px color-mix(in oklch, var(--foreground) 7%, transparent);
+  transform: translateY(-1px);
+}
+
+.consultant-dashboard-calendar .fc-day-event-chip.is-meeting {
+  background: color-mix(in oklch, var(--primary) 7%, var(--card));
+  border-color: color-mix(in oklch, var(--primary) 18%, var(--border));
+}
+
+.consultant-dashboard-calendar .fc-day-event-chip.is-google {
+  background: color-mix(in oklch, rgb(100 116 139) 8%, var(--card));
+  border-color: color-mix(in oklch, rgb(100 116 139) 20%, var(--border));
+}
+
+.consultant-dashboard-calendar .fc-day-event-chip.is-retainer {
+  background: color-mix(in oklch, rgb(16 185 129) 8%, var(--card));
+  border-color: color-mix(in oklch, rgb(16 185 129) 20%, var(--border));
+}
+
+.consultant-dashboard-calendar .fc-day-event-chip__body {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.12rem;
+  padding-top: 0.02rem;
+}
+
+.consultant-dashboard-calendar .fc-day-event-chip__time {
+  display: inline-flex;
+  align-self: flex-start;
+  max-width: 100%;
+  border-radius: 999px;
+  padding: 0.08rem 0.4rem;
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  line-height: 1.35;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.consultant-dashboard-calendar .fc-day-event-chip.is-meeting .fc-day-event-chip__time {
+  background: color-mix(in oklch, var(--primary) 14%, transparent);
+  color: var(--primary);
+}
+
+.consultant-dashboard-calendar .fc-day-event-chip.is-google .fc-day-event-chip__time {
+  background: rgb(100 116 139 / 0.14);
+  color: rgb(71 85 105);
+}
+
+.consultant-dashboard-calendar .fc-day-event-chip.is-retainer .fc-day-event-chip__time {
+  background: rgb(16 185 129 / 0.14);
+  color: rgb(4 120 87);
+}
+
+.consultant-dashboard-calendar .fc-day-event-chip__title {
   font-size: 0.7rem;
-  font-weight: 600;
-  padding: 1px 3px;
-  margin-bottom: 1px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--foreground);
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  white-space: normal;
+  word-break: break-word;
 }
 
-.consultant-dashboard-calendar .fc-event.fc-event-client-meeting {
-  background-color: color-mix(in oklch, var(--primary) 90%, transparent);
-  border-color: color-mix(in oklch, var(--primary) 90%, transparent);
+.consultant-dashboard-calendar .fc-day-event-chip__client {
+  font-size: 0.58rem;
+  font-weight: 500;
+  color: var(--muted-foreground);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.consultant-dashboard-calendar .fc-event.fc-event-google {
-  background-color: rgb(100 116 139 / 0.82);
-  border-color: rgb(100 116 139 / 0.82);
+.consultant-dashboard-calendar .fc-client-avatar {
+  margin-top: 0.05rem;
+  box-shadow: 0 0 0 1px color-mix(in oklch, var(--border) 70%, transparent);
 }
 
+.consultant-dashboard-calendar .fc-client-avatar img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.consultant-dashboard-calendar .fc-event.fc-event-client-meeting,
+.consultant-dashboard-calendar .fc-event.fc-event-google,
 .consultant-dashboard-calendar .fc-event.fc-event-retainer {
-  background-color: rgb(16 185 129 / 0.85);
-  border-color: rgb(16 185 129 / 0.85);
+  background-color: transparent;
+  border-color: transparent;
 }
 
 .consultant-dashboard-calendar .fc .fc-daygrid-more-link {
   font-size: 0.68rem;
-  font-weight: 600;
+  font-weight: 650;
   color: var(--primary);
+  margin-top: 0.15rem;
+  padding: 0.1rem 0.25rem;
+  border-radius: 0.4rem;
 }
 
-/* Mobile: prevent toolbar button overlap */
+.consultant-dashboard-calendar .fc .fc-daygrid-more-link:hover {
+  background: color-mix(in oklch, var(--primary) 10%, transparent);
+}
+
+.consultant-dashboard-calendar .fc .fc-daygrid-day.fc-day-other {
+  background: color-mix(in oklch, var(--muted) 18%, transparent);
+}
+
+.consultant-dashboard-calendar .fc .fc-daygrid-day.fc-day-other .fc-daygrid-day-number {
+  color: var(--muted-foreground);
+  opacity: 0.75;
+}
+
+@media (prefers-color-scheme: dark) {
+  .consultant-dashboard-calendar .fc-day-event-chip.is-google .fc-day-event-chip__time {
+    color: rgb(203 213 225);
+  }
+
+  .consultant-dashboard-calendar .fc-day-event-chip.is-retainer .fc-day-event-chip__time {
+    color: rgb(110 231 183);
+  }
+}
+
+.dark .consultant-dashboard-calendar .fc-day-event-chip.is-google .fc-day-event-chip__time {
+  color: rgb(203 213 225);
+}
+
+.dark .consultant-dashboard-calendar .fc-day-event-chip.is-retainer .fc-day-event-chip__time {
+  color: rgb(110 231 183);
+}
+
 @media (max-width: 767px) {
   .consultant-dashboard-calendar .fc .fc-toolbar {
     flex-direction: column;
@@ -147,6 +357,26 @@
   .consultant-dashboard-calendar .fc .fc-daygrid-day-number {
     font-size: 0.72rem;
     padding: 0.25rem 0.3rem;
+  }
+
+  .consultant-dashboard-calendar .fc .fc-daygrid-day-frame {
+    min-height: 5.2rem;
+  }
+
+  .consultant-dashboard-calendar .fc-day-event-chip {
+    padding: 0.28rem 0.32rem;
+    gap: 0.3rem;
+    border-radius: 0.55rem;
+  }
+
+  .consultant-dashboard-calendar .fc-day-event-chip__title {
+    font-size: 0.62rem;
+    -webkit-line-clamp: 1;
+    line-clamp: 1;
+  }
+
+  .consultant-dashboard-calendar .fc-day-event-chip__client {
+    display: none;
   }
 
   .consultant-dashboard-calendar .fc-event {

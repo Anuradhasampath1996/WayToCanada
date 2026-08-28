@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import * as React from "react";
 import Link from "next/link";
@@ -16,22 +16,21 @@ import {
   FileTextIcon,
   FolderUpIcon,
   BookOpenIcon,
-  FormInputIcon,
   CheckCircle2Icon,
   LockIcon,
   MailIcon,
-  Loader2,
   UserCircle2Icon,
   CreditCardIcon,
   UserSearchIcon,
   MessageSquareIcon,
   RouteIcon,
+  PhoneIcon,
+  SearchIcon,
 } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { useClientJourneyOptional } from "@/context/client-journey-context";
 import { useClientUnreadMessages } from "@/hooks/use-client-unread-messages";
 import {
-  journeyCurrentStepNumber,
   journeyStepBadge,
   LEARNING_LOCKED_REASON,
   canAccessClientMessages,
@@ -49,8 +48,8 @@ export const navItems = [
       { title: "Overview", href: "/user-dashboard", icon: LayoutDashboardIcon },
       { title: "Your profile", href: "/user-dashboard/questionnaire", icon: ClipboardListIcon },
       { title: "Sign agreement", href: "/user-dashboard/retainer-agreement", icon: FileTextIcon },
-      { title: "Government forms", href: "/user-dashboard/application-forms", icon: FormInputIcon },
-      { title: "Documents & messages", href: "/user-dashboard/case-management", icon: FolderUpIcon },
+      { title: "Documents & messages", href: "/user-dashboard/application-forms", icon: FolderUpIcon },
+      { title: "Case review & next steps", href: "/user-dashboard/case-management", icon: SearchIcon },
       { title: "Learning courses", href: "/user-dashboard/learning", icon: BookOpenIcon },
       { title: "Find a consultant", href: "/user-dashboard/choose-consultant", icon: UserSearchIcon },
       { title: "My pathway", href: "/user-dashboard/my-pathway", icon: RouteIcon },
@@ -64,23 +63,20 @@ export const navItems = [
 const STEP_ICONS: Record<JourneyStepId, React.ComponentType<{ className?: string }>> = {
   questionnaire: ClipboardListIcon,
   retainer: FileTextIcon,
-  forms: FormInputIcon,
-  documents: FolderUpIcon,
+  forms: FolderUpIcon,
+  documents: SearchIcon,
 };
 
 /** Light hover/active — avoids dark sidebar-accent hiding nested status colors. */
 const JOURNEY_NAV_BUTTON =
-  "group/step h-auto min-h-10 items-start py-2 transition-colors " +
+  "group/step h-auto min-h-11 items-start gap-3 px-3 py-2.5 transition-colors " +
   "hover:!bg-primary/10 hover:!text-foreground active:!bg-primary/10 active:!text-foreground " +
   "data-[active=true]:!bg-primary/15 data-[active=true]:!text-foreground " +
   "hover:[&_svg]:!text-foreground data-[active=true]:[&_svg]:!text-foreground " +
   "hover:[&_.journey-step-label]:!text-foreground data-[active=true]:[&_.journey-step-label]:!text-foreground " +
   "hover:[&_.journey-step-badge]:!border-border hover:[&_.journey-step-badge]:!bg-background " +
   "data-[active=true]:[&_.journey-step-badge]:!border-border data-[active=true]:[&_.journey-step-badge]:!bg-background " +
-  "hover:[&_.journey-step-badge]:!text-foreground data-[active=true]:[&_.journey-step-badge]:!text-foreground " +
-  "hover:[&_.journey-step-num]:!border-border/60 hover:[&_.journey-step-num]:!bg-background hover:[&_.journey-step-num]:!text-foreground " +
-  "data-[active=true]:[&_.journey-step-num]:!border-border/60 data-[active=true]:[&_.journey-step-num]:!bg-background data-[active=true]:[&_.journey-step-num]:!text-foreground " +
-  "hover:[&_.journey-step-num_svg]:!text-foreground data-[active=true]:[&_.journey-step-num_svg]:!text-foreground";
+  "hover:[&_.journey-step-badge]:!text-foreground data-[active=true]:[&_.journey-step-badge]:!text-foreground";
 
 function JourneyStepNavItem({
   step,
@@ -99,60 +95,50 @@ function JourneyStepNavItem({
 
   const content = (
     <>
-      <Icon
+      <div
         className={cn(
-          "size-4 shrink-0 text-muted-foreground group-data-[collapsible=icon]:block",
-          locked && "opacity-40",
+          "journey-step-num flex size-7 shrink-0 items-center justify-center rounded-full border text-[11px] font-bold tabular-nums transition-colors",
+          step.status === "done" && "border-emerald-500/40 bg-emerald-500/10 text-emerald-700",
+          step.status === "active" && "border-primary/40 bg-primary/10 text-primary",
+          step.status === "waiting" && "border-amber-400/50 bg-amber-500/10 text-amber-800",
+          step.status === "locked" && "border-muted-foreground/15 bg-muted text-muted-foreground/50",
         )}
-      />
-      <div className="min-w-0 flex-1 group-data-[collapsible=icon]:hidden">
-        <div className="flex items-start gap-2">
-          <div
-            className={cn(
-              "journey-step-num flex size-5 shrink-0 items-center justify-center rounded-full border text-[10px] font-bold tabular-nums transition-colors",
-              step.status === "done" && "border-emerald-500/40 bg-emerald-500/10 text-emerald-700",
-              step.status === "active" && "border-primary/40 bg-primary/10 text-primary",
-              step.status === "waiting" && "border-amber-400/50 bg-amber-500/10 text-amber-800",
-              step.status === "locked" && "border-muted-foreground/15 bg-muted text-muted-foreground/50",
-            )}
-          >
-            {step.status === "done" ? (
-              <CheckCircle2Icon className="size-3 text-emerald-600" />
-            ) : step.status === "locked" ? (
-              <LockIcon className="size-2.5 text-muted-foreground/45" />
-            ) : (
-              step.number
-            )}
-          </div>
-          <div className="min-w-0 flex-1">
-            <span
-              className={cn(
-                "journey-step-label block truncate text-sm font-medium text-foreground transition-colors",
-                locked && "text-muted-foreground/70",
-              )}
-            >
-              {step.navLabel}
-              {badgeCount != null && badgeCount > 0 && (
-                <span className="ml-1.5 inline-flex min-w-[1.1rem] items-center justify-center rounded-full bg-primary px-1.5 py-px text-[10px] font-bold text-primary-foreground">
-                  {badgeCount > 9 ? "9+" : badgeCount}
-                </span>
-              )}
+      >
+        {step.status === "done" ? (
+          <CheckCircle2Icon className="size-3.5 text-emerald-600" />
+        ) : step.status === "locked" ? (
+          <LockIcon className="size-3 text-muted-foreground/45" />
+        ) : (
+          <Icon className="size-3.5" />
+        )}
+      </div>
+      <div className="min-w-0 flex-1 space-y-1 group-data-[collapsible=icon]:hidden">
+        <span
+          className={cn(
+            "journey-step-label block text-sm font-medium leading-snug text-foreground transition-colors",
+            locked && "text-muted-foreground/70",
+          )}
+        >
+          {step.navLabel}
+          {badgeCount != null && badgeCount > 0 && (
+            <span className="ml-1.5 inline-flex min-w-[1.1rem] items-center justify-center rounded-full bg-primary px-1.5 py-px text-[10px] font-bold text-primary-foreground">
+              {badgeCount > 9 ? "9+" : badgeCount}
             </span>
-            <span
-              className={cn(
-                "journey-step-badge mt-0.5 inline-flex rounded-md border px-1.5 py-px text-[10px] font-semibold leading-tight transition-colors",
-                badge.className,
-              )}
-            >
-              {badge.label}
-            </span>
-            {locked && step.lockedReason && (
-              <p className="mt-1 line-clamp-2 text-[10px] leading-snug text-muted-foreground/70">
-                {step.lockedReason}
-              </p>
-            )}
-          </div>
-        </div>
+          )}
+        </span>
+        <span
+          className={cn(
+            "journey-step-badge inline-flex rounded-md border px-1.5 py-0.5 text-[10px] font-semibold leading-tight transition-colors",
+            badge.className,
+          )}
+        >
+          {badge.label}
+        </span>
+        {locked && step.lockedReason && (
+          <p className="line-clamp-2 text-[10px] leading-snug text-muted-foreground/70">
+            {step.lockedReason}
+          </p>
+        )}
       </div>
     </>
   );
@@ -161,7 +147,7 @@ function JourneyStepNavItem({
     return (
       <SidebarMenuItem>
         <SidebarMenuButton
-          className="h-auto min-h-10 cursor-not-allowed items-start py-2 opacity-80 hover:!bg-transparent active:!bg-transparent hover:!text-inherit"
+          className="h-auto min-h-11 cursor-not-allowed items-start gap-3 px-3 py-2.5 opacity-80 hover:!bg-transparent active:!bg-transparent hover:!text-inherit"
           isActive={false}
           tooltip={`${step.navLabel} — ${step.lockedReason ?? "Not available yet"}`}
           onClick={(e) => e.preventDefault()}
@@ -194,10 +180,6 @@ export function NavMain() {
   const journey = useClientJourneyOptional();
 
   const steps = journey?.steps ?? [];
-  const progress = journey?.progressPercent ?? 0;
-  const currentStepId = journey?.currentStepId ?? "questionnaire";
-  const currentStepNum = journeyCurrentStepNumber(steps, currentStepId);
-  const nextAction = journey?.nextAction;
   const consultant = journey?.consultant;
   const showJourneyNav = Boolean(consultant);
   const canAccess = journey?.canAccess ?? (() => false);
@@ -209,68 +191,17 @@ export function NavMain() {
   const isOverviewActive = pathname === "/user-dashboard";
 
   return (
-    <SidebarGroup className="px-1">
-      {/* Zone 1 — status card */}
-      <div className="mb-3 space-y-2.5 rounded-xl border border-sidebar-border/60 bg-background/80 p-3 shadow-sm group-data-[collapsible=icon]:hidden">
-        {journey?.loading ? (
-          <div className="flex items-center justify-center py-4">
-            <Loader2 className="size-5 animate-spin text-muted-foreground" />
-          </div>
-        ) : (
-          <>
-            <div className="space-y-1">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                Your status
-              </p>
-              <p className="text-sm font-semibold leading-snug text-foreground">
-                {showJourneyNav
-                  ? (nextAction?.title ?? "Getting started")
-                  : "Choose your immigration consultant"}
-              </p>
-              <p className="text-[11px] leading-relaxed text-muted-foreground line-clamp-2">
-                {showJourneyNav
-                  ? nextAction?.description
-                  : "Search licensed RCICs and send a request to start your 4-step application journey."}
-              </p>
-            </div>
-            {showJourneyNav && (
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between text-[10px] font-medium text-muted-foreground">
-                  <span>Step {currentStepNum} of 4</span>
-                  <span className="tabular-nums">{progress}%</span>
-                </div>
-                <div className="h-1.5 overflow-hidden rounded-full bg-muted">
-                  <div
-                    className="h-full rounded-full bg-primary transition-all duration-500"
-                    style={{ width: `${progress}%` }}
-                  />
-                </div>
-              </div>
-            )}
-            {showJourneyNav && nextAction?.href && nextAction.buttonLabel && (
-              <Button size="sm" className="h-8 w-full rounded-lg text-xs" asChild>
-                <Link href={nextAction.href}>{nextAction.buttonLabel}</Link>
-              </Button>
-            )}
-            {!showJourneyNav && (
-              <Button size="sm" className="h-8 w-full rounded-lg text-xs" asChild>
-                <Link href="/user-dashboard/choose-consultant">Find a consultant</Link>
-              </Button>
-            )}
-          </>
-        )}
-      </div>
-
-      <SidebarGroupLabel className="text-[10px] font-semibold uppercase tracking-wider">
+    <SidebarGroup className="px-2">
+      <SidebarGroupLabel className="mb-1 px-2 text-[10px] font-semibold uppercase tracking-wider">
         {showJourneyNav ? "Your journey" : "Get started"}
       </SidebarGroupLabel>
 
       <SidebarGroupContent>
-        <SidebarMenu>
+        <SidebarMenu className="gap-1.5">
           {/* Overview */}
           <SidebarMenuItem>
             <SidebarMenuButton
-              className="hover:!bg-primary/10 hover:!text-foreground active:!bg-primary/10 active:!text-foreground data-[active=true]:!bg-primary/15 data-[active=true]:!text-foreground hover:[&_svg]:!text-foreground data-[active=true]:[&_svg]:!text-foreground"
+              className="h-10 gap-3 px-3 hover:!bg-primary/10 hover:!text-foreground active:!bg-primary/10 active:!text-foreground data-[active=true]:!bg-primary/15 data-[active=true]:!text-foreground hover:[&_svg]:!text-foreground data-[active=true]:[&_svg]:!text-foreground"
               isActive={isOverviewActive}
               tooltip="Overview"
               asChild
@@ -390,18 +321,66 @@ export function NavMain() {
 
       {/* Consultant quick contact */}
       {consultant && !journey?.loading && (
-        <div className="mt-3 rounded-lg border border-sidebar-border/50 bg-muted/30 px-3 py-2.5 group-data-[collapsible=icon]:hidden">
+        <div className="mt-4 space-y-3.5 rounded-xl border border-sidebar-border/60 bg-background p-4 shadow-sm group-data-[collapsible=icon]:hidden">
           <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
             Your consultant
           </p>
-          <p className="mt-0.5 truncate text-xs font-medium text-foreground">{consultant.name}</p>
-          <a
-            href={`mailto:${consultant.email}`}
-            className="mt-1.5 inline-flex items-center gap-1 text-[11px] text-primary hover:underline"
+
+          <div className="flex items-center gap-3">
+            {consultant.avatar ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={consultant.avatar}
+                alt={consultant.name}
+                className="size-11 shrink-0 rounded-full object-cover ring-2 ring-primary/15"
+              />
+            ) : (
+              <div className="flex size-11 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary ring-2 ring-primary/15">
+                {consultant.name.split(" ").filter(Boolean).slice(0, 2).map((w) => w[0]?.toUpperCase()).join("")}
+              </div>
+            )}
+            <div className="min-w-0 flex-1 space-y-0.5">
+              <p className="truncate text-sm font-semibold leading-snug text-foreground capitalize">
+                {consultant.name}
+              </p>
+              {consultant.rcic_number && (
+                <p className="truncate text-[11px] leading-snug text-muted-foreground">
+                  RCIC — {consultant.rcic_number}
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div className="space-y-2 border-t border-sidebar-border/50 pt-3">
+            <a
+              href={`mailto:${consultant.email}`}
+              className="grid grid-cols-[1rem_1fr] items-start gap-x-2.5 gap-y-0 text-[11px] leading-snug text-muted-foreground hover:text-foreground"
+            >
+              <MailIcon className="mt-0.5 size-3.5 shrink-0" />
+              <span className="break-all">{consultant.email}</span>
+            </a>
+            {consultant.phone && (
+              <a
+                href={`tel:${consultant.phone}`}
+                className="grid grid-cols-[1rem_1fr] items-center gap-x-2.5 text-[11px] leading-snug text-muted-foreground hover:text-foreground"
+              >
+                <PhoneIcon className="size-3.5 shrink-0" />
+                <span className="truncate">{consultant.phone}</span>
+              </a>
+            )}
+          </div>
+
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-9 w-full gap-2 rounded-lg border-primary/30 text-xs font-semibold text-primary hover:bg-primary/5 hover:text-primary"
+            asChild
           >
-            <MailIcon className="size-3 shrink-0" />
-            Send email
-          </a>
+            <Link href="/user-dashboard/messages">
+              <MessageSquareIcon className="size-3.5 shrink-0" />
+              Send message
+            </Link>
+          </Button>
         </div>
       )}
     </SidebarGroup>

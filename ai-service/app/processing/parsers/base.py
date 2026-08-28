@@ -36,13 +36,18 @@ class BaseParser(ABC):
         # MRZ: YYMMDD
         if re.fullmatch(r"\d{6}", raw):
             yy = int(raw[:2])
-            mm = raw[2:4]
-            dd = raw[4:6]
+            mm = int(raw[2:4])
+            dd = int(raw[4:6])
+            if not (1 <= mm <= 12 and 1 <= dd <= 31):
+                return ""
             # Use current year + 15 as the cutoff so passport expiry years like
             # 2034 (yy=34) map correctly to 2000s rather than 1900s.
             cutoff = (datetime.now().year + 15) % 100
             year = 2000 + yy if yy <= cutoff else 1900 + yy
-            return f"{year}-{mm}-{dd}"
+            try:
+                return datetime(year, mm, dd).strftime("%Y-%m-%d")
+            except ValueError:
+                return ""
 
         # Try explicit format strings
         for fmt in (
@@ -57,7 +62,7 @@ class BaseParser(ABC):
             except ValueError:
                 continue
 
-        return raw  # return as-is if nothing matched
+        return ""  # never return unparseable strings into <input type="date">
 
     # ── Name cleaning ─────────────────────────────────────────────────────────
 

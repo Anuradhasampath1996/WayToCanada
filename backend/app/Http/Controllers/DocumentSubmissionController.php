@@ -247,7 +247,7 @@ class DocumentSubmissionController extends Controller
 
         $profiles = ClientProfile::where('consultant_id', $consultant->id)
             ->with([
-                'user:id,name,email',
+                'user:id,name,email,avatar',
                 'caseFile:id,client_profile_id,status,immigration_pathway,agreement_signed_at',
             ])
             ->get();
@@ -270,6 +270,7 @@ class DocumentSubmissionController extends Controller
                 'profile_id'         => $profile->id,
                 'client_name'        => $profile->user->name ?? 'Unknown',
                 'client_email'       => $profile->user->email ?? '',
+                'client_avatar'      => $profile->user->avatar ?: null,
                 'status'             => $cf->status,
                 'immigration_pathway'=> $cf->immigration_pathway,
                 'agreement_signed_at'=> $cf->agreement_signed_at?->toDateTimeString(),

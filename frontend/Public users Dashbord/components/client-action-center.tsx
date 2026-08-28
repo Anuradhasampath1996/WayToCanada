@@ -63,7 +63,20 @@ function fmtMeetingWhen(iso: string, timezone: string) {
   }
 }
 
-export function ClientActionCenter() {
+const JOURNEY_DUPLICATE_IDS = new Set([
+  "questionnaire",
+  "agreement",
+  "forms",
+  "documents",
+  "assessment-wait",
+]);
+
+export function ClientActionCenter({
+  hideJourneyDuplicates = false,
+}: {
+  /** Overview already shows the current step hero — skip matching CTAs. */
+  hideJourneyDuplicates?: boolean;
+} = {}) {
   const {
     caseFile, verification, qStats, meta, applicationPackage,
   } = useClientJourney();
@@ -250,16 +263,18 @@ export function ClientActionCenter() {
     const seen = new Set<string>();
     const merged: ActionItem[] = [];
     for (const item of [...staticItems, ...dynamicItems]) {
+      if (hideJourneyDuplicates && JOURNEY_DUPLICATE_IDS.has(item.id)) continue;
       if (seen.has(item.id)) continue;
       seen.add(item.id);
       merged.push(item);
     }
     return merged;
-  }, [staticItems, dynamicItems]);
+  }, [staticItems, dynamicItems, hideJourneyDuplicates]);
 
   const [acting, setActing] = useState<string | null>(null);
 
   if (loadingExtra && items.length === 0) {
+    if (hideJourneyDuplicates) return null;
     return (
       <div className="flex items-center gap-2 rounded-xl border border-dashed p-4 text-sm text-muted-foreground">
         <Loader2 className="size-4 animate-spin" />
@@ -269,6 +284,7 @@ export function ClientActionCenter() {
   }
 
   if (items.length === 0) {
+    if (hideJourneyDuplicates) return null;
     return (
       <div className="rounded-2xl border border-emerald-200/70 bg-emerald-50/30 p-5">
         <div className="flex items-start gap-3">

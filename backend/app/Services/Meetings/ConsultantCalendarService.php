@@ -25,6 +25,10 @@ class ConsultantCalendarService
      *     all_day: bool,
      *     source: string,
      *     client_profile_id: int|null,
+     *     client_name: string|null,
+     *     client_avatar: string|null,
+     *     description: string|null,
+     *     duration_minutes: int|null,
      *     meeting_url: string|null,
      *     provider: string|null
      *   }>
@@ -53,11 +57,16 @@ class ConsultantCalendarService
                 continue;
             }
 
-            $clientName = $meeting->clientProfile?->user?->name ?? 'Client';
+            $clientUser = $meeting->clientProfile?->user;
+            $clientName = $clientUser?->name ?? 'Client';
+            $clientAvatar = filled($clientUser?->avatar) ? (string) $clientUser->avatar : null;
 
             if ($meeting->calendar_event_id) {
                 $linkedGoogleIds[] = $meeting->calendar_event_id;
             }
+
+            $rawDesc = trim((string) ($meeting->description ?? ''));
+            $rawDesc = preg_replace('/\s*\[demo-july-2026\]\s*/i', '', $rawDesc) ?? $rawDesc;
 
             $events[] = [
                 'id'                => 'meeting-' . $meeting->id,
@@ -67,6 +76,10 @@ class ConsultantCalendarService
                 'all_day'           => false,
                 'source'            => 'client_meeting',
                 'client_profile_id' => $meeting->client_profile_id,
+                'client_name'       => $clientName,
+                'client_avatar'     => $clientAvatar,
+                'description'       => $rawDesc !== '' ? $rawDesc : null,
+                'duration_minutes'  => (int) $meeting->duration_minutes,
                 'meeting_url'       => $meeting->meeting_url,
                 'provider'          => $meeting->provider,
             ];
@@ -89,6 +102,10 @@ class ConsultantCalendarService
                         'all_day'           => $event['all_day'],
                         'source'            => 'google_calendar',
                         'client_profile_id' => null,
+                        'client_name'       => null,
+                        'client_avatar'     => null,
+                        'description'       => $event['description'] ?? null,
+                        'duration_minutes'  => null,
                         'meeting_url'       => $event['meeting_url'],
                         'provider'          => null,
                     ];

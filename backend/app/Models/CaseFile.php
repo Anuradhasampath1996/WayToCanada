@@ -14,6 +14,7 @@ class CaseFile extends Model
         'client_profile_id',
         'consultant_id',
         'case_number',
+        'name',
         'status',
         'lifecycle_status',
         'lifecycle_note',

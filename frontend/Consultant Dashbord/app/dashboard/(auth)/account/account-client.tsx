@@ -7,6 +7,7 @@ import { AccountMeetingSettings } from "./account-meeting-settings";
 import { AccountNotificationSettings } from "./account-notification-settings";
 import { AccountPasswordSettings } from "./account-password-settings";
 import {
+  Camera,
   User,
   Mail,
   BadgeCheck,
@@ -23,6 +24,7 @@ import {
   PenLine,
   CreditCard,
   ExternalLink,
+  Trash2,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -347,6 +349,10 @@ export function AccountClient() {
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
 
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
+
   const [sigSaved, setSigSaved] = useState<string | null>(null);
   const [sigSaving, setSigSaving] = useState(false);
   const [sigStatus, setSigStatus] = useState<"idle" | "saved" | "error">("idle");
@@ -386,6 +392,7 @@ export function AccountClient() {
         setPostalCode(p(prof.company_postal_code, reg?.postal_code));
         setCountry(p(prof.company_country, reg?.country) || "Canada");
         setLogoPreview(prof.company_logo ?? null);
+        setAvatarPreview(prof.avatar ?? null);
         setSigSaved(prof.digital_signature ?? null);
       } finally {
         setLoading(false);
@@ -530,6 +537,75 @@ export function AccountClient() {
     }
   }
 
+  function syncLocalUserAvatar(avatar: string | null) {
+    try {
+      const raw = localStorage.getItem("wtc_consultant_user");
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      parsed.avatar = avatar;
+      localStorage.setItem("wtc_consultant_user", JSON.stringify(parsed));
+      window.dispatchEvent(new Event("wtc-consultant-user-updated"));
+    } catch {
+      /* ignore */
+    }
+  }
+
+  async function handleAvatarUpload(file: File) {
+    setAvatarUploading(true);
+    setSaveError(null);
+    try {
+      const fd = new FormData();
+      fd.append("avatar", file);
+      const res = await fetch(`${API}/consultant/profile/avatar`, {
+        method: "POST",
+        headers: authHeaders(false),
+        body: fd,
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        setSaveError(json.message ?? "Profile photo upload failed");
+        setSaveStatus("error");
+        return;
+      }
+      setAvatarPreview(json.avatar);
+      setProfile((prev) => (prev ? { ...prev, avatar: json.avatar } : prev));
+      syncLocalUserAvatar(json.avatar);
+      setSaveStatus("saved");
+      setTimeout(() => setSaveStatus((s) => (s === "saved" ? "idle" : s)), 2500);
+    } catch {
+      setSaveError("Profile photo upload failed");
+      setSaveStatus("error");
+    } finally {
+      setAvatarUploading(false);
+      if (avatarInputRef.current) avatarInputRef.current.value = "";
+    }
+  }
+
+  async function handleAvatarRemove() {
+    setAvatarUploading(true);
+    setSaveError(null);
+    try {
+      const res = await fetch(`${API}/consultant/profile/avatar`, {
+        method: "DELETE",
+        headers: authHeaders(false),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        setSaveError(json.message ?? "Could not remove photo");
+        setSaveStatus("error");
+        return;
+      }
+      setAvatarPreview(null);
+      setProfile((prev) => (prev ? { ...prev, avatar: null } : prev));
+      syncLocalUserAvatar(null);
+    } catch {
+      setSaveError("Could not remove photo");
+      setSaveStatus("error");
+    } finally {
+      setAvatarUploading(false);
+    }
+  }
+
   async function handleSaveSignature(dataUrl: string) {
     setSigSaving(true);
     setSigStatus("idle");
@@ -610,12 +686,72 @@ export function AccountClient() {
       {/* Identity card */}
       <div className="rounded-lg border bg-card">
         <div className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:gap-5 sm:p-6">
-          <Avatar className="size-16 shrink-0 ring-1 ring-border sm:size-20">
-            <AvatarImage src={profile.avatar ?? logoPreview ?? ""} alt={profile.name} />
-            <AvatarFallback className="bg-muted text-base font-medium text-foreground">
-              {initials}
-            </AvatarFallback>
-          </Avatar>
+          <div className="flex flex-col items-start gap-3 sm:items-center">
+            <div className="relative">
+              <Avatar className="size-20 shrink-0 ring-1 ring-border sm:size-24">
+                <AvatarImage src={avatarPreview ?? profile.avatar ?? ""} alt={profile.name} />
+                <AvatarFallback className="bg-muted text-base font-medium text-foreground">
+                  {initials}
+                </AvatarFallback>
+              </Avatar>
+              <button
+                type="button"
+                onClick={() => avatarInputRef.current?.click()}
+                disabled={avatarUploading}
+                className="absolute -bottom-1 -right-1 flex size-8 items-center justify-center rounded-full border border-border bg-background text-foreground shadow-sm transition-colors hover:bg-primary hover:text-primary-foreground disabled:opacity-60"
+                aria-label="Upload profile photo"
+              >
+                {avatarUploading ? (
+                  <Loader2 className="size-3.5 animate-spin" />
+                ) : (
+                  <Camera className="size-3.5" />
+                )}
+              </button>
+              <input
+                ref={avatarInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) void handleAvatarUpload(f);
+                }}
+              />
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8 rounded-lg text-xs"
+                disabled={avatarUploading}
+                onClick={() => avatarInputRef.current?.click()}
+              >
+                {avatarUploading ? (
+                  <Loader2 className="mr-1.5 size-3.5 animate-spin" />
+                ) : (
+                  <Upload className="mr-1.5 size-3.5" />
+                )}
+                Upload photo
+              </Button>
+              {avatarPreview ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 rounded-lg text-xs text-muted-foreground"
+                  disabled={avatarUploading}
+                  onClick={() => void handleAvatarRemove()}
+                >
+                  <Trash2 className="mr-1.5 size-3.5" />
+                  Remove
+                </Button>
+              ) : null}
+            </div>
+            <p className="max-w-[200px] text-[11px] leading-relaxed text-muted-foreground">
+              JPG, PNG or WebP · max 2 MB
+            </p>
+          </div>
           <div className="min-w-0 flex-1 space-y-2">
             <div>
               <p className="text-lg font-semibold leading-tight break-words text-foreground">

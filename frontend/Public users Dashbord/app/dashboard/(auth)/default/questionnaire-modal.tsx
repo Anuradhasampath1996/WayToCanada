@@ -267,21 +267,6 @@ function Step1Form({
           />
           {errors.whatsapp && <p className="mt-1.5 text-xs text-red-400">{errors.whatsapp}</p>}
         </div>
-
-        <div>
-          <DLabel required>Intended Visa Type</DLabel>
-          <DSelect
-            value={data.visaType}
-            onChange={(e) => onChange("visaType", e.target.value)}
-          >
-            <option value="" disabled>Select visa type...</option>
-            <option value="express_entry">Express Entry</option>
-            <option value="study_permit">Study Permit</option>
-            <option value="work_permit">Work Permit</option>
-            <option value="business_immigration">Business Immigration</option>
-          </DSelect>
-          {errors.visaType && <p className="mt-1.5 text-xs text-red-400">{errors.visaType}</p>}
-        </div>
       </div>
 
       <div className="rounded-xl border border-gray-700 bg-gray-800/60 p-5 space-y-5">
@@ -633,7 +618,6 @@ export function QuestionnaireModal({ onClose }: QuestionnaireModalProps) {
       errs.email = "Please enter a valid email address.";
     }
     if (!formData.whatsapp.trim()) errs.whatsapp = "WhatsApp number is required.";
-    if (!formData.visaType) errs.visaType = "Please select a visa type.";
     if (!formData.married) errs.married = "Please select your marital status.";
     setErrors(errs);
     return Object.keys(errs).length === 0;

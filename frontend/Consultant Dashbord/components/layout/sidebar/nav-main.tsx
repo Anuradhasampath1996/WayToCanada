@@ -179,12 +179,17 @@ function NavLink({
           "hover:bg-sidebar-accent/55",
           "data-[active=true]:bg-sidebar-primary/10 data-[active=true]:font-medium data-[active=true]:text-sidebar-foreground data-[active=true]:shadow-sm",
           "data-[active=true]:ring-1 data-[active=true]:ring-sidebar-primary/15",
+          "group-data-[collapsible=icon]:!size-9 group-data-[collapsible=icon]:!gap-0 group-data-[collapsible=icon]:!p-0.5 group-data-[collapsible=icon]:justify-center",
         )}
       >
-        <Link href={item.href} className="min-w-0">
+        <Link
+          href={item.href}
+          className="flex min-w-0 w-full items-center group-data-[collapsible=icon]:justify-center"
+        >
           <span
             className={cn(
               "relative flex size-8 shrink-0 items-center justify-center rounded-lg transition-all duration-200",
+              "group-data-[collapsible=icon]:size-8",
               active
                 ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-sm"
                 : "bg-sidebar-accent/45 text-sidebar-foreground/65 group-hover/menu-item:bg-sidebar-accent group-hover/menu-item:text-sidebar-foreground",
@@ -197,9 +202,11 @@ function NavLink({
               </span>
             )}
           </span>
-          <span className="min-w-0 flex-1 truncate text-[13px]">{item.title}</span>
+          <span className="min-w-0 flex-1 truncate text-[13px] group-data-[collapsible=icon]:hidden">
+            {item.title}
+          </span>
           {item.badge && (
-            <span className="shrink-0 rounded-md bg-emerald-500/12 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-400">
+            <span className="shrink-0 rounded-md bg-emerald-500/12 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-emerald-700 group-data-[collapsible=icon]:hidden dark:text-emerald-400">
               {item.badge}
             </span>
           )}
@@ -219,7 +226,7 @@ function NavGroupBlock({
   unreadByHref?: Record<string, number>;
 }) {
   return (
-    <SidebarGroup className="px-1 py-0">
+    <SidebarGroup className="px-1 py-0 group-data-[collapsible=icon]:px-0">
       <div className="mb-1.5 flex items-center gap-2 px-2 group-data-[collapsible=icon]:hidden">
         <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-sidebar-foreground/45">
           {group.title}
@@ -227,7 +234,7 @@ function NavGroupBlock({
         <span className="h-px flex-1 bg-gradient-to-r from-sidebar-border/80 to-transparent" />
       </div>
       <SidebarGroupContent>
-        <SidebarMenu className="gap-0.5">
+        <SidebarMenu className="gap-0.5 group-data-[collapsible=icon]:items-center">
           {group.items.map((item) => (
             <NavLink
               key={item.href}
@@ -303,8 +310,8 @@ export function NavMain() {
   };
 
   return (
-    <div className="flex min-h-full flex-col gap-2 px-0.5 py-3">
-      <div className="space-y-5">
+    <div className="flex min-h-full flex-col gap-2 px-0.5 py-3 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:px-0">
+      <div className="w-full space-y-5 group-data-[collapsible=icon]:space-y-3">
         {mainGroups.map((group) => (
           <NavGroupBlock
             key={group.title}
@@ -315,7 +322,7 @@ export function NavMain() {
         ))}
       </div>
 
-      <div className="mt-auto rounded-xl border border-sidebar-border/50 bg-sidebar-accent/15 p-1.5 backdrop-blur-[2px]">
+      <div className="mt-auto w-full rounded-xl border border-sidebar-border/50 bg-sidebar-accent/15 p-1.5 backdrop-blur-[2px] group-data-[collapsible=icon]:border-0 group-data-[collapsible=icon]:bg-transparent group-data-[collapsible=icon]:p-0">
         <NavGroupBlock group={bottomGroup} pathname={pathname} unreadByHref={unreadByHref} />
       </div>
     </div>

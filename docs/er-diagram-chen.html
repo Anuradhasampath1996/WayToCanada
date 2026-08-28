@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WayToCanada — Full ER Diagram</title>
+  <style>
+    :root {
+      --bg: #f0f2f5;
+      --panel: #fff;
+      --ink: #1a1a2e;
+      --muted: #5c6370;
+      --accent: #c41e3a;
+      --border: #d8dee9;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: "Segoe UI", system-ui, sans-serif; background: var(--bg); color: var(--ink); height: 100vh; display: flex; flex-direction: column; }
+    header {
+      background: var(--panel); border-bottom: 1px solid var(--border);
+      padding: 0.75rem 1.25rem; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0;
+    }
+    header h1 { font-size: 1.1rem; font-weight: 600; }
+    header p { font-size: 0.8rem; color: var(--muted); }
+    .layout { display: flex; flex: 1; min-height: 0; }
+    .legend {
+      width: 200px; flex-shrink: 0; background: var(--panel); border-right: 1px solid var(--border);
+      padding: 0.85rem; overflow-y: auto; font-size: 0.74rem; line-height: 1.45;
+    }
+    .legend h3 { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); margin: 0.6rem 0 0.35rem; }
+    .legend h3:first-child { margin-top: 0; }
+    .li { display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.3rem; }
+    .canvas-wrap { flex: 1; position: relative; background: #fff; min-width: 0; }
+    .toolbar {
+      position: absolute; top: 0.6rem; right: 0.6rem; z-index: 5;
+      display: flex; gap: 0.3rem;
+    }
+    .toolbar button {
+      border: 1px solid var(--border); background: var(--panel);
+      padding: 0.3rem 0.6rem; border-radius: 5px; cursor: pointer; font-size: 0.78rem;
+    }
+    .toolbar button:hover { background: var(--bg); }
+    #viewport { width: 100%; height: 100%; cursor: grab; overflow: hidden; }
+    #viewport:active { cursor: grabbing; }
+    .hint { font-size: 0.7rem; color: var(--muted); margin-top: 0.5rem; padding-top: 0.5rem; border-top: 1px solid var(--border); }
+    .zone-label { font-size: 13px; font-weight: 700; fill: #1a1a2e; }
+    .zone-sub { font-size: 10px; fill: #5c6370; }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>WayToCanada — Complete Entity Relationship Diagram</h1>
+      <p>Chen notation · All domains in one view · db_cws + db_lms</p>
+    </div>
+    <div class="toolbar" style="position:static">
+      <button id="fitAll">Fit All</button>
+      <button id="zoomIn">+</button>
+      <button id="zoomOut">−</button>
+    </div>
+  </header>
+
+  <div class="layout">
+    <aside class="legend">
+      <h3>Chen Notation</h3>
+      <div class="li"><svg width="32" height="18"><rect x="2" y="3" width="28" height="12" fill="#fff8e7" stroke="#1a1a2e" stroke-width="1.5"/></svg> Entity</div>
+      <div class="li"><svg width="32" height="18"><rect x="1" y="2" width="30" height="14" fill="none" stroke="#1a1a2e"/><rect x="4" y="5" width="24" height="8" fill="#fff" stroke="#1a1a2e"/></svg> Weak entity</div>
+      <div class="li"><svg width="32" height="18"><ellipse cx="16" cy="9" rx="13" ry="6" fill="#fff" stroke="#1a1a2e"/></svg> Attribute (PK underlined)</div>
+      <div class="li"><svg width="32" height="18"><polygon points="16,1 30,9 16,17 2,9" fill="#fff" stroke="#1a1a2e"/></svg> Relationship</div>
+      <div class="li"><span style="color:#c41e3a;font-weight:bold">1 N</span> Cardinality</div>
+      <div class="li"><svg width="32" height="18"><line x1="2" y1="9" x2="30" y2="9" stroke="#1a1a2e" stroke-dasharray="5,3"/></svg> Cross-DB ref</div>
+      <p class="hint">Scroll to zoom · Drag to pan · Click "Fit All" to see full diagram</p>
+      <h3>Zone Colors</h3>
+      <div class="li"><span style="width:12px;height:12px;background:#fff8e7;border:1px solid #ccc;display:inline-block"></span> Core</div>
+      <div class="li"><span style="width:12px;height:12px;background:#eef7ff;border:1px solid #ccc;display:inline-block"></span> LMS</div>
+      <div class="li"><span style="width:12px;height:12px;background:#f0faf0;border:1px solid #ccc;display:inline-block"></span> Payments</div>
+      <div class="li"><span style="width:12px;height:12px;background:#fdf0f5;border:1px solid #ccc;display:inline-block"></span> IRCC</div>
+    </aside>
+
+    <div class="canvas-wrap">
+      <div id="viewport">
+        <svg id="diagram" xmlns="http://www.w3.org/2000/svg" width="100%" height="100%">
+          <g id="panZoom"></g>
+        </svg>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const NS = "http://www.w3.org/2000/svg";
+    const W = 3200, H = 2100;
+
+    function el(tag, a = {}, kids = []) {
+      const n = document.createElementNS(NS, tag);
+      for (const [k, v] of Object.entries(a)) {
+        if (k === "text") n.textContent = v;
+        else n.setAttribute(k, v);
+      }
+      kids.forEach(c => n.appendChild(c));
+      return n;
+    }
+
+    function zone(g, x, y, w, h, title, sub, fill) {
+      g.appendChild(el("rect", { x, y, width: w, height: h, fill, stroke: "#c8d0dc", "stroke-width": 1.5, rx: 10 }));
+      g.appendChild(el("text", { x: x + 16, y: y + 22, class: "zone-label", text: title }));
+      if (sub) g.appendChild(el("text", { x: x + 16, y: y + 38, class: "zone-sub", text: sub }));
+    }
+
+    function ent(x, y, name, w = 128, h = 34, fill = "#fff8e7", weak = false) {
+      const g = el("g");
+      if (weak) g.appendChild(el("rect", { x: x-2, y: y-2, width: w+4, height: h+4, fill: "none", stroke: "#1a1a2e", "stroke-width": 1.2 }));
+      g.appendChild(el("rect", { x, y, width: w, height: h, fill, stroke: "#1a1a2e", "stroke-width": 1.3, rx: 2 }));
+      const lines = name.split("\n");
+      lines.forEach((ln, i) => {
+        g.appendChild(el("text", {
+          x: x + w/2, y: y + h/2 + (i - (lines.length-1)/2) * 11,
+          "text-anchor": "middle", "dominant-baseline": "middle",
+          "font-size": 10, "font-weight": 600, fill: "#1a1a2e", text: ln
+        }));
+      });
+      return { g, cx: x+w/2, cy: y+h/2, x, y, w, h };
+    }
+
+    function rel(x, y, name, id = false) {
+      const g = el("g");
+      const s = 20;
+      if (id) g.appendChild(el("polygon", {
+        points: `${x},${y-s-2} ${x+s+2},${y} ${x},${y+s+2} ${x-s-2},${y}`,
+        fill: "none", stroke: "#1a1a2e", "stroke-width": 1.2
+      }));
+      g.appendChild(el("polygon", {
+        points: `${x},${y-s} ${x+s},${y} ${x},${y+s} ${x-s},${y}`,
+        fill: "#fff", stroke: "#1a1a2e", "stroke-width": 1.3
+      }));
+      g.appendChild(el("text", {
+        x, y, "text-anchor": "middle", "dominant-baseline": "middle",
+        "font-size": 7.5, fill: "#1a1a2e", text: name
+      }));
+      return { g, x, y };
+    }
+
+    function attr(x, y, name, pk = false) {
+      const g = el("g");
+      const rx = Math.max(30, name.length * 3.2);
+      g.appendChild(el("ellipse", { cx: x, cy: y, rx, ry: 9, fill: "#fff", stroke: "#1a1a2e", "stroke-width": 1 }));
+      const t = el("text", { x, y, "text-anchor": "middle", "dominant-baseline": "middle", "font-size": 8.5, fill: "#1a1a2e", text: name });
+      if (pk) t.setAttribute("text-decoration", "underline");
+      g.appendChild(t);
+      return { g, x, y };
+    }
+
+    function link(e1, r, e2, c1, c2, dashed = false) {
+      const g = el("g");
+      const dash = dashed ? "5,3" : "none";
+      g.appendChild(el("line", { x1: e1.cx, y1: e1.cy, x2: r.x, y2: r.y, stroke: "#1a1a2e", "stroke-width": 1.1, "stroke-dasharray": dash }));
+      g.appendChild(el("line", { x1: r.x, y1: r.y, x2: e2.cx, y2: e2.cy, stroke: "#1a1a2e", "stroke-width": 1.1, "stroke-dasharray": dash }));
+      g.appendChild(el("text", { x: (e1.cx+r.x)/2, y: (e1.cy+r.y)/2 - 7, "font-size": 9, fill: "#c41e3a", "font-weight": "bold", "text-anchor": "middle", text: c1 }));
+      g.appendChild(el("text", { x: (r.x+e2.cx)/2, y: (r.y+e2.cy)/2 - 7, "font-size": 9, fill: "#c41e3a", "font-weight": "bold", "text-anchor": "middle", text: c2 }));
+      return g;
+    }
+
+    function ea(ent, a, side = "top") {
+      let x1 = ent.cx, y1 = ent.cy;
+      if (side === "top") { x1 = ent.cx; y1 = ent.y; }
+      if (side === "bottom") { x1 = ent.cx; y1 = ent.y + ent.h; }
+      if (side === "left") { x1 = ent.x; y1 = ent.cy; }
+      if (side === "right") { x1 = ent.x + ent.w; y1 = ent.cy; }
+      return el("line", { x1, y1, x2: a.x, y2: a.y, stroke: "#1a1a2e", "stroke-width": 0.9 });
+    }
+
+    function drawCore(g, ox, oy) {
+      zone(g, ox, oy, 980, 620, "1. Core Hub", "USER → CLIENT_PROFILE → CASE_FILE", "#fffdf8");
+      const user = ent(ox+420, oy+280, "USER", 110, 34);
+      const cp = ent(ox+120, oy+480, "CLIENT_PROFILE", 145, 34);
+      const cf = ent(ox+720, oy+480, "CASE_FILE", 120, 34);
+      const sub = ent(ox+80, oy+120, "CONSULTANT_\nSUBSCRIPTION", 140, 40, "#f0faf0");
+      const notif = ent(ox+780, oy+120, "NOTIFICATION", 120, 34, "#fff", true);
+      const lmsA = ent(ox+420, oy+90, "LMS_COURSE_\nASSIGNMENT", 130, 40, "#eef7ff");
+      const quest = ent(ox+620, oy+280, "QUESTIONNAIRE_\nSUBMISSION", 140, 40);
+
+      const rs = [
+        [rel(ox+280, oy+390, "Has_Profile"), cp, "1", "1"],
+        [rel(ox+560, oy+390, "Manages"), cp, "1", "N"],
+        [rel(ox+620, oy+390, "Owns"), cf, "1", "N"],
+        [rel(ox+250, oy+220, "Subscribes"), sub, "1", "N"],
+        [rel(ox+640, oy+220, "Receives", true), notif, "1", "N"],
+        [rel(ox+420, oy+200, "Assigned"), lmsA, "1", "N", true],
+        [rel(ox+420, oy+520, "Has_Cases"), cf, "1", "N"],
+        [rel(ox+540, oy+310, "Fills"), quest, "1", "1"]
+      ];
+      rs.forEach(([r, e2, c1, c2, dash]) => {
+        g.appendChild(link(user, r, e2, c1, c2, dash));
+        g.appendChild(r.g);
+      });
+      [user, cp, cf, sub, notif, lmsA, quest].forEach(e => g.appendChild(e.g));
+      [[ox+300, oy+200, "id", true], [ox+500, oy+180, "email"], [ox+560, oy+250, "rcic_number"]].forEach(([x,y,n,pk]) => {
+        const a = attr(x,y,n,pk); g.appendChild(a.g); g.appendChild(ea(user, a));
+      });
+    }
+
+    function drawCases(g, ox, oy) {
+      zone(g, ox, oy, 980, 620, "2. Cases & Documents", "CASE_FILE connected entities", "#fefefe");
+      const cf = ent(ox+420, oy+300, "CASE_FILE", 120, 34, "#fff8e7");
+      const items = [
+        [ox+120, oy+140, "DOCUMENT_\nSUBMISSION", "Contains"],
+        [ox+120, oy+460, "IRCC_PACKAGE_\nDOC", "Pkg_Doc"],
+        [ox+720, oy+140, "FORM_\nRESPONSE", "Fills"],
+        [ox+720, oy+460, "CASE_\nMESSAGE", "Messages"],
+        [ox+420, oy+520, "CLIENT_\nMEETING", "Schedules"],
+        [ox+420, oy+100, "ACTIVITY_\nLOG", "Logs"]
+      ];
+      items.forEach(([x, y, name, rname]) => {
+        const e = ent(x, y, name, 120, 40, "#fff", name.includes("RESPONSE") || name.includes("LOG"));
+        const r = rel((x + cf.x + 60) / 2 + 30, (y + cf.y + 17) / 2 + 20, rname);
+        g.appendChild(link(cf, r, e, "1", "N"));
+        g.appendChild(r.g);
+        g.appendChild(e.g);
+      });
+      g.appendChild(cf.g);
+    }
+
+    function drawConsultant(g, ox, oy) {
+      zone(g, ox, oy, 980, 620, "3. Consultant & Community", "Tools, letters, RCIC community", "#fefefe");
+      const user = ent(ox+420, oy+300, "USER", 110, 34);
+      const items = [
+        [ox+100, oy+140, "RCIC_\nCONSULTANT", "Verified"],
+        [ox+100, oy+460, "AI_\nDOCUMENT", "Uploads"],
+        [ox+420, oy+100, "STORAGE_\nFOLDER", "Stores"],
+        [ox+720, oy+140, "CONSULTANT_\nLETTER", "Writes"],
+        [ox+720, oy+300, "LETTER_\nTEMPLATE", "Uses"],
+        [ox+720, oy+460, "SUPPORT_\nTICKET", "Opens"]
+      ];
+      items.forEach(([x, y, name, rname]) => {
+        const e = ent(x, y, name, 115, 40);
+        const r = rel((x + 55 + user.cx) / 2, (y + 20 + user.cy) / 2, rname);
+        g.appendChild(link(user, r, e, "1", "N"));
+        g.appendChild(r.g);
+        g.appendChild(e.g);
+      });
+      const post = ent(ox+100, oy+300, "COMMUNITY_\nPOST", 115, 40);
+      const reply = ent(ox+260, oy+520, "COMMUNITY_\nREPLY", 115, 40, "#fff", true);
+      const rPost = rel(ox+200, oy+330, "Posts");
+      const rReply = rel(ox+200, oy+430, "Replies");
+      g.appendChild(link(user, rPost, post, "1", "N"));
+      g.appendChild(rPost.g);
+      g.appendChild(link(post, rReply, reply, "1", "N"));
+      g.appendChild(rReply.g);
+      g.appendChild(post.g);
+      g.appendChild(reply.g);
+      g.appendChild(user.g);
+    }
+
+    function drawLms(g, ox, oy) {
+      zone(g, ox, oy, 980, 620, "4. LMS (db_lms)", "Separate database — dashed = cross-DB to users", "#f4f9ff");
+      g.appendChild(el("rect", { x: ox+10, y: oy+50, width: 960, height: 555, fill: "none", stroke: "#4a90d9", "stroke-width": 2, "stroke-dasharray": "8,4", rx: 8 }));
+      const course = ent(ox+420, oy+280, "LMS_COURSE", 115, 34, "#eef7ff");
+      const mod = ent(ox+620, oy+180, "LMS_MODULE", 110, 40);
+      const lesson = ent(ox+820, oy+180, "LMS_LESSON", 110, 40);
+      const quiz = ent(ox+620, oy+400, "LMS_QUIZ", 100, 34);
+      const question = ent(ox+820, oy+400, "LMS_QUESTION", 115, 34);
+      const assign = ent(ox+420, oy+480, "LMS_COURSE_\nASSIGNMENT", 130, 40, "#eef7ff");
+      const attempt = ent(ox+620, oy+520, "QUIZ_ATTEMPT", 115, 40, "#fff", true);
+      const cat = ent(ox+120, oy+280, "LMS_CATEGORY", 115, 34, "#eef7ff");
+      const hw = ent(ox+120, oy+480, "LMS_HOMEWORK", 110, 34);
+      const user = ent(ox+120, oy+100, "USER (cws)", 110, 34, "#fff8e7");
+
+      const pairs = [
+        [cat, rel(ox+270, oy+280, "Categorizes"), course],
+        [course, rel(ox+520, oy+230, "Modules"), mod],
+        [mod, rel(ox+720, oy+180, "Contains"), lesson],
+        [course, rel(ox+520, oy+340, "Quizzes"), quiz],
+        [quiz, rel(ox+720, oy+400, "Questions"), question],
+        [course, rel(ox+420, oy+390, "Assigns"), assign],
+        [assign, rel(ox+520, oy+510, "Attempts"), attempt],
+        [course, rel(ox+270, oy+390, "Homework"), hw],
+        [user, rel(ox+270, oy+200, "Learns"), assign]
+      ];
+      pairs.forEach(([e1, r, e2], i) => {
+        g.appendChild(link(e1, r, e2, "1", "N", i === 8));
+        g.appendChild(r.g);
+      });
+      [cat, course, mod, lesson, quiz, question, assign, attempt, hw, user].forEach(e => g.appendChild(e.g));
+    }
+
+    function drawPayments(g, ox, oy) {
+      zone(g, ox, oy, 980, 620, "5. Payments & Trust", "Subscriptions + client trust accounting", "#f6fcf6");
+      const cf = ent(ox+420, oy+100, "CASE_FILE", 120, 34, "#fff8e7");
+      const trust = ent(ox+420, oy+260, "CLIENT_TRUST_\nACCOUNT", 140, 40, "#f0faf0");
+      const items = [
+        [ox+120, oy+420, "CASE_FEE_\nMILESTONE", "Milestones"],
+        [ox+420, oy+420, "MILESTONE_\nINVOICE", "Invoices"],
+        [ox+720, oy+420, "TRUST_LEDGER_\nENTRY", "Ledger"],
+        [ox+720, oy+260, "CLIENT_PAYMENT_\nREQUEST", "Requests"]
+      ];
+      const r0 = rel(ox+420, oy+180, "Has_Trust");
+      g.appendChild(link(cf, r0, trust, "1", "1"));
+      g.appendChild(r0.g);
+      items.forEach(([x, y, name, rname]) => {
+        const e = ent(x, y, name, 120, 40, "#fff", name.includes("LEDGER"));
+        const anchor = name.includes("REQUEST") ? cf : trust;
+        const r = rel((x+60+anchor.cx)/2, (y+20+anchor.cy)/2, rname);
+        g.appendChild(link(anchor, r, e, "1", "N"));
+        g.appendChild(r.g);
+        g.appendChild(e.g);
+      });
+      const sub = ent(ox+120, oy+100, "CONSULTANT_\nSUBSCRIPTION", 140, 40);
+      const pkg = ent(ox+120, oy+240, "SUBSCRIPTION_\nPACKAGE", 130, 40);
+      const pay = ent(ox+720, oy+100, "PAYMENT_\nRECORD", 115, 40);
+      const r1 = rel(ox+120, oy+170, "Package");
+      g.appendChild(link(sub, r1, pkg, "N", "1"));
+      g.appendChild(r1.g);
+      const r2 = rel(ox+420, oy+100, "Pays");
+      g.appendChild(link(sub, r2, pay, "1", "N"));
+      g.appendChild(r2.g);
+      [cf, trust, sub, pkg, pay].forEach(e => g.appendChild(e.g));
+    }
+
+    function drawIrcc(g, ox, oy) {
+      zone(g, ox, oy, 980, 620, "6. IRCC & Legislation", "Immigration reference + legal hub", "#fff8fa");
+      const ircc = ent(ox+420, oy+280, "IRCC_CATEGORY", 130, 34, "#fdf0f5");
+      const cf = ent(ox+420, oy+500, "CASE_FILE", 120, 34, "#fff8e7");
+      const irccDoc = ent(ox+120, oy+160, "IRCC_CATEGORY_\nDOCUMENT", 130, 40, "#fdf0f5");
+      const irccForm = ent(ox+720, oy+160, "IRCC_INTERACTIVE_\nFORM", 140, 40, "#fdf0f5");
+      const legDoc = ent(ox+120, oy+420, "LEGISLATION_\nDOCUMENT", 130, 40, "#fdf0f5");
+      const provision = ent(ox+120, oy+540, "LEGISLATION_\nPROVISION", 130, 40, "#fdf0f5");
+      const bookmark = ent(ox+720, oy+420, "LEGISLATION_\nBOOKMARK", 130, 40, "#fdf0f5");
+      const crs = ent(ox+720, oy+280, "CRS_RULE_\nVERSION", 115, 40, "#fdf0f5");
+      const draw = ent(ox+720, oy+360, "EXPRESS_ENTRY_\nDRAW", 130, 40, "#fdf0f5");
+
+      const links = [
+        [ircc, rel(ox+270, oy+220, "Requires"), irccDoc],
+        [ircc, rel(ox+570, oy+220, "Has_Form"), irccForm],
+        [cf, rel(ox+420, oy+400, "Assigned"), ircc],
+        [legDoc, rel(ox+120, oy+490, "Contains"), provision],
+        [bookmark, rel(ox+570, oy+370, "Bookmarks"), legDoc],
+        [crs, rel(ox+570, oy+310, "CRS"), ircc],
+        [crs, rel(ox+720, oy+330, "Draws"), draw]
+      ];
+      links.forEach(([e1, r, e2]) => {
+        g.appendChild(link(e1, r, e2, "1", "N"));
+        g.appendChild(r.g);
+      });
+      [ircc, cf, irccDoc, irccForm, legDoc, provision, bookmark, crs, draw].forEach(e => g.appendChild(e.g));
+      g.appendChild(el("text", { x: ox+455, y: oy+225, "font-size": 8, fill: "#c41e3a", text: "parent 1,N (self-ref)" }));
+      g.appendChild(el("line", { x1: ox+485, y1: oy+234, x2: ox+485, y2: oy+280, stroke: "#1a1a2e" }));
+    }
+
+    // Build single canvas
+    const root = document.getElementById("panZoom");
+    root.appendChild(el("rect", { width: W, height: H, fill: "#f8f9fb" }));
+    root.appendChild(el("text", {
+      x: W/2, y: 40, "text-anchor": "middle", "font-size": 20, "font-weight": 700, fill: "#1a1a2e",
+      text: "WayToCanada — Complete System ER Diagram"
+    }));
+
+    drawCore(root, 60, 70);
+    drawCases(root, 1080, 70);
+    drawConsultant(root, 2100, 70);
+    drawLms(root, 60, 730);
+    drawPayments(root, 1080, 730);
+    drawIrcc(root, 2100, 730);
+
+    // Connector between zones (cross-zone relationships)
+    root.appendChild(el("line", {
+      x1: 540, y1: 690, x2: 540, y2: 730, stroke: "#4a90d9", "stroke-width": 1.5, "stroke-dasharray": "6,4"
+    }));
+    root.appendChild(el("text", { x: 555, y: 715, "font-size": 9, fill: "#4a90d9", text: "LMS → USER" }));
+
+    // Pan & zoom
+    const viewport = document.getElementById("viewport");
+    const svg = document.getElementById("diagram");
+    let scale = 1, tx = 0, ty = 0, drag = false, lx, ly;
+
+    function apply() {
+      root.setAttribute("transform", `translate(${tx},${ty}) scale(${scale})`);
+    }
+
+    function fitAll() {
+      const vw = viewport.clientWidth;
+      const vh = viewport.clientHeight;
+      const padding = 30;
+      scale = Math.min((vw - padding) / W, (vh - padding) / H, 1);
+      tx = (vw - W * scale) / 2;
+      ty = (vh - H * scale) / 2;
+      apply();
+    }
+
+    document.getElementById("fitAll").onclick = fitAll;
+    document.getElementById("zoomIn").onclick = () => { scale = Math.min(scale * 1.2, 3); apply(); };
+    document.getElementById("zoomOut").onclick = () => { scale = Math.max(scale / 1.2, 0.15); apply(); };
+
+    viewport.addEventListener("wheel", e => {
+      e.preventDefault();
+      scale = Math.min(Math.max(scale * (e.deltaY > 0 ? 0.9 : 1.1), 0.15), 3);
+      apply();
+    }, { passive: false });
+
+    viewport.addEventListener("mousedown", e => { drag = true; lx = e.clientX; ly = e.clientY; });
+    window.addEventListener("mousemove", e => {
+      if (!drag) return;
+      tx += e.clientX - lx; ty += e.clientY - ly;
+      lx = e.clientX; ly = e.clientY;
+      apply();
+    });
+    window.addEventListener("mouseup", () => drag = false);
+    window.addEventListener("resize", fitAll);
+    fitAll();
+  </script>
+</body>
+</html>

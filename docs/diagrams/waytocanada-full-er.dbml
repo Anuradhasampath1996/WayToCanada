@@ -1,0 +1,1309 @@
+// WayToCanada — Full ER Diagram (DBML)
+// Creately workflow:
+//   1) Open https://dbdiagram.io/d
+//   2) Paste this entire file → diagram auto-generates
+//   3) Export PNG/SVG → Import image into Creately workspace
+//   OR use ChartDB (chartdb.io) → File → Import → .dbml → paste → export
+
+Project WayToCanada {
+  database_type: 'PostgreSQL'
+  Note: '''
+    db_cws = main app (users, cases, IRCC, payments, legislation)
+    db_lms = LMS tables (cross-ref to users via client_user_id, no DB FK)
+  '''
+}
+
+// ═══════════════════════════════════════════════════════════════
+// TABLE GROUPS
+// ═══════════════════════════════════════════════════════════════
+
+TableGroup auth_users {
+  users
+  personal_access_tokens
+  permissions
+  roles
+  model_has_permissions
+  model_has_roles
+  role_has_permissions
+}
+
+TableGroup clients_cases {
+  client_profiles
+  case_files
+  questionnaire_submissions
+  document_submissions
+  case_messages
+  client_activity_logs
+  consultant_agreement_templates
+  consultant_client_requests
+}
+
+TableGroup ircc {
+  ircc_categories
+  ircc_category_documents
+  ircc_form_catalog
+  ircc_interactive_forms
+  ircc_interactive_form_responses
+  ircc_package_document_submissions
+  ircc_news_cache
+  crs_rule_versions
+  express_entry_draws
+}
+
+TableGroup legislation {
+  legislation_catalog
+  legislation_sync_runs
+  legislation_documents
+  legislation_provisions
+  legislation_references
+  legislation_amendment_alerts
+  consultant_legislation_bookmarks
+}
+
+TableGroup payments {
+  payment_gateway_settings
+  subscription_packages
+  consultant_subscriptions
+  subscription_payment_records
+  tax_rate_versions
+  gst_hst_rate_versions
+  platform_company_settings
+  marketing_services
+  consultant_marketing_orders
+  consultant_payment_accounts
+  client_payment_requests
+  client_trust_accounts
+  case_fee_milestones
+  milestone_invoices
+  trust_ledger_entries
+}
+
+TableGroup consultant_tools {
+  rcic_consultants
+  immigration_consultants
+  storage_addon_packages
+  consultant_storage_addons
+  consultant_storage_folders
+  consultant_storage_files
+  consultant_letter_templates
+  consultant_letters
+  consultant_client_ai_advisories
+  consultant_client_ai_chat_messages
+  consultant_client_ai_documents
+  consultant_meeting_accounts
+  client_meetings
+  consultant_website_feature_sections
+}
+
+TableGroup notifications_comms {
+  user_notifications
+  notification_deliveries
+  user_notification_preferences
+  admin_broadcasts
+  whatsapp_conversations
+  whatsapp_messages
+  support_tickets
+  support_ticket_messages
+}
+
+TableGroup community {
+  rcic_community_posts
+  rcic_community_replies
+  rcic_community_reactions
+  rcic_community_reports
+}
+
+TableGroup lms_db {
+  lms_categories
+  lms_courses
+  lms_modules
+  lms_lessons
+  lms_quizzes
+  lms_questions
+  lms_question_options
+  lms_question_bank
+  lms_question_bank_options
+  lms_quiz_bank_questions
+  lms_course_assignments
+  lms_lesson_completions
+  lms_quiz_attempts
+  lms_homework
+  lms_homework_submissions
+}
+
+TableGroup platform {
+  integration_settings
+}
+
+// ═══════════════════════════════════════════════════════════════
+// USERS & AUTH (db_cws)
+// ═══════════════════════════════════════════════════════════════
+
+Table users {
+  id bigint [pk, increment]
+  consultant_id bigint [ref: > users.id, note: 'nullable']
+  name varchar
+  email varchar [unique]
+  phone varchar(30)
+  cicc_email varchar
+  email_verified_at timestamp
+  password varchar
+  google_id varchar [unique]
+  github_id varchar [unique]
+  avatar varchar
+  locale varchar [note: 'en|fr']
+  is_verified boolean [default: false]
+  is_license_verified boolean [default: false]
+  license_verified_at timestamp
+  rcic_number varchar(30)
+  company_name varchar
+  company_logo varchar
+  company_bio text
+  company_website varchar
+  company_phone varchar
+  company_address_line1 varchar
+  company_address_line2 varchar
+  company_city varchar
+  company_province varchar
+  company_postal_code varchar
+  company_country varchar [default: 'Canada']
+  digital_signature text
+  rcic_community_last_seen_at timestamp
+  remember_token varchar
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table personal_access_tokens {
+  id bigint [pk, increment]
+  tokenable_type varchar
+  tokenable_id bigint
+  name text
+  token varchar(64) [unique]
+  abilities text
+  last_used_at timestamp
+  expires_at timestamp
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table permissions {
+  id bigint [pk, increment]
+  name varchar
+  guard_name varchar
+  created_at timestamp
+  updated_at timestamp
+  indexes { (name, guard_name) [unique] }
+}
+
+Table roles {
+  id bigint [pk, increment]
+  name varchar
+  guard_name varchar
+  created_at timestamp
+  updated_at timestamp
+  indexes { (name, guard_name) [unique] }
+}
+
+Table model_has_permissions {
+  permission_id bigint [ref: > permissions.id]
+  model_type varchar
+  model_id bigint
+  indexes { (permission_id, model_id, model_type) [pk] }
+}
+
+Table model_has_roles {
+  role_id bigint [ref: > roles.id]
+  model_type varchar
+  model_id bigint
+  indexes { (role_id, model_id, model_type) [pk] }
+}
+
+Table role_has_permissions {
+  permission_id bigint [ref: > permissions.id]
+  role_id bigint [ref: > roles.id]
+  indexes { (permission_id, role_id) [pk] }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// RCIC REGISTRY
+// ═══════════════════════════════════════════════════════════════
+
+Table rcic_consultants {
+  id bigint [pk, increment]
+  profile_id integer [unique]
+  college_id varchar(20)
+  full_name varchar
+  first_name varchar
+  last_name varchar
+  type varchar(50)
+  status varchar(50)
+  company text
+  city varchar(100)
+  province varchar(100)
+  country varchar(100)
+  postal_code varchar(20)
+  phone varchar(50)
+  email text
+  website text
+  entitled_to_practise boolean [default: false]
+  scrape_status varchar(30)
+  scraped_at timestamp
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table immigration_consultants {
+  id bigint [pk, increment]
+  name varchar
+  email varchar
+  phone varchar(50)
+  company varchar
+  city varchar(100)
+  province varchar(100)
+  country varchar(100)
+  specialization varchar
+  notes text
+  is_active boolean [default: true]
+  created_at timestamp
+  updated_at timestamp
+}
+
+// ═══════════════════════════════════════════════════════════════
+// CLIENTS & CASES
+// ═══════════════════════════════════════════════════════════════
+
+Table client_profiles {
+  id bigint [pk, increment]
+  user_id bigint [unique, ref: > users.id]
+  consultant_id bigint [ref: > users.id]
+  active_case_file_id bigint [ref: > case_files.id]
+  phone varchar
+  passport_number varchar
+  immigration_pathway varchar
+  family_id bigint
+  notes text
+  notes_updated_at timestamp
+  invited_at timestamp
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table case_files {
+  id bigint [pk, increment]
+  client_profile_id bigint [ref: > client_profiles.id]
+  case_number smallint [default: 1]
+  consultant_id bigint [ref: > users.id]
+  status varchar [default: 'PENDING_ASSESSMENT']
+  lifecycle_status varchar(32) [default: 'active']
+  lifecycle_note text
+  lifecycle_changed_at timestamp
+  immigration_pathway varchar
+  pathway_assessment_notes text
+  pathway_assessment_crs_score smallint
+  pathway_assessment_ircc_crs_score smallint
+  pathway_assessment_snapshot jsonb
+  pathway_assessment_rules_version varchar(32)
+  pathway_assessment_at timestamp
+  assigned_ircc_category_id bigint [ref: > ircc_categories.id]
+  application_package_assigned_at timestamp
+  agreement_token varchar(64) [unique]
+  agreement_sent_at timestamp
+  agreement_signed_at timestamp
+  application_forms_verified_at timestamp
+  client_signature text
+  signed_document_path varchar(500)
+  agreement_fee decimal(10,2)
+  agreement_notes text
+  agreement_config jsonb
+  agreement_version smallint [default: 1]
+  agreement_milestone_payments jsonb
+  checklist_data jsonb
+  created_at timestamp
+  updated_at timestamp
+  indexes { (client_profile_id, case_number) [unique] }
+}
+
+Table questionnaire_submissions {
+  id bigint [pk, increment]
+  user_id bigint [unique, ref: > users.id]
+  step1_data jsonb
+  main_data jsonb
+  spouse_data jsonb
+  children_data jsonb
+  accompanying_data jsonb
+  is_submitted boolean [default: false]
+  submitted_at timestamp
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table document_submissions {
+  id bigint [pk, increment]
+  case_file_id bigint [ref: > case_files.id]
+  uploaded_by bigint [ref: > users.id]
+  document_type varchar
+  document_label varchar
+  file_path varchar
+  original_filename varchar
+  mime_type varchar
+  file_size bigint
+  status varchar [default: 'pending_review']
+  ai_result jsonb
+  ai_confidence decimal(4,3)
+  rejection_comment text
+  reviewed_by bigint [ref: > users.id]
+  reviewed_at timestamp
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table case_messages {
+  id bigint [pk, increment]
+  case_file_id bigint [ref: > case_files.id]
+  sender_id bigint [ref: > users.id]
+  sender_type varchar
+  message text
+  document_submission_id bigint [ref: > document_submissions.id]
+  read_at timestamp
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table client_activity_logs {
+  id bigint [pk, increment]
+  client_profile_id bigint [ref: > client_profiles.id]
+  case_file_id bigint [ref: > case_files.id]
+  actor_user_id bigint [ref: > users.id]
+  actor_type varchar(32)
+  actor_name varchar
+  event_type varchar(64)
+  title varchar
+  description text
+  metadata jsonb
+  ip_address varchar(45)
+  dedupe_key varchar(128)
+  occurred_at timestamp
+  created_at timestamp
+  updated_at timestamp
+  indexes { (client_profile_id, dedupe_key) [unique] }
+}
+
+Table consultant_agreement_templates {
+  id bigint [pk, increment]
+  consultant_id bigint [note: 'ref users.id']
+  name varchar(120)
+  pathway varchar(150)
+  config jsonb
+  is_default boolean [default: false]
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table consultant_client_requests {
+  id bigint [pk, increment]
+  client_user_id bigint [ref: > users.id]
+  consultant_id bigint [ref: > users.id]
+  status varchar(20) [default: 'pending']
+  message text
+  responded_at timestamp
+  created_at timestamp
+  updated_at timestamp
+}
+
+// ═══════════════════════════════════════════════════════════════
+// IRCC
+// ═══════════════════════════════════════════════════════════════
+
+Table ircc_categories {
+  id bigint [pk, increment]
+  parent_id bigint [ref: > ircc_categories.id]
+  level smallint
+  label varchar
+  result jsonb
+  sort_order smallint [default: 0]
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table ircc_category_documents {
+  id bigint [pk, increment]
+  ircc_category_id bigint [ref: > ircc_categories.id]
+  label varchar
+  doc_type varchar [default: 'other']
+  source_form_code varchar
+  file_path varchar
+  original_filename varchar
+  sort_order integer [default: 0]
+  is_active boolean [default: true]
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table ircc_form_catalog {
+  id bigint [pk, increment]
+  form_code varchar
+  normalized_code varchar [unique]
+  title varchar
+  page_url varchar
+  pdf_url varchar
+  last_fetched_at timestamp
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table ircc_interactive_forms {
+  id bigint [pk, increment]
+  ircc_category_id bigint [ref: > ircc_categories.id]
+  slug varchar(100)
+  title varchar
+  description text
+  form_schema jsonb
+  sort_order smallint [default: 0]
+  is_active boolean [default: true]
+  created_at timestamp
+  updated_at timestamp
+  indexes { (ircc_category_id, slug) [unique] }
+}
+
+Table ircc_interactive_form_responses {
+  id bigint [pk, increment]
+  ircc_interactive_form_id bigint [ref: > ircc_interactive_forms.id]
+  case_file_id bigint [ref: > case_files.id]
+  user_id bigint [ref: > users.id]
+  response_data jsonb
+  status varchar [default: 'draft']
+  submitted_at timestamp
+  consultant_notes text
+  reviewed_by bigint [ref: > users.id]
+  reviewed_at timestamp
+  created_at timestamp
+  updated_at timestamp
+  indexes { (case_file_id, ircc_interactive_form_id) [unique] }
+}
+
+Table ircc_package_document_submissions {
+  id bigint [pk, increment]
+  case_file_id bigint [ref: > case_files.id]
+  ircc_category_document_id bigint [note: 'ref ircc_category_documents.id']
+  uploaded_by bigint [ref: > users.id]
+  file_path varchar
+  original_filename varchar
+  status varchar [default: 'submitted']
+  submitted_at timestamp
+  created_at timestamp
+  updated_at timestamp
+  indexes { (case_file_id, ircc_category_document_id) [unique] }
+}
+
+Table ircc_news_cache {
+  id bigint [pk, increment]
+  guid text [unique]
+  title text
+  link text
+  description text
+  category varchar
+  published_at timestamp
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table crs_rule_versions {
+  id bigint [pk, increment]
+  version varchar(32) [unique]
+  effective_date date
+  rules jsonb
+  is_active boolean [default: false]
+  last_synced_at timestamp
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table express_entry_draws {
+  id bigint [pk, increment]
+  draw_number integer [unique]
+  draw_date date
+  draw_name varchar
+  minimum_crs_score smallint
+  invitations_issued integer
+  round_type varchar
+  raw_data jsonb
+  created_at timestamp
+  updated_at timestamp
+}
+
+// ═══════════════════════════════════════════════════════════════
+// LEGISLATION
+// ═══════════════════════════════════════════════════════════════
+
+Table legislation_catalog {
+  id bigint [pk, increment]
+  act_code varchar(40) [unique]
+  title text
+  category varchar(20) [default: 'act']
+  is_active boolean [default: true]
+  last_synced_at timestamp
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table legislation_sync_runs {
+  id bigint [pk, increment]
+  status varchar(20) [default: 'pending']
+  scope varchar(40) [default: 'all']
+  total_steps integer [default: 0]
+  completed_steps integer [default: 0]
+  error_message text
+  started_at timestamp
+  finished_at timestamp
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table legislation_documents {
+  id bigint [pk, increment]
+  slug varchar [unique]
+  source_slug varchar(80)
+  act_code varchar(40)
+  title varchar
+  language varchar(5)
+  format varchar(10)
+  category varchar(20) [default: 'act']
+  source_url varchar
+  storage_path varchar
+  content_hash varchar(64)
+  provisions_count integer [default: 0]
+  ai_analyzed boolean [default: false]
+  paired_document_id bigint [note: 'self-ref']
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table legislation_provisions {
+  id bigint [pk, increment]
+  document_id bigint [ref: > legislation_documents.id]
+  act_code varchar(40)
+  language varchar(5)
+  provision_key varchar(80)
+  section_label varchar(20)
+  text_content text
+  html_fragment text
+  created_at timestamp
+  updated_at timestamp
+  indexes { (act_code, language, provision_key) [unique] }
+}
+
+Table legislation_references {
+  id bigint [pk, increment]
+  document_id bigint [ref: > legislation_documents.id]
+  target_act_code varchar(40)
+  target_provision_key varchar(80)
+  label varchar(200)
+  source_type varchar [default: 'auto_xml']
+  is_external boolean [default: false]
+  is_active boolean [default: true]
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table legislation_amendment_alerts {
+  id bigint [pk, increment]
+  document_id bigint [ref: > legislation_documents.id]
+  act_code varchar(40)
+  language varchar(5)
+  new_hash varchar(64)
+  detected_at timestamp
+  acknowledged_by bigint [note: 'ref users.id']
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table consultant_legislation_bookmarks {
+  id bigint [pk, increment]
+  consultant_id bigint [ref: > users.id]
+  client_profile_id bigint [ref: > client_profiles.id]
+  act_code varchar(40)
+  provision_key varchar(80)
+  language varchar(8) [default: 'en']
+  label varchar
+  note text
+  created_at timestamp
+  updated_at timestamp
+}
+
+// ═══════════════════════════════════════════════════════════════
+// PAYMENTS & SUBSCRIPTIONS
+// ═══════════════════════════════════════════════════════════════
+
+Table payment_gateway_settings {
+  id bigint [pk, increment]
+  gateway varchar [unique, note: 'stripe|paypal']
+  mode varchar [default: 'test']
+  is_active boolean [default: false]
+  publishable_key text
+  secret_key text
+  webhook_id varchar
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table subscription_packages {
+  id bigint [pk, increment]
+  name varchar
+  monthly_price decimal(10,2)
+  yearly_price decimal(10,2)
+  features jsonb
+  is_active boolean [default: true]
+  sort_order integer [default: 0]
+  stripe_product_id varchar(64)
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table consultant_subscriptions {
+  id bigint [pk, increment]
+  user_id bigint [ref: > users.id]
+  subscription_package_id bigint [ref: > subscription_packages.id]
+  status varchar [default: 'trial']
+  is_trial boolean [default: false]
+  trial_ends_at timestamp
+  starts_at timestamp
+  ends_at timestamp
+  billing_cycle varchar
+  billing_country varchar(8)
+  stripe_customer_id varchar(64)
+  stripe_subscription_id varchar(64)
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table subscription_payment_records {
+  id bigint [pk, increment]
+  user_id bigint [ref: > users.id]
+  payment_category varchar(20) [default: 'subscription']
+  consultant_subscription_id bigint [ref: > consultant_subscriptions.id]
+  subscription_package_id bigint [ref: > subscription_packages.id]
+  consultant_marketing_order_id bigint [ref: > consultant_marketing_orders.id]
+  consultant_storage_addon_id bigint [ref: > consultant_storage_addons.id]
+  invoice_number varchar
+  currency varchar(8) [default: 'CAD']
+  subtotal decimal(10,2)
+  tax_amount decimal(10,2) [default: 0]
+  total decimal(10,2)
+  payment_status varchar(20) [default: 'paid']
+  paid_at timestamp
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table tax_rate_versions {
+  id bigint [pk, increment]
+  version varchar(32) [unique]
+  tax_year smallint
+  effective_date date
+  rates jsonb
+  is_active boolean [default: false]
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table gst_hst_rate_versions {
+  id bigint [pk, increment]
+  version varchar(32) [unique]
+  effective_date date
+  rates jsonb
+  is_active boolean [default: false]
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table platform_company_settings {
+  id bigint [pk, increment]
+  legal_name varchar
+  trade_name varchar
+  business_number varchar(32)
+  gst_hst_number varchar(32)
+  invoice_prefix varchar(16) [default: 'RCM']
+  updated_by bigint [ref: > users.id]
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table marketing_services {
+  id bigint [pk, increment]
+  slug varchar [unique]
+  name varchar
+  price decimal(10,2) [default: 0]
+  is_active boolean [default: true]
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table consultant_marketing_orders {
+  id bigint [pk, increment]
+  user_id bigint [ref: > users.id]
+  marketing_service_id bigint [ref: > marketing_services.id]
+  status varchar [default: 'pending']
+  amount decimal(10,2)
+  paid_at timestamp
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table consultant_payment_accounts {
+  id bigint [pk, increment]
+  user_id bigint [unique, ref: > users.id]
+  stripe_connect_account_id varchar
+  paypal_email varchar
+  preferred_provider varchar [default: 'stripe']
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table client_payment_requests {
+  id bigint [pk, increment]
+  token varchar(64) [unique]
+  case_file_id bigint [ref: > case_files.id]
+  client_profile_id bigint [ref: > client_profiles.id]
+  consultant_id bigint [ref: > users.id]
+  title varchar
+  amount decimal(10,2)
+  currency varchar(3) [default: 'CAD']
+  provider varchar
+  status varchar [default: 'pending']
+  paid_at timestamp
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table client_trust_accounts {
+  id bigint [pk, increment]
+  case_file_id bigint [unique, ref: > case_files.id]
+  client_profile_id bigint [ref: > client_profiles.id]
+  consultant_id bigint [ref: > users.id]
+  currency varchar(3) [default: 'CAD']
+  total_deposited decimal(12,2) [default: 0]
+  balance_held decimal(12,2) [default: 0]
+  status varchar(32) [default: 'active']
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table case_fee_milestones {
+  id bigint [pk, increment]
+  case_file_id bigint [ref: > case_files.id]
+  client_profile_id bigint [ref: > client_profiles.id]
+  milestone_key varchar(8)
+  label varchar
+  percentage smallint
+  amount decimal(12,2)
+  status varchar(32) [default: 'pending']
+  completed_by bigint [ref: > users.id]
+  created_at timestamp
+  updated_at timestamp
+  indexes { (case_file_id, milestone_key) [unique] }
+}
+
+Table milestone_invoices {
+  id bigint [pk, increment]
+  case_fee_milestone_id bigint [ref: > case_fee_milestones.id]
+  client_trust_account_id bigint [ref: > client_trust_accounts.id]
+  case_file_id bigint [ref: > case_files.id]
+  client_profile_id bigint [ref: > client_profiles.id]
+  consultant_id bigint [ref: > users.id]
+  invoice_number varchar(64) [unique]
+  amount decimal(12,2)
+  status varchar(32) [default: 'pending_client_approval']
+  released_by bigint [ref: > users.id]
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table trust_ledger_entries {
+  id bigint [pk, increment]
+  client_trust_account_id bigint [ref: > client_trust_accounts.id]
+  case_file_id bigint [ref: > case_files.id]
+  client_profile_id bigint [ref: > client_profiles.id]
+  entry_type varchar(32)
+  direction varchar(8)
+  amount decimal(12,2)
+  balance_after decimal(12,2)
+  title varchar
+  case_fee_milestone_id bigint [ref: > case_fee_milestones.id]
+  milestone_invoice_id bigint [ref: > milestone_invoices.id]
+  actor_user_id bigint [ref: > users.id]
+  occurred_at timestamp
+  created_at timestamp
+  updated_at timestamp
+}
+
+// ═══════════════════════════════════════════════════════════════
+// CONSULTANT STORAGE & LETTERS & AI
+// ═══════════════════════════════════════════════════════════════
+
+Table storage_addon_packages {
+  id bigint [pk, increment]
+  name varchar
+  extra_gb integer
+  monthly_price decimal(10,2)
+  yearly_price decimal(10,2)
+  is_active boolean [default: true]
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table consultant_storage_addons {
+  id bigint [pk, increment]
+  user_id bigint [ref: > users.id]
+  storage_addon_package_id bigint [ref: > storage_addon_packages.id]
+  status varchar(20) [default: 'active']
+  extra_bytes bigint
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table consultant_storage_folders {
+  id bigint [pk, increment]
+  user_id bigint [ref: > users.id]
+  parent_id bigint [ref: > consultant_storage_folders.id]
+  name varchar
+  created_at timestamp
+  updated_at timestamp
+  indexes { (user_id, parent_id, name) [unique] }
+}
+
+Table consultant_storage_files {
+  id bigint [pk, increment]
+  user_id bigint [ref: > users.id]
+  folder_id bigint [ref: > consultant_storage_folders.id]
+  disk_path varchar
+  original_filename varchar
+  mime_type varchar(120)
+  size_bytes bigint
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table consultant_letter_templates {
+  id bigint [pk, increment]
+  consultant_id bigint [note: 'ref users.id']
+  name varchar(120)
+  letter_type varchar(60) [default: 'other']
+  body_html text
+  is_default boolean [default: false]
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table consultant_letters {
+  id bigint [pk, increment]
+  consultant_id bigint [note: 'ref users.id']
+  client_profile_id bigint [ref: > client_profiles.id]
+  template_id bigint [ref: > consultant_letter_templates.id]
+  title varchar(200)
+  letter_type varchar(60)
+  status varchar(20) [default: 'draft']
+  subject varchar(500)
+  body_html text
+  openai_used boolean [default: false]
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table consultant_client_ai_advisories {
+  id bigint [pk, increment]
+  client_profile_id bigint [ref: > client_profiles.id]
+  consultant_id bigint [ref: > users.id]
+  workflow_stage varchar(64)
+  advisory_payload jsonb
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table consultant_client_ai_chat_messages {
+  id bigint [pk, increment]
+  client_profile_id bigint [ref: > client_profiles.id]
+  consultant_id bigint [ref: > users.id]
+  role varchar(16)
+  content text
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table consultant_client_ai_documents {
+  id bigint [pk, increment]
+  client_profile_id bigint [ref: > client_profiles.id]
+  consultant_id bigint [ref: > users.id]
+  original_filename varchar
+  storage_path varchar
+  extracted_text text
+  status varchar(16) [default: 'ready']
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table consultant_meeting_accounts {
+  id bigint [pk, increment]
+  user_id bigint [unique, ref: > users.id]
+  preferred_provider varchar [default: 'google_meet']
+  google_meet_url varchar
+  zoom_meeting_url varchar
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table client_meetings {
+  id bigint [pk, increment]
+  token varchar(64) [unique]
+  case_file_id bigint [ref: > case_files.id]
+  client_profile_id bigint [ref: > client_profiles.id]
+  consultant_id bigint [ref: > users.id]
+  title varchar
+  scheduled_at timestamp
+  duration_minutes smallint [default: 60]
+  provider varchar
+  meeting_url varchar
+  status varchar [default: 'scheduled']
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table consultant_website_feature_sections {
+  id bigint [pk, increment]
+  slug varchar [unique]
+  title varchar
+  description text
+  sort_order smallint [default: 0]
+  is_active boolean [default: true]
+  created_at timestamp
+  updated_at timestamp
+}
+
+// ═══════════════════════════════════════════════════════════════
+// NOTIFICATIONS & WHATSAPP & SUPPORT
+// ═══════════════════════════════════════════════════════════════
+
+Table user_notifications {
+  id bigint [pk, increment]
+  user_id bigint [ref: > users.id]
+  type varchar(64)
+  title varchar
+  body text
+  action_url varchar(500)
+  related_type varchar
+  related_id bigint
+  read_at timestamp
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table notification_deliveries {
+  id bigint [pk, increment]
+  user_notification_id bigint [ref: > user_notifications.id]
+  channel varchar(32)
+  status varchar(32) [default: 'pending']
+  sent_at timestamp
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table user_notification_preferences {
+  id bigint [pk, increment]
+  user_id bigint [unique, ref: > users.id]
+  in_app_enabled boolean [default: true]
+  email_enabled boolean [default: true]
+  whatsapp_enabled boolean [default: false]
+  whatsapp_phone varchar(32)
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table admin_broadcasts {
+  id bigint [pk, increment]
+  admin_user_id bigint [ref: > users.id]
+  title varchar
+  body text
+  channels jsonb
+  target_type varchar [default: 'all_consultants']
+  sent_at timestamp
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table whatsapp_conversations {
+  id bigint [pk, increment]
+  wa_id varchar(32) [unique]
+  user_id bigint [ref: > users.id]
+  last_message_at timestamp
+  unread_count integer [default: 0]
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table whatsapp_messages {
+  id bigint [pk, increment]
+  whatsapp_conversation_id bigint [ref: > whatsapp_conversations.id]
+  direction varchar(16)
+  body text
+  status varchar(32) [default: 'received']
+  sent_by_user_id bigint [ref: > users.id]
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table support_tickets {
+  id bigint [pk, increment]
+  user_id bigint [ref: > users.id]
+  category varchar(30)
+  subject varchar(255)
+  body text
+  status varchar(20) [default: 'open']
+  closed_by bigint [ref: > users.id]
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table support_ticket_messages {
+  id bigint [pk, increment]
+  support_ticket_id bigint [ref: > support_tickets.id]
+  user_id bigint [ref: > users.id]
+  sender_role varchar(20)
+  body text
+  created_at timestamp
+  updated_at timestamp
+}
+
+// ═══════════════════════════════════════════════════════════════
+// RCIC COMMUNITY
+// ═══════════════════════════════════════════════════════════════
+
+Table rcic_community_posts {
+  id bigint [pk, increment]
+  user_id bigint [ref: > users.id]
+  title varchar(255)
+  body text
+  reactions_count integer [default: 0]
+  replies_count integer [default: 0]
+  is_hidden boolean [default: false]
+  hidden_by bigint [ref: > users.id]
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table rcic_community_replies {
+  id bigint [pk, increment]
+  post_id bigint [ref: > rcic_community_posts.id]
+  user_id bigint [ref: > users.id]
+  body text
+  is_hidden boolean [default: false]
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table rcic_community_reactions {
+  id bigint [pk, increment]
+  post_id bigint [ref: > rcic_community_posts.id]
+  user_id bigint [ref: > users.id]
+  reaction varchar(20) [default: 'like']
+  indexes { (post_id, user_id) [unique] }
+}
+
+Table rcic_community_reports {
+  id bigint [pk, increment]
+  reporter_id bigint [ref: > users.id]
+  reportable_type varchar(20)
+  reportable_id bigint
+  reason text
+  status varchar(20) [default: 'pending']
+  reviewed_by bigint [ref: > users.id]
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table integration_settings {
+  id bigint [pk, increment]
+  group_key varchar(64) [unique]
+  payload text
+  updated_by bigint [ref: > users.id]
+  created_at timestamp
+  updated_at timestamp
+}
+
+// ═══════════════════════════════════════════════════════════════
+// LMS (db_lms) — cross-ref users.id has no DB foreign key
+// ═══════════════════════════════════════════════════════════════
+
+Table lms_categories {
+  id bigint [pk, increment]
+  name varchar
+  slug varchar [unique]
+  description text
+  sort_order smallint [default: 0]
+  is_active boolean [default: true]
+  created_at timestamp
+  updated_at timestamp
+  Note: 'database: db_lms'
+}
+
+Table lms_courses {
+  id bigint [pk, increment]
+  category_id bigint [ref: > lms_categories.id]
+  title varchar
+  slug varchar
+  description text
+  thumbnail_url varchar
+  is_published boolean [default: false]
+  sort_order smallint [default: 0]
+  created_at timestamp
+  updated_at timestamp
+  indexes { (category_id, slug) [unique] }
+}
+
+Table lms_modules {
+  id bigint [pk, increment]
+  course_id bigint [ref: > lms_courses.id]
+  title varchar
+  sort_order smallint [default: 0]
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table lms_lessons {
+  id bigint [pk, increment]
+  module_id bigint [ref: > lms_modules.id]
+  title varchar
+  lesson_type varchar(20) [default: 'text']
+  video_url text
+  pdf_url text
+  text_content text
+  duration_minutes smallint
+  sort_order smallint [default: 0]
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table lms_quizzes {
+  id bigint [pk, increment]
+  course_id bigint [ref: > lms_courses.id]
+  module_id bigint [ref: > lms_modules.id]
+  title varchar
+  source_mode varchar(20) [default: 'inline']
+  passing_score smallint [default: 70]
+  sort_order smallint [default: 0]
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table lms_questions {
+  id bigint [pk, increment]
+  quiz_id bigint [ref: > lms_quizzes.id]
+  question_text text
+  sort_order smallint [default: 0]
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table lms_question_options {
+  id bigint [pk, increment]
+  question_id bigint [ref: > lms_questions.id]
+  option_text text
+  is_correct boolean [default: false]
+  sort_order smallint [default: 0]
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table lms_question_bank {
+  id bigint [pk, increment]
+  course_id bigint [ref: > lms_courses.id]
+  question_text text
+  topic varchar(120)
+  difficulty varchar(20) [default: 'medium']
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table lms_question_bank_options {
+  id bigint [pk, increment]
+  bank_question_id bigint [ref: > lms_question_bank.id]
+  option_text text
+  is_correct boolean [default: false]
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table lms_quiz_bank_questions {
+  id bigint [pk, increment]
+  quiz_id bigint [ref: > lms_quizzes.id]
+  bank_question_id bigint [ref: > lms_question_bank.id]
+  sort_order smallint [default: 0]
+  indexes { (quiz_id, bank_question_id) [unique] }
+}
+
+Table lms_course_assignments {
+  id bigint [pk, increment]
+  course_id bigint [ref: > lms_courses.id]
+  client_user_id bigint [note: 'cross-DB ref db_cws.users.id']
+  assigned_by_user_id bigint [note: 'cross-DB ref db_cws.users.id']
+  progress_percent smallint [default: 0]
+  status varchar(20) [default: 'assigned']
+  assigned_at timestamp
+  completed_at timestamp
+  created_at timestamp
+  updated_at timestamp
+  indexes { (course_id, client_user_id) [unique] }
+}
+
+Table lms_lesson_completions {
+  id bigint [pk, increment]
+  assignment_id bigint [ref: > lms_course_assignments.id]
+  lesson_id bigint [ref: > lms_lessons.id]
+  completed_at timestamp
+  indexes { (assignment_id, lesson_id) [unique] }
+}
+
+Table lms_quiz_attempts {
+  id bigint [pk, increment]
+  assignment_id bigint [ref: > lms_course_assignments.id]
+  quiz_id bigint [ref: > lms_quizzes.id]
+  score_percent smallint
+  passed boolean [default: false]
+  answers_json jsonb
+  attempted_at timestamp
+}
+
+Table lms_homework {
+  id bigint [pk, increment]
+  course_id bigint [ref: > lms_courses.id]
+  module_id bigint [ref: > lms_modules.id]
+  title varchar
+  instructions text
+  max_score smallint [default: 100]
+  created_at timestamp
+  updated_at timestamp
+}
+
+Table lms_homework_submissions {
+  id bigint [pk, increment]
+  homework_id bigint [ref: > lms_homework.id]
+  assignment_id bigint [ref: > lms_course_assignments.id]
+  content text
+  score smallint
+  status varchar(20) [default: 'submitted']
+  submitted_at timestamp
+  created_at timestamp
+  updated_at timestamp
+  indexes { (homework_id, assignment_id) [unique] }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// EXPLICIT RELATIONSHIPS (soft FKs)
+// ═══════════════════════════════════════════════════════════════
+
+Ref: consultant_agreement_templates.consultant_id > users.id
+Ref: consultant_letter_templates.consultant_id > users.id
+Ref: consultant_letters.consultant_id > users.id
+Ref: ircc_package_document_submissions.ircc_category_document_id > ircc_category_documents.id
+Ref: legislation_amendment_alerts.acknowledged_by > users.id
+Ref: lms_course_assignments.client_user_id > users.id [note: 'cross-DB db_lms → db_cws']
+Ref: lms_course_assignments.assigned_by_user_id > users.id [note: 'cross-DB db_lms → db_cws']

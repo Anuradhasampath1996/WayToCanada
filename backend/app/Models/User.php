@@ -75,10 +75,37 @@ class User extends Authenticatable implements MustVerifyEmail
 
     // ── Relationships ──────────────────────────────────────────────────────────
 
-    /** Client profile (if this user is a client). */
+    /** All practice profiles (one per consultant). */
+    public function clientProfiles(): HasMany
+    {
+        return $this->hasMany(ClientProfile::class);
+    }
+
+    /**
+     * Preferred profile for portal APIs: match users.consultant_id when possible.
+     * Kept as HasOne for eager-load compatibility (latest matching / latest overall).
+     */
     public function clientProfile(): HasOne
     {
-        return $this->hasOne(ClientProfile::class);
+        return $this->hasOne(ClientProfile::class)->latestOfMany();
+    }
+
+    public function resolveClientProfile(): ?ClientProfile
+    {
+        if ($this->consultant_id) {
+            $match = ClientProfile::query()
+                ->where('user_id', $this->id)
+                ->where('consultant_id', $this->consultant_id)
+                ->first();
+            if ($match) {
+                return $match;
+            }
+        }
+
+        return ClientProfile::query()
+            ->where('user_id', $this->id)
+            ->latest('id')
+            ->first();
     }
 
     public function userNotifications(): HasMany

@@ -178,4 +178,66 @@ class ConsultantProfileController extends Controller
 
         return response()->json(['message' => 'Logo uploaded successfully.', 'company_logo' => $url]);
     }
+
+    /**
+     * POST /consultant/profile/avatar
+     * Uploads a personal profile photo to public storage and saves the URL.
+     * Accepts: multipart/form-data with field "avatar" (jpg/jpeg/png/webp, max 2 MB).
+     */
+    public function uploadAvatar(Request $request): JsonResponse
+    {
+        $request->validate([
+            'avatar' => ['required', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
+        ]);
+
+        $user = $request->user();
+
+        // Delete old avatar if stored on public disk
+        if ($user->avatar) {
+            $oldPath = str_replace(
+                rtrim(config('app.url'), '/') . '/storage/',
+                '',
+                $user->avatar
+            );
+            if ($oldPath !== $user->avatar && ! str_starts_with((string) $user->avatar, 'http')) {
+                Storage::disk('public')->delete($user->avatar);
+            } elseif (str_contains((string) $user->avatar, '/storage/')) {
+                Storage::disk('public')->delete($oldPath);
+            }
+        }
+
+        $file     = $request->file('avatar');
+        $filename = 'avatars/' . $user->id . '_' . time() . '.' . $file->getClientOriginalExtension();
+        $file->storeAs('', $filename, 'public');
+
+        $url = rtrim(config('app.url'), '/') . '/storage/' . $filename;
+
+        $user->avatar = $url;
+        $user->save();
+
+        return response()->json(['message' => 'Profile photo uploaded successfully.', 'avatar' => $url]);
+    }
+
+    /**
+     * DELETE /consultant/profile/avatar
+     * Removes the uploaded profile photo (keeps Google/OAuth URL only if clearing uploaded one).
+     */
+    public function deleteAvatar(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        if ($user->avatar && str_contains((string) $user->avatar, '/storage/')) {
+            $oldPath = str_replace(
+                rtrim(config('app.url'), '/') . '/storage/',
+                '',
+                $user->avatar
+            );
+            Storage::disk('public')->delete($oldPath);
+        }
+
+        $user->avatar = null;
+        $user->save();
+
+        return response()->json(['message' => 'Profile photo removed.', 'avatar' => null]);
+    }
 }

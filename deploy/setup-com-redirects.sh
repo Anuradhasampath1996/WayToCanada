@@ -20,6 +20,9 @@ certbot renew --cert-name rcicmaster.com --quiet 2>/dev/null || \
 nginx -t
 systemctl reload nginx
 
+echo ">>> Re-installing SSL for rcicmaster.ca (certbot overwrites are restored here)..."
+bash "$DEPLOY_PATH/deploy/fix-ssl-ca.sh"
+
 echo ">>> Redirect tests (expect 301 → https://*.rcicmaster.ca):"
 for host in www.rcicmaster.com apply.rcicmaster.com admin.rcicmaster.com app.rcicmaster.com portal.rcicmaster.com; do
   echo -n "  http://$host → "

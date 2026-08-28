@@ -235,7 +235,7 @@ class IntegrationSettingsService
     /** Apply DB overrides to Laravel config (cached per request boot). */
     public function applyRuntimeConfig(): void
     {
-        $all = Cache::remember(self::CACHE_KEY, 300, function () {
+        $all = Cache::remember(self::CACHE_KEY, 30, function () {
             $out = [];
             foreach (array_keys(self::GROUPS) as $key) {
                 $out[$key] = $this->merged($key);
@@ -317,12 +317,17 @@ class IntegrationSettingsService
             config(['mail.from.name' => $v['from_name']]);
         }
         if (! empty($v['smtp_host'])) {
+            $port = (int) ($v['smtp_port'] ?? 587);
+            $encryption = $v['smtp_encryption'] ?? ($port === 465 ? 'ssl' : 'tls');
+            $scheme = $encryption === 'ssl' || $port === 465 ? 'smtps' : null;
+
             config([
                 'mail.mailers.smtp.host'       => $v['smtp_host'],
-                'mail.mailers.smtp.port'       => (int) ($v['smtp_port'] ?? 587),
+                'mail.mailers.smtp.port'       => $port,
                 'mail.mailers.smtp.username'   => $v['smtp_username'] ?? null,
                 'mail.mailers.smtp.password'   => $v['smtp_password'] ?? null,
-                'mail.mailers.smtp.encryption' => $v['smtp_encryption'] ?? null,
+                'mail.mailers.smtp.encryption' => $encryption,
+                'mail.mailers.smtp.scheme'     => $scheme,
             ]);
         }
     }

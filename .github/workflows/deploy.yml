@@ -1,4 +1,4 @@
-name: Deploy to AWS EC2
+name: Production deployment
 
 on:
   push:
@@ -6,45 +6,216 @@ on:
       - main
   workflow_dispatch:
 
+permissions:
+  contents: read
+  id-token: write
+
 concurrency:
-  group: deploy-aws-ec2
+  group: production-deploy
   cancel-in-progress: true
 
-jobs:
-  deploy:
-    name: Deploy to AWS EC2 (git pull + server build)
-    runs-on: ubuntu-latest
-    timeout-minutes: 120
+env:
+  AWS_REGION: ${{ vars.AWS_REGION || 'ca-central-1' }}
+  AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
+  ECR_REGISTRY: ${{ vars.AWS_ACCOUNT_ID }}.dkr.ecr.${{ vars.AWS_REGION || 'ca-central-1' }}.amazonaws.com
+  IMAGE_TAG: ${{ github.sha }}
 
+jobs:
+  ci:
+    name: CI validation
+    uses: ./.github/workflows/ci.yml
+    secrets: inherit
+
+  changes:
+    name: Detect changed services
+    needs: ci
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.detect.outputs.matrix }}
+      services: ${{ steps.detect.outputs.services }}
+      has_images: ${{ steps.detect.outputs.has_images }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build service matrix
+        id: detect
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BEFORE_SHA: ${{ github.event.before }}
+          CURRENT_SHA: ${{ github.sha }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          import subprocess
+
+          services = {
+              "api": {
+                  "compose": "api",
+                  "repository": "waytocanada-api",
+                  "context": ".",
+                  "dockerfile": "docker/php/Dockerfile",
+                  "paths": ("backend/", "docker/php/"),
+              },
+              "public": {
+                  "compose": "frontend",
+                  "repository": "waytocanada-frontend-public",
+                  "context": "./frontend/Publick website",
+                  "dockerfile": "docker/frontend/Dockerfile",
+                  "paths": ("frontend/Publick website/",),
+                  "build_args": "NEXT_PUBLIC_API_URL=https://apply.rcicmaster.ca\nNEXT_PUBLIC_APP_URL=https://apply.rcicmaster.ca\nNEXT_PUBLIC_USER_DASHBOARD_URL=https://app.rcicmaster.ca\nNEXT_PUBLIC_CONSULTANT_WEBSITE_URL=https://rcicmaster.ca",
+              },
+              "admin": {
+                  "compose": "frontend-admin",
+                  "repository": "waytocanada-frontend-admin",
+                  "context": "./frontend/Admins Dashbord",
+                  "dockerfile": "docker/frontend/Dockerfile",
+                  "paths": ("frontend/Admins Dashbord/",),
+                  "build_args": "NEXT_PUBLIC_API_URL=https://admin.rcicmaster.ca\nNEXT_PUBLIC_APP_URL=https://admin.rcicmaster.ca",
+              },
+              "users": {
+                  "compose": "frontend-users",
+                  "repository": "waytocanada-frontend-users",
+                  "context": "./frontend/Public users Dashbord",
+                  "dockerfile": "docker/frontend/Dockerfile",
+                  "paths": ("frontend/Public users Dashbord/",),
+                  "build_args": "NEXT_PUBLIC_API_URL=https://app.rcicmaster.ca\nNEXT_PUBLIC_APP_URL=https://app.rcicmaster.ca\nNEXT_PUBLIC_PUBLIC_WEBSITE_URL=https://apply.rcicmaster.ca\nNEXT_PUBLIC_OCR_URL=https://apply.rcicmaster.ca",
+              },
+              "consultant_site": {
+                  "compose": "frontend-consultant-site",
+                  "repository": "waytocanada-frontend-consultant-site",
+                  "context": "./frontend/Consultant Website",
+                  "dockerfile": "docker/frontend/Dockerfile",
+                  "paths": ("frontend/Consultant Website/",),
+                  "build_args": "NEXT_PUBLIC_API_URL=https://rcicmaster.ca\nNEXT_PUBLIC_APP_URL=https://rcicmaster.ca\nNEXT_PUBLIC_CONSULTANT_DASHBOARD_URL=https://consultant.rcicmaster.ca",
+              },
+              "consultant_dash": {
+                  "compose": "frontend-consultant-dash",
+                  "repository": "waytocanada-frontend-consultant-dash",
+                  "context": "./frontend/Consultant Dashbord",
+                  "dockerfile": "docker/frontend/Dockerfile",
+                  "paths": ("frontend/Consultant Dashbord/",),
+                  "build_args": "NEXT_PUBLIC_API_URL=https://consultant.rcicmaster.ca\nNEXT_PUBLIC_APP_URL=https://consultant.rcicmaster.ca\nNEXT_PUBLIC_CONSULTANT_WEBSITE_URL=https://rcicmaster.ca",
+              },
+          }
+
+          if os.environ["EVENT_NAME"] == "workflow_dispatch":
+              changed = None
+          else:
+              before = os.environ["BEFORE_SHA"]
+              if not before or set(before) == {"0"}:
+                  before = subprocess.check_output(["git", "rev-parse", "HEAD^"], text=True).strip()
+              changed = subprocess.check_output(
+                  ["git", "diff", "--name-only", before, os.environ["CURRENT_SHA"]],
+                  text=True,
+              ).splitlines()
+
+          compose_change = changed is None or any(
+              path == "docker-compose.prod.yml" for path in (changed or [])
+          )
+          frontend_dockerfile_change = changed is None or any(
+              path.startswith("docker/frontend/") for path in (changed or [])
+          )
+          selected = []
+          for name, service in services.items():
+              if compose_change or (frontend_dockerfile_change and name != "api") or any(
+                  path.startswith(prefix) for path in (changed or []) for prefix in service["paths"]
+              ):
+                  selected.append(service)
+
+          matrix = {"include": []}
+          for service in selected:
+              item = {key: service[key] for key in ("compose", "repository", "context", "dockerfile")}
+              item["build_args"] = service.get("build_args", "")
+              matrix["include"].append(item)
+
+          output = os.environ["GITHUB_OUTPUT"]
+          with open(output, "a", encoding="utf-8") as handle:
+              handle.write(f"matrix={json.dumps(matrix, separators=(',', ':'))}\n")
+              handle.write(f"services={','.join(item['compose'] for item in selected)}\n")
+              handle.write(f"has_images={'true' if selected else 'false'}\n")
+          PY
+
+  build_and_push:
+    name: Build and push changed images
+    needs: changes
+    if: needs.changes.outputs.has_images == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.changes.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate AWS deployment configuration
+        env:
+          AWS_DEPLOY_ROLE_ARN: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+        run: |
+          test -n "$AWS_DEPLOY_ROLE_ARN" || { echo "::error::Missing AWS_DEPLOY_ROLE_ARN secret"; exit 1; }
+          test -n "$AWS_ACCOUNT_ID" || { echo "::error::Missing AWS_ACCOUNT_ID repository variable"; exit 1; }
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Log in to Amazon ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push ${{ matrix.compose }}
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          push: true
+          tags: |
+            ${{ env.ECR_REGISTRY }}/${{ matrix.repository }}:${{ env.IMAGE_TAG }}
+            ${{ env.ECR_REGISTRY }}/${{ matrix.repository }}:latest
+          build-args: ${{ matrix.build_args }}
+          cache-from: type=gha,scope=${{ matrix.repository }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.repository }}
+
+  deploy:
+    name: Pull images and deploy on EC2
+    needs: [changes, build_and_push]
+    if: always() && needs.changes.outputs.has_images == 'true' && needs.build_and_push.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - name: Validate deploy secrets
         run: |
-          if [ -z "${{ secrets.SSH_HOST }}" ]; then
-            echo "::error::Missing GitHub secret SSH_HOST"
-            exit 1
-          fi
-          if [ -z "${{ secrets.SSH_USER }}" ]; then
-            echo "::error::Missing GitHub secret SSH_USER"
-            exit 1
-          fi
-          if [ -z "${{ secrets.SSH_PRIVATE_KEY }}" ]; then
-            echo "::error::Missing GitHub secret SSH_PRIVATE_KEY"
-            exit 1
-          fi
+          test -n "${{ secrets.SSH_HOST }}" || { echo "::error::Missing SSH_HOST secret"; exit 1; }
+          test -n "${{ secrets.SSH_USER }}" || { echo "::error::Missing SSH_USER secret"; exit 1; }
+          test -n "${{ secrets.SSH_PRIVATE_KEY }}" || { echo "::error::Missing SSH_PRIVATE_KEY secret"; exit 1; }
 
-      - name: Deploy on EC2 (git pull + build + start)
+      - name: Deploy selected services on EC2
         uses: appleboy/ssh-action@v1.2.0
+        env:
+          ECR_REGISTRY: ${{ env.ECR_REGISTRY }}
+          AWS_REGION: ${{ env.AWS_REGION }}
+          IMAGE_TAG: ${{ env.IMAGE_TAG }}
+          DEPLOY_SERVICES: ${{ needs.changes.outputs.services }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT || 22 }}
-          command_timeout: 90m
+          command_timeout: 15m
+          envs: ECR_REGISTRY,AWS_REGION,IMAGE_TAG,DEPLOY_SERVICES,GOOGLE_CLIENT_ID,GOOGLE_CLIENT_SECRET
           script: |
             set -euo pipefail
-            DEPLOY_PATH="/opt/waytocanada"
-            cd "$DEPLOY_PATH"
-            mkdir -p ~/.ssh && chmod 700 ~/.ssh
+            cd /opt/waytocanada
+            mkdir -p ~/.ssh
+            chmod 700 ~/.ssh
             DEPLOY_KEY="$HOME/.ssh/github_deploy"
             if [ -f "$DEPLOY_KEY" ]; then
               if [ ! -f ~/.ssh/config ] || ! grep -q "Host github.com" ~/.ssh/config; then
@@ -62,6 +233,27 @@ jobs:
             git remote set-url origin git@github.com:Anuradhasampath1996/WayToCanada.git
             git fetch origin main
             git reset --hard origin/main
-            export GOOGLE_CLIENT_ID="${{ secrets.GOOGLE_CLIENT_ID }}"
-            export GOOGLE_CLIENT_SECRET="${{ secrets.GOOGLE_CLIENT_SECRET }}"
-            bash deploy/deploy-on-server.sh
+            bash deploy/deploy-from-ecr.sh "$DEPLOY_SERVICES"
+
+  health_check:
+    name: Verify deployed services
+    needs: [changes, deploy]
+    if: needs.deploy.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Verify service health on EC2
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          DEPLOY_SERVICES: ${{ needs.changes.outputs.services }}
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          command_timeout: 5m
+          envs: DEPLOY_SERVICES
+          script: |
+            set -euo pipefail
+            cd /opt/waytocanada
+            bash deploy/verify-deployment.sh "$DEPLOY_SERVICES"

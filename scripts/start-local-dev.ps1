@@ -33,8 +33,9 @@ function Start-Frontend {
         $envLines += "`$env:$key='$($Env[$key])'"
     }
     $envBlock = $envLines -join "; "
-    $pkgManager = if (Test-Path (Join-Path $Dir "pnpm-lock.yaml")) { "pnpm" } else { "npm run" }
-    $devCmd = if ($pkgManager -eq "pnpm") { "pnpm dev --port $Port" } else { "npm run dev -- --port $Port" }
+    $pkgManager = if (Test-Path (Join-Path $Dir "pnpm-lock.yaml")) { "pnpm" } else { "npm" }
+    # Next.js 16: use `next dev -p` (npm -- --port can be misparsed as a directory)
+    $devCmd = if ($pkgManager -eq "pnpm") { "pnpm exec next dev -p $Port" } else { "npx next dev -p $Port" }
     $cmd = "cd '$Dir'; $envBlock; $devCmd"
     Start-DevWindow -Title "WTC: $Title" -Command $cmd
 }
@@ -42,11 +43,11 @@ function Start-Frontend {
 Write-Host ">>> Checking Windows PostgreSQL (db_cws on :5432)..." -ForegroundColor Yellow
 & powershell -ExecutionPolicy Bypass -File (Join-Path $Root "scripts\verify-local-database.ps1")
 if ($LASTEXITCODE -ne 0) {
-    Write-Host ">>> Fix backend/.env — see scripts/LOCAL-DEV-DATABASE.md" -ForegroundColor Red
+    Write-Host ">>> Fix backend/.env - see scripts/LOCAL-DEV-DATABASE.md" -ForegroundColor Red
     exit 1
 }
 
-Write-Host ">>> Starting Docker (OCR, LocalStack — not app database)..." -ForegroundColor Yellow
+Write-Host ">>> Starting Docker (OCR, LocalStack - not app database)..." -ForegroundColor Yellow
 Push-Location $Root
 docker compose -f docker-compose.dev.yml up -d
 Pop-Location
@@ -68,7 +69,7 @@ Push-Location $backend
 if (-not (Select-String -Path ".env" -Pattern "^APP_KEY=base64:" -Quiet)) {
     php artisan key:generate --force | Out-Null
 }
-# Uses backend/.env — do NOT override DB to Docker 5433 / db_cws_test
+# Uses backend/.env - do NOT override DB to Docker 5433 / db_cws_test
 php artisan migrate --force 2>$null
 php artisan db:seed --class=RolesAndPermissionsSeeder --force 2>$null
 Pop-Location

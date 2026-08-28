@@ -39,6 +39,8 @@ export interface JourneyStep {
   number: number;
   title: string;
   navLabel: string;
+  /** One-line blurb under the overview stepper icon */
+  shortBlurb: string;
   description: string;
   href: string;
   status: JourneyStepStatus;
@@ -111,9 +113,9 @@ export function buildClientJourney(
   else if (assessmentWaiting) retainerStatus = "locked";
 
   let formsStatus: JourneyStepStatus = "locked";
-  if (docsUnlocked || formsReviewed) formsStatus = "done";
-  else if (agreementSigned && hasForms) formsStatus = allFormsSubmitted ? "waiting" : "active";
-  else if (agreementSigned && !hasForms) formsStatus = "done";
+  if (!agreementSigned) formsStatus = "locked";
+  else if (docsUnlocked || formsReviewed || !hasForms) formsStatus = "done";
+  else if (hasForms) formsStatus = allFormsSubmitted ? "waiting" : "active";
 
   let documentsStatus: JourneyStepStatus = "locked";
   if (docsUnlocked) documentsStatus = "active";
@@ -125,9 +127,10 @@ export function buildClientJourney(
       number: 1,
       title: pendingRefills > 0 ? "Fix questionnaire corrections" : "Complete your profile",
       navLabel: "Your profile",
+      shortBlurb: "Tell us about yourself and your case.",
       description: pendingRefills > 0
         ? `Your consultant flagged ${pendingRefills} item${pendingRefills === 1 ? "" : "s"} to update.`
-        : "Tell us about your background so your consultant can assess eligibility and recommend a pathway.",
+        : "Let us know about your background, goals, and details so your consultant can assess your case accurately.",
       href: "/user-dashboard/questionnaire",
       status: questionnaireStatus,
       actionLabel: pendingRefills > 0 ? "Fix corrections" : qStats.isSubmitted ? "View questionnaire" : "Open questionnaire",
@@ -135,9 +138,10 @@ export function buildClientJourney(
     {
       id: "retainer",
       number: 2,
-      title: "Sign retainer agreement",
+      title: "Sign agreement",
       navLabel: "Sign agreement",
-      description: "Review and sign the agreement to officially start working with your consultant.",
+      shortBlurb: "Review and sign your agreement.",
+      description: "Review and e-sign your consultant agreement to officially start working together.",
       href: "/user-dashboard/retainer-agreement",
       status: retainerStatus,
       actionLabel: agreementSent ? "Sign agreement" : "View agreement",
@@ -150,25 +154,29 @@ export function buildClientJourney(
     {
       id: "forms",
       number: 3,
-      title: "Submit application forms",
-      navLabel: "Government forms",
+      title: "Documents & messages",
+      navLabel: "Documents & messages",
+      shortBlurb: "Upload documents and communicate.",
       description: hasForms
-        ? "Fill in the IRCC forms assigned to your case. We pre-fill answers from your questionnaire when possible."
-        : "Your consultant will assign forms if needed for your pathway.",
-      href: "/user-dashboard/application-forms",
+        ? "Securely upload supporting documents, complete assigned forms, and message your consultant."
+        : "Securely upload your supporting documents and messages.",
+      href: hasForms ? "/user-dashboard/application-forms" : "/user-dashboard/case-management",
       status: formsStatus,
-      actionLabel: allFormsSubmitted ? "View submitted forms" : "Continue forms",
+      actionLabel: hasForms
+        ? (allFormsSubmitted ? "View forms" : "Continue forms")
+        : "Open documents",
       lockedReason: agreementSigned ? undefined : "Unlocks after you sign the retainer agreement.",
     },
     {
       id: "documents",
       number: 4,
-      title: "Upload documents & message consultant",
-      navLabel: "Documents & messages",
-      description: "Upload required documents, track review status, and chat with your consultant.",
+      title: "Case review & next steps",
+      navLabel: "Case review & next steps",
+      shortBlurb: "We review and guide your next steps.",
+      description: "We review your file and provide clear next steps for your application.",
       href: "/user-dashboard/case-management",
       status: documentsStatus,
-      actionLabel: "Open case documents",
+      actionLabel: "Open case hub",
       lockedReason: docsUnlocked
         ? undefined
         : agreementSigned
@@ -253,7 +261,7 @@ export function resolveClientNextAction(
     return {
       tone: "primary",
       title: "Complete your questionnaire",
-      description: "Fill in your profile and upload identity documents so your consultant can assess your eligibility.",
+      description: "Fill in your profile and questionnaire to help your consultant understand your case.",
       href: "/user-dashboard/questionnaire",
       buttonLabel: "Open questionnaire",
     };
@@ -394,10 +402,10 @@ export function clientStatusLabel(status: string): string {
 }
 
 export const JOURNEY_STEP_PAGES: Record<JourneyStepId, { step: number; label: string; title: string }> = {
-  questionnaire: { step: 1, label: "Your profile", title: "Your profile" },
+  questionnaire: { step: 1, label: "Your profile", title: "Complete your profile" },
   retainer: { step: 2, label: "Sign agreement", title: "Sign agreement" },
-  forms: { step: 3, label: "Government forms", title: "Government forms" },
-  documents: { step: 4, label: "Documents & messages", title: "Documents & messages" },
+  forms: { step: 3, label: "Documents & messages", title: "Documents & messages" },
+  documents: { step: 4, label: "Case review & next steps", title: "Case review & next steps" },
 };
 
 export function journeyStepBadge(status: JourneyStepStatus): {
@@ -412,17 +420,17 @@ export function journeyStepBadge(status: JourneyStepStatus): {
       };
     case "active":
       return {
-        label: "Your turn",
+        label: "Current step",
         className: "bg-primary/10 text-primary border-primary/25",
       };
     case "waiting":
       return {
-        label: "With consultant",
-        className: "bg-amber-500/10 text-amber-800 border-amber-200/80",
+        label: "Pending",
+        className: "bg-muted text-muted-foreground border-transparent",
       };
     default:
       return {
-        label: "Not yet",
+        label: "Pending",
         className: "bg-muted text-muted-foreground border-transparent",
       };
   }

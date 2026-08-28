@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\CaseFileLifecycleService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -57,10 +58,12 @@ class ClientProfile extends Model
         return $this->hasMany(CaseFile::class);
     }
 
-    /** @deprecated Use caseFile() — kept for clarity in queries. */
-    public function activeCaseFile(): BelongsTo
+    /**
+     * Prefer the lifecycle-active case for client portal / shared profile accessors.
+     */
+    public function portalCaseFile(): ?CaseFile
     {
-        return $this->caseFile();
+        return app(CaseFileLifecycleService::class)->resolvePortalCaseFile($this);
     }
 
     // ── Scopes ─────────────────────────────────────────────────────────────────

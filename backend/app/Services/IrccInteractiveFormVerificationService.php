@@ -127,13 +127,17 @@ class IrccInteractiveFormVerificationService
         $verifiedAt,
         bool $caseManagementUnlocked,
     ): array {
+        // Before the retainer is signed, forms are not started — never treat
+        // "zero forms" as vacuously complete (that made Step 3 show Done early).
+        $vacuousComplete = $agreementSigned && $totalForms === 0;
+
         return [
             'agreement_signed'           => $agreementSigned,
             'total_forms'                => $totalForms,
             'submitted_count'            => $submittedCount,
             'reviewed_count'             => $reviewedCount,
-            'all_submitted'              => $totalForms === 0 ? true : $submittedCount === $totalForms,
-            'all_reviewed'               => $totalForms === 0 ? true : $reviewedCount === $totalForms,
+            'all_submitted'              => $vacuousComplete || ($totalForms > 0 && $submittedCount === $totalForms),
+            'all_reviewed'               => $vacuousComplete || ($totalForms > 0 && $reviewedCount === $totalForms),
             'verified_at'                => $verifiedAt,
             'case_management_unlocked'   => $caseManagementUnlocked,
         ];

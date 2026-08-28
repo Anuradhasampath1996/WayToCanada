@@ -25,9 +25,9 @@ class ConsultantClientRequestService
             abort(403, 'Only client accounts can request a consultant.');
         }
 
-        if (ClientProfile::where('user_id', $client->id)->exists()) {
+        if (ClientProfile::where('user_id', $client->id)->where('consultant_id', $consultantId)->exists()) {
             throw ValidationException::withMessages([
-                'consultant_id' => ['You are already assigned to a consultant.'],
+                'consultant_id' => ['You are already assigned to this consultant.'],
             ]);
         }
 
@@ -105,14 +105,14 @@ class ConsultantClientRequestService
         return DB::connection('cws')->transaction(function () use ($consultant, $request, $httpRequest) {
             $clientUser = User::lockForUpdate()->findOrFail($request->client_user_id);
 
-            if (ClientProfile::where('user_id', $clientUser->id)->exists()) {
+            if (ClientProfile::where('user_id', $clientUser->id)->where('consultant_id', $consultant->id)->exists()) {
                 $request->update([
                     'status'       => ConsultantClientRequest::STATUS_CANCELLED,
                     'responded_at' => now(),
                 ]);
 
                 throw ValidationException::withMessages([
-                    'request' => ['This client is already assigned to a consultant.'],
+                    'request' => ['This client is already assigned to you.'],
                 ]);
             }
 

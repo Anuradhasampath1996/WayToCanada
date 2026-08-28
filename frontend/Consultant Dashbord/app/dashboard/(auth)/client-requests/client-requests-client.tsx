@@ -1,19 +1,22 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   Check,
+  Clock3,
+  Inbox,
   Loader2,
   Mail,
+  MessageSquareQuote,
   Phone,
   RefreshCw,
+  Sparkles,
   UserPlus,
   X,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -24,22 +27,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { cn } from "@/lib/utils";
+
+import "./client-requests.css";
 
 const API = (process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000") + "/api/v1";
 const TOKEN_KEY = "wtc_consultant_token";
 const COOKIE_NAME = "wtc_consultant_token";
-
-function authHeaders(): Record<string, string> {
-  const token =
-    (typeof document !== "undefined"
-      ? document.cookie.match(new RegExp(`${COOKIE_NAME}=([^;]+)`))?.[1]
-      : undefined) ?? (typeof window !== "undefined" ? localStorage.getItem(TOKEN_KEY) : null) ?? "";
-  return {
-    Accept: "application/json",
-    "Content-Type": "application/json",
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-  };
-}
 
 type ClientRequest = {
   id: number;
@@ -54,6 +48,62 @@ type ClientRequest = {
     created_at?: string;
   } | null;
 };
+
+function authHeaders(): Record<string, string> {
+  const token =
+    (typeof document !== "undefined"
+      ? document.cookie.match(new RegExp(`${COOKIE_NAME}=([^;]+)`))?.[1]
+      : undefined) ?? (typeof window !== "undefined" ? localStorage.getItem(TOKEN_KEY) : null) ?? "";
+  return {
+    Accept: "application/json",
+    "Content-Type": "application/json",
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+}
+
+function initials(name: string) {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((p) => p[0]?.toUpperCase() ?? "")
+    .join("") || "?";
+}
+
+function timeAgo(iso?: string) {
+  if (!iso) return "";
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diff / 60_000);
+  if (mins < 1) return "Just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days}d ago`;
+  return new Date(iso).toLocaleDateString("en-CA", { month: "short", day: "numeric" });
+}
+
+function formatDate(iso?: string) {
+  if (!iso) return "";
+  return new Date(iso).toLocaleDateString("en-CA", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+function avatarTone(name: string) {
+  const tones = [
+    "bg-primary/15 text-primary",
+    "bg-sky-500/15 text-sky-700 dark:text-sky-300",
+    "bg-violet-500/15 text-violet-700 dark:text-violet-300",
+    "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300",
+    "bg-amber-500/15 text-amber-800 dark:text-amber-300",
+  ];
+  const idx = name.split("").reduce((sum, c) => sum + c.charCodeAt(0), 0) % tones.length;
+  return tones[idx];
+}
 
 export function ClientRequestsClient() {
   const searchParams = useSearchParams();
@@ -83,8 +133,13 @@ export function ClientRequestsClient() {
   }, []);
 
   useEffect(() => {
-    load();
+    void load();
   }, [load]);
+
+  const withMessage = useMemo(
+    () => requests.filter((r) => r.message?.trim()).length,
+    [requests],
+  );
 
   async function handleAccept(id: number) {
     setActingId(id);
@@ -124,113 +179,194 @@ export function ClientRequestsClient() {
   }
 
   return (
-    <div className="min-w-0 space-y-4 overflow-x-hidden pb-8 sm:space-y-6">
-      <section className="rounded-2xl border border-border/70 bg-gradient-to-br from-background to-primary/5 p-4 shadow-sm sm:p-5">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <h1 className="flex items-center gap-2 text-xl font-bold tracking-tight sm:text-2xl">
-              <UserPlus className="size-6 shrink-0 text-primary sm:h-6 sm:w-6" />
-              Client requests
-            </h1>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Applicants from the public site who chose you as their consultant.
-            </p>
+    <div className="min-w-0 space-y-5 overflow-x-hidden pb-10">
+      <section className="client-requests-shell overflow-hidden rounded-2xl border border-border/50 shadow-sm">
+        <header className="client-requests-header relative border-b border-border/50 px-4 py-5 sm:px-6">
+          <div className="relative z-[1] flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <div className="min-w-0 space-y-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-primary">
+                  <Inbox className="size-3" />
+                  Inbound leads
+                </span>
+                {!loading && requests.length > 0 ? (
+                  <Badge variant="secondary" className="rounded-lg font-normal">
+                    {requests.length} pending
+                  </Badge>
+                ) : null}
+              </div>
+              <div className="flex items-start gap-3">
+                <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-sm">
+                  <UserPlus className="size-5" />
+                </div>
+                <div className="min-w-0">
+                  <h1 className="text-xl font-bold tracking-tight sm:text-2xl">Client requests</h1>
+                  <p className="mt-1 max-w-2xl text-sm leading-relaxed text-muted-foreground">
+                    Applicants who chose you on the public site — review, accept, and open their workspace.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              {!loading && requests.length > 0 ? (
+                <span className="inline-flex items-center gap-1.5 rounded-xl border border-border/60 bg-background/80 px-3 py-1.5 text-xs text-muted-foreground">
+                  <MessageSquareQuote className="size-3.5 text-primary" />
+                  {withMessage} with a note
+                </span>
+              ) : null}
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-9 rounded-xl bg-background/80"
+                onClick={load}
+                disabled={loading}
+              >
+                {loading ? (
+                  <Loader2 className="mr-1.5 size-3.5 animate-spin" />
+                ) : (
+                  <RefreshCw className="mr-1.5 size-3.5" />
+                )}
+                Refresh
+              </Button>
+            </div>
           </div>
-          <Button variant="outline" size="icon" className="size-9 shrink-0" onClick={load} aria-label="Refresh">
-            <RefreshCw className="h-4 w-4" />
-          </Button>
+        </header>
+
+        <div className="p-4 sm:p-5 lg:p-6">
+          {error && (
+            <div className="mb-4 rounded-2xl border border-destructive/25 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+              {error}
+            </div>
+          )}
+
+          {loading ? (
+            <div className="space-y-3">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="h-[118px] animate-pulse rounded-2xl bg-muted/45" />
+              ))}
+            </div>
+          ) : requests.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-border/70 bg-muted/15 px-6 py-16 text-center">
+              <Sparkles className="mx-auto size-8 text-muted-foreground/50" />
+              <p className="mt-4 text-base font-semibold text-foreground/85">No pending requests</p>
+              <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
+                When applicants choose you as their consultant, they will appear here for review.
+              </p>
+              <Button variant="outline" size="sm" className="mt-5 rounded-xl" onClick={load}>
+                <RefreshCw className="mr-1.5 size-3.5" />
+                Check again
+              </Button>
+            </div>
+          ) : (
+            <ul className="divide-y divide-border/50 overflow-hidden rounded-2xl border border-border/60 bg-card">
+              {requests.map((req) => {
+                const client = req.client;
+                const name = client?.name ?? "Unknown client";
+                const highlighted = highlightId === String(req.id);
+
+                return (
+                  <li
+                    key={req.id}
+                    className={cn(
+                      "client-request-row px-4 py-4 transition-colors sm:px-5 sm:py-4.5",
+                      "hover:bg-muted/25",
+                      highlighted && "bg-primary/[0.04] ring-inset ring-2 ring-primary/20",
+                    )}
+                  >
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between lg:gap-6">
+                      <div className="flex min-w-0 flex-1 gap-3.5">
+                        <span
+                          className={cn(
+                            "flex size-11 shrink-0 items-center justify-center rounded-full text-sm font-bold",
+                            avatarTone(name),
+                          )}
+                        >
+                          {initials(name)}
+                        </span>
+
+                        <div className="min-w-0 flex-1 space-y-2.5">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h3 className="text-base font-bold tracking-tight">{name}</h3>
+                            <Badge className="rounded-md border-amber-300/50 bg-amber-500/10 text-[10px] font-semibold uppercase tracking-wide text-amber-800 hover:bg-amber-500/10 dark:text-amber-300">
+                              Pending
+                            </Badge>
+                            <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+                              <Clock3 className="size-3" />
+                              {timeAgo(req.created_at)}
+                            </span>
+                            <span className="hidden text-[11px] text-muted-foreground sm:inline">
+                              · {formatDate(req.created_at)}
+                            </span>
+                          </div>
+
+                          <div className="flex flex-col gap-1.5 sm:flex-row sm:flex-wrap sm:gap-2">
+                            {client?.email ? (
+                              <a
+                                href={`mailto:${client.email}`}
+                                className="inline-flex min-w-0 max-w-full items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-primary"
+                              >
+                                <Mail className="size-3.5 shrink-0" />
+                                <span className="truncate">{client.email}</span>
+                              </a>
+                            ) : null}
+                            {client?.phone ? (
+                              <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground sm:before:mx-1 sm:before:text-border sm:before:content-['·']">
+                                <Phone className="size-3.5 shrink-0" />
+                                {client.phone}
+                              </span>
+                            ) : null}
+                          </div>
+
+                          {req.message ? (
+                            <div className="rounded-xl border border-border/50 bg-muted/20 px-3.5 py-2.5">
+                              <p className="mb-1 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                                <MessageSquareQuote className="size-3" />
+                                Their message
+                              </p>
+                              <p className="text-sm leading-relaxed text-foreground/90">
+                                {req.message}
+                              </p>
+                            </div>
+                          ) : (
+                            <p className="text-xs italic text-muted-foreground">
+                              No message included with this request.
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex shrink-0 flex-wrap gap-2 lg:flex-col lg:items-stretch xl:flex-row">
+                        <Button
+                          onClick={() => handleAccept(req.id)}
+                          disabled={actingId === req.id}
+                          className="h-9 rounded-xl px-4"
+                        >
+                          {actingId === req.id ? (
+                            <Loader2 className="mr-1.5 size-3.5 animate-spin" />
+                          ) : (
+                            <Check className="mr-1.5 size-3.5" />
+                          )}
+                          Accept client
+                        </Button>
+                        <Button
+                          variant="outline"
+                          onClick={() => setDeclineTarget(req)}
+                          disabled={actingId === req.id}
+                          className="h-9 rounded-xl border-primary/25 text-primary hover:bg-primary/5 hover:text-primary"
+                        >
+                          <X className="mr-1.5 size-3.5" />
+                          Decline
+                        </Button>
+                      </div>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
         </div>
       </section>
-
-      {error && (
-        <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-3 text-sm text-destructive break-words sm:px-4">
-          {error}
-        </div>
-      )}
-
-      {loading ? (
-        <div className="flex justify-center py-20">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-        </div>
-      ) : requests.length === 0 ? (
-        <Card>
-          <CardContent className="py-16 text-center text-muted-foreground text-sm">
-            No pending client requests right now.
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="grid gap-3 sm:gap-4">
-          {requests.map((req) => {
-            const client = req.client;
-            const highlighted = highlightId === String(req.id);
-            return (
-              <Card
-                key={req.id}
-                className={highlighted ? "border-primary ring-2 ring-primary/20" : undefined}
-              >
-                <CardContent className="space-y-4 p-4 sm:p-5">
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <h3 className="text-base font-semibold break-words sm:text-lg">{client?.name ?? "Unknown client"}</h3>
-                        <Badge variant="outline" className="shrink-0 border-amber-300 bg-amber-50 text-amber-900">
-                          Pending
-                        </Badge>
-                      </div>
-                      {client?.email && (
-                        <a href={`mailto:${client.email}`} className="mt-1 flex items-start gap-1.5 text-sm text-muted-foreground break-all hover:text-foreground">
-                          <Mail className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                          <span className="min-w-0">{client.email}</span>
-                        </a>
-                      )}
-                      {client?.phone && (
-                        <p className="mt-0.5 flex items-center gap-1.5 text-sm text-muted-foreground break-all">
-                          <Phone className="h-3.5 w-3.5 shrink-0" />
-                          {client.phone}
-                        </p>
-                      )}
-                    </div>
-                    <p className="shrink-0 text-xs text-muted-foreground">
-                      {req.created_at ? new Date(req.created_at).toLocaleDateString() : ""}
-                    </p>
-                  </div>
-
-                  {req.message && (
-                    <div className="rounded-lg bg-muted/50 px-3 py-3 text-sm leading-relaxed break-words sm:px-4">
-                      <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Message</p>
-                      {req.message}
-                    </div>
-                  )}
-
-                  <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-                    <Button
-                      onClick={() => handleAccept(req.id)}
-                      disabled={actingId === req.id}
-                      className="h-10 w-full bg-emerald-600 hover:bg-emerald-700 sm:w-auto"
-                    >
-                      {actingId === req.id ? (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      ) : (
-                        <Check className="mr-2 h-4 w-4" />
-                      )}
-                      Accept client
-                    </Button>
-                    <Button
-                      variant="outline"
-                      onClick={() => setDeclineTarget(req)}
-                      disabled={actingId === req.id}
-                      className="h-10 w-full sm:w-auto"
-                    >
-                      <X className="mr-2 h-4 w-4" />
-                      Decline
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
-      )}
 
       <AlertDialog open={!!declineTarget} onOpenChange={(o) => !o && setDeclineTarget(null)}>
         <AlertDialogContent className="w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] sm:max-w-lg">
