@@ -6,7 +6,7 @@ import {
   ArrowLeft, Loader2, AlertCircle, Check, CheckCircle2, XCircle,
   Clock, RefreshCw, MessageSquare, FileText, Eye, Send,
   Bot, ShieldCheck, ShieldAlert, ShieldQuestion,
-  ChevronDown, FormInput, Briefcase, RotateCcw,
+  ChevronDown, RotateCcw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -14,11 +14,15 @@ import { cn } from "@/lib/utils";
 import { CASE_WORKFLOW_STEPS } from "../workspace-flow-ui";
 import { WorkspaceSubpageHero } from "../workspace-subpage-hero";
 import { ConsultantInteractiveFormsPanel } from "./consultant-interactive-forms-panel";
+import { ConsultantGovernmentFormsPanel } from "./consultant-government-forms-panel";
 import {
   CaseHubProgressHeader, CaseHubOverview, CaseHubLocked,
-  DocumentRequirementsGrid, IrccFormsList,
+  DocumentRequirementsGrid,
   type HubProgress, type HubRequirement, type HubIrccForm, type HubPackage,
 } from "@/components/case-management-hub-ui";
+import { CaseHubLayout, CaseHubTabHeader, type CaseHubTab } from "@/components/case-management-shell";
+import { fetchGovernmentForms } from "@/lib/government-forms-api";
+import { aggregateReadiness } from "@/lib/government-forms-workflow";
 import { ConsultantDocumentPreviewCard } from "@/components/consultant-document-preview-card";
 import { PdfViewerDialog } from "@/components/pdf-viewer-dialog";
 
@@ -356,7 +360,14 @@ export function CaseManagementClient({ paramsPromise }: { paramsPromise: Promise
   const [hubPackage, setHubPackage] = useState<HubPackage | null>(null);
   const [documents, setDocuments]   = useState<DocumentSubmission[]>([]);
   const [messages, setMessages]     = useState<CaseMessage[]>([]);
-  const [activeTab, setActiveTab]   = useState<"overview" | "documents" | "forms" | "messages">("overview");
+  const [activeTab, setActiveTab]   = useState<CaseHubTab>("overview");
+  const [govFormsSummary, setGovFormsSummary] = useState<{
+    percent: number;
+    formCount: number;
+    reviewed: boolean;
+    allReady: boolean;
+    totalMissing: number;
+  } | null>(null);
   const [reviewDoc, setReviewDoc]   = useState<DocumentSubmission | null>(null);
   const [msgInput, setMsgInput]     = useState("");
   const [sending, setSending]       = useState(false);
@@ -450,6 +461,27 @@ export function CaseManagementClient({ paramsPromise }: { paramsPromise: Promise
   }, [id]);
 
   useEffect(() => { load(); }, [load]);
+
+  const loadGovFormsSummary = useCallback(async () => {
+    try {
+      const data = await fetchGovernmentForms(id);
+      const agg = aggregateReadiness(data.forms);
+      setGovFormsSummary({
+        percent: agg.averagePercentage,
+        formCount: agg.formCount,
+        reviewed: data.application_info_reviewed,
+        allReady: agg.allReady,
+        totalMissing: agg.totalMissing,
+      });
+    } catch {
+      setGovFormsSummary(null);
+    }
+  }, [id]);
+
+  useEffect(() => {
+    if (!caseManagementUnlocked || loading) return;
+    void loadGovFormsSummary();
+  }, [caseManagementUnlocked, loading, loadGovFormsSummary]);
 
   const loadMessages = useCallback(async () => {
     const token = localStorage.getItem("wtc_consultant_token");
@@ -603,8 +635,19 @@ export function CaseManagementClient({ paramsPromise }: { paramsPromise: Promise
       ? [{ label: `Client still needs ${requirements.filter(r => r.status === "missing").length} document(s)`, tab: "documents" }] : []),
     ...(hubProgress && hubProgress.forms.total > 0 && !hubProgress.forms.complete
       ? [{ label: "Review application forms", tab: "forms", urgent: true }] : []),
+    ...(govFormsSummary && !govFormsSummary.reviewed && govFormsSummary.formCount > 0
+      ? [{ label: "Review client data for government forms", tab: "government-forms", urgent: true }] : []),
+    ...(govFormsSummary && govFormsSummary.reviewed && !govFormsSummary.allReady && govFormsSummary.totalMissing > 0
+      ? [{ label: `Government forms ${govFormsSummary.percent}% ready — fill ${govFormsSummary.totalMissing} missing field(s)`, tab: "government-forms", urgent: true }] : []),
+    ...(govFormsSummary && govFormsSummary.allReady && govFormsSummary.reviewed
+      ? [{ label: "Government forms ready — generate official PDFs", tab: "government-forms" }] : []),
     ...(unreadCount > 0 ? [{ label: `${unreadCount} unread client message(s)`, tab: "messages" }] : []),
   ];
+
+  const documentsComplete = hubProgress
+    ? hubProgress.documents.approved === hubProgress.documents.total && hubProgress.documents.total > 0
+    : false;
+  const formsComplete = hubProgress?.forms.complete ?? false;
 
   return (
     <div className="min-w-0 w-full overflow-x-hidden px-3 py-4 sm:px-4 sm:py-6">
@@ -677,63 +720,24 @@ export function CaseManagementClient({ paramsPromise }: { paramsPromise: Promise
           pathway={caseFile?.immigration_pathway ?? null}
           packageLabel={hubPackage?.label}
           pipelineLabel={currentStatusLabel}
+          govFormsPercent={govFormsSummary?.percent ?? null}
         />
       )}
 
-      {/* Tabs */}
-      <div className="mb-4 flex border-b overflow-x-auto sm:mb-6 [-ms-overflow-style:none] [scrollbar-width:thin]">
-        <button
-          onClick={() => setActiveTab("overview")}
-          className={cn(
-            "shrink-0 px-3 py-2 text-sm font-medium border-b-2 transition-colors sm:px-4",
-            activeTab === "overview" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
-          )}
-        >
-          <Briefcase className="inline h-4 w-4 mr-1.5" />
-          Overview
-        </button>
-        <button
-          onClick={() => setActiveTab("documents")}
-          className={cn(
-            "shrink-0 px-3 py-2 text-sm font-medium border-b-2 transition-colors sm:px-4",
-            activeTab === "documents" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
-          )}
-        >
-          <FileText className="inline h-4 w-4 mr-1.5" />
-          Documents
-          {pendingDocs.length > 0 && (
-            <span className="ml-1.5 inline-flex h-4 w-4 items-center justify-center rounded-full bg-amber-500 text-[10px] font-bold text-white">
-              {pendingDocs.length}
-            </span>
-          )}
-        </button>
-        <button
-          onClick={() => setActiveTab("forms")}
-          className={cn(
-            "shrink-0 px-3 py-2 text-sm font-medium border-b-2 transition-colors sm:px-4",
-            activeTab === "forms" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
-          )}
-        >
-          <FormInput className="inline h-4 w-4 mr-1.5" />
-          Application Forms
-        </button>
-        <button
-          onClick={() => setActiveTab("messages")}
-          className={cn(
-            "shrink-0 px-3 py-2 text-sm font-medium border-b-2 transition-colors sm:px-4",
-            activeTab === "messages" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
-          )}
-        >
-          <MessageSquare className="inline h-4 w-4 mr-1.5" />
-          Messages
-          {unreadCount > 0 && (
-            <span className="ml-1.5 inline-flex h-4 w-4 items-center justify-center rounded-full bg-blue-500 text-[10px] font-bold text-white">
-              {unreadCount}
-            </span>
-          )}
-        </button>
-      </div>
-
+      <CaseHubLayout
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        journeyProps={{
+          documentsComplete,
+          formsComplete,
+          govFormsPercent: govFormsSummary?.percent ?? null,
+          hasInteractiveForms: (hubProgress?.forms.total ?? 0) > 0,
+        }}
+        badges={{
+          documents: pendingDocs.length,
+          messages: unreadCount,
+        }}
+      >
       {/* ── OVERVIEW TAB ── */}
       {activeTab === "overview" && hubProgress && (
         <CaseHubOverview
@@ -743,20 +747,20 @@ export function CaseManagementClient({ paramsPromise }: { paramsPromise: Promise
           irccForms={irccForms}
           requirements={requirements}
           nextActions={nextActions}
+          govFormsSummary={govFormsSummary}
           onViewPdf={openPdf}
           buildPackageDocStreamUrl={packageDocStreamUrl}
-          onActionClick={(tab) => setActiveTab(tab as typeof activeTab)}
+          onActionClick={(tab) => setActiveTab(tab as CaseHubTab)}
         />
       )}
 
       {/* ── DOCUMENTS TAB ── */}
       {activeTab === "documents" && (
         <div className="space-y-6">
-          <div className="rounded-xl border border-primary/15 bg-primary/5 px-4 py-3 text-sm text-muted-foreground">
-            Review each upload, approve when correct, or request a re-upload if the client uploaded the wrong file.
-            The client will see your note and can upload again from their portal.
-          </div>
-
+          <CaseHubTabHeader
+            title="Documents"
+            description="Review each upload, approve when correct, or request a re-upload. The client sees your note in their portal."
+          />
           <div>
             <p className="mb-3 text-sm font-semibold">Document Requirements</p>
             <DocumentRequirementsGrid
@@ -828,12 +832,40 @@ export function CaseManagementClient({ paramsPromise }: { paramsPromise: Promise
       )}
 
       {activeTab === "forms" && (
-        <ConsultantInteractiveFormsPanel profileId={id} onVerificationChange={() => void load()} />
+        <>
+          <CaseHubTabHeader
+            title="Application Forms"
+            description="Review interactive IRCC forms submitted by the client. Mark each as reviewed to unlock government form generation."
+          />
+          <ConsultantInteractiveFormsPanel
+            profileId={id}
+            onVerificationChange={() => void load()}
+            onOpenGovernmentForms={() => setActiveTab("government-forms")}
+          />
+        </>
+      )}
+
+      {activeTab === "government-forms" && (
+        <>
+          <CaseHubTabHeader
+            title="Government Forms"
+            description="Auto-fill official IRCC PDFs (IMM 5476, IMM 5406) from verified client data. Review → fill gaps → generate → download."
+          />
+          <ConsultantGovernmentFormsPanel
+            profileId={id}
+            onToast={showToast}
+            onDataChange={() => void loadGovFormsSummary()}
+          />
+        </>
       )}
 
       {/* ── MESSAGES TAB ── */}
       {activeTab === "messages" && (
         <div className="flex flex-col gap-4">
+          <CaseHubTabHeader
+            title="Messages"
+            description="Communicate with your client about documents, forms, and case updates."
+          />
           <div className="rounded-xl border bg-muted/10 p-4 h-[400px] overflow-y-auto flex flex-col gap-3">
             {messages.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full gap-3 text-center">
@@ -878,6 +910,7 @@ export function CaseManagementClient({ paramsPromise }: { paramsPromise: Promise
           </div>
         </div>
       )}
+      </CaseHubLayout>
 
       {/* Review Modal */}
       {reviewDoc && (

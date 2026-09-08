@@ -3,9 +3,11 @@
 namespace App\Http\Controllers;
 
 use App\Models\ClientProfile;
+use App\Models\IrccCategory;
 use App\Models\IrccInteractiveForm;
 use App\Models\IrccInteractiveFormResponse;
 use App\Services\ClientActivity\ClientActivityTriggers;
+use App\Services\IrccInteractiveFormSyncService;
 use App\Services\IrccInteractiveFormVerificationService;
 use App\Support\IrccInteractiveFormSchema;
 use Illuminate\Http\JsonResponse;
@@ -36,14 +38,22 @@ class ConsultantIrccInteractiveFormController extends Controller
             ->orderBy('sort_order')
             ->get();
 
+        $category = IrccCategory::find($caseFile->assigned_ircc_category_id);
+        $referenceForms = $this->referenceFormsForCategory($category);
+
         $responses = IrccInteractiveFormResponse::where('case_file_id', $caseFile->id)
             ->get()
             ->keyBy('ircc_interactive_form_id');
 
         return response()->json([
-            'category_id'  => $caseFile->assigned_ircc_category_id,
-            'case_file_id' => $caseFile->id,
-            'forms'        => $forms->map(function (IrccInteractiveForm $form) use ($responses) {
+            'category_id'       => $caseFile->assigned_ircc_category_id,
+            'case_file_id'      => $caseFile->id,
+            'package_label'     => $category?->label,
+            'form_mode'         => $forms->isEmpty()
+                ? ($referenceForms !== [] ? 'pdf_only' : 'none')
+                : 'interactive',
+            'reference_forms'   => $referenceForms,
+            'forms'             => $forms->map(function (IrccInteractiveForm $form) use ($responses) {
                 $response = $responses->get($form->id);
 
                 return array_merge(
@@ -196,5 +206,50 @@ class ConsultantIrccInteractiveFormController extends Controller
         if ($profile->consultant_id !== $request->user()->id) {
             abort(403, 'Access denied.');
         }
+    }
+
+    /** @return list<array{code: string, name: string}> */
+    private function referenceFormsForCategory(?IrccCategory $category): array
+    {
+        if (! $category || empty($category->result['forms'])) {
+            return [];
+        }
+
+        $refs = [];
+
+        foreach ($category->result['forms'] as $code) {
+            if (! is_string($code) || $code === '') {
+                continue;
+            }
+
+            if (in_array(strtolower(trim($code)), ['none', 'n/a'], true)) {
+                continue;
+            }
+
+            if (IrccInteractiveFormSyncService::isOnlineOnlyReference($code)) {
+                continue;
+            }
+
+            $refs[] = [
+                'code' => $code,
+                'name' => $this->referenceFormName($code),
+            ];
+        }
+
+        return $refs;
+    }
+
+    private function referenceFormName(string $code): string
+    {
+        return match ($code) {
+            'IMM 5710' => 'Application to Change Conditions, Extend Stay or Remain in Canada as a Worker',
+            'IMM 0008' => 'Generic Application Form for Canada',
+            'IMM 5669' => 'Schedule A — Background/Declaration',
+            'IMM 5406' => 'Additional Family Information',
+            'IMM 1295' => 'Application for Work Permit Made Outside Canada',
+            'IMM 1294' => 'Application for Study Permit Made Outside Canada',
+            'IMM 5707' => 'Family Information',
+            default    => 'IRCC form '.$code,
+        };
     }
 }

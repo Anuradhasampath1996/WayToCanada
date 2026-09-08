@@ -1,0 +1,94 @@
+{
+  "profile_id": "13",
+  "submission_id": 8,
+  "download_path": "f:\\WayToCanada\\WayToCanada\\docs\\government-forms-poc\\stage-g\\artifacts\\IMM5476-StageG-8.pdf",
+  "downloaded_sha256": "64eb47b2b68c66914ba4897ebf56d3c9531e65b72e9215049ecc5d1cd9c39718",
+  "db_output_sha256": "64eb47b2b68c66914ba4897ebf56d3c9531e65b72e9215049ecc5d1cd9c39718",
+  "hash_match": true,
+  "log": [
+    {
+      "step": "login",
+      "at": "2026-09-01T15:18:35.830Z",
+      "ok": true,
+      "email": "stageg.consultant@rcicmaster.test"
+    },
+    {
+      "step": "profile",
+      "at": "2026-09-01T15:18:35.832Z",
+      "ok": true,
+      "profileId": "13"
+    },
+    {
+      "step": "index_before_review",
+      "at": "2026-09-01T15:18:36.222Z",
+      "ok": true,
+      "application_info_reviewed": false,
+      "readiness_pct": 100
+    },
+    {
+      "step": "review_gate",
+      "at": "2026-09-01T15:18:36.222Z",
+      "ok": true,
+      "message": "Generation blocked until review"
+    },
+    {
+      "step": "review_application_info",
+      "at": "2026-09-01T15:18:36.607Z",
+      "ok": true,
+      "reviewed_at": "2026-09-01T15:18:36.000000Z",
+      "snapshot_hash": "05023c2cbd82e32b9269bad90d0e449930ab7bfc8bf9f62bdaef8e7bf2e5a1b1"
+    },
+    {
+      "step": "readiness",
+      "at": "2026-09-01T15:18:37.091Z",
+      "ok": true,
+      "percentage": 100,
+      "ready": true,
+      "missing_count": 0
+    },
+    {
+      "step": "generate",
+      "at": "2026-09-01T15:18:40.290Z",
+      "ok": true,
+      "status": 201
+    },
+    {
+      "step": "generate",
+      "at": "2026-09-01T15:18:40.290Z",
+      "ok": true,
+      "submission_id": 8,
+      "source_data_hash": "813c6968f8f21ac8d7f21130d20f3b05c860e1439b58d6f6e2937ca22f6efa8c",
+      "output_sha256": "64eb47b2b68c66914ba4897ebf56d3c9531e65b72e9215049ecc5d1cd9c39718"
+    },
+    {
+      "step": "secure_download",
+      "at": "2026-09-01T15:18:40.744Z",
+      "ok": true,
+      "endpoint": "http://127.0.0.1:8000/api/v1/consultant/clients/13/government-forms/generations/8/download?download=1",
+      "bytes": 2132483,
+      "downloaded_sha256": "64eb47b2b68c66914ba4897ebf56d3c9531e65b72e9215049ecc5d1cd9c39718",
+      "db_output_sha256": "64eb47b2b68c66914ba4897ebf56d3c9531e65b72e9215049ecc5d1cd9c39718",
+      "hash_match": true,
+      "path": "f:\\WayToCanada\\WayToCanada\\docs\\government-forms-poc\\stage-g\\artifacts\\IMM5476-StageG-8.pdf"
+    },
+    {
+      "step": "authorization_download",
+      "at": "2026-09-01T15:18:41.791Z",
+      "ok": true,
+      "status": 403
+    },
+    {
+      "step": "authorization_generate",
+      "at": "2026-09-01T15:18:42.290Z",
+      "ok": true,
+      "status": 403
+    },
+    {
+      "step": "mark_reviewed",
+      "at": "2026-09-01T15:18:42.661Z",
+      "ok": true,
+      "review_status": "reviewed",
+      "generation_status": "REVIEWED"
+    }
+  ]
+}

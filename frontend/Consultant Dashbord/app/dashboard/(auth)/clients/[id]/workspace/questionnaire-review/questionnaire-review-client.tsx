@@ -19,6 +19,47 @@ import { INTAKE_WORKSPACE_TASKS } from "../workspace-flow-ui";
 
 const API = (process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000") + "/api/v1";
 
+const RELATIONSHIP_LABELS: Record<string, string> = {
+  father: "Applicant's Father",
+  mother: "Applicant's Mother",
+  my_parent: "Applicant's Parent",
+  spouse_father: "Spouse's Father",
+  spouse_mother: "Spouse's Mother",
+  spouse_parent: "Spouse's Parent",
+  sibling: "Applicant's Sibling",
+  in_law: "In-Law",
+  other: "Other",
+};
+
+function relationshipLabel(person: Record<string, unknown> | null | undefined): string {
+  if (!person) return "";
+  const rel = String(person.relationship ?? "");
+  if (rel === "other") {
+    const other = String(person.otherRelationship ?? "").trim();
+    return other || "Other";
+  }
+  return RELATIONSHIP_LABELS[rel] ?? (rel ? rel.replace(/_/g, " ") : "");
+}
+
+function accompanyingTabLabel(person: Record<string, unknown> | null | undefined, index: number): string {
+  const rel = relationshipLabel(person);
+  const name = String(person?.fullName ?? person?.passportFullName ?? "").trim();
+  if (rel && name) return `(${rel}) ${name}`;
+  if (rel) return `(${rel})`;
+  if (name) return name;
+  return `Person ${index + 1}`;
+}
+
+function childTabLabel(child: Record<string, unknown> | null | undefined, index: number): string {
+  const name = String(child?.name ?? child?.fullName ?? child?.passportFullName ?? "").trim();
+  return name ? `(Child) ${name}` : `Child ${index + 1}`;
+}
+
+function spouseTabLabel(spouse: Record<string, unknown> | null | undefined): string {
+  const name = String(spouse?.fullName ?? spouse?.passportFullName ?? "").trim();
+  return name ? `(Spouse) ${name}` : "Spouse";
+}
+
 // --- Types ---
 
 interface FieldRemark {
@@ -55,9 +96,13 @@ const STEP1_FIELDS: FieldDef[] = [
   { key: "accompanyingCount", label: "Number of Other Accompanying Persons", section: "Family" },
 ];
 
-const PERSON_FIELDS: FieldDef[] = [
+const PERSON_BASE_FIELDS: FieldDef[] = [
   { key: "fullName",               label: "Full Name",                               section: "Identity" },
+  { key: "name",                   label: "Full Name",                               section: "Identity" },
+  { key: "relationship",           label: "Relationship",                            section: "Identity" },
+  { key: "otherRelationship",      label: "Other Relationship (specify)",            section: "Identity" },
   { key: "dob",                    label: "Date of Birth",                           section: "Identity",           type: "date" },
+  { key: "email",                  label: "Email",                                   section: "Identity" },
   { key: "passportFullName",       label: "Full Name (as on Passport)",              section: "Passport" },
   { key: "passportNumber",         label: "Passport Number",                         section: "Passport" },
   { key: "passportIssueDate",      label: "Date of Issue",                           section: "Passport",           type: "date" },
@@ -117,6 +162,27 @@ const PERSON_FIELDS: FieldDef[] = [
   { key: "relativeStatus",         label: "Immigration Status",                      section: "Relatives in Canada" },
 ];
 
+/** Applicant-only IRCC / address fields used by IMM5476 autofill. */
+const MAIN_ONLY_FIELDS: FieldDef[] = [
+  { key: "uci",                    label: "Client ID / UCI",                         section: "IRCC Form Details" },
+  { key: "birthCountry",           label: "Country of Birth",                        section: "IRCC Form Details" },
+  { key: "imm5476ApplicationType", label: "IMM 5476 Application Type",               section: "IRCC Form Details" },
+  { key: "addressLine1",           label: "Current Address Line 1",                  section: "Current Address" },
+  { key: "addressLine2",           label: "Current Address Line 2",                  section: "Current Address" },
+  { key: "city",                   label: "City / Town",                             section: "Current Address" },
+  { key: "province",               label: "Province / State",                        section: "Current Address" },
+  { key: "postalCode",             label: "Postal / ZIP Code",                       section: "Current Address" },
+  { key: "countryOfResidence",     label: "Country of Residence",                    section: "Current Address" },
+];
+
+const PERSON_FIELDS: FieldDef[] = [
+  ...PERSON_BASE_FIELDS.slice(0, 6), // identity through email
+  ...MAIN_ONLY_FIELDS,
+  ...PERSON_BASE_FIELDS.slice(6),
+];
+
+const FAMILY_PERSON_FIELDS: FieldDef[] = PERSON_BASE_FIELDS;
+
 // --- Helpers ---
 
 function authHeaders() {
@@ -128,9 +194,13 @@ function authHeaders() {
   };
 }
 
-function formatValue(val: unknown): string {
+function formatValue(val: unknown, fieldKey?: string): string {
   if (val === null || val === undefined || val === "") return "";
   if (typeof val === "boolean") return val ? "Yes" : "No";
+  if (fieldKey === "relationship" && typeof val === "string") {
+    return RELATIONSHIP_LABELS[val] ?? val.replace(/_/g, " ");
+  }
+  if (fieldKey === "otherRelationship" && (val === "N/A" || val === "n/a")) return "";
   if (Array.isArray(val)) {
     if (val.length === 0) return "";
     return val.map((v) => {
@@ -159,6 +229,7 @@ function formatValue(val: unknown): string {
 
 function hasValue(val: unknown): boolean {
   if (val === null || val === undefined || val === "") return false;
+  if (val === "N/A" || val === "n/a") return false;
   if (Array.isArray(val)) return val.length > 0;
   if (typeof val === "object") {
     return Object.values(val as Record<string, unknown>).some(
@@ -583,7 +654,8 @@ function TextFieldRow({
   const [editVal, setEditVal] = useState("");
   const [saving,  setSaving]  = useState(false);
 
-  const displayVal = formatValue(value);
+  const fieldName = fieldKey.includes(".") ? fieldKey.split(".").pop()! : fieldKey;
+  const displayVal = formatValue(value, fieldName);
   const isEmpty    = !displayVal;
 
   function startEdit() {
@@ -852,13 +924,13 @@ function countTab(tabId: string, submission: Submission, vf: Record<string, bool
 
   if (tabId === "step1")       count(submission.step1_data,  "step1_data",  STEP1_FIELDS);
   else if (tabId === "main")   count(submission.main_data,   "main_data",   PERSON_FIELDS);
-  else if (tabId === "spouse") count(submission.spouse_data, "spouse_data", PERSON_FIELDS);
+  else if (tabId === "spouse") count(submission.spouse_data, "spouse_data", FAMILY_PERSON_FIELDS);
   else if (tabId.startsWith("child_")) {
     const idx = parseInt(tabId.replace("child_", ""), 10);
-    count((submission.children_data ?? [])[idx] ?? null, `children_data.${idx}`, PERSON_FIELDS);
+    count((submission.children_data ?? [])[idx] ?? null, `children_data.${idx}`, FAMILY_PERSON_FIELDS);
   } else if (tabId.startsWith("other_")) {
     const idx = parseInt(tabId.replace("other_", ""), 10);
-    count((submission.accompanying_data ?? [])[idx] ?? null, `accompanying_data.${idx}`, PERSON_FIELDS);
+    count((submission.accompanying_data ?? [])[idx] ?? null, `accompanying_data.${idx}`, FAMILY_PERSON_FIELDS);
   }
   return { verified, total };
 }
@@ -985,16 +1057,29 @@ export function QuestionnaireReviewClient({ paramsPromise }: { paramsPromise: Pr
   const pendingRefills = Object.values(fr).filter((r) => r.status === "pending").length;
 
   const isMarried  = s1?.married === "yes";
-  const childCount = parseInt(String(s1?.dependentChildren ?? "0"), 10) || 0;
-  const otherCount = parseInt(String(s1?.accompanyingCount  ?? "0"), 10) || 0;
-  const hasOther   = s1?.hasAccompanying === "yes";
+  const children = submission?.children_data ?? [];
+  const accompanying = submission?.accompanying_data ?? [];
+  const childCount = Math.max(
+    parseInt(String(s1?.dependentChildren ?? "0"), 10) || 0,
+    children.length,
+  );
+  const otherCount = Math.max(
+    s1?.hasAccompanying === "yes" ? (parseInt(String(s1?.accompanyingCount ?? "0"), 10) || 0) : 0,
+    accompanying.length,
+  );
 
   const tabs: { id: string; label: string }[] = [
     { id: "step1", label: "General Info" },
     { id: "main",  label: "Main Applicant" },
-    ...(isMarried ? [{ id: "spouse", label: "Spouse" }] : []),
-    ...Array.from({ length: childCount }, (_, i) => ({ id: `child_${i}`, label: `Child ${i + 1}` })),
-    ...(hasOther ? Array.from({ length: otherCount }, (_, i) => ({ id: `other_${i}`, label: `Person ${i + 1}` })) : []),
+    ...(isMarried ? [{ id: "spouse", label: spouseTabLabel(submission?.spouse_data ?? null) }] : []),
+    ...Array.from({ length: childCount }, (_, i) => ({
+      id: `child_${i}`,
+      label: childTabLabel(children[i] ?? null, i),
+    })),
+    ...Array.from({ length: otherCount }, (_, i) => ({
+      id: `other_${i}`,
+      label: accompanyingTabLabel(accompanying[i] ?? null, i),
+    })),
   ];
 
   const commonProps = {
@@ -1012,14 +1097,14 @@ export function QuestionnaireReviewClient({ paramsPromise }: { paramsPromise: Pr
     if (!submission) return null;
     if (tabId === "step1") return <PersonTab fields={STEP1_FIELDS} data={submission.step1_data} prefix="step1_data" {...commonProps} />;
     if (tabId === "main") return <PersonTab fields={PERSON_FIELDS} data={submission.main_data} prefix="main_data" {...commonProps} />;
-    if (tabId === "spouse") return <PersonTab fields={PERSON_FIELDS} data={submission.spouse_data} prefix="spouse_data" {...commonProps} />;
+    if (tabId === "spouse") return <PersonTab fields={FAMILY_PERSON_FIELDS} data={submission.spouse_data} prefix="spouse_data" {...commonProps} />;
     if (tabId.startsWith("child_")) {
       const idx = parseInt(tabId.replace("child_", ""), 10);
-      return <PersonTab fields={PERSON_FIELDS} data={(submission.children_data ?? [])[idx] ?? null} prefix={`children_data.${idx}`} {...commonProps} />;
+      return <PersonTab fields={FAMILY_PERSON_FIELDS} data={(submission.children_data ?? [])[idx] ?? null} prefix={`children_data.${idx}`} {...commonProps} />;
     }
     if (tabId.startsWith("other_")) {
       const idx = parseInt(tabId.replace("other_", ""), 10);
-      return <PersonTab fields={PERSON_FIELDS} data={(submission.accompanying_data ?? [])[idx] ?? null} prefix={`accompanying_data.${idx}`} {...commonProps} />;
+      return <PersonTab fields={FAMILY_PERSON_FIELDS} data={(submission.accompanying_data ?? [])[idx] ?? null} prefix={`accompanying_data.${idx}`} {...commonProps} />;
     }
     return null;
   }

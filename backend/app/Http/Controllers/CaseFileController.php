@@ -12,10 +12,12 @@ use App\Models\IrccCategory;
 use App\Mail\AgreementReminderEmail;
 use App\Services\AgreementReminderService;
 use App\Services\CaseFileLifecycleService;
+use App\Services\GstHstRatesService;
 use App\Services\IrccInteractiveFormVerificationService;
 use App\Services\ClientActivity\ClientActivityTriggers;
 use App\Services\Notifications\WorkspaceNotificationTriggers;
 use App\Services\RetainerAgreementPdfService;
+use App\Services\RetainerAgreementAiService;
 use App\Services\TrustLedger\TrustLedgerService;
 use App\Support\ClientAgreementDetails;
 use App\Support\RetainerAgreementConfig;
@@ -31,6 +33,7 @@ class CaseFileController extends Controller
         private IrccInteractiveFormVerificationService $verificationService,
         private RetainerAgreementPdfService $pdfService,
         private AgreementReminderService $reminderService,
+        private RetainerAgreementAiService $retainerAi,
         private WorkspaceNotificationTriggers $notify,
         private ClientActivityTriggers $activity,
         private TrustLedgerService $trust,
@@ -222,9 +225,29 @@ class CaseFileController extends Controller
         ]);
     }
 
+    // ── POST /consultant/clients/{profile}/case-file/generate-agreement ───────
+
+    public function generateAgreement(Request $request, ClientProfile $profile): JsonResponse
+    {
+        $this->authorizeConsultant($request, $profile);
+
+        $data = $request->validate([
+            'instructions'  => 'required|string|max:6000',
+            'total_fee'     => 'nullable|numeric|min:0|max:50000',
+            'currency'      => 'nullable|string|in:CAD,USD',
+            'payment_rules' => 'nullable|string|max:4000',
+            'refund_policy' => 'nullable|string|max:10000',
+            'pathway'       => 'nullable|string|max:150',
+        ]);
+
+        $result = $this->retainerAi->generate($request->user(), $profile, $data);
+
+        return response()->json($result);
+    }
+
     // ── POST /consultant/clients/{profile}/case-file/send-agreement ────────────
 
-    public function sendAgreement(Request $request, ClientProfile $profile): JsonResponse
+    public function sendAgreement(Request $request, ClientProfile $profile, GstHstRatesService $taxRates): JsonResponse
     {
         $this->authorizeConsultant($request, $profile);
         $profile->load('user');
@@ -246,6 +269,19 @@ class CaseFileController extends Controller
             is_array($rawConfig) ? $rawConfig : [],
             $caseFile->immigration_pathway
         );
+
+        if ($config['taxEnabled']) {
+            $taxProvince = $config['taxProvince'] ?? '';
+            $taxRate = $taxProvince ? $taxRates->getProvinceRate($taxProvince) : null;
+            if (! $taxRate) {
+                return response()->json([
+                    'message' => 'Select a valid place of supply so the current synced tax rate can be applied.',
+                ], 422);
+            }
+            $config['taxProvince'] = strtoupper($taxProvince);
+            $config['taxLabel'] = $taxRate['label'];
+            $config['taxRate'] = round((float) $taxRate['total_rate'] * 100, 3);
+        }
 
         if (RetainerAgreementConfig::milestonePctSum($config) !== 100) {
             return response()->json(['message' => 'Milestone percentages must total exactly 100%.'], 422);

@@ -2,6 +2,9 @@ export interface FieldRemark {
   remark: string;
   requested_at: string;
   status: "pending" | "resolved";
+  form_code?: string;
+  form_codes?: string[];
+  canonical_key?: string;
 }
 
 export interface ClientQuestionnaireSnapshot {

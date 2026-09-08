@@ -1,0 +1,24 @@
+{
+    "generated_at": "2026-09-01T16:12:20+00:00",
+    "results": {
+        "IMM5476": {
+            "ok": true,
+            "submission_id": 11,
+            "profile_id": 13,
+            "output_sha256": "b8ba8375bc6dbbd45e0afbc4339139ecb96dae375823208343fec7230288cf64",
+            "disk_sha256": "b8ba8375bc6dbbd45e0afbc4339139ecb96dae375823208343fec7230288cf64",
+            "hash_match": true,
+            "path_validated": true
+        },
+        "IMM5406": {
+            "ok": true,
+            "submission_id": 12,
+            "profile_id": 14,
+            "output_sha256": "cb2ccc9b16591bfe9aa2d07bcd421fab7632ea0cd99c6a531ee86a5e5cfa40fe",
+            "disk_sha256": "cb2ccc9b16591bfe9aa2d07bcd421fab7632ea0cd99c6a531ee86a5e5cfa40fe",
+            "hash_match": true,
+            "path_validated": true
+        }
+    },
+    "all_ok": true
+}

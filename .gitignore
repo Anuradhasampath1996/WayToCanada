@@ -30,3 +30,7 @@ mobileapp/
 # Deploy secrets and local logs — never commit
 deploy/.ec2-key.pem
 deploy/*.log
+
+# Government form processor build outputs + local Adobe smoke PDFs
+form-processor-poc/**/target/
+docs/government-forms-poc/adobe-live-check-*/

@@ -4,7 +4,9 @@ import Link from "next/link";
 import {
   CheckCircle2, Clock, FileText, FormInput, AlertCircle,
   ChevronRight, ExternalLink, Briefcase, ClipboardList, Eye, RotateCcw,
+  FileCheck, MessageSquare,
 } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -79,44 +81,87 @@ export function CaseHubProgressHeader({
   pathway,
   packageLabel,
   pipelineLabel,
+  govFormsPercent,
 }: {
   progress: HubProgress;
   pathway: string | null;
   packageLabel?: string | null;
   pipelineLabel: string;
+  govFormsPercent?: number | null;
 }) {
+  const pendingDocs = progress.documents.pending + progress.documents.missing;
+
   return (
-    <div className="mb-4 rounded-xl border bg-gradient-to-br from-primary/5 via-background to-background p-4 sm:mb-6 sm:p-5">
-      <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-center sm:gap-5">
-        <ProgressRing percent={progress.overall_percent} />
-        <div className="min-w-0 flex-1">
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Case Progress</p>
-          <h2 className="mt-0.5 text-lg font-bold break-words">{pathway ?? "Immigration Case"}</h2>
-          {packageLabel && (
-            <p className="mt-1 text-xs text-muted-foreground">Package: {packageLabel}</p>
-          )}
-          <Badge variant="outline" className="mt-2 text-xs">{pipelineLabel}</Badge>
+    <div className="mb-5 rounded-2xl border bg-gradient-to-br from-slate-50 via-white to-primary/5 p-4 sm:p-5 dark:from-slate-900/40 dark:via-card dark:to-primary/10">
+      <div className="flex flex-col gap-5 lg:flex-row lg:items-center">
+        <div className="flex items-center gap-4 min-w-0">
+          <ProgressRing percent={progress.overall_percent} size={80} />
+          <div className="min-w-0">
+            <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-muted-foreground">
+              Case progress
+            </p>
+            <h2 className="mt-0.5 text-xl font-bold break-words">{pathway ?? "Immigration Case"}</h2>
+            {packageLabel && (
+              <p className="mt-1 text-xs text-muted-foreground truncate">{packageLabel}</p>
+            )}
+            <Badge variant="outline" className="mt-2 text-[11px]">{pipelineLabel}</Badge>
+          </div>
         </div>
-        <div className="grid w-full grid-cols-1 gap-2 sm:min-w-[240px] sm:flex-1 sm:grid-cols-3">
-          <StatPill label="Docs approved" value={`${progress.documents.approved}/${progress.documents.total}`} tone={progress.documents.percent >= 80 ? "green" : "amber"} />
-          <StatPill label="Forms reviewed" value={progress.forms.total === 0 ? "N/A" : `${progress.forms.reviewed}/${progress.forms.total}`} tone={progress.forms.complete ? "green" : "blue"} />
-          <StatPill label="Pending docs" value={String(progress.documents.pending + progress.documents.missing)} tone={progress.documents.pending + progress.documents.missing > 0 ? "amber" : "green"} />
+
+        <div className="grid flex-1 grid-cols-2 gap-2 sm:grid-cols-4">
+          <StatPill
+            label="Documents"
+            value={`${progress.documents.approved}/${progress.documents.total}`}
+            sub={pendingDocs > 0 ? `${pendingDocs} pending` : "All reviewed"}
+            tone={progress.documents.percent >= 80 ? "green" : "amber"}
+          />
+          <StatPill
+            label="App forms"
+            value={progress.forms.total === 0 ? "—" : `${progress.forms.reviewed}/${progress.forms.total}`}
+            sub={progress.forms.total === 0 ? "None required" : progress.forms.complete ? "Complete" : "Needs review"}
+            tone={progress.forms.complete ? "green" : progress.forms.total === 0 ? "neutral" : "blue"}
+          />
+          <StatPill
+            label="Gov forms"
+            value={govFormsPercent !== null && govFormsPercent !== undefined ? `${govFormsPercent}%` : "—"}
+            sub={govFormsPercent === 100 ? "Ready to generate" : govFormsPercent !== null && govFormsPercent !== undefined ? "Auto-fill readiness" : "Loading…"}
+            tone={govFormsPercent === 100 ? "green" : govFormsPercent !== null && govFormsPercent !== undefined ? "violet" : "neutral"}
+          />
+          <StatPill
+            label="Pipeline"
+            value={`${progress.pipeline.step}/${progress.pipeline.total_steps}`}
+            sub={pipelineLabel}
+            tone="neutral"
+          />
         </div>
       </div>
     </div>
   );
 }
 
-function StatPill({ label, value, tone }: { label: string; value: string; tone: "green" | "amber" | "blue" }) {
+function StatPill({
+  label,
+  value,
+  sub,
+  tone,
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+  tone: "green" | "amber" | "blue" | "violet" | "neutral";
+}) {
   const colors = {
-    green: "bg-green-50 border-green-200 text-green-800",
-    amber: "bg-amber-50 border-amber-200 text-amber-800",
-    blue:  "bg-blue-50 border-blue-200 text-blue-800",
+    green: "bg-green-50/80 border-green-200/80 text-green-900 dark:bg-green-950/30",
+    amber: "bg-amber-50/80 border-amber-200/80 text-amber-900 dark:bg-amber-950/30",
+    blue: "bg-blue-50/80 border-blue-200/80 text-blue-900 dark:bg-blue-950/30",
+    violet: "bg-violet-50/80 border-violet-200/80 text-violet-900 dark:bg-violet-950/30",
+    neutral: "bg-muted/30 border-border text-foreground",
   };
   return (
-    <div className={cn("rounded-lg border px-3 py-2 text-center", colors[tone])}>
-      <p className="text-lg font-bold leading-none">{value}</p>
-      <p className="text-[10px] mt-1 opacity-80">{label}</p>
+    <div className={cn("rounded-xl border px-3 py-2.5", colors[tone])}>
+      <p className="text-[10px] font-semibold uppercase tracking-wide opacity-70">{label}</p>
+      <p className="text-xl font-bold leading-tight mt-0.5 tabular-nums">{value}</p>
+      {sub && <p className="text-[10px] mt-1 opacity-75 line-clamp-1">{sub}</p>}
     </div>
   );
 }
@@ -359,6 +404,7 @@ export function CaseHubOverview({
   irccForms,
   requirements,
   nextActions,
+  govFormsSummary,
   onViewPdf,
   buildPackageDocStreamUrl,
   onActionClick,
@@ -369,6 +415,13 @@ export function CaseHubOverview({
   irccForms: HubIrccForm[];
   requirements: HubRequirement[];
   nextActions: { label: string; tab?: string; href?: string; urgent?: boolean }[];
+  govFormsSummary?: {
+    percent: number;
+    formCount: number;
+    reviewed: boolean;
+    allReady: boolean;
+    totalMissing: number;
+  } | null;
   onViewPdf?: (title: string, streamUrl: string) => void;
   buildPackageDocStreamUrl?: (documentId: number) => string;
   onActionClick?: (tab: string) => void;
@@ -376,15 +429,61 @@ export function CaseHubOverview({
   const missing = requirements.filter((r) => r.status === "missing").length;
   const pendingReview = requirements.filter((r) => r.status === "pending" || r.status === "uploaded").length;
 
+  const workflowCards = [
+    {
+      tab: "documents",
+      title: "Documents",
+      icon: FileText,
+      value: `${progress.documents.approved}/${progress.documents.total}`,
+      detail: missing > 0 ? `${missing} missing · ${pendingReview} to review` : pendingReview > 0 ? `${pendingReview} awaiting review` : "All documents approved",
+      accent: pendingReview > 0 || missing > 0,
+    },
+    {
+      tab: "forms",
+      title: "Application Forms",
+      icon: FormInput,
+      value: progress.forms.total === 0 ? "PDF" : `${progress.forms.reviewed}/${progress.forms.total}`,
+      detail: progress.forms.total === 0
+        ? "This package uses PDF forms — see Government Forms"
+        : progress.forms.complete
+          ? "All forms reviewed"
+          : "Review client submissions",
+      accent: progress.forms.total > 0 && !progress.forms.complete,
+    },
+    {
+      tab: "government-forms",
+      title: "Government Forms",
+      icon: FileCheck,
+      value: govFormsSummary ? `${govFormsSummary.percent}%` : "—",
+      detail: !govFormsSummary
+        ? "Loading readiness…"
+        : !govFormsSummary.reviewed
+          ? "Review client data first"
+          : govFormsSummary.allReady
+            ? `${govFormsSummary.formCount} form(s) ready to generate`
+            : `${govFormsSummary.totalMissing} data gap(s) to fill`,
+      accent: true,
+      highlight: true,
+    },
+    {
+      tab: "messages",
+      title: "Messages",
+      icon: MessageSquare,
+      value: "Chat",
+      detail: "Client communication & updates",
+      accent: false,
+    },
+  ];
+
   return (
     <div className="space-y-6">
       {/* Next actions */}
       {nextActions.length > 0 && (
-        <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 space-y-2">
-          <p className="text-sm font-semibold flex items-center gap-2">
-            <Briefcase className="h-4 w-4 text-primary" /> Next actions
+        <div className="rounded-2xl border border-amber-200/80 bg-gradient-to-r from-amber-50/80 to-orange-50/40 p-4 space-y-2 dark:from-amber-950/20 dark:to-orange-950/10">
+          <p className="text-sm font-semibold flex items-center gap-2 text-amber-950 dark:text-amber-100">
+            <AlertCircle className="h-4 w-4 text-amber-600 shrink-0" /> What to do next
           </p>
-          <ul className="space-y-1.5">
+          <ul className="space-y-1">
             {nextActions.map((action, i) => (
               <li key={i}>
                 {action.tab && onActionClick ? (
@@ -392,24 +491,16 @@ export function CaseHubOverview({
                     type="button"
                     onClick={() => onActionClick(action.tab!)}
                     className={cn(
-                      "flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm transition-colors hover:bg-primary/10",
-                      action.urgent && "text-amber-900",
+                      "flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm transition-colors hover:bg-white/60 dark:hover:bg-white/5",
+                      action.urgent && "font-medium",
                     )}
                   >
-                    {action.urgent ? (
-                      <AlertCircle className="h-3.5 w-3.5 text-amber-600 shrink-0" />
-                    ) : (
-                      <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                    )}
-                    <span className="font-medium">{action.label}</span>
+                    <ChevronRight className="h-4 w-4 text-primary shrink-0" />
+                    <span>{action.label}</span>
                   </button>
                 ) : (
-                  <div className="flex items-center gap-2 text-sm px-2 py-1">
-                    {action.urgent ? (
-                      <AlertCircle className="h-3.5 w-3.5 text-amber-600 shrink-0" />
-                    ) : (
-                      <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                    )}
+                  <div className="flex items-center gap-2 text-sm px-3 py-2">
+                    <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
                     <span>{action.label}</span>
                   </div>
                 )}
@@ -419,9 +510,53 @@ export function CaseHubOverview({
         </div>
       )}
 
+      {/* Workflow cards */}
+      <div>
+        <p className="text-sm font-semibold mb-3">Case workflow</p>
+        <div className="grid sm:grid-cols-2 gap-3">
+          {workflowCards.map((card) => {
+            const Icon = card.icon;
+            return (
+              <button
+                key={card.tab}
+                type="button"
+                onClick={() => onActionClick?.(card.tab)}
+                className={cn(
+                  "group rounded-2xl border p-4 text-left transition-all hover:shadow-md hover:border-primary/30",
+                  card.highlight && "border-violet-200/80 bg-violet-50/30 dark:bg-violet-950/20",
+                  card.accent && !card.highlight && "border-primary/20 bg-primary/5",
+                )}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <span className={cn(
+                      "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl",
+                      card.highlight ? "bg-violet-100 text-violet-700 dark:bg-violet-900/50" : "bg-muted text-muted-foreground",
+                    )}>
+                      <Icon className="h-4 w-4" />
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold">{card.title}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{card.detail}</p>
+                    </div>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="text-2xl font-bold tabular-nums leading-none">{card.value}</p>
+                    <ChevronRight className="h-4 w-4 text-muted-foreground mt-2 ml-auto opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </div>
+                </div>
+                {card.tab === "government-forms" && govFormsSummary && (
+                  <Progress value={govFormsSummary.percent} className="h-1.5 mt-3" />
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       {/* Package resources */}
       {pkg && (
-        <div className="rounded-xl border p-4 space-y-3">
+        <div className="rounded-2xl border p-4 space-y-3 bg-card">
           <p className="text-sm font-semibold flex items-center gap-2">
             <ClipboardList className="h-4 w-4 text-primary" />
             Application Package — {pkg.label}
@@ -458,28 +593,8 @@ export function CaseHubOverview({
         </div>
       )}
 
-      {/* Quick stats */}
-      <div className="grid sm:grid-cols-2 gap-4">
-        <div className="rounded-xl border p-4">
-          <p className="text-sm font-semibold mb-2">Documents</p>
-          <p className="text-2xl font-bold text-primary">{progress.documents.approved}<span className="text-muted-foreground text-base font-normal">/{progress.documents.total}</span></p>
-          <p className="text-xs text-muted-foreground mt-1">{missing} missing · {pendingReview} awaiting review</p>
-        </div>
-        <div className="rounded-xl border p-4">
-          <p className="text-sm font-semibold mb-2">Application Forms</p>
-          {progress.forms.total === 0 ? (
-            <p className="text-sm text-muted-foreground">No interactive forms for this package</p>
-          ) : (
-            <>
-              <p className="text-2xl font-bold text-primary">{progress.forms.reviewed}<span className="text-muted-foreground text-base font-normal">/{progress.forms.total}</span></p>
-              <p className="text-xs text-muted-foreground mt-1">reviewed by consultant</p>
-            </>
-          )}
-        </div>
-      </div>
-
       {/* IRCC forms preview */}
-      <div>
+      <div className="rounded-2xl border p-4 bg-card">
         <p className="text-sm font-semibold mb-3">Required IRCC Forms</p>
         <IrccFormsList forms={irccForms} pathway={pathway} />
       </div>

@@ -1,0 +1,35 @@
+{
+  "profile_id": "14",
+  "submission_id": 10,
+  "download_path": "f:\\WayToCanada\\WayToCanada\\docs\\government-forms-poc\\stage-h\\artifacts\\IMM5406-StageH-10.pdf",
+  "downloaded_sha256": "fcb0766fbc500d8698c14a54f6b14a75abf414cc6b0c6e749d06c80a4b774b56",
+  "log": [
+    {
+      "step": "login",
+      "at": "2026-09-01T15:36:48.031Z",
+      "ok": true
+    },
+    {
+      "step": "readiness",
+      "at": "2026-09-01T15:36:49.026Z",
+      "ok": true,
+      "percentage": 100,
+      "overflow": []
+    },
+    {
+      "step": "generate",
+      "at": "2026-09-01T15:36:52.463Z",
+      "ok": true,
+      "submission_id": 10,
+      "output_sha256": "fcb0766fbc500d8698c14a54f6b14a75abf414cc6b0c6e749d06c80a4b774b56"
+    },
+    {
+      "step": "secure_download",
+      "at": "2026-09-01T15:36:52.963Z",
+      "ok": true,
+      "downloaded_sha256": "fcb0766fbc500d8698c14a54f6b14a75abf414cc6b0c6e749d06c80a4b774b56",
+      "db_output_sha256": "fcb0766fbc500d8698c14a54f6b14a75abf414cc6b0c6e749d06c80a4b774b56",
+      "path": "f:\\WayToCanada\\WayToCanada\\docs\\government-forms-poc\\stage-h\\artifacts\\IMM5406-StageH-10.pdf"
+    }
+  ]
+}

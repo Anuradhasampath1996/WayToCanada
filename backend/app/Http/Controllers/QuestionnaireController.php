@@ -6,6 +6,7 @@ use App\Models\ClientProfile;
 use App\Models\QuestionnaireSubmission;
 use App\Support\ClientDocumentStorage;
 use App\Support\QuestionnaireDocumentResolver;
+use App\Support\QuestionnaireStep3Data;
 use App\Services\ClientActivity\ClientActivityTriggers;
 use App\Services\Notifications\WorkspaceNotificationTriggers;
 use Illuminate\Http\JsonResponse;
@@ -43,7 +44,12 @@ class QuestionnaireController extends Controller
             'spouse_data'       => 'nullable|array',
             'children_data'     => 'nullable|array',
             'accompanying_data' => 'nullable|array',
+            'step3_data'        => 'nullable|array',
         ]);
+
+        if (array_key_exists('step3_data', $data)) {
+            $data['step3_data'] = QuestionnaireStep3Data::normalizeForStorage($data['step3_data']);
+        }
 
         $submission = QuestionnaireSubmission::updateOrCreate(
             ['user_id' => $request->user()->id],

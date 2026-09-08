@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xfa:datasets xmlns:xfa="http://www.xfa.org/schema/xfa-data/1.0/">
+  <xfa:data>
+    <IMM_5476>
+      <Page1>
+        <SectionA>
+          <familyName>POCTEST</familyName>
+          <givenName>Synthetic Client</givenName>
+        </SectionA>
+        <SectionB>
+          <familyName>Synthetic RCIC</familyName>
+          <givenName>Consultant</givenName>
+          <question6>
+            <questionII>
+              <ICCRCMember>R999999999</ICCRCMember>
+            </questionII>
+          </question6>
+          <question7>
+            <organization>RCICMASTER PoC Firm</organization>
+            <email>poc.test@example.invalid</email>
+          </question7>
+        </SectionB>
+      </Page1>
+    </IMM_5476>
+  </xfa:data>
+</xfa:datasets>

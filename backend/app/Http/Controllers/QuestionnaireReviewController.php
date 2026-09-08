@@ -159,7 +159,9 @@ class QuestionnaireReviewController extends Controller
             'remark'    => 'required|string|max:2000',
         ]);
 
-        $submission = QuestionnaireSubmission::where('user_id', $profile->user_id)->firstOrFail();
+        $submission = QuestionnaireSubmission::firstOrCreate(
+            ['user_id' => $profile->user_id],
+        );
 
         $remarks = $submission->field_remarks ?? [];
         $remarks[$data['field_key']] = [

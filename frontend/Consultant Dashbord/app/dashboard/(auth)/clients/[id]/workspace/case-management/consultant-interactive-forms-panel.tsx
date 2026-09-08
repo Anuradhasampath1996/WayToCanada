@@ -3,6 +3,7 @@
 import * as React from "react";
 import {
   Loader2, CheckCircle2, Clock, FormInput, ChevronDown, ChevronUp, ShieldCheck,
+  FileText, ArrowRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -219,26 +220,47 @@ function FormReviewCard({
   );
 }
 
+type ReferenceForm = { code: string; name: string };
+
+type InteractiveFormsIndex = {
+  category_id: number | null;
+  package_label?: string | null;
+  form_mode?: "interactive" | "pdf_only" | "none";
+  reference_forms?: ReferenceForm[];
+  forms: FormSummary[];
+};
+
 export function ConsultantInteractiveFormsPanel({
   profileId,
   onVerificationChange,
+  onOpenGovernmentForms,
 }: {
   profileId: string;
   onVerificationChange?: () => void;
+  onOpenGovernmentForms?: () => void;
 }) {
   const [loading, setLoading] = React.useState(true);
-  const [forms, setForms] = React.useState<FormSummary[]>([]);
-  const [categoryId, setCategoryId] = React.useState<number | null>(null);
+  const [index, setIndex] = React.useState<InteractiveFormsIndex>({
+    category_id: null,
+    forms: [],
+  });
 
   React.useEffect(() => {
     fetch(`${API}/consultant/clients/${profileId}/interactive-forms`, { headers: authHeaders() })
       .then((r) => r.json())
-      .then((json) => {
-        setForms(json.forms ?? []);
-        setCategoryId(json.category_id ?? null);
+      .then((json: InteractiveFormsIndex) => {
+        setIndex({
+          category_id: json.category_id ?? null,
+          package_label: json.package_label ?? null,
+          form_mode: json.form_mode ?? (json.forms?.length ? "interactive" : "none"),
+          reference_forms: json.reference_forms ?? [],
+          forms: json.forms ?? [],
+        });
       })
       .finally(() => setLoading(false));
   }, [profileId]);
+
+  const { category_id: categoryId, forms, package_label: packageLabel, form_mode: formMode, reference_forms: referenceForms = [] } = index;
 
   if (loading) {
     return (
@@ -259,9 +281,75 @@ export function ConsultantInteractiveFormsPanel({
   }
 
   if (forms.length === 0) {
+    if (formMode === "pdf_only" && referenceForms.length > 0) {
+      return (
+        <div className="rounded-2xl border bg-gradient-to-br from-slate-50 via-card to-blue-50/30 p-6 space-y-5 dark:from-slate-900/40 dark:to-blue-950/20">
+          <div className="flex items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-100 text-blue-700 dark:bg-blue-900/50">
+              <FileText className="h-5 w-5" />
+            </div>
+            <div>
+              <h3 className="font-semibold">PDF forms package — no online forms here</h3>
+              <p className="text-sm text-muted-foreground mt-1 max-w-xl">
+                {packageLabel ? (
+                  <>
+                    <strong>{packageLabel}</strong> uses official IRCC PDF forms, not interactive
+                    web forms that clients fill inside the portal.
+                  </>
+                ) : (
+                  <>This application package uses official IRCC PDF forms, not interactive web forms.</>
+                )}
+              </p>
+            </div>
+          </div>
+
+          <div className="rounded-xl border bg-background/80 p-4 space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Required IRCC forms for this package
+            </p>
+            <ul className="space-y-2">
+              {referenceForms.map((form) => (
+                <li key={form.code} className="flex items-start gap-2 text-sm">
+                  <span className="font-mono font-semibold text-primary shrink-0">{form.code}</span>
+                  <span className="text-muted-foreground">{form.name}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div className="rounded-xl border border-violet-200/80 bg-violet-50/50 px-4 py-3 text-sm text-violet-950 dark:bg-violet-950/20 dark:text-violet-100">
+            <p className="font-medium">Where to work on these forms</p>
+            <ul className="mt-2 space-y-1.5 text-violet-900/90 dark:text-violet-200/90 list-disc list-inside">
+              <li>
+                <strong>Government Forms</strong> tab — auto-fill IMM 5476 &amp; IMM 5406 from client data
+              </li>
+              <li>
+                <strong>Overview</strong> — IRCC reference PDFs (checklist, guide, main application form)
+              </li>
+            </ul>
+          </div>
+
+          {onOpenGovernmentForms && (
+            <Button onClick={onOpenGovernmentForms} className="gap-2">
+              Open Government Forms
+              <ArrowRight className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
+      );
+    }
+
     return (
-      <div className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">
-        No interactive forms configured for this package.
+      <div className="rounded-2xl border border-dashed p-8 text-center text-sm text-muted-foreground space-y-2">
+        <FormInput className="h-8 w-8 mx-auto opacity-40" />
+        <p>No interactive application forms are set up for this package.</p>
+        {packageLabel && (
+          <p className="text-xs">Package: {packageLabel}</p>
+        )}
+        <p className="text-xs">
+          Online forms are only used for Express Entry / online-only packages. Other cases use PDF
+          forms in the Government Forms tab.
+        </p>
       </div>
     );
   }

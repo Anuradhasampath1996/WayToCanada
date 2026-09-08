@@ -51,8 +51,9 @@ use App\Http\Controllers\PublicClientMeetingController;
 use App\Http\Controllers\ApplicationPackageController;
 use App\Http\Controllers\SecurePdfController;
 use App\Http\Controllers\AgreementTemplateController;
-use App\Http\Controllers\CaseFileController;
+use App\Http\Controllers\ConsultantGovernmentFormController;
 use App\Http\Controllers\CaseManagementHubController;
+use App\Http\Controllers\CaseFileController;
 use App\Http\Controllers\CaseMessagingController;
 use App\Http\Controllers\ClientController;
 use App\Http\Controllers\ClientIrccInteractiveFormController;
@@ -450,6 +451,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::patch('{profile}/case-file/select-pathway',         [CaseFileController::class, 'selectPathway'])->name('case-file.select-pathway');
         Route::patch('{profile}/case-file/pathway-assessment',   [CaseFileController::class, 'savePathwayAssessment'])->name('case-file.pathway-assessment');
         Route::patch('{profile}/case-file/assign-application-package', [CaseFileController::class, 'assignApplicationPackage'])->name('case-file.assign-application-package');
+        Route::post('{profile}/case-file/generate-agreement',      [CaseFileController::class, 'generateAgreement'])->name('case-file.generate-agreement');
         Route::post('{profile}/case-file/send-agreement',          [CaseFileController::class, 'sendAgreement'])->name('case-file.send-agreement');
         Route::post('{profile}/case-file/send-agreement-reminder', [CaseFileController::class, 'sendAgreementReminder'])->name('case-file.send-agreement-reminder');
         Route::get('{profile}/case-file/agreement-pdf',            [CaseFileController::class, 'downloadAgreementPdf'])->name('case-file.agreement-pdf');
@@ -494,6 +496,19 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::patch('{profile}/questionnaire/verify',               [QuestionnaireReviewController::class, 'verify'])->name('questionnaire.verify');
         Route::patch('{profile}/questionnaire/field',                [QuestionnaireReviewController::class, 'updateField'])->name('questionnaire.update-field');
         Route::patch('{profile}/questionnaire/request-refill',       [QuestionnaireReviewController::class, 'requestRefill'])->name('questionnaire.request-refill');
+
+        // ── Government forms (IMM 5476 Phase B) ─────────────────────────────────
+        Route::get('{profile}/government-forms', [ConsultantGovernmentFormController::class, 'index'])->name('government-forms.index');
+        Route::post('{profile}/government-forms/application-info/review', [ConsultantGovernmentFormController::class, 'reviewApplicationInfo'])->name('government-forms.review-application-info');
+        Route::patch('{profile}/government-forms/gap-fields', [ConsultantGovernmentFormController::class, 'fillGapField'])->name('government-forms.fill-gap');
+        Route::post('{profile}/government-forms/request-unanswered', [ConsultantGovernmentFormController::class, 'requestAllUnanswered'])->name('government-forms.request-all-unanswered');
+        Route::get('{profile}/government-forms/{formCode}/resolved-data', [ConsultantGovernmentFormController::class, 'resolvedData'])->name('government-forms.resolved-data');
+        Route::get('{profile}/government-forms/{formCode}/template-preview', [ConsultantGovernmentFormController::class, 'templatePreview'])->name('government-forms.template-preview');
+        Route::get('{profile}/government-forms/{formCode}/readiness', [ConsultantGovernmentFormController::class, 'readiness'])->name('government-forms.readiness');
+        Route::post('{profile}/government-forms/{formCode}/generate', [ConsultantGovernmentFormController::class, 'generate'])->name('government-forms.generate');
+        Route::post('{profile}/government-forms/{formCode}/request-unanswered', [ConsultantGovernmentFormController::class, 'requestUnanswered'])->name('government-forms.request-unanswered');
+        Route::post('{profile}/government-forms/generations/{submission}/mark-reviewed', [ConsultantGovernmentFormController::class, 'markReviewed'])->name('government-forms.mark-reviewed');
+        Route::get('{profile}/government-forms/generations/{submission}/download', [ConsultantGovernmentFormController::class, 'download'])->name('government-forms.download');
 
         // ── Interactive IRCC forms (online-only application data) ───────────────
         Route::get('{profile}/interactive-forms/verification-status', [ConsultantIrccInteractiveFormController::class, 'verificationStatus'])->name('interactive-forms.verification-status');

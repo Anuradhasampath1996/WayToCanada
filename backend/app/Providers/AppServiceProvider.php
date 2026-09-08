@@ -2,6 +2,8 @@
 
 namespace App\Providers;
 
+use App\Contracts\GovernmentForms\GovernmentPdfEngine;
+use App\Implementations\GovernmentForms\JarGovernmentPdfEngine;
 use App\Services\IntegrationSettingsService;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Support\Facades\Event;
@@ -13,7 +15,7 @@ class AppServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        //
+        $this->app->bind(GovernmentPdfEngine::class, JarGovernmentPdfEngine::class);
     }
 
     public function boot(): void

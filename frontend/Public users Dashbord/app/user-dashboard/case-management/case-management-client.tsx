@@ -12,6 +12,8 @@ import { PdfViewerDialog } from "@/components/pdf-viewer-dialog";
 import { PackagePdfFormDialog } from "@/components/package-pdf-form-dialog";
 import { cn } from "@/lib/utils";
 import { ClientJourneyPageChrome } from "@/components/client-workspace-ui";
+import { useClientJourneyOptional } from "@/context/client-journey-context";
+import Link from "next/link";
 import { CLIENT_API, clientAuthHeaders, clientUploadHeaders, clientStreamHeaders } from "@/lib/client-api";
 import {
   CaseHubProgressHeader,
@@ -242,6 +244,8 @@ export function CaseManagementClient() {
   } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const pdfAuthHeaders = useCallback(() => clientStreamHeaders(), []);
+  const journey = useClientJourneyOptional();
+  const pendingFormRequests = journey?.qStats.pendingRefills ?? 0;
 
   const submissionStreamUrl = (submissionId: number) =>
     `${CLIENT_API}/client/documents/${submissionId}/stream`;
@@ -504,6 +508,18 @@ export function CaseManagementClient() {
           packageLabel={applicationPackage?.label}
           pipelineLabel={hubProgress.pipeline.label}
         />
+      )}
+
+      {pendingFormRequests > 0 && (
+        <div className="mb-6 flex flex-col gap-2 rounded-xl border border-amber-200 bg-amber-50/80 px-4 py-3 text-sm text-amber-950 sm:flex-row sm:items-center sm:justify-between">
+          <p>
+            Form data requested — your consultant needs answers for official forms. Open{" "}
+            <span className="font-medium">Your profile</span> to update highlighted fields.
+          </p>
+          <Button asChild size="sm" variant="outline" className="shrink-0 border-amber-300 bg-white">
+            <Link href="/user-dashboard/questionnaire">Open Your profile</Link>
+          </Button>
+        </div>
       )}
 
       <div className="flex items-start gap-3 rounded-xl border bg-blue-50 border-blue-200 p-4 mb-6 text-sm text-blue-800">

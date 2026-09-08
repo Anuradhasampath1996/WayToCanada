@@ -17,6 +17,9 @@ enum ClientActivityType: string
     case AGREEMENT_REMINDER = 'agreement_reminder';
     case APPLICATION_PACKAGE_ASSIGNED = 'application_package_assigned';
     case FORMS_VERIFIED = 'forms_verified';
+    case APPLICATION_INFO_REVIEWED = 'application_info_reviewed';
+    case GOVERNMENT_FORM_GENERATED = 'government_form_generated';
+    case GOVERNMENT_FORM_REVIEWED = 'government_form_reviewed';
     case IRCC_FORM_SUBMITTED = 'ircc_form_submitted';
     case IRCC_FORM_REVIEWED = 'ircc_form_reviewed';
     case DOCUMENT_UPLOADED = 'document_uploaded';
@@ -48,6 +51,8 @@ enum ClientActivityType: string
             self::PATHWAY_ASSIGNED, self::PATHWAY_ASSESSMENT_SAVED => 'pathway',
             self::AGREEMENT_SENT, self::AGREEMENT_SIGNED, self::AGREEMENT_REMINDER => 'agreement',
             self::APPLICATION_PACKAGE_ASSIGNED, self::FORMS_VERIFIED,
+            self::APPLICATION_INFO_REVIEWED,
+            self::GOVERNMENT_FORM_GENERATED, self::GOVERNMENT_FORM_REVIEWED,
             self::IRCC_FORM_SUBMITTED, self::IRCC_FORM_REVIEWED => 'forms',
             self::DOCUMENT_UPLOADED, self::DOCUMENT_APPROVED, self::DOCUMENT_REJECTED => 'documents',
             self::CASE_STATUS_CHANGED, self::CASE_HUB_UNLOCKED => 'case',

@@ -6,6 +6,15 @@ const FIELD_LABELS: Record<string, string> = {
   "step1_data.whatsapp": "WhatsApp",
   "main_data.fullName": "Full name",
   "main_data.dob": "Date of birth",
+  "main_data.uci": "Client ID / UCI",
+  "main_data.birthCountry": "Country of birth",
+  "main_data.addressLine1": "Current address line 1",
+  "main_data.addressLine2": "Current address line 2",
+  "main_data.city": "City / Town",
+  "main_data.province": "Province / State",
+  "main_data.postalCode": "Postal / ZIP code",
+  "main_data.countryOfResidence": "Country of residence",
+  "main_data.imm5476ApplicationType": "IMM 5476 application type",
   "main_data.passportNumber": "Passport number",
   "main_data.passportFullName": "Name on passport",
   "main_data.passportExpiry": "Passport expiry",
@@ -16,7 +25,18 @@ const FIELD_LABELS: Record<string, string> = {
   "main_data.drivingLicenseBackName": "Driving license back",
   "main_data.languageTestDocName": "Language test certificate",
   "main_data.canadaStudyDocName": "Study proof document",
+  "spouse_data.email": "Spouse email",
 };
+
+function indexedEmailLabel(fieldKey: string, kind: "Child" | "Family member"): string | null {
+  const pattern =
+    kind === "Child"
+      ? /^children_data\.(\d+)\.email$/
+      : /^accompanying_data\.(\d+)\.email$/;
+  const m = fieldKey.match(pattern);
+  if (!m) return null;
+  return `${kind} ${Number(m[1]) + 1} email`;
+}
 
 /** Maps consultant dot-path → client questionnaire tab index (step 2) */
 export function remarkTabIndex(fieldKey: string): number | null {
@@ -38,10 +58,24 @@ export function remarkFieldKey(fieldKey: string): string {
   return parts.slice(1).join(".");
 }
 
-export function remarkLabel(fieldKey: string): string {
-  if (FIELD_LABELS[fieldKey]) return FIELD_LABELS[fieldKey];
-  const tail = fieldKey.split(".").pop() ?? fieldKey;
-  return tail.replace(/([A-Z])/g, " $1").replace(/^./, (c) => c.toUpperCase());
+export function remarkLabel(fieldKey: string, remark?: FieldRemark | null): string {
+  let base: string;
+  if (FIELD_LABELS[fieldKey]) {
+    base = FIELD_LABELS[fieldKey];
+  } else {
+    const childEmail = indexedEmailLabel(fieldKey, "Child");
+    const familyEmail = indexedEmailLabel(fieldKey, "Family member");
+    if (childEmail) base = childEmail;
+    else if (familyEmail) base = familyEmail;
+    else {
+      const tail = fieldKey.split(".").pop() ?? fieldKey;
+      base = tail.replace(/([A-Z])/g, " $1").replace(/^./, (c) => c.toUpperCase());
+    }
+  }
+  if (remark?.form_code) {
+    return `${remark.form_code}: ${base}`;
+  }
+  return base;
 }
 
 export function getPendingRemark(

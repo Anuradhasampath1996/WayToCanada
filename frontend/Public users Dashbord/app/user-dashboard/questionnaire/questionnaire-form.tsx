@@ -274,17 +274,87 @@ function authenticityTone(verdict?: OcrAuthenticity["verdict"]): {
   }
 }
 
-function inferStoredDocumentMediaType(path: string, blobMime: string): "image" | "pdf" | "other" {
-  if (blobMime.startsWith("image/")) return "image";
+function inferStoredDocumentMediaType(path: string | null | undefined, blobMime: string): "image" | "pdf" | "other" {
+  if (blobMime?.startsWith("image/")) return "image";
   if (blobMime === "application/pdf") return "pdf";
-  const lower = path.toLowerCase();
+  const lower = (path ?? "").toLowerCase();
   if (/\.(jpe?g|png|webp|gif)$/i.test(lower)) return "image";
   if (/\.pdf$/i.test(lower)) return "pdf";
   return "other";
 }
 
-function isStoredDocumentPath(path: string): boolean {
-  return path.startsWith("client-document/");
+function isStoredDocumentPath(path: string | null | undefined): boolean {
+  return typeof path === "string" && path.startsWith("client-document/");
+}
+
+function asDocPath(value: unknown): string {
+  return typeof value === "string" ? value : "";
+}
+
+function normalizeEduQuals(raw: unknown): EduQualification[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((item): item is Record<string, unknown> => typeof item === "object" && item !== null)
+    .map((item) => ({
+      level: typeof item.level === "string" ? item.level : "",
+      universityName: typeof item.universityName === "string" ? item.universityName : "",
+      courseName: typeof item.courseName === "string" ? item.courseName : "",
+      graduationYear: typeof item.graduationYear === "string" ? item.graduationYear : "",
+      country: typeof item.country === "string" ? item.country : "",
+      documentName: asDocPath(item.documentName),
+    }))
+    .filter((item) => item.level !== "");
+}
+
+function normalizePersonDocFields<T extends Record<string, unknown>>(raw: T): T {
+  const docKeys = [
+    "passportName",
+    "governmentIdName",
+    "governmentIdBackName",
+    "drivingLicenseName",
+    "drivingLicenseBackName",
+    "canadaStudyDocName",
+    "languageTestDocName",
+  ] as const;
+  const next = { ...raw };
+  for (const key of docKeys) {
+    if (key in next) next[key] = asDocPath(next[key]);
+  }
+  return next;
+}
+
+function mergeMainData(prev: MainData, raw: Partial<MainData>): MainData {
+  const merged = normalizePersonDocFields({ ...prev, ...raw });
+  return {
+    ...merged,
+    educationQuals: normalizeEduQuals(raw.educationQuals ?? merged.educationQuals),
+    foreignWorkEntries: Array.isArray(raw.foreignWorkEntries)
+      ? raw.foreignWorkEntries
+      : merged.foreignWorkEntries,
+    educationLevels: Array.isArray(raw.educationLevels) ? raw.educationLevels : merged.educationLevels,
+    languages: Array.isArray(raw.languages) ? raw.languages : merged.languages,
+  };
+}
+
+function mergeSpouseData(prev: SpouseData, raw: Partial<SpouseData>): SpouseData {
+  const merged = normalizePersonDocFields({ ...prev, ...raw });
+  return {
+    ...merged,
+    educationQuals: normalizeEduQuals(raw.educationQuals ?? merged.educationQuals),
+    foreignWorkEntries: Array.isArray(raw.foreignWorkEntries)
+      ? raw.foreignWorkEntries
+      : merged.foreignWorkEntries,
+    educationLevels: Array.isArray(raw.educationLevels) ? raw.educationLevels : merged.educationLevels,
+    languages: Array.isArray(raw.languages) ? raw.languages : merged.languages,
+  };
+}
+
+function mergeChildData(prev: ChildData, raw: Partial<ChildData>): ChildData {
+  return normalizePersonDocFields({ ...prev, ...raw });
+}
+
+function mergeAccompanyingData(prev: AccompanyingPerson, raw: Partial<AccompanyingPerson>): AccompanyingPerson {
+  return normalizePersonDocFields({ ...prev, ...raw });
 }
 
 function scanKindMismatch(kind: ScanKind, documentType: OcrResult["document_type"]): string | null {
@@ -334,6 +404,13 @@ async function scanDocumentFile(
 // â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 interface ScoreSet { listening: string; reading: string; writing: string; speaking: string }
+interface TravelHistoryEntry {
+  fromDate: string;
+  toDate: string;
+  destination: string;
+  purpose: string;
+  details: string;
+}
 interface MainData {
   dob: string; educationLevels: string[]; educationQuals: EduQualification[]; studiedInCanada: string;
   languageTest: string; scores: ScoreSet;
@@ -352,6 +429,18 @@ interface MainData {
   // NIC / ID details
   nicFullName: string; nicNumber: string; nicDob: string; nicAddress: string;
   nicBirthPlace: string; nicIssueDate: string;
+  // IRCC / government forms
+  uci: string;
+  birthCountry: string;
+  addressLine1: string;
+  addressLine2: string;
+  city: string;
+  province: string;
+  postalCode: string;
+  countryOfResidence: string;
+  imm5476ApplicationType: string;
+  /** Up to 3 trips for IMM5562 / travel forms */
+  travelHistory: TravelHistoryEntry[];
   // Canada study details
   canadaStudyInstitution: string; canadaStudyProgram: string; canadaStudyCity: string;
   canadaStudyStart: string; canadaStudyEnd: string; canadaStudyDocName: string;
@@ -381,6 +470,7 @@ interface SpouseData {
   // NIC / ID details
   nicFullName: string; nicNumber: string; nicDob: string; nicAddress: string;
   nicBirthPlace: string; nicIssueDate: string;
+  email: string;
   // Language test document
   languageTestDocName: string;
   // Spouse Canadian work details
@@ -390,6 +480,7 @@ interface SpouseData {
 }
 interface ChildData {
   name: string; dob: string; educationLevel: string;
+  email: string;
   passportName: string; governmentIdName: string; governmentIdBackName: string;
   drivingLicenseName: string; drivingLicenseBackName: string;
   // Passport details
@@ -403,6 +494,7 @@ interface ChildData {
 interface AccompanyingPerson {
   fullName: string; dob: string;
   relationship: string; otherRelationship: string;
+  email: string;
   passportName: string; governmentIdName: string; governmentIdBackName: string;
   drivingLicenseName: string; drivingLicenseBackName: string;
   // Passport details
@@ -464,6 +556,10 @@ const INITIAL: FormData = {
   passportNationality: "", passportGender: "",
   nicFullName: "", nicNumber: "", nicDob: "", nicAddress: "",
   nicBirthPlace: "", nicIssueDate: "",
+  uci: "", birthCountry: "",
+  addressLine1: "", addressLine2: "", city: "", province: "", postalCode: "", countryOfResidence: "",
+  imm5476ApplicationType: "",
+  travelHistory: [],
   canadaStudyInstitution: "", canadaStudyProgram: "", canadaStudyCity: "",
   canadaStudyStart: "", canadaStudyEnd: "", canadaStudyDocName: "",
   languageTestDocName: "",
@@ -485,6 +581,7 @@ const INITIAL: FormData = {
   passportNationality: "", passportGender: "",
   nicFullName: "", nicNumber: "", nicDob: "", nicAddress: "",
   nicBirthPlace: "", nicIssueDate: "",
+  email: "",
   languageTestDocName: "",
   canadianWorkEmployer: "", canadianWorkTitle: "", canadianWorkStart: "", canadianWorkEnd: "", canadianWorkCity: "",
   languages: [],
@@ -493,13 +590,81 @@ const INITIAL: FormData = {
   accompanying: [],
 };
 
+function emptyChildData(): ChildData {
+  return {
+    name: "", dob: "", educationLevel: "",
+    email: "",
+    passportName: "", governmentIdName: "", governmentIdBackName: "",
+    drivingLicenseName: "", drivingLicenseBackName: "",
+    passportFullName: "", passportNumber: "", passportIssueDate: "", passportExpiry: "",
+    passportNationality: "", passportGender: "",
+    nicFullName: "", nicNumber: "", nicDob: "", nicAddress: "",
+    nicBirthPlace: "", nicIssueDate: "",
+    languages: [],
+  };
+}
+
+function emptyAccompanyingPerson(): AccompanyingPerson {
+  return {
+    fullName: "", dob: "", relationship: "", otherRelationship: "",
+    email: "",
+    passportName: "", governmentIdName: "", governmentIdBackName: "",
+    drivingLicenseName: "", drivingLicenseBackName: "",
+    passportFullName: "", passportNumber: "", passportIssueDate: "", passportExpiry: "",
+    passportNationality: "", passportGender: "",
+    nicFullName: "", nicNumber: "", nicDob: "", nicAddress: "",
+    nicBirthPlace: "", nicIssueDate: "",
+    languages: [],
+  };
+}
+
 const RELATIONSHIP_LABELS: Record<string, string> = {
+  father:        "My Father",
+  mother:        "My Mother",
   my_parent:     "My Parent",
+  spouse_father: "Spouse's Father",
+  spouse_mother: "Spouse's Mother",
   spouse_parent: "Spouse's Parent",
   sibling:       "My Sibling",
   in_law:        "In-Law",
   other:         "Other",
 };
+
+const ACCOMPANYING_RELATIONSHIP_OPTIONS: { value: string; label: string }[] = [
+  { value: "father", label: "My Father" },
+  { value: "mother", label: "My Mother" },
+  { value: "spouse_father", label: "Spouse's Father" },
+  { value: "spouse_mother", label: "Spouse's Mother" },
+  { value: "sibling", label: "My Sibling" },
+  { value: "in_law", label: "In-Law" },
+  { value: "other", label: "Other" },
+];
+
+function AccompanyingRelationshipSelect({
+  value,
+  onChange,
+  placeholder = "e.g. My Father",
+}: {
+  value?: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+}) {
+  const options = [...ACCOMPANYING_RELATIONSHIP_OPTIONS];
+  // Keep legacy saved values visible if already selected
+  if (value && !options.some((o) => o.value === value) && RELATIONSHIP_LABELS[value]) {
+    options.unshift({ value, label: RELATIONSHIP_LABELS[value] });
+  }
+  return (
+    <Select value={value || undefined} onValueChange={onChange}>
+      <SelectTrigger><SelectValue placeholder={placeholder} /></SelectTrigger>
+      <SelectContent>
+        {options.map((o) => (
+          <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
 
 function childCount(val: string) {
   if (val === "4+") return 4;
@@ -510,6 +675,18 @@ function childCount(val: string) {
 function accompanyingCount(val: string) {
   const n = parseInt(val, 10);
   return isNaN(n) ? 0 : n;
+}
+
+function accompanyingTabLabel(person: AccompanyingPerson, i: number): string {
+  const relLabel =
+    person.relationship === "other"
+      ? person.otherRelationship?.trim() || "Other"
+      : RELATIONSHIP_LABELS[person.relationship] ?? "";
+  const name = person.fullName?.trim();
+  if (relLabel && name) return `(${relLabel}) ${name}`;
+  if (relLabel) return `(${relLabel})`;
+  if (name) return `(Family) ${name}`;
+  return `(Family) ${i + 1}`;
 }
 
 // â”€â”€ Shared field wrapper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -664,6 +841,7 @@ function Step1Form({
   onSpouseName,
   onChildName,
   onAccompanyingName,
+  onAccompanyingRelationship,
 }: {
   data: FormData;
   errors: Record<string, string>;
@@ -672,6 +850,7 @@ function Step1Form({
   onSpouseName?: (name: string) => void;
   onChildName?: (i: number, name: string) => void;
   onAccompanyingName?: (i: number, name: string) => void;
+  onAccompanyingRelationship?: (i: number, relationship: string) => void;
 }) {
   return (
     <div className="space-y-6">
@@ -708,10 +887,17 @@ function Step1Form({
       <Separator />
 
       <div className="space-y-5">
-        <h3 className="text-sm font-semibold flex items-center gap-2">
-          <Users className="h-4 w-4 text-primary" />
-          Family Accompanying Details
-        </h3>
+        <div className="rounded-lg border border-primary/20 bg-primary/5 px-4 py-3 space-y-1.5">
+          <h3 className="text-sm font-semibold flex items-center gap-2">
+            <Users className="h-4 w-4 text-primary" />
+            Who is coming to Canada with you?
+          </h3>
+          <p className="text-[12px] leading-relaxed text-muted-foreground">
+            Tell us about your <strong>spouse</strong>, <strong>children</strong>, or <strong>parents / other family</strong> who will travel with you.
+            You will enter their passport and ID details in <strong>Step 2 — Detailed Profile</strong> (separate tab for each person).
+            Skip anyone who is <em>not</em> accompanying you.
+          </p>
+        </div>
 
         <Field label="Are you legally married or in a common-law relationship?" required error={errors.married}>
           <RadioGroup
@@ -735,67 +921,75 @@ function Step1Form({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="0">0 — No children</SelectItem>
-              <SelectItem value="1">1</SelectItem>
-              <SelectItem value="2">2</SelectItem>
-              <SelectItem value="3">3</SelectItem>
-              <SelectItem value="4+">4+</SelectItem>
+              <SelectItem value="1">1 child</SelectItem>
+              <SelectItem value="2">2 children</SelectItem>
+              <SelectItem value="3">3 children</SelectItem>
+              <SelectItem value="4+">4 or more</SelectItem>
             </SelectContent>
           </Select>
         </Field>
 
-        <Field
-          label="Are any other persons accompanying you? (parents, in-laws, siblings, others)"
-          required
-          error={errors.hasAccompanying}
-        >
-          <RadioGroup
-            value={data.hasAccompanying}
-            onValueChange={(v) => onChange("hasAccompanying", v)}
-            className="flex gap-6 pt-1"
+        <div className="rounded-lg border bg-muted/20 p-4 space-y-4">
+          <div className="space-y-1">
+            <p className="text-sm font-medium">Parents, in-laws, siblings, or other family</p>
+            <p className="text-xs text-muted-foreground">
+              Select <strong>Yes</strong> if a parent or any other family member (not your spouse or dependent child) will travel with you.
+              Choose <strong>My Father</strong> / <strong>My Mother</strong> so we can tell them apart on government forms.
+            </p>
+          </div>
+          <Field
+            label="Will any parents or other family members accompany you?"
+            required
+            error={errors.hasAccompanying}
           >
-            {["yes", "no"].map((v) => (
-              <div key={v} className="flex items-center space-x-2">
-                <RadioGroupItem value={v} id={`accompanying-${v}`} />
-                <Label htmlFor={`accompanying-${v}`} className="font-normal cursor-pointer">
-                  {v === "yes" ? "Yes" : "No"}
-                </Label>
-              </div>
-            ))}
-          </RadioGroup>
-        </Field>
-
-        {data.hasAccompanying === "yes" && (
-          <Field label="How many other persons are accompanying you?">
-            <Select
-              value={data.accompanyingCount}
-              onValueChange={(v) => onChange("accompanyingCount", v)}
+            <RadioGroup
+              value={data.hasAccompanying}
+              onValueChange={(v) => onChange("hasAccompanying", v)}
+              className="flex gap-6 pt-1"
             >
-              <SelectTrigger className="w-48">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {["1", "2", "3", "4", "5"].map((n) => (
-                  <SelectItem key={n} value={n}>{n}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              {["yes", "no"].map((v) => (
+                <div key={v} className="flex items-center space-x-2">
+                  <RadioGroupItem value={v} id={`accompanying-${v}`} />
+                  <Label htmlFor={`accompanying-${v}`} className="font-normal cursor-pointer">
+                    {v === "yes" ? "Yes — add their details" : "No — traveling alone or with spouse/children only"}
+                  </Label>
+                </div>
+              ))}
+            </RadioGroup>
           </Field>
-        )}
+
+          {data.hasAccompanying === "yes" && (
+            <Field label="How many parents / other family members are accompanying you?">
+              <Select
+                value={data.accompanyingCount}
+                onValueChange={(v) => onChange("accompanyingCount", v)}
+              >
+                <SelectTrigger className="w-48">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {["1", "2", "3", "4", "5"].map((n) => (
+                    <SelectItem key={n} value={n}>{n}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+          )}
+        </div>
 
         {(data.married === "yes" || childCount(data.dependentChildren) > 0 || data.hasAccompanying === "yes") && (
           <div className="rounded-lg border bg-muted/20 p-4 space-y-3">
             <div className="space-y-1.5">
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
                 <Users className="h-3.5 w-3.5" />
-                Family Members — Full Names
+                Names for Step 2 tabs
               </p>
               <p className="text-[12px] leading-relaxed text-muted-foreground">
-                Only enter names for family members who are also expected to come to Canada with you.
-                If someone will not accompany you, leave their name blank.
+                Enter names only for people who will come to Canada with you. Each person gets their own tab in Step 2 for passport and ID uploads.
               </p>
             </div>
             {data.married === "yes" && (
-              <Field label="Spouse's Full Name">
+              <Field label="Spouse's full name">
                 <Input
                   value={data.spouse.fullName}
                   onChange={(e) => onSpouseName?.(e.target.value)}
@@ -804,7 +998,7 @@ function Step1Form({
               </Field>
             )}
             {Array.from({ length: childCount(data.dependentChildren) }).map((_, i) => (
-              <Field key={i} label={`Child ${i + 1} Full Name`}>
+              <Field key={`child-name-${i}`} label={`Child ${i + 1} full name`}>
                 <Input
                   value={data.children[i]?.name ?? ""}
                   onChange={(e) => onChildName?.(i, e.target.value)}
@@ -813,13 +1007,21 @@ function Step1Form({
               </Field>
             ))}
             {data.hasAccompanying === "yes" && Array.from({ length: accompanyingCount(data.accompanyingCount) }).map((_, i) => (
-              <Field key={`acc-${i}`} label={`Other Person ${i + 1} Full Name`}>
-                <Input
-                  value={data.accompanying[i]?.fullName ?? ""}
-                  onChange={(e) => onAccompanyingName?.(i, e.target.value)}
-                  placeholder="Full name as in passport"
-                />
-              </Field>
+              <div key={`acc-${i}`} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <Field label={`Accompanying person ${i + 1} — relationship`}>
+                  <AccompanyingRelationshipSelect
+                    value={data.accompanying[i]?.relationship}
+                    onChange={(v) => onAccompanyingRelationship?.(i, v)}
+                  />
+                </Field>
+                <Field label={`Accompanying person ${i + 1} — full name`}>
+                  <Input
+                    value={data.accompanying[i]?.fullName ?? ""}
+                    onChange={(e) => onAccompanyingName?.(i, e.target.value)}
+                    placeholder="Full name as in passport"
+                  />
+                </Field>
+              </div>
             ))}
           </div>
         )}
@@ -1360,6 +1562,165 @@ function MainApplicantTab({
         </div>
       </div>
 
+      <div className="rounded-lg border border-emerald-200 bg-emerald-50/40 p-4 space-y-3">
+        <p className="text-xs font-semibold text-emerald-800 uppercase tracking-wider">
+          IRCC form details (IMM 5476 / IMM 5406)
+        </p>
+        <p className="text-xs text-muted-foreground">
+          Used to auto-fill government forms. Leave blank if you do not have a UCI yet.
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <Field label="Client ID / UCI (if known)"
+            refillRemark={remarkFor(fieldRemarks, "main", "uci")}>
+            <Input value={data.uci ?? ""} onChange={(e) => onChange("uci", e.target.value)} placeholder="e.g. 11-2222-3333" />
+          </Field>
+          <Field label="Country of birth"
+            refillRemark={remarkFor(fieldRemarks, "main", "birthCountry")}>
+            <Input value={data.birthCountry ?? ""} onChange={(e) => onChange("birthCountry", e.target.value)} placeholder="e.g. Sri Lanka" />
+          </Field>
+          <Field label="Application this representative form is for"
+            refillRemark={remarkFor(fieldRemarks, "main", "imm5476ApplicationType")}>
+            <Input
+              value={data.imm5476ApplicationType ?? ""}
+              onChange={(e) => onChange("imm5476ApplicationType", e.target.value)}
+              placeholder="e.g. Permanent residence, study permit extension"
+            />
+          </Field>
+        </div>
+        <p className="text-xs font-medium text-emerald-900 pt-1">Current residential address</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <Field label="Address line 1"
+            refillRemark={remarkFor(fieldRemarks, "main", "addressLine1")}>
+            <Input value={data.addressLine1 ?? ""} onChange={(e) => onChange("addressLine1", e.target.value)} placeholder="Street number and name" />
+          </Field>
+          <Field label="Address line 2 (optional)"
+            refillRemark={remarkFor(fieldRemarks, "main", "addressLine2")}>
+            <Input value={data.addressLine2 ?? ""} onChange={(e) => onChange("addressLine2", e.target.value)} placeholder="Apt / unit" />
+          </Field>
+          <Field label="City / Town"
+            refillRemark={remarkFor(fieldRemarks, "main", "city")}>
+            <Input value={data.city ?? ""} onChange={(e) => onChange("city", e.target.value)} />
+          </Field>
+          <Field label="Province / State"
+            refillRemark={remarkFor(fieldRemarks, "main", "province")}>
+            <Input value={data.province ?? ""} onChange={(e) => onChange("province", e.target.value)} />
+          </Field>
+          <Field label="Postal / ZIP code"
+            refillRemark={remarkFor(fieldRemarks, "main", "postalCode")}>
+            <Input value={data.postalCode ?? ""} onChange={(e) => onChange("postalCode", e.target.value)} />
+          </Field>
+          <Field label="Country of residence"
+            refillRemark={remarkFor(fieldRemarks, "main", "countryOfResidence")}>
+            <Input value={data.countryOfResidence ?? ""} onChange={(e) => onChange("countryOfResidence", e.target.value)} placeholder="e.g. Sri Lanka" />
+          </Field>
+        </div>
+      </div>
+
+      <Separator />
+
+      <div className="space-y-3">
+        <div className="flex items-center justify-between gap-2">
+          <div>
+            <p className="text-sm font-medium">Travel history (outside country of residence)</p>
+            <p className="text-xs text-muted-foreground">Used for IMM 5562 — up to 3 trips.</p>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={(data.travelHistory ?? []).length >= 3}
+            onClick={() => {
+              const cur = data.travelHistory ?? [];
+              if (cur.length >= 3) return;
+              onChange("travelHistory", [
+                ...cur,
+                { fromDate: "", toDate: "", destination: "", purpose: "", details: "" },
+              ]);
+            }}
+          >
+            Add trip
+          </Button>
+        </div>
+        {(data.travelHistory ?? []).map((trip, idx) => (
+          <div key={idx} className="space-y-2 rounded-md border border-border/60 p-3">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-medium text-muted-foreground">Trip {idx + 1}</p>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-7 text-destructive"
+                onClick={() => {
+                  onChange(
+                    "travelHistory",
+                    (data.travelHistory ?? []).filter((_, i) => i !== idx),
+                  );
+                }}
+              >
+                Remove
+              </Button>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label="From date">
+                <Input
+                  type="date"
+                  value={trip.fromDate ?? ""}
+                  onChange={(e) => {
+                    const next = [...(data.travelHistory ?? [])];
+                    next[idx] = { ...next[idx], fromDate: e.target.value };
+                    onChange("travelHistory", next);
+                  }}
+                />
+              </Field>
+              <Field label="To date">
+                <Input
+                  type="date"
+                  value={trip.toDate ?? ""}
+                  onChange={(e) => {
+                    const next = [...(data.travelHistory ?? [])];
+                    next[idx] = { ...next[idx], toDate: e.target.value };
+                    onChange("travelHistory", next);
+                  }}
+                />
+              </Field>
+              <Field label="Destination (city / country)">
+                <Input
+                  value={trip.destination ?? ""}
+                  onChange={(e) => {
+                    const next = [...(data.travelHistory ?? [])];
+                    next[idx] = { ...next[idx], destination: e.target.value };
+                    onChange("travelHistory", next);
+                  }}
+                />
+              </Field>
+              <Field label="Purpose of travel">
+                <Input
+                  value={trip.purpose ?? ""}
+                  onChange={(e) => {
+                    const next = [...(data.travelHistory ?? [])];
+                    next[idx] = { ...next[idx], purpose: e.target.value };
+                    onChange("travelHistory", next);
+                  }}
+                  placeholder="e.g. Tourism, Business"
+                />
+              </Field>
+              <div className="sm:col-span-2">
+                <Field label="Details (optional)">
+                  <Input
+                    value={trip.details ?? ""}
+                    onChange={(e) => {
+                      const next = [...(data.travelHistory ?? [])];
+                      next[idx] = { ...next[idx], details: e.target.value };
+                      onChange("travelHistory", next);
+                    }}
+                  />
+                </Field>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
       <Separator />
 
       <LanguagePickerField
@@ -1402,7 +1763,7 @@ function MainApplicantTab({
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {(data.educationQuals ?? []).map((qual, idx) => (
               <EduQualCard
-                key={qual.level}
+                key={`edu-qual-${idx}-${qual.level ?? "unknown"}`}
                 qual={qual}
                 onChange={(updated) => {
                   const next = [...(data.educationQuals ?? [])];
@@ -1948,6 +2309,15 @@ function SpouseTab({
         <Field label="Spouse Full Name" required>
           <Input value={data.fullName} onChange={(e) => onChange("fullName", e.target.value)} placeholder="As in Passport" />
         </Field>
+        <Field label="Spouse email"
+          refillRemark={remarkFor(fieldRemarks, "spouse", "email")}>
+          <Input
+            type="email"
+            value={data.email ?? ""}
+            onChange={(e) => onChange("email", e.target.value)}
+            placeholder="spouse@email.com"
+          />
+        </Field>
       </div>
 
       <LanguagePickerField
@@ -1990,7 +2360,7 @@ function SpouseTab({
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {(data.educationQuals ?? []).map((qual, idx) => (
               <EduQualCard
-                key={qual.level}
+                key={`edu-qual-${idx}-${qual.level ?? "unknown"}`}
                 qual={qual}
                 onChange={(updated) => {
                   const next = [...(data.educationQuals ?? [])];
@@ -2499,21 +2869,11 @@ function AccompanyingPersonsTab({
               </Field>
             </div>
             <Field label="Relationship to Main Applicant" required>
-              <Select
-                value={person.relationship || undefined}
-                onValueChange={(v) => onChange(i, "relationship", v)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select relationship…" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="my_parent">My Parent</SelectItem>
-                  <SelectItem value="spouse_parent">Spouse&apos;s Parent</SelectItem>
-                  <SelectItem value="sibling">My Sibling</SelectItem>
-                  <SelectItem value="in_law">In-Law</SelectItem>
-                  <SelectItem value="other">Other</SelectItem>
-                </SelectContent>
-              </Select>
+              <AccompanyingRelationshipSelect
+                value={person.relationship}
+                onChange={(v) => onChange(i, "relationship", v)}
+                placeholder="Select relationship…"
+              />
             </Field>
             {person.relationship === "other" && (
               <Field label="Please specify relationship">
@@ -2689,6 +3049,15 @@ function ChildSingleTab({
         <Field label="Full Name"
           refillRemark={remarkFor(fieldRemarks, "child", "name", childIndex)}>
           <Input value={data.name} onChange={(e) => onChange("name", e.target.value)} placeholder="Child's full name" />
+        </Field>
+        <Field label="Email (if applicable)"
+          refillRemark={remarkFor(fieldRemarks, "child", "email", childIndex)}>
+          <Input
+            type="email"
+            value={data.email ?? ""}
+            onChange={(e) => onChange("email", e.target.value)}
+            placeholder="child@email.com"
+          />
         </Field>
         <Field label="Current Education Level"
           refillRemark={remarkFor(fieldRemarks, "child", "educationLevel", childIndex)}>
@@ -2867,18 +3236,22 @@ function AccompanyingPersonSingleTab({
           refillRemark={remarkFor(fieldRemarks, "accompanying", "fullName", personIndex)}>
           <Input value={data.fullName} onChange={(e) => onChange("fullName", e.target.value)} placeholder="As in Passport" />
         </Field>
+        <Field label="Email (if applicable)"
+          refillRemark={remarkFor(fieldRemarks, "accompanying", "email", personIndex)}>
+          <Input
+            type="email"
+            value={data.email ?? ""}
+            onChange={(e) => onChange("email", e.target.value)}
+            placeholder="email@example.com"
+          />
+        </Field>
         <Field label="Relationship to Main Applicant" required
           refillRemark={remarkFor(fieldRemarks, "accompanying", "relationship", personIndex)}>
-          <Select value={data.relationship || undefined} onValueChange={(v) => onChange("relationship", v)}>
-            <SelectTrigger><SelectValue placeholder="Select relationship…" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="my_parent">My Parent</SelectItem>
-              <SelectItem value="spouse_parent">Spouse&apos;s Parent</SelectItem>
-              <SelectItem value="sibling">My Sibling</SelectItem>
-              <SelectItem value="in_law">In-Law</SelectItem>
-              <SelectItem value="other">Other</SelectItem>
-            </SelectContent>
-          </Select>
+          <AccompanyingRelationshipSelect
+            value={data.relationship}
+            onChange={(v) => onChange("relationship", v)}
+            placeholder="Select relationship…"
+          />
         </Field>
         {data.relationship === "other" && (
           <Field label="Please specify relationship">
@@ -2983,7 +3356,7 @@ function DocumentUploadCard({
   description: string;
   accept: string;
   icon: React.ComponentType<{ className?: string }>;
-  fileName: string;
+  fileName?: string;
   remarkKey?: string;
   fieldRemarks?: Record<string, FieldRemark>;
   scanKind?: ScanKind;
@@ -2994,6 +3367,7 @@ function DocumentUploadCard({
   onScanPatch?: (patch: Record<string, string>) => void;
   onNewFile?: () => void;
 }) {
+  const storedFileName = fileName ?? "";
   const inputRef                      = useRef<HTMLInputElement>(null);
   const cameraInputRef              = useRef<HTMLInputElement>(null);
   const isMobile                      = useIsMobile();
@@ -3042,18 +3416,18 @@ function DocumentUploadCard({
   }
 
   // S3 paths look like "client-document/2026/05/name.pdf" — show only basename
-  const displayName = fileName
-    ? (fileName.includes("/") ? fileName.split("/").pop()! : fileName)
+  const displayName = storedFileName
+    ? (storedFileName.includes("/") ? storedFileName.split("/").pop()! : storedFileName)
     : uploadedFile?.name ?? "";
 
   // Load preview for previously uploaded S3 documents on page reload
   useEffect(() => {
-    if (!isStoredDocumentPath(fileName)) {
+    if (!isStoredDocumentPath(storedFileName)) {
       loadedStoredPathRef.current = null;
       return;
     }
     if (uploadedFile) return;
-    if (loadedStoredPathRef.current === fileName && previewUrl) return;
+    if (loadedStoredPathRef.current === storedFileName && previewUrl) return;
 
     let objectUrl: string | null = null;
     let cancelled = false;
@@ -3064,15 +3438,15 @@ function DocumentUploadCard({
       setLoadingStored(true);
       try {
         const res = await fetch(
-          `${API}/questionnaire/document/stream?path=${encodeURIComponent(fileName)}`,
+          `${API}/questionnaire/document/stream?path=${encodeURIComponent(storedFileName)}`,
           { headers: { Authorization: `Bearer ${token}` } },
         );
         if (!res.ok || cancelled) return;
         const blob = await res.blob();
         if (cancelled) return;
-        const mediaType = inferStoredDocumentMediaType(fileName, blob.type);
+        const mediaType = inferStoredDocumentMediaType(storedFileName, blob.type);
         objectUrl = URL.createObjectURL(blob);
-        loadedStoredPathRef.current = fileName;
+        loadedStoredPathRef.current = storedFileName;
         setPreviewUrl((prev) => {
           if (prev) URL.revokeObjectURL(prev);
           return objectUrl;
@@ -3089,7 +3463,7 @@ function DocumentUploadCard({
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fileName, uploadedFile]);
+  }, [storedFileName, uploadedFile]);
 
   async function processSelectedFile(file: File) {
     // Clear previously scanned/filled fields before processing the new image
@@ -3929,12 +4303,16 @@ function ReviewStep({
       {data.accompanying.map((person, i) => (
         <ReviewCard
           key={i} title={person.fullName || `Person ${i + 1}`}
-          subtitle={person.relationship === "other" ? person.otherRelationship : person.relationship}
+          subtitle={person.relationship === "other"
+            ? person.otherRelationship || "Other"
+            : RELATIONSHIP_LABELS[person.relationship] ?? person.relationship}
           icon={UserPlus} onEdit={() => onEdit2(accStart + i)}
         >
           <RR label="Date of Birth"  v={person.dob} />
           <RR label="Languages"      v={fmtLangs(person.languages)} />
-          <RR label="Relationship"   v={person.relationship === "other" ? person.otherRelationship : person.relationship} />
+          <RR label="Relationship"   v={person.relationship === "other"
+            ? person.otherRelationship || "Other"
+            : RELATIONSHIP_LABELS[person.relationship] ?? person.relationship} />
           <RR label="Passport Name"  v={person.passportFullName} />
           <RR label="Passport No."   v={person.passportNumber} />
           <RR label="NIC Number"     v={person.nicNumber} />
@@ -4149,25 +4527,21 @@ export function QuestionnaireForm() {
               ...(s.step1_data ?? {}),
               ...(s.step3_data ?? {}),
               main: s.main_data
-                ? {
-                    ...prev.main,
-                    ...s.main_data,
-                    foreignWorkEntries: Array.isArray((s.main_data as MainData).foreignWorkEntries)
-                      ? (s.main_data as MainData).foreignWorkEntries
-                      : [],
-                  }
+                ? mergeMainData(prev.main, s.main_data as Partial<MainData>)
                 : prev.main,
               spouse: s.spouse_data
-                ? {
-                    ...prev.spouse,
-                    ...s.spouse_data,
-                    foreignWorkEntries: Array.isArray((s.spouse_data as SpouseData).foreignWorkEntries)
-                      ? (s.spouse_data as SpouseData).foreignWorkEntries
-                      : [],
-                  }
+                ? mergeSpouseData(prev.spouse, s.spouse_data as Partial<SpouseData>)
                 : prev.spouse,
-              children:     s.children_data     ?? prev.children,
-              accompanying: s.accompanying_data ?? prev.accompanying,
+              children: Array.isArray(s.children_data)
+                ? s.children_data.map((child: Partial<ChildData>, i: number) =>
+                    mergeChildData(prev.children[i] ?? emptyChildData(), child),
+                  )
+                : prev.children,
+              accompanying: Array.isArray(s.accompanying_data)
+                ? s.accompanying_data.map((person: Partial<AccompanyingPerson>, i: number) =>
+                    mergeAccompanyingData(prev.accompanying[i] ?? emptyAccompanyingPerson(), person),
+                  )
+                : prev.accompanying,
             }));
             if (s.field_remarks) setFieldRemarks(s.field_remarks);
           }
@@ -4206,7 +4580,7 @@ export function QuestionnaireForm() {
         const idx = t++;
         return {
           id: `acc-${i}`,
-          label: acc.fullName ? `(Other) ${acc.fullName}` : `(Other) ${i + 1}`,
+          label: accompanyingTabLabel(acc, i),
           tabIndex: idx,
         };
       }),
@@ -4253,6 +4627,7 @@ export function QuestionnaireForm() {
       if (count > prev.children.length) {
         const added = Array.from({ length: count - prev.children.length }, () => ({
           name: "", dob: "", educationLevel: "",
+          email: "",
           passportName: "", governmentIdName: "", governmentIdBackName: "",
           drivingLicenseName: "", drivingLicenseBackName: "",
           passportFullName: "", passportNumber: "", passportIssueDate: "", passportExpiry: "",
@@ -4293,6 +4668,7 @@ export function QuestionnaireForm() {
       if (count > prev.accompanying.length) {
         const added = Array.from({ length: count - prev.accompanying.length }, () => ({
           fullName: "", dob: "", relationship: "", otherRelationship: "",
+          email: "",
           passportName: "", governmentIdName: "", governmentIdBackName: "",
           drivingLicenseName: "", drivingLicenseBackName: "",
           passportFullName: "", passportNumber: "", passportIssueDate: "", passportExpiry: "",
@@ -4320,7 +4696,7 @@ export function QuestionnaireForm() {
     })),
     ...formData.accompanying.map((person, i) => ({
       id: `accompanying_${i}`,
-      label: person.fullName ? `(Other) ${person.fullName}` : `(Other) ${i + 1}`,
+      label: accompanyingTabLabel(person, i),
       icon: UserPlus,
     })),
   ];
@@ -4334,6 +4710,7 @@ export function QuestionnaireForm() {
                                     e.email    = "Enter a valid email address.";
     if (!formData.whatsapp.trim())  e.whatsapp = "WhatsApp number is required.";
     if (!formData.married)          e.married  = "Please select your marital status.";
+    if (!formData.hasAccompanying)  e.hasAccompanying = "Please say if parents or other family will accompany you.";
     setErrors(e);
     return Object.keys(e).length === 0;
   }
@@ -4469,7 +4846,7 @@ export function QuestionnaireForm() {
               .filter(([, r]) => r.status === "pending")
               .map(([key, r]) => (
                 <li key={key} className="rounded-lg border border-amber-200/80 bg-white/70 px-3 py-2 text-xs">
-                  <p className="font-semibold text-foreground">{remarkLabel(key)}</p>
+                  <p className="font-semibold text-foreground">{remarkLabel(key, r)}</p>
                   <p className="mt-0.5 flex items-start gap-1.5 text-amber-900">
                     <MessageSquare className="mt-0.5 size-3 shrink-0" />
                     {r.remark}
@@ -4496,6 +4873,7 @@ export function QuestionnaireForm() {
               onSpouseName={(name) => setSpouse("fullName", name)}
               onChildName={(i, name) => setChild(i, "name", name)}
               onAccompanyingName={(i, name) => setAccompanying(i, "fullName", name)}
+              onAccompanyingRelationship={(i, relationship) => setAccompanying(i, "relationship", relationship)}
             />
           </CardContent>
         </Card>
@@ -4513,6 +4891,13 @@ export function QuestionnaireForm() {
             </CardDescription>
           </CardHeader>
           <CardContent>
+            {tabs.length === 1 && (
+              <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50/60 px-4 py-3 text-sm text-amber-950">
+                Only your profile tab is shown. If your <strong>spouse</strong>, <strong>children</strong>, or <strong>parents</strong> will travel with you,
+                go back to <button type="button" className="underline font-medium" onClick={() => setStep(1)}>Step 1 — General Info</button> and add them under
+                &ldquo;Who is coming to Canada with you?&rdquo;
+              </div>
+            )}
             <Tabs
               value={tabs[activeTab]?.id ?? "main"}
               onValueChange={(id) => {

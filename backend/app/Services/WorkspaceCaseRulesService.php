@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\CaseFile;
 use App\Models\ClientProfile;
 use App\Models\QuestionnaireSubmission;
+use App\Support\QuestionnaireStep3Data;
 
 class WorkspaceCaseRulesService
 {
@@ -171,10 +172,7 @@ class WorkspaceCaseRulesService
             return [];
         }
 
-        $step3 = $submission->accompanying_data['step3'] ?? $submission->step1_data ?? [];
-        if (! is_array($step3)) {
-            $step3 = [];
-        }
+        $step3 = QuestionnaireStep3Data::resolve($submission);
 
         $flags = [];
         if (strtolower((string) ($step3['hasCriminalRecord'] ?? '')) === 'yes') {
