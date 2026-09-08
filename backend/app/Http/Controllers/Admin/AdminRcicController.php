@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Jobs\RunRcicRegisterSyncJob;
 use App\Models\RcicConsultant;
 use App\Services\RcicRegisterSyncService;
 use Illuminate\Http\JsonResponse;
@@ -58,7 +57,7 @@ class AdminRcicController extends Controller
             ]);
         }
 
-        RunRcicRegisterSyncJob::dispatch($run->id);
+        $sync->dispatchSyncJob($run->id);
 
         return response()->json([
             'message' => 'CICC register sync started in the background.',
@@ -119,7 +118,7 @@ class AdminRcicController extends Controller
             ]);
         }
 
-        RunRcicRegisterSyncJob::dispatch($run->id);
+        $sync->dispatchSyncJob($run->id);
 
         return response()->json([
             'message' => 'Contact enrichment started — filling Status, City, Province, Email, and Phone.',

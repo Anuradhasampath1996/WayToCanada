@@ -111,6 +111,17 @@ class RcicRegisterSyncService
         return $this->startSyncRun('manual_enrich');
     }
 
+    /**
+     * Release any stale ShouldBeUnique lock, then queue the sync job.
+     * Without this, a killed worker can leave a lock for uniqueFor (8h)
+     * and new syncs stay "Queued" forever with no jobs row.
+     */
+    public function dispatchSyncJob(int $syncRunId): void
+    {
+        $this->releaseSyncUniqueLock();
+        RunRcicRegisterSyncJob::dispatch($syncRunId);
+    }
+
     public function hasActiveRun(): bool
     {
         return RcicRegisterSyncRun::query()

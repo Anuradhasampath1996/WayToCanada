@@ -133,8 +133,17 @@ if [[ "$api_changed" == true ]]; then
     exit 1
   fi
 
-  echo ">>> Restarting RCIC/queue worker inside API container"
-  docker exec wtc_api sh -c 'pkill -f "queue:work" || true' >/dev/null 2>&1 || true
+  echo ">>> Restarting queue workers inside API container"
+  # Alpine/slim images may not have pkill — kill by cmdline instead.
+  docker exec wtc_api sh -c '
+    for pid in $(ls /proc 2>/dev/null | grep -E "^[0-9]+$"); do
+      if tr "\0" " " < /proc/$pid/cmdline 2>/dev/null | grep -q "artisan queue:work"; then
+        kill -9 $pid 2>/dev/null || true
+      fi
+    done
+  ' >/dev/null 2>&1 || true
+  # Two workers so a long legislation job cannot block RCIC register sync.
+  docker exec -d wtc_api php artisan queue:work database --sleep=2 --tries=1 --timeout=28800 --memory=512
   docker exec -d wtc_api php artisan queue:work database --sleep=2 --tries=1 --timeout=28800 --memory=512
 fi
 
