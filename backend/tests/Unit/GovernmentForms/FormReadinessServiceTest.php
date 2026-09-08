@@ -23,6 +23,7 @@ class FormReadinessServiceTest extends TestCase
             values: [
                 'applicant.personal.family_name' => 'Client',
                 'applicant.personal.given_names' => 'Test',
+                'applicant.personal.date_of_birth' => '1990-01-15',
                 'representative.personal.family_name' => 'RCIC',
                 'representative.personal.given_names' => 'Jane',
                 'representative.rcic_number' => 'R123456789',

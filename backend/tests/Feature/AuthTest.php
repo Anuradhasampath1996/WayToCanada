@@ -21,6 +21,13 @@ class AuthTest extends TestCase
 
     protected string $seeder = RolesAndPermissionsSeeder::class;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+        // Ensure sanctum roles exist even if RefreshDatabase seed timing races with permission cache.
+        $this->seed(RolesAndPermissionsSeeder::class);
+    }
+
     protected function beforeRefreshingDatabase(): void
     {
         $this->wipeLmsTestDatabase();

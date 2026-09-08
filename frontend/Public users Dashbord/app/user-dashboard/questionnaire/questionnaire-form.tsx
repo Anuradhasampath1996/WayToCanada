@@ -316,11 +316,11 @@ function normalizePersonDocFields<T extends Record<string, unknown>>(raw: T): T 
     "canadaStudyDocName",
     "languageTestDocName",
   ] as const;
-  const next = { ...raw };
+  const next: Record<string, unknown> = { ...raw };
   for (const key of docKeys) {
     if (key in next) next[key] = asDocPath(next[key]);
   }
-  return next;
+  return next as T;
 }
 
 function mergeMainData(prev: MainData, raw: Partial<MainData>): MainData {
