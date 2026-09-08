@@ -23,7 +23,7 @@ class RcicRegisterSyncService
     {
         $latest = RcicRegisterSyncRun::query()->orderByDesc('id')->first();
         $running = RcicRegisterSyncRun::query()
-            ->whereIn('status', ['pending', 'running'])
+            ->whereIn('status', ['pending', 'running', 'cancel_requested'])
             ->orderByDesc('id')
             ->first();
 
@@ -101,8 +101,63 @@ class RcicRegisterSyncService
     public function hasActiveRun(): bool
     {
         return RcicRegisterSyncRun::query()
-            ->whereIn('status', ['pending', 'running'])
+            ->whereIn('status', ['pending', 'running', 'cancel_requested'])
             ->exists();
+    }
+
+    /**
+     * Ask the active sync worker to stop after the current page/profile.
+     */
+    public function requestStop(): ?RcicRegisterSyncRun
+    {
+        $run = RcicRegisterSyncRun::query()
+            ->whereIn('status', ['pending', 'running', 'cancel_requested'])
+            ->orderByDesc('id')
+            ->first();
+
+        if (! $run) {
+            return null;
+        }
+
+        if ($run->status === 'pending') {
+            $run->update([
+                'status'        => 'cancelled',
+                'finished_at'   => now(),
+                'current_step'  => 'Stopped by admin before start',
+                'error_message' => null,
+            ]);
+
+            return $run->fresh();
+        }
+
+        $run->update([
+            'status'       => 'cancel_requested',
+            'current_step' => 'Stop requested — finishing current request…',
+        ]);
+
+        return $run->fresh();
+    }
+
+    /**
+     * @param  array<string, int>  $stats
+     */
+    private function stopIfRequested(RcicRegisterSyncRun $run, array $stats): bool
+    {
+        $run->refresh();
+
+        if (! in_array($run->status, ['cancel_requested', 'cancelled'], true)) {
+            return false;
+        }
+
+        $run->update([
+            'status'        => 'cancelled',
+            'finished_at'   => now(),
+            'stats'         => $stats,
+            'current_step'  => 'Stopped by admin',
+            'error_message' => null,
+        ]);
+
+        return true;
     }
 
     public function runSync(RcicRegisterSyncRun $run): array
@@ -127,6 +182,13 @@ class RcicRegisterSyncService
             'enriched'  => 0,
         ];
 
+        $run->refresh();
+        if (in_array($run->status, ['cancelled', 'cancel_requested'], true)) {
+            $this->stopIfRequested($run, $stats);
+
+            return $stats;
+        }
+
         $terms = config('rcic_register.search_terms', range('a', 'z'));
         if (! is_array($terms) || $terms === []) {
             $terms = range('a', 'z');
@@ -148,20 +210,33 @@ class RcicRegisterSyncService
 
         $totalQueries = count($sources) * count($terms);
 
-        $run->update([
-            'status'          => 'running',
-            'started_at'      => now(),
-            'total_steps'     => max(1, $totalQueries),
-            'completed_steps' => 0,
-            'current_step'    => 'Starting CICC public search scrape…',
-            'stats'           => $stats,
-            'error_message'   => null,
-        ]);
+        $started = RcicRegisterSyncRun::query()
+            ->whereKey($run->id)
+            ->whereNotIn('status', ['cancelled', 'cancel_requested', 'completed', 'failed'])
+            ->update([
+                'status'          => 'running',
+                'started_at'      => now(),
+                'total_steps'     => max(1, $totalQueries),
+                'completed_steps' => 0,
+                'current_step'    => 'Starting CICC public search scrape…',
+                'stats'           => $stats,
+                'error_message'   => null,
+            ]);
+
+        $run->refresh();
+
+        if ($started === 0 || $this->stopIfRequested($run, $stats)) {
+            return $stats;
+        }
 
         $queryIndex = 0;
 
         foreach ($sources as $source) {
             foreach ($terms as $term) {
+                if ($this->stopIfRequested($run, $stats)) {
+                    return $stats;
+                }
+
                 $queryIndex++;
                 $term = (string) $term;
 
@@ -179,7 +254,10 @@ class RcicRegisterSyncService
                 ]);
 
                 try {
-                    $this->scrapeSearchTerm($run, $source['url'], $source['label'], $term, $stats, $queryIndex, $totalQueries);
+                    $stopped = $this->scrapeSearchTerm($run, $source['url'], $source['label'], $term, $stats, $queryIndex, $totalQueries);
+                    if ($stopped) {
+                        return $stats;
+                    }
                     $stats['queries']++;
                     $this->consecutiveSystemicFailures = 0;
                 } catch (\Throwable $e) {
@@ -213,11 +291,20 @@ class RcicRegisterSyncService
             }
         }
 
+        if ($this->stopIfRequested($run, $stats)) {
+            return $stats;
+        }
+
         if (config('rcic_register.enrich_profiles', true)) {
             $this->enrichProfiles($run, $stats, $totalQueries);
-            if ($run->fresh()->status === 'failed') {
+            $freshStatus = $run->fresh()->status;
+            if (in_array($freshStatus, ['failed', 'cancelled'], true)) {
                 return $stats;
             }
+        }
+
+        if ($this->stopIfRequested($run, $stats)) {
+            return $stats;
         }
 
         $run->update([
@@ -283,6 +370,10 @@ class RcicRegisterSyncService
         ]);
 
         foreach ($ids as $index => $profileId) {
+            if ($this->stopIfRequested($run, $stats)) {
+                return;
+            }
+
             $run->update([
                 'completed_steps' => $searchStepsDone + $index,
                 'current_step'    => sprintf(
@@ -475,6 +566,10 @@ class RcicRegisterSyncService
     /**
      * @param  array<string, int>  $stats
      */
+    /**
+     * @param  array<string, int>  $stats
+     * @return bool True when stop was requested and applied
+     */
     private function scrapeSearchTerm(
         RcicRegisterSyncRun $run,
         string $searchUrl,
@@ -483,7 +578,11 @@ class RcicRegisterSyncService
         array &$stats,
         int $queryIndex,
         int $totalQueries,
-    ): void {
+    ): bool {
+        if ($this->stopIfRequested($run, $stats)) {
+            return true;
+        }
+
         $html = $this->requestHtml('GET', $searchUrl);
         $this->throttle();
 
@@ -493,6 +592,10 @@ class RcicRegisterSyncService
         $seenPageIndexes = [];
 
         while (true) {
+            if ($this->stopIfRequested($run, $stats)) {
+                return true;
+            }
+
             $meta = $this->parseGridMeta($html);
             $pageIndex = $meta['current_page_index'] ?? $page;
             if (isset($seenPageIndexes[$pageIndex])) {
@@ -540,6 +643,8 @@ class RcicRegisterSyncService
             $this->throttle();
             $html = $this->postEvent($searchUrl, $html, $nextTarget, $term);
         }
+
+        return false;
     }
 
     private function postSearch(string $searchUrl, string $html, string $lastNameTerm): string

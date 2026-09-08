@@ -9,6 +9,7 @@ import {
   Clock,
   ExternalLink,
   RefreshCw,
+  Square,
   Users,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -98,11 +99,12 @@ function fmtDate(value: string | null | undefined) {
 
 function statusBadge(status: string | null | undefined) {
   if (!status) return <Badge variant="outline">—</Badge>;
-  if (status === "running" || status === "pending") {
+  if (status === "running" || status === "pending" || status === "cancel_requested") {
     return <Badge variant="warning">{status}</Badge>;
   }
   if (status === "completed") return <Badge variant="success">{status}</Badge>;
   if (status === "failed") return <Badge variant="destructive">{status}</Badge>;
+  if (status === "cancelled") return <Badge variant="outline">{status}</Badge>;
   return <Badge variant="outline">{status}</Badge>;
 }
 
@@ -110,6 +112,7 @@ export default function CiccRegisterSyncPage() {
   const [status, setStatus] = React.useState<SyncStatus | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [syncing, setSyncing] = React.useState(false);
+  const [stopping, setStopping] = React.useState(false);
   const [error, setError] = React.useState("");
   const [syncMessage, setSyncMessage] = React.useState("");
 
@@ -165,8 +168,32 @@ export default function CiccRegisterSyncPage() {
     }
   }
 
+  async function stopSync() {
+    setStopping(true);
+    setSyncMessage("");
+    setError("");
+    try {
+      const res = await fetch(`${API}/admin/rcic-consultants/sync-stop`, {
+        method: "POST",
+        headers: authHeaders(),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        throw new Error(json.message ?? "Failed to stop sync.");
+      }
+      setSyncMessage(json.message ?? "Stop requested.");
+      if (json.status) setStatus(json.status);
+      else await loadStatus();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to stop sync.");
+    } finally {
+      setStopping(false);
+    }
+  }
+
   const activeRun = status?.running_run ?? status?.latest_run ?? null;
   const stats = activeRun?.stats;
+  const stopPending = activeRun?.status === "cancel_requested";
 
   return (
     <div className="w-full space-y-6">
@@ -192,13 +219,24 @@ export default function CiccRegisterSyncPage() {
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button onClick={() => void runManualSync()} disabled={syncing || loading || !!status?.is_running}>
-            <CloudDownload
-              className={`mr-2 h-4 w-4 ${syncing || status?.is_running ? "animate-pulse" : ""}`}
-            />
-            {status?.is_running ? "Sync running…" : syncing ? "Starting…" : "Manual Sync Now"}
-          </Button>
-          <Button variant="outline" onClick={() => void loadStatus()} disabled={loading || syncing}>
+          {status?.is_running ? (
+            <Button
+              variant="destructive"
+              onClick={() => void stopSync()}
+              disabled={stopping || stopPending}
+            >
+              <Square className={`mr-2 h-4 w-4 ${stopping || stopPending ? "animate-pulse" : ""}`} />
+              {stopPending || stopping ? "Stopping…" : "Stop Sync"}
+            </Button>
+          ) : (
+            <Button onClick={() => void runManualSync()} disabled={syncing || loading}>
+              <CloudDownload
+                className={`mr-2 h-4 w-4 ${syncing ? "animate-pulse" : ""}`}
+              />
+              {syncing ? "Starting…" : "Manual Sync Now"}
+            </Button>
+          )}
+          <Button variant="outline" onClick={() => void loadStatus()} disabled={loading || syncing || stopping}>
             <RefreshCw className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} />
             Refresh
           </Button>

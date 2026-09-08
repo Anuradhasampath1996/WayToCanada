@@ -31,6 +31,18 @@ class RunRcicRegisterSyncJob implements ShouldQueue, ShouldBeUnique
     {
         $run = RcicRegisterSyncRun::findOrFail($this->syncRunId);
 
+        if (in_array($run->status, ['cancelled', 'cancel_requested'], true)) {
+            if ($run->status === 'cancel_requested') {
+                $run->update([
+                    'status'       => 'cancelled',
+                    'finished_at'  => now(),
+                    'current_step' => 'Stopped by admin before start',
+                ]);
+            }
+
+            return;
+        }
+
         try {
             $sync->runSync($run);
         } catch (\Throwable $e) {
@@ -40,7 +52,7 @@ class RunRcicRegisterSyncJob implements ShouldQueue, ShouldBeUnique
             ]);
 
             $run->refresh();
-            if (! in_array($run->status, ['completed', 'failed'], true)) {
+            if (! in_array($run->status, ['completed', 'failed', 'cancelled'], true)) {
                 $run->update([
                     'status'        => 'failed',
                     'finished_at'   => now(),

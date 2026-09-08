@@ -4,7 +4,7 @@ import * as React from "react";
 import {
   Upload, Download, Search, ExternalLink, ChevronLeft, ChevronRight,
   X, Filter, Trash2, MoreHorizontal, Eye, Pencil, PlusCircle,
-  RefreshCw, CloudDownload, Clock, CheckCircle2, AlertCircle,
+  RefreshCw, CloudDownload, Clock, CheckCircle2, AlertCircle, Square,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -186,6 +186,7 @@ export default function RcicUsersPage() {
   const [syncStatus, setSyncStatus] = React.useState<SyncStatus | null>(null);
   const [syncLoading, setSyncLoading] = React.useState(false);
   const [syncStarting, setSyncStarting] = React.useState(false);
+  const [syncStopping, setSyncStopping] = React.useState(false);
   const [syncMsg, setSyncMsg] = React.useState<{ text: string; ok: boolean } | null>(null);
 
   const fileRef = React.useRef<HTMLInputElement>(null);
@@ -264,6 +265,28 @@ export default function RcicUsersPage() {
       setSyncMsg({ text: "Network error starting sync.", ok: false });
     } finally {
       setSyncStarting(false);
+    }
+  };
+
+  const handleStopSync = async () => {
+    setSyncStopping(true);
+    setSyncMsg(null);
+    try {
+      const res = await fetch(`${API}/admin/rcic-consultants/sync-stop`, {
+        method: "POST",
+        headers: authBearer(),
+      });
+      const json = await res.json();
+      setSyncMsg({
+        text: json.message ?? (res.ok ? "Stop requested." : "Failed to stop sync."),
+        ok: res.ok,
+      });
+      if (json.status) setSyncStatus(json.status);
+      else await fetchSyncStatus();
+    } catch {
+      setSyncMsg({ text: "Network error stopping sync.", ok: false });
+    } finally {
+      setSyncStopping(false);
     }
   };
 
@@ -431,13 +454,24 @@ export default function RcicUsersPage() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button
-            onClick={handleSyncNow}
-            disabled={syncStarting || !!syncStatus?.is_running}
-          >
-            <CloudDownload className={`mr-2 h-4 w-4 ${syncStarting || syncStatus?.is_running ? "animate-pulse" : ""}`} />
-            {syncStatus?.is_running ? "Sync running…" : syncStarting ? "Starting…" : "Sync Now"}
-          </Button>
+          {syncStatus?.is_running ? (
+            <Button
+              variant="destructive"
+              onClick={() => void handleStopSync()}
+              disabled={syncStopping || syncStatus?.running_run?.status === "cancel_requested"}
+            >
+              <Square className={`mr-2 h-4 w-4 ${syncStopping || syncStatus?.running_run?.status === "cancel_requested" ? "animate-pulse" : ""}`} />
+              {syncStopping || syncStatus?.running_run?.status === "cancel_requested" ? "Stopping…" : "Stop Sync"}
+            </Button>
+          ) : (
+            <Button
+              onClick={handleSyncNow}
+              disabled={syncStarting}
+            >
+              <CloudDownload className={`mr-2 h-4 w-4 ${syncStarting ? "animate-pulse" : ""}`} />
+              {syncStarting ? "Starting…" : "Sync Now"}
+            </Button>
+          )}
           <Button variant="outline" onClick={() => void fetchSyncStatus()} disabled={syncLoading}>
             <RefreshCw className={`mr-2 h-4 w-4 ${syncLoading ? "animate-spin" : ""}`} />
             Refresh status

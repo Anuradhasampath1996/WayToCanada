@@ -68,6 +68,29 @@ class AdminRcicController extends Controller
     }
 
     /**
+     * POST /api/v1/admin/rcic-consultants/sync-stop
+     * Ask the active sync to stop after the current page/profile request.
+     */
+    public function stopSync(RcicRegisterSyncService $sync): JsonResponse
+    {
+        $run = $sync->requestStop();
+
+        if (! $run) {
+            return response()->json([
+                'message' => 'No active CICC register sync to stop.',
+                'status'  => $sync->syncStatus(),
+            ], 404);
+        }
+
+        return response()->json([
+            'message' => $run->status === 'cancelled'
+                ? 'CICC register sync stopped.'
+                : 'Stop requested. Sync will halt after the current page or profile.',
+            'status'  => $sync->syncStatus(),
+        ]);
+    }
+
+    /**
      * GET /api/v1/admin/rcic-consultants
      * Paginated, searchable CICC public register.
      *
