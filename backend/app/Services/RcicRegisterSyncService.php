@@ -44,15 +44,16 @@ class RcicRegisterSyncService
             'auto_sync'           => [
                 'command'     => 'rcic:sync-register',
                 'schedule'    => 'Weekly on Sunday at 2:00 AM (America/Toronto)',
-                'description' => 'Pages through the full CICC RCIC/RISIA public search results and upserts every licensee row.',
+                'description' => 'Pages the full CICC RCIC/RISIA search, then enriches Status/City/Province/Email/Phone from Licensee Details.',
             ],
             'config'              => [
-                'delay_ms'          => (int) config('rcic_register.delay_ms'),
-                'search_terms'      => config('rcic_register.search_terms'),
-                'include_risia'     => (bool) config('rcic_register.include_risia'),
-                'enrich_via_search' => (bool) config('rcic_register.enrich_via_search'),
-                'search_url'        => config('rcic_register.search_url'),
-                'risia_search_url'  => config('rcic_register.risia_search_url'),
+                'delay_ms'            => (int) config('rcic_register.delay_ms'),
+                'search_terms'        => config('rcic_register.search_terms'),
+                'include_risia'       => (bool) config('rcic_register.include_risia'),
+                'enrich_profiles'     => (bool) config('rcic_register.enrich_profiles'),
+                'enrich_only_missing' => (bool) config('rcic_register.enrich_only_missing'),
+                'search_url'          => config('rcic_register.search_url'),
+                'risia_search_url'    => config('rcic_register.risia_search_url'),
             ],
         ];
     }
@@ -92,6 +93,7 @@ class RcicRegisterSyncService
                 'skipped'   => 0,
                 'pages'     => 0,
                 'queries'   => 0,
+                'enriched'  => 0,
             ],
         ]);
     }
@@ -122,6 +124,7 @@ class RcicRegisterSyncService
             'skipped'   => 0,
             'pages'     => 0,
             'queries'   => 0,
+            'enriched'  => 0,
         ];
 
         $terms = config('rcic_register.search_terms', range('a', 'z'));
@@ -210,15 +213,23 @@ class RcicRegisterSyncService
             }
         }
 
+        if (config('rcic_register.enrich_profiles', true)) {
+            $this->enrichProfiles($run, $stats, $totalQueries);
+            if ($run->fresh()->status === 'failed') {
+                return $stats;
+            }
+        }
+
         $run->update([
             'status'          => 'completed',
             'finished_at'     => now(),
-            'completed_steps' => $totalQueries,
+            'completed_steps' => max($run->fresh()->total_steps, $totalQueries),
             'stats'           => $stats,
             'current_step'    => sprintf(
-                'Complete — created %d, updated %d, pages %d, errors %d (DB total %d)',
+                'Complete — created %d, updated %d, enriched %d, pages %d, errors %d (DB total %d)',
                 $stats['created'],
                 $stats['updated'],
+                $stats['enriched'],
                 $stats['pages'],
                 $stats['errors'],
                 RcicConsultant::count()
@@ -226,6 +237,239 @@ class RcicRegisterSyncService
         ]);
 
         return $stats;
+    }
+
+    /**
+     * Fill Status / City / Province / Email / Phone from Licensee Details tab.
+     *
+     * @param  array<string, int>  $stats
+     */
+    private function enrichProfiles(RcicRegisterSyncRun $run, array &$stats, int $searchStepsDone): void
+    {
+        $query = RcicConsultant::query()->orderBy('profile_id');
+
+        if (config('rcic_register.enrich_only_missing', true)) {
+            $query->where(function ($q) {
+                $q->whereNull('status')
+                    ->orWhere('status', '')
+                    ->orWhereNull('city')
+                    ->orWhere('city', '')
+                    ->orWhereNull('province')
+                    ->orWhere('province', '')
+                    ->orWhereNull('email')
+                    ->orWhere('email', '')
+                    ->orWhereNull('phone')
+                    ->orWhere('phone', '');
+            });
+        }
+
+        $ids = $query->pluck('profile_id')->map(fn ($id) => (int) $id)->all();
+        $total = count($ids);
+
+        if ($total === 0) {
+            $run->update([
+                'current_step' => 'Profile enrichment skipped — no missing contact/status fields.',
+                'stats'        => $stats,
+            ]);
+
+            return;
+        }
+
+        $run->update([
+            'total_steps'     => $searchStepsDone + $total,
+            'completed_steps' => $searchStepsDone,
+            'current_step'    => sprintf('Enriching Licensee Details (0 / %d)…', $total),
+            'stats'           => $stats,
+        ]);
+
+        foreach ($ids as $index => $profileId) {
+            $run->update([
+                'completed_steps' => $searchStepsDone + $index,
+                'current_step'    => sprintf(
+                    'Enriching profile %d (%d / %d)',
+                    $profileId,
+                    $index + 1,
+                    $total
+                ),
+                'stats'           => $stats,
+            ]);
+
+            try {
+                $details = $this->fetchLicenseeDetails($profileId);
+                if ($details === []) {
+                    $stats['not_found']++;
+                } else {
+                    RcicConsultant::where('profile_id', $profileId)->update($details);
+                    $stats['enriched']++;
+                    $stats['updated']++;
+                }
+                $this->consecutiveSystemicFailures = 0;
+            } catch (\Throwable $e) {
+                Log::warning('RCIC profile enrich failed', [
+                    'profile_id' => $profileId,
+                    'error'      => $e->getMessage(),
+                ]);
+                $stats['errors']++;
+
+                if ($this->consecutiveSystemicFailures >= (int) config('rcic_register.max_consecutive_systemic_failures', 8)) {
+                    $run->update([
+                        'status'          => 'failed',
+                        'finished_at'     => now(),
+                        'completed_steps' => $searchStepsDone + $index,
+                        'stats'           => $stats,
+                        'error_message'   => 'Aborted during profile enrichment: '.$e->getMessage(),
+                        'current_step'    => 'Failed',
+                    ]);
+
+                    return;
+                }
+            }
+
+            $this->throttle();
+        }
+
+        $run->update([
+            'completed_steps' => $searchStepsDone + $total,
+            'stats'           => $stats,
+        ]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function fetchLicenseeDetails(int $profileId): array
+    {
+        $url = str_replace('{id}', (string) $profileId, (string) config('rcic_register.profile_url'));
+        $html = $this->requestHtml('GET', $url);
+        $this->throttle();
+
+        $tabId = 'ctl01$TemplateBody$WebPartManager1$gwpciProfileCCO$ciProfileCCO$radTab_Top';
+        $payload = [
+            '__EVENTTARGET'        => $tabId,
+            '__EVENTARGUMENT'      => '{"type":0,"index":"1"}',
+            '__VIEWSTATE'          => $this->extractInputValue($html, '__VIEWSTATE'),
+            '__VIEWSTATEGENERATOR' => $this->extractInputValue($html, '__VIEWSTATEGENERATOR'),
+            $tabId.'_ClientState'  => '{"selectedIndexes":["1"],"logEntries":[],"scrollState":{}}',
+        ];
+
+        $eventValidation = $this->extractInputValue($html, '__EVENTVALIDATION');
+        if ($eventValidation !== '') {
+            $payload['__EVENTVALIDATION'] = $eventValidation;
+        }
+
+        $detailsHtml = $this->requestHtml('POST', $url, $payload);
+
+        return $this->parseLicenseeDetailsHtml($detailsHtml);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function parseLicenseeDetailsHtml(string $html): array
+    {
+        $data = [
+            'scraped_at'    => now(),
+            'scrape_status' => 'scraped',
+        ];
+
+        if (preg_match('/Licence\s*Status\s*<\/?[^>]*>\s*([A-Za-z][A-Za-z0-9 \/-]{1,60})/i', $html, $m)
+            || preg_match('/Licence\s*Status\s+([A-Za-z][A-Za-z0-9 \/-]{1,60})/i', $html, $m)
+        ) {
+            $status = trim(html_entity_decode(strip_tags($m[1]), ENT_QUOTES | ENT_HTML5));
+            $status = preg_replace('/\s+/', ' ', $status) ?: $status;
+            if ($status !== '' && ! str_contains(strtolower($status), 'sign in')) {
+                $data['status'] = Str::limit($status, 50, '');
+            }
+        }
+
+        // Current licence history row: Class | Start | Expiry | Status
+        if (
+            empty($data['status'])
+            && preg_match(
+                '/LicenceHistory_ResultsGrid[\s\S]*?<tr class="rg(?:Alt)?Row"[^>]*>\s*<td>(.*?)<\/td>\s*<td>(.*?)<\/td>\s*<td>(.*?)<\/td>\s*<td>(.*?)<\/td>/i',
+                $html,
+                $m
+            )
+        ) {
+            $status = trim(html_entity_decode(strip_tags($m[4]), ENT_QUOTES | ENT_HTML5));
+            if ($status !== '') {
+                $data['status'] = Str::limit($status, 50, '');
+            }
+            $type = trim(html_entity_decode(strip_tags($m[1]), ENT_QUOTES | ENT_HTML5));
+            if ($type !== '') {
+                $data['type'] = Str::limit($type, 50, '');
+            }
+        }
+
+        // Employment row: Company | Start | Country | Province | City | Email | Phone
+        if (preg_match(
+            '/Employment_ResultsGrid[\s\S]*?<tr class="rg(?:Alt)?Row"[^>]*>\s*<td>(.*?)<\/td>\s*<td>(.*?)<\/td>\s*<td>(.*?)<\/td>\s*<td>(.*?)<\/td>\s*<td>(.*?)<\/td>\s*<td>(.*?)<\/td>\s*<td>(.*?)<\/td>/i',
+            $html,
+            $m
+        )) {
+            $company = trim(html_entity_decode(strip_tags($m[1]), ENT_QUOTES | ENT_HTML5));
+            $country = trim(html_entity_decode(strip_tags($m[3]), ENT_QUOTES | ENT_HTML5));
+            $province = trim(html_entity_decode(strip_tags($m[4]), ENT_QUOTES | ENT_HTML5));
+            $city = trim(html_entity_decode(strip_tags($m[5]), ENT_QUOTES | ENT_HTML5));
+            $emailHtml = $m[6];
+            $phone = trim(html_entity_decode(strip_tags($m[7]), ENT_QUOTES | ENT_HTML5));
+
+            if ($company !== '') {
+                $data['company'] = $company;
+            }
+            if ($country !== '') {
+                $data['country'] = Str::limit($country, 100, '');
+            }
+            if ($province !== '') {
+                $data['province'] = Str::limit($province, 100, '');
+            }
+            if ($city !== '') {
+                $data['city'] = Str::limit($city, 100, '');
+            }
+            if ($phone !== '' && $phone !== '&nbsp;') {
+                $data['phone'] = Str::limit($phone, 50, '');
+            }
+
+            $email = $this->extractProtectedEmail($emailHtml);
+            if ($email) {
+                $data['email'] = Str::limit($email, 255, '');
+            }
+        }
+
+        return array_filter($data, fn ($v) => $v !== null && $v !== '');
+    }
+
+    private function extractProtectedEmail(string $html): ?string
+    {
+        if (preg_match('/data-cfemail="([a-f0-9]+)"/i', $html, $m)) {
+            return $this->decodeCloudflareEmail($m[1]);
+        }
+
+        if (preg_match('/mailto:([^"\'?\s]+)/i', $html, $m)) {
+            return trim(html_entity_decode(urldecode($m[1]), ENT_QUOTES | ENT_HTML5));
+        }
+
+        $text = trim(html_entity_decode(strip_tags($html), ENT_QUOTES | ENT_HTML5));
+        if (filter_var($text, FILTER_VALIDATE_EMAIL)) {
+            return $text;
+        }
+
+        return null;
+    }
+
+    private function decodeCloudflareEmail(string $hex): ?string
+    {
+        if (strlen($hex) < 4 || strlen($hex) % 2 !== 0) {
+            return null;
+        }
+
+        $key = hexdec(substr($hex, 0, 2));
+        $email = '';
+        for ($i = 2; $i < strlen($hex); $i += 2) {
+            $email .= chr(hexdec(substr($hex, $i, 2)) ^ $key);
+        }
+
+        return filter_var($email, FILTER_VALIDATE_EMAIL) ? $email : null;
     }
 
     /**

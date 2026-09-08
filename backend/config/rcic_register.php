@@ -42,8 +42,14 @@ return [
     /** Also scrape the RISIA public search (same CICC register). */
     'include_risia' => filter_var(env('RCIC_SCRAPE_INCLUDE_RISIA', true), FILTER_VALIDATE_BOOL),
 
-    /** Optional profile-page enrich after search rows (slow; avoid unless needed). */
-    'enrich_via_search' => filter_var(env('RCIC_SCRAPE_ENRICH_SEARCH', false), FILTER_VALIDATE_BOOL),
+    /**
+     * After search sync, open each Licensee Details tab to fill
+     * status / city / province / email / phone.
+     */
+    'enrich_profiles' => filter_var(env('RCIC_SCRAPE_ENRICH_PROFILES', true), FILTER_VALIDATE_BOOL),
+
+    /** Only enrich rows missing status/city/email/phone (recommended). */
+    'enrich_only_missing' => filter_var(env('RCIC_SCRAPE_ENRICH_ONLY_MISSING', true), FILTER_VALIDATE_BOOL),
 
     /** How many times to retry a single request after HTTP 429/403/5xx. */
     'http_retries' => (int) env('RCIC_SCRAPE_HTTP_RETRIES', 6),

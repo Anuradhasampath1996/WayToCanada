@@ -73,7 +73,9 @@ type SyncStatus = {
     delay_ms: number;
     search_terms?: string[];
     include_risia?: boolean;
-    enrich_via_search: boolean;
+    enrich_profiles?: boolean;
+    enrich_only_missing?: boolean;
+    enrich_via_search?: boolean;
     search_url?: string;
     risia_search_url?: string;
     profile_url?: string;
@@ -381,6 +383,13 @@ export default function CiccRegisterSyncPage() {
               <TableRow>
                 <TableCell className="font-medium w-48">Delay between requests</TableCell>
                 <TableCell className="tabular-nums">{status?.config?.delay_ms ?? 500} ms</TableCell>
+              </TableRow>
+              <TableRow>
+                <TableCell className="font-medium">Enrich Licensee Details</TableCell>
+                <TableCell>
+                  {status?.config?.enrich_profiles === false ? "No" : "Yes"}
+                  {status?.config?.enrich_only_missing !== false ? " (missing fields only)" : " (all profiles)"}
+                </TableCell>
               </TableRow>
               <TableRow>
                 <TableCell className="font-medium">Include RISIA search</TableCell>
