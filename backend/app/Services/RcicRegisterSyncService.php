@@ -2,10 +2,13 @@
 
 namespace App\Services;
 
+use App\Jobs\RunRcicRegisterSyncJob;
 use App\Models\RcicConsultant;
 use App\Models\RcicRegisterSyncRun;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\Response;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -106,7 +109,8 @@ class RcicRegisterSyncService
     }
 
     /**
-     * Ask the active sync worker to stop after the current page/profile.
+     * Stop the active sync immediately in the DB/UI, purge queued jobs,
+     * and ask any live worker to exit after its current HTTP request.
      */
     public function requestStop(): ?RcicRegisterSyncRun
     {
@@ -119,23 +123,43 @@ class RcicRegisterSyncService
             return null;
         }
 
-        if ($run->status === 'pending') {
-            $run->update([
-                'status'        => 'cancelled',
-                'finished_at'   => now(),
-                'current_step'  => 'Stopped by admin before start',
-                'error_message' => null,
-            ]);
-
-            return $run->fresh();
-        }
-
         $run->update([
-            'status'       => 'cancel_requested',
-            'current_step' => 'Stop requested — finishing current request…',
+            'status'        => 'cancelled',
+            'finished_at'   => now(),
+            'current_step'  => 'Stopped by admin',
+            'error_message' => null,
         ]);
 
+        $this->purgeQueuedSyncJobs();
+        $this->releaseSyncUniqueLock();
+
         return $run->fresh();
+    }
+
+    private function purgeQueuedSyncJobs(): void
+    {
+        try {
+            DB::table('jobs')
+                ->where('payload', 'like', '%RunRcicRegisterSyncJob%')
+                ->delete();
+        } catch (\Throwable $e) {
+            Log::warning('Failed to purge RCIC sync jobs on stop', [
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    private function releaseSyncUniqueLock(): void
+    {
+        try {
+            // Laravel ShouldBeUnique cache key: laravel_unique_job:{class}:{uniqueId}
+            Cache::lock('laravel_unique_job:'.RunRcicRegisterSyncJob::class.':rcic-register-sync')
+                ->forceRelease();
+        } catch (\Throwable $e) {
+            Log::warning('Failed to release RCIC sync unique lock on stop', [
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     /**
@@ -151,7 +175,7 @@ class RcicRegisterSyncService
 
         $run->update([
             'status'        => 'cancelled',
-            'finished_at'   => now(),
+            'finished_at'   => $run->finished_at ?? now(),
             'stats'         => $stats,
             'current_step'  => 'Stopped by admin',
             'error_message' => null,

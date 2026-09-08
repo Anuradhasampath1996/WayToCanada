@@ -83,9 +83,7 @@ class AdminRcicController extends Controller
         }
 
         return response()->json([
-            'message' => $run->status === 'cancelled'
-                ? 'CICC register sync stopped.'
-                : 'Stop requested. Sync will halt after the current page or profile.',
+            'message' => 'CICC register sync stopped.',
             'status'  => $sync->syncStatus(),
         ]);
     }

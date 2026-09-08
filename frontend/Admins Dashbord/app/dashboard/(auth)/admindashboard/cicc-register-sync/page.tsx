@@ -193,7 +193,6 @@ export default function CiccRegisterSyncPage() {
 
   const activeRun = status?.running_run ?? status?.latest_run ?? null;
   const stats = activeRun?.stats;
-  const stopPending = activeRun?.status === "cancel_requested";
 
   return (
     <div className="w-full space-y-6">
@@ -223,10 +222,10 @@ export default function CiccRegisterSyncPage() {
             <Button
               variant="destructive"
               onClick={() => void stopSync()}
-              disabled={stopping || stopPending}
+              disabled={stopping}
             >
-              <Square className={`mr-2 h-4 w-4 ${stopping || stopPending ? "animate-pulse" : ""}`} />
-              {stopPending || stopping ? "Stopping…" : "Stop Sync"}
+              <Square className={`mr-2 h-4 w-4 ${stopping ? "animate-pulse" : ""}`} />
+              {stopping ? "Stopping…" : "Stop Sync"}
             </Button>
           ) : (
             <Button onClick={() => void runManualSync()} disabled={syncing || loading}>

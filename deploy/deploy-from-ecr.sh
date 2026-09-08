@@ -132,6 +132,10 @@ if [[ "$api_changed" == true ]]; then
     rollback
     exit 1
   fi
+
+  echo ">>> Restarting RCIC/queue worker inside API container"
+  docker exec wtc_api sh -c 'pkill -f "queue:work" || true' >/dev/null 2>&1 || true
+  docker exec -d wtc_api php artisan queue:work database --sleep=2 --tries=1 --timeout=28800 --memory=512
 fi
 
 export IMAGE_TAG

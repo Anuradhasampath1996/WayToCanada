@@ -458,10 +458,10 @@ export default function RcicUsersPage() {
             <Button
               variant="destructive"
               onClick={() => void handleStopSync()}
-              disabled={syncStopping || syncStatus?.running_run?.status === "cancel_requested"}
+              disabled={syncStopping}
             >
-              <Square className={`mr-2 h-4 w-4 ${syncStopping || syncStatus?.running_run?.status === "cancel_requested" ? "animate-pulse" : ""}`} />
-              {syncStopping || syncStatus?.running_run?.status === "cancel_requested" ? "Stopping…" : "Stop Sync"}
+              <Square className={`mr-2 h-4 w-4 ${syncStopping ? "animate-pulse" : ""}`} />
+              {syncStopping ? "Stopping…" : "Stop Sync"}
             </Button>
           ) : (
             <Button
