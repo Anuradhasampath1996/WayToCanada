@@ -29,6 +29,7 @@ import {
   MegaphoneIcon,
   MessageCircle,
   MessagesSquareIcon,
+  RefreshCwIcon,
   ScaleIcon,
   UsersIcon,
   WalletMinimalIcon,
@@ -168,6 +169,12 @@ export const navItems: NavGroup[] = [
         href: "/admindashboard/gst-hst-sync",
         icon: LandmarkIcon,
         match: (p) => p.startsWith("/admindashboard/gst-hst-sync"),
+      },
+      {
+        title: "CICC Register Sync",
+        href: "/admindashboard/cicc-register-sync",
+        icon: RefreshCwIcon,
+        match: (p) => p.startsWith("/admindashboard/cicc-register-sync"),
       },
       {
         title: "Legislation Hub",

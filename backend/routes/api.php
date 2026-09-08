@@ -420,6 +420,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('bookmarks/{bookmark}', [ConsultantLegislationController::class, 'bookmarksDestroy'])->name('bookmarks.destroy');
     });
 
+    // ── Consultant: Pathway catalog ───────────────────────────────────────────
+    Route::get('consultant/pathways', [\App\Http\Controllers\PathwayCatalogController::class, 'index'])->name('consultant.pathways.index');
+
     // ── Consultant: Case Pipeline (Kanban — all signed clients) ──────────────
     Route::get('consultant/case-pipeline', [DocumentSubmissionController::class, 'pipeline'])->name('consultant.case-pipeline');
 
@@ -449,7 +452,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('{profile}/case-management-hub',               [CaseManagementHubController::class, 'consultantShow'])->name('case-management-hub');
         Route::get('{profile}/package-documents/{document}/stream', [SecurePdfController::class, 'consultantPackageDocument'])->name('package-documents.stream');
         Route::patch('{profile}/case-file/select-pathway',         [CaseFileController::class, 'selectPathway'])->name('case-file.select-pathway');
+        Route::get('{profile}/pathways/suggested',               [\App\Http\Controllers\PathwayCatalogController::class, 'suggested'])->name('pathways.suggested');
         Route::patch('{profile}/case-file/pathway-assessment',   [CaseFileController::class, 'savePathwayAssessment'])->name('case-file.pathway-assessment');
+        Route::get('{profile}/case-file/suggested-application-package', [CaseFileController::class, 'suggestedApplicationPackage'])->name('case-file.suggested-application-package');
         Route::patch('{profile}/case-file/assign-application-package', [CaseFileController::class, 'assignApplicationPackage'])->name('case-file.assign-application-package');
         Route::post('{profile}/case-file/generate-agreement',      [CaseFileController::class, 'generateAgreement'])->name('case-file.generate-agreement');
         Route::post('{profile}/case-file/send-agreement',          [CaseFileController::class, 'sendAgreement'])->name('case-file.send-agreement');
@@ -494,6 +499,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('{profile}/legislation/relevant', [ConsultantLegislationController::class, 'relevant'])->name('legislation.relevant');
         Route::get('{profile}/questionnaire/document/stream',         [QuestionnaireReviewController::class, 'streamDocument'])->name('questionnaire.document-stream');
         Route::patch('{profile}/questionnaire/verify',               [QuestionnaireReviewController::class, 'verify'])->name('questionnaire.verify');
+        Route::patch('{profile}/questionnaire/verify-all',           [QuestionnaireReviewController::class, 'verifyAll'])->name('questionnaire.verify-all');
         Route::patch('{profile}/questionnaire/field',                [QuestionnaireReviewController::class, 'updateField'])->name('questionnaire.update-field');
         Route::patch('{profile}/questionnaire/request-refill',       [QuestionnaireReviewController::class, 'requestRefill'])->name('questionnaire.request-refill');
 
@@ -512,6 +518,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
         // ── Interactive IRCC forms (online-only application data) ───────────────
         Route::get('{profile}/interactive-forms/verification-status', [ConsultantIrccInteractiveFormController::class, 'verificationStatus'])->name('interactive-forms.verification-status');
+        Route::patch('{profile}/interactive-forms/review-all-submitted', [ConsultantIrccInteractiveFormController::class, 'reviewAllSubmitted'])->name('interactive-forms.review-all-submitted');
         Route::get('{profile}/interactive-forms', [ConsultantIrccInteractiveFormController::class, 'index'])->name('interactive-forms.index');
         Route::get('{profile}/interactive-forms/{form}', [ConsultantIrccInteractiveFormController::class, 'show'])->name('interactive-forms.show');
         Route::patch('{profile}/interactive-forms/{form}/review', [ConsultantIrccInteractiveFormController::class, 'review'])->name('interactive-forms.review');
@@ -625,11 +632,13 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::delete('{user}',                 [AdminUsersController::class, 'destroy'])->name('destroy');
         });
 
-        // CICC register — import / export / read
+        // CICC register — import / export / sync / read
         Route::prefix('rcic-consultants')->name('rcic.')->group(function () {
             Route::get('export',         [AdminRcicController::class, 'export'])->name('export');
             Route::post('import',        [AdminRcicController::class, 'import'])->name('import');
             Route::delete('clear',       [AdminRcicController::class, 'clearAll'])->name('clear');
+            Route::get('sync-status',    [AdminRcicController::class, 'syncStatus'])->name('sync-status');
+            Route::post('sync',          [AdminRcicController::class, 'sync'])->name('sync');
             Route::get('/',              [AdminRcicController::class, 'index'])->name('index');
             Route::post('/',             [AdminRcicController::class, 'store'])->name('store');
             Route::get('{profileId}',    [AdminRcicController::class, 'show'])->name('show');

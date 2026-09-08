@@ -25,6 +25,12 @@ Schedule::command('legislation:sync')->dailyAt('05:00')->timezone('America/Toron
 // Sync GST/HST/PST sales tax rates for payments
 Schedule::command('gst-hst:sync')->dailyAt('06:30')->timezone('America/Toronto');
 
+// Weekly CICC public register scrape → rcic_consultants upsert
+Schedule::command('rcic:sync-register')
+    ->weeklyOn(0, '02:00')
+    ->timezone('America/Toronto')
+    ->withoutOverlapping(720);
+
 // Unsigned retainer agreement reminders (email + optional Twilio WhatsApp)
 Schedule::command('agreements:send-reminders')->dailyAt('09:00')->timezone('America/Toronto');
 

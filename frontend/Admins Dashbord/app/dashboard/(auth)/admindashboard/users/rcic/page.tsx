@@ -4,6 +4,7 @@ import * as React from "react";
 import {
   Upload, Download, Search, ExternalLink, ChevronLeft, ChevronRight,
   X, Filter, Trash2, MoreHorizontal, Eye, Pencil, PlusCircle,
+  RefreshCw, CloudDownload, Clock, CheckCircle2, AlertCircle,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -25,6 +26,48 @@ import { Label } from "@/components/ui/label";
 import { getAdminToken, adminAuthHeaders } from "@/lib/admin-auth";
 
 const API = process.env.NEXT_PUBLIC_API_URL + "/api/v1";
+
+type SyncRun = {
+  id: number;
+  status: string;
+  trigger: string;
+  total_steps: number;
+  completed_steps: number;
+  progress_percent: number;
+  current_step: string | null;
+  stats: {
+    updated?: number;
+    created?: number;
+    errors?: number;
+    not_found?: number;
+    skipped?: number;
+  } | null;
+  error_message: string | null;
+  started_at: string | null;
+  finished_at: string | null;
+};
+
+type SyncStatus = {
+  total_records: number;
+  entitled_count: number;
+  last_scraped_at: string | null;
+  scrape_error_count: number;
+  is_running: boolean;
+  latest_run: SyncRun | null;
+  running_run: SyncRun | null;
+  last_successful_run: SyncRun | null;
+  auto_sync: {
+    command: string;
+    schedule: string;
+    description: string;
+  };
+  config?: {
+    delay_ms: number;
+    look_ahead: number;
+    enrich_via_search: boolean;
+    profile_url: string;
+  };
+};
 
 type Rcic = {
   id: number;
@@ -140,6 +183,11 @@ export default function RcicUsersPage() {
   const [addError, setAddError] = React.useState<string | null>(null);
   const [saving, setSaving] = React.useState(false);
 
+  const [syncStatus, setSyncStatus] = React.useState<SyncStatus | null>(null);
+  const [syncLoading, setSyncLoading] = React.useState(false);
+  const [syncStarting, setSyncStarting] = React.useState(false);
+  const [syncMsg, setSyncMsg] = React.useState<{ text: string; ok: boolean } | null>(null);
+
   const fileRef = React.useRef<HTMLInputElement>(null);
 
   // Debounce search
@@ -173,6 +221,51 @@ export default function RcicUsersPage() {
   }, [page, debouncedSearch, statusFilter, entitledFilter]);
 
   React.useEffect(() => { fetchData(); }, [fetchData]);
+
+  const fetchSyncStatus = React.useCallback(async () => {
+    setSyncLoading(true);
+    try {
+      const res = await fetch(`${API}/admin/rcic-consultants/sync-status`, {
+        headers: authBearer(),
+      });
+      const json = await res.json();
+      if (res.ok) setSyncStatus(json);
+    } catch {
+      /* ignore — list still usable */
+    } finally {
+      setSyncLoading(false);
+    }
+  }, []);
+
+  React.useEffect(() => { void fetchSyncStatus(); }, [fetchSyncStatus]);
+
+  React.useEffect(() => {
+    if (!syncStatus?.is_running) return;
+    const t = setInterval(() => { void fetchSyncStatus(); }, 4000);
+    return () => clearInterval(t);
+  }, [syncStatus?.is_running, fetchSyncStatus]);
+
+  const handleSyncNow = async () => {
+    setSyncStarting(true);
+    setSyncMsg(null);
+    try {
+      const res = await fetch(`${API}/admin/rcic-consultants/sync`, {
+        method: "POST",
+        headers: authBearer(),
+      });
+      const json = await res.json();
+      setSyncMsg({
+        text: json.message ?? (res.ok || res.status === 202 ? "Sync started." : "Sync failed."),
+        ok: res.ok || res.status === 202,
+      });
+      if (json.status) setSyncStatus(json.status);
+      else await fetchSyncStatus();
+    } catch {
+      setSyncMsg({ text: "Network error starting sync.", ok: false });
+    } finally {
+      setSyncStarting(false);
+    }
+  };
 
   const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -337,7 +430,18 @@ export default function RcicUsersPage() {
             CICC public register — {total.toLocaleString()} records
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          <Button
+            onClick={handleSyncNow}
+            disabled={syncStarting || !!syncStatus?.is_running}
+          >
+            <CloudDownload className={`mr-2 h-4 w-4 ${syncStarting || syncStatus?.is_running ? "animate-pulse" : ""}`} />
+            {syncStatus?.is_running ? "Sync running…" : syncStarting ? "Starting…" : "Sync Now"}
+          </Button>
+          <Button variant="outline" onClick={() => void fetchSyncStatus()} disabled={syncLoading}>
+            <RefreshCw className={`mr-2 h-4 w-4 ${syncLoading ? "animate-spin" : ""}`} />
+            Refresh status
+          </Button>
           <Button onClick={() => { setAddForm({ ...EMPTY_ADD_FORM }); setAddError(null); setAddOpen(true); }}>
             <PlusCircle className="mr-2 h-4 w-4" />
             Add New RCIC Consultant
@@ -367,6 +471,101 @@ export default function RcicUsersPage() {
           </Button>
         </div>
       </div>
+
+      <div className="rounded-xl border bg-blue-50/50 border-blue-200 p-4 space-y-3">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="font-semibold text-sm text-blue-900">CICC register auto-sync</p>
+            <p className="text-xs text-blue-800 mt-1">
+              {syncStatus?.auto_sync.description
+                ?? "Scrapes the CICC public register and upserts consultant records by profile ID."}
+            </p>
+          </div>
+          {syncStatus?.is_running ? (
+            <Badge variant="warning">Running</Badge>
+          ) : syncStatus?.latest_run?.status === "failed" ? (
+            <Badge variant="destructive">Last run failed</Badge>
+          ) : syncStatus?.last_successful_run ? (
+            <Badge variant="success">Up to date</Badge>
+          ) : (
+            <Badge variant="outline">No sync yet</Badge>
+          )}
+        </div>
+        <div className="flex flex-wrap gap-3 text-xs text-blue-800">
+          <span className="inline-flex items-center gap-1 rounded-md bg-blue-100/80 px-2 py-1">
+            <Clock className="h-3 w-3" />
+            {syncStatus?.auto_sync.schedule ?? "Weekly on Sunday at 2:00 AM (America/Toronto)"}
+          </span>
+          <span className="inline-flex items-center gap-1 rounded-md bg-blue-100/80 px-2 py-1">
+            Command: <code className="font-mono">{syncStatus?.auto_sync.command ?? "rcic:sync-register"}</code>
+          </span>
+          {syncStatus?.last_scraped_at && (
+            <span className="inline-flex items-center gap-1 rounded-md bg-blue-100/80 px-2 py-1">
+              Last scraped: {new Date(syncStatus.last_scraped_at).toLocaleString()}
+            </span>
+          )}
+          {typeof syncStatus?.scrape_error_count === "number" && (
+            <span className="inline-flex items-center gap-1 rounded-md bg-blue-100/80 px-2 py-1">
+              Scrape errors: {syncStatus.scrape_error_count.toLocaleString()}
+            </span>
+          )}
+        </div>
+        {(syncStatus?.running_run || syncStatus?.latest_run) && (
+          <div className="space-y-1.5 text-xs text-blue-900">
+            <p>
+              {(syncStatus.running_run ?? syncStatus.latest_run)?.current_step
+                ?? "Waiting…"}
+            </p>
+            {syncStatus.is_running && (
+              <div className="h-2 w-full overflow-hidden rounded-full bg-blue-100">
+                <div
+                  className="h-full bg-blue-600 transition-all"
+                  style={{
+                    width: `${Math.min(100, syncStatus.running_run?.progress_percent ?? 0)}%`,
+                  }}
+                />
+              </div>
+            )}
+            {(syncStatus.running_run ?? syncStatus.latest_run)?.stats && (
+              <p className="text-blue-800">
+                Created {(syncStatus.running_run ?? syncStatus.latest_run)?.stats?.created ?? 0}
+                {" · "}Updated {(syncStatus.running_run ?? syncStatus.latest_run)?.stats?.updated ?? 0}
+                {" · "}Errors {(syncStatus.running_run ?? syncStatus.latest_run)?.stats?.errors ?? 0}
+                {" · "}Not found {(syncStatus.running_run ?? syncStatus.latest_run)?.stats?.not_found ?? 0}
+              </p>
+            )}
+            {(syncStatus.running_run ?? syncStatus.latest_run)?.error_message && (
+              <p className="text-red-700">
+                {(syncStatus.running_run ?? syncStatus.latest_run)?.error_message}
+              </p>
+            )}
+          </div>
+        )}
+        <p className="text-xs text-blue-700">
+          Full sync controls live under{" "}
+          <a href="/admindashboard/cicc-register-sync" className="underline font-medium">
+            Platform → CICC Register Sync
+          </a>
+          . Requires server cron (<code className="font-mono">schedule:run</code>) and a queue worker
+          (<code className="font-mono">queue:work</code>). CSV Import remains available as a manual fallback.
+        </p>
+      </div>
+
+      {syncMsg && (
+        <div
+          className={`flex items-center gap-2 rounded-lg border px-4 py-3 text-sm ${
+            syncMsg.ok
+              ? "border-green-200 bg-green-50 text-green-800"
+              : "border-red-200 bg-red-50 text-red-800"
+          }`}
+        >
+          {syncMsg.ok ? <CheckCircle2 className="h-4 w-4 shrink-0" /> : <AlertCircle className="h-4 w-4 shrink-0" />}
+          <span>{syncMsg.text}</span>
+          <button type="button" className="ml-auto" onClick={() => setSyncMsg(null)}>
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
 
       {/* Import result */}
       {importMsg && (

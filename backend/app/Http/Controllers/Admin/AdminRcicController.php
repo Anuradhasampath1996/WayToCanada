@@ -3,13 +3,70 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\RunRcicRegisterSyncJob;
 use App\Models\RcicConsultant;
+use App\Services\RcicRegisterSyncService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class AdminRcicController extends Controller
 {
+    /**
+     * GET /api/v1/admin/rcic-consultants/sync-status
+     */
+    public function syncStatus(RcicRegisterSyncService $sync): JsonResponse
+    {
+        return response()->json($sync->syncStatus());
+    }
+
+    /**
+     * POST /api/v1/admin/rcic-consultants/sync
+     * Queue a full CICC public register scrape (upsert by profile_id).
+     */
+    public function sync(RcicRegisterSyncService $sync): JsonResponse
+    {
+        if ($sync->hasActiveRun()) {
+            $status = $sync->syncStatus();
+
+            return response()->json([
+                'message' => 'A CICC register sync is already queued or running.',
+                'status'  => $status,
+            ], 202);
+        }
+
+        $run = $sync->startSyncRun('manual');
+
+        if (! $run) {
+            return response()->json([
+                'message' => 'A CICC register sync is already queued or running.',
+                'status'  => $sync->syncStatus(),
+            ], 202);
+        }
+
+        $queueWarning = config('queue.default') === 'sync'
+            ? 'Queue driver is "sync". For long scrapes set QUEUE_CONNECTION=database and run: php artisan queue:work'
+            : null;
+
+        if (config('queue.default') === 'sync') {
+            $sync->runSync($run->fresh());
+
+            return response()->json([
+                'message' => 'CICC register sync completed (sync queue driver).',
+                'warning' => $queueWarning,
+                'status'  => $sync->syncStatus(),
+            ]);
+        }
+
+        RunRcicRegisterSyncJob::dispatch($run->id);
+
+        return response()->json([
+            'message' => 'CICC register sync started in the background.',
+            'warning' => $queueWarning,
+            'status'  => $sync->syncStatus(),
+        ], 202);
+    }
+
     /**
      * GET /api/v1/admin/rcic-consultants
      * Paginated, searchable CICC public register.
