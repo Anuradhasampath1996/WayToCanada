@@ -89,6 +89,45 @@ class AdminRcicController extends Controller
     }
 
     /**
+     * POST /api/v1/admin/rcic-consultants/sync-enrich
+     * Enrich Status/City/Province/Email/Phone for existing consultants only.
+     */
+    public function syncEnrich(RcicRegisterSyncService $sync): JsonResponse
+    {
+        if ($sync->hasActiveRun()) {
+            return response()->json([
+                'message' => 'A CICC register sync is already queued or running.',
+                'status'  => $sync->syncStatus(),
+            ], 202);
+        }
+
+        $run = $sync->startEnrichOnlyRun();
+
+        if (! $run) {
+            return response()->json([
+                'message' => 'A CICC register sync is already queued or running.',
+                'status'  => $sync->syncStatus(),
+            ], 202);
+        }
+
+        if (config('queue.default') === 'sync') {
+            $sync->runSync($run->fresh());
+
+            return response()->json([
+                'message' => 'Contact enrichment completed (sync queue driver).',
+                'status'  => $sync->syncStatus(),
+            ]);
+        }
+
+        RunRcicRegisterSyncJob::dispatch($run->id);
+
+        return response()->json([
+            'message' => 'Contact enrichment started — filling Status, City, Province, Email, and Phone.',
+            'status'  => $sync->syncStatus(),
+        ], 202);
+    }
+
+    /**
      * GET /api/v1/admin/rcic-consultants
      * Paginated, searchable CICC public register.
      *

@@ -47,16 +47,17 @@ class RcicRegisterSyncService
             'auto_sync'           => [
                 'command'     => 'rcic:sync-register',
                 'schedule'    => 'Weekly on Sunday at 2:00 AM (America/Toronto)',
-                'description' => 'Pages the full CICC RCIC/RISIA search, then enriches Status/City/Province/Email/Phone from Licensee Details.',
+                'description' => 'Pages the CICC RCIC/RISIA search and enriches Status/City/Province/Email/Phone from Licensee Details as each page is scraped.',
             ],
             'config'              => [
-                'delay_ms'            => (int) config('rcic_register.delay_ms'),
-                'search_terms'        => config('rcic_register.search_terms'),
-                'include_risia'       => (bool) config('rcic_register.include_risia'),
-                'enrich_profiles'     => (bool) config('rcic_register.enrich_profiles'),
-                'enrich_only_missing' => (bool) config('rcic_register.enrich_only_missing'),
-                'search_url'          => config('rcic_register.search_url'),
-                'risia_search_url'    => config('rcic_register.risia_search_url'),
+                'delay_ms'              => (int) config('rcic_register.delay_ms'),
+                'search_terms'          => config('rcic_register.search_terms'),
+                'include_risia'         => (bool) config('rcic_register.include_risia'),
+                'enrich_profiles'       => (bool) config('rcic_register.enrich_profiles'),
+                'enrich_during_search'  => (bool) config('rcic_register.enrich_during_search'),
+                'enrich_only_missing'   => (bool) config('rcic_register.enrich_only_missing'),
+                'search_url'            => config('rcic_register.search_url'),
+                'risia_search_url'      => config('rcic_register.risia_search_url'),
             ],
         ];
     }
@@ -87,7 +88,9 @@ class RcicRegisterSyncService
         return RcicRegisterSyncRun::create([
             'status'       => 'pending',
             'trigger'      => $trigger,
-            'current_step' => 'Queued',
+            'current_step' => $trigger === 'manual_enrich'
+                ? 'Queued enrich-only (Status/City/Province/Email/Phone)…'
+                : 'Queued',
             'stats'        => [
                 'updated'   => 0,
                 'created'   => 0,
@@ -99,6 +102,11 @@ class RcicRegisterSyncService
                 'enriched'  => 0,
             ],
         ]);
+    }
+
+    public function startEnrichOnlyRun(): ?RcicRegisterSyncRun
+    {
+        return $this->startSyncRun('manual_enrich');
     }
 
     public function hasActiveRun(): bool
@@ -211,6 +219,11 @@ class RcicRegisterSyncService
             $this->stopIfRequested($run, $stats);
 
             return $stats;
+        }
+
+        // Enrich-only: fill Status/City/Province/Email/Phone for existing rows.
+        if ($run->trigger === 'manual_enrich') {
+            return $this->executeEnrichOnly($run, $stats);
         }
 
         $terms = config('rcic_register.search_terms', range('a', 'z'));
@@ -351,30 +364,61 @@ class RcicRegisterSyncService
     }
 
     /**
+     * @param  array<string, int>  $stats
+     * @return array<string, int>
+     */
+    private function executeEnrichOnly(RcicRegisterSyncRun $run, array $stats): array
+    {
+        $started = RcicRegisterSyncRun::query()
+            ->whereKey($run->id)
+            ->whereNotIn('status', ['cancelled', 'cancel_requested', 'completed', 'failed'])
+            ->update([
+                'status'          => 'running',
+                'started_at'      => now(),
+                'total_steps'     => 1,
+                'completed_steps' => 0,
+                'current_step'    => 'Enriching Licensee Details for existing consultants…',
+                'stats'           => $stats,
+                'error_message'   => null,
+            ]);
+
+        $run->refresh();
+
+        if ($started === 0 || $this->stopIfRequested($run, $stats)) {
+            return $stats;
+        }
+
+        $this->enrichProfiles($run, $stats, 0);
+
+        if (in_array($run->fresh()->status, ['failed', 'cancelled'], true)) {
+            return $stats;
+        }
+
+        $run->update([
+            'status'          => 'completed',
+            'finished_at'     => now(),
+            'completed_steps' => max(1, (int) $run->fresh()->total_steps),
+            'stats'           => $stats,
+            'current_step'    => sprintf(
+                'Enrich complete — enriched %d, errors %d, not found %d (DB total %d)',
+                $stats['enriched'],
+                $stats['errors'],
+                $stats['not_found'],
+                RcicConsultant::count()
+            ),
+        ]);
+
+        return $stats;
+    }
+
+    /**
      * Fill Status / City / Province / Email / Phone from Licensee Details tab.
      *
      * @param  array<string, int>  $stats
      */
     private function enrichProfiles(RcicRegisterSyncRun $run, array &$stats, int $searchStepsDone): void
     {
-        $query = RcicConsultant::query()->orderBy('profile_id');
-
-        if (config('rcic_register.enrich_only_missing', true)) {
-            $query->where(function ($q) {
-                $q->whereNull('status')
-                    ->orWhere('status', '')
-                    ->orWhereNull('city')
-                    ->orWhere('city', '')
-                    ->orWhereNull('province')
-                    ->orWhere('province', '')
-                    ->orWhereNull('email')
-                    ->orWhere('email', '')
-                    ->orWhereNull('phone')
-                    ->orWhere('phone', '');
-            });
-        }
-
-        $ids = $query->pluck('profile_id')->map(fn ($id) => (int) $id)->all();
+        $ids = $this->missingEnrichmentProfileIds();
         $total = count($ids);
 
         if ($total === 0) {
@@ -409,35 +453,10 @@ class RcicRegisterSyncService
                 'stats'           => $stats,
             ]);
 
-            try {
-                $details = $this->fetchLicenseeDetails($profileId);
-                if ($details === []) {
-                    $stats['not_found']++;
-                } else {
-                    RcicConsultant::where('profile_id', $profileId)->update($details);
-                    $stats['enriched']++;
-                    $stats['updated']++;
-                }
-                $this->consecutiveSystemicFailures = 0;
-            } catch (\Throwable $e) {
-                Log::warning('RCIC profile enrich failed', [
-                    'profile_id' => $profileId,
-                    'error'      => $e->getMessage(),
-                ]);
-                $stats['errors']++;
+            $this->enrichOneProfile($run, $profileId, $stats, $searchStepsDone + $index);
 
-                if ($this->consecutiveSystemicFailures >= (int) config('rcic_register.max_consecutive_systemic_failures', 8)) {
-                    $run->update([
-                        'status'          => 'failed',
-                        'finished_at'     => now(),
-                        'completed_steps' => $searchStepsDone + $index,
-                        'stats'           => $stats,
-                        'error_message'   => 'Aborted during profile enrichment: '.$e->getMessage(),
-                        'current_step'    => 'Failed',
-                    ]);
-
-                    return;
-                }
+            if ($run->fresh()->status === 'failed') {
+                return;
             }
 
             $this->throttle();
@@ -447,6 +466,145 @@ class RcicRegisterSyncService
             'completed_steps' => $searchStepsDone + $total,
             'stats'           => $stats,
         ]);
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function missingEnrichmentProfileIds(?array $limitToProfileIds = null): array
+    {
+        $query = RcicConsultant::query()->orderBy('profile_id');
+
+        if ($limitToProfileIds !== null) {
+            $query->whereIn('profile_id', $limitToProfileIds);
+        }
+
+        if (config('rcic_register.enrich_only_missing', true)) {
+            $query->where(function ($q) {
+                $q->whereNull('status')
+                    ->orWhere('status', '')
+                    ->orWhereNull('city')
+                    ->orWhere('city', '')
+                    ->orWhereNull('province')
+                    ->orWhere('province', '')
+                    ->orWhereNull('email')
+                    ->orWhere('email', '')
+                    ->orWhereNull('phone')
+                    ->orWhere('phone', '');
+            });
+        }
+
+        return $query->pluck('profile_id')->map(fn ($id) => (int) $id)->all();
+    }
+
+    /**
+     * Enrich profiles from the latest search page so contact fields appear mid-sync.
+     *
+     * @param  list<int>  $profileIds
+     * @param  array<string, int>  $stats
+     * @return bool True when stop was requested
+     */
+    private function enrichProfileIdsDuringSearch(
+        RcicRegisterSyncRun $run,
+        array $profileIds,
+        array &$stats,
+        string $sourceLabel,
+        string $term,
+        int $pageNumber,
+        int $pageCount,
+        int $queryIndex,
+        int $totalQueries,
+    ): bool {
+        if (! config('rcic_register.enrich_profiles', true)
+            || ! config('rcic_register.enrich_during_search', true)
+            || $profileIds === []
+        ) {
+            return false;
+        }
+
+        $ids = $this->missingEnrichmentProfileIds($profileIds);
+        $total = count($ids);
+        if ($total === 0) {
+            return false;
+        }
+
+        foreach ($ids as $index => $profileId) {
+            if ($this->stopIfRequested($run, $stats)) {
+                return true;
+            }
+
+            $run->update([
+                'current_step' => sprintf(
+                    '%s %s page %d%s — enriching %d/%d (query %d/%d)',
+                    $sourceLabel,
+                    $term === '' ? 'full register' : '“'.$term.'”',
+                    $pageNumber,
+                    $pageCount ? "/{$pageCount}" : '',
+                    $index + 1,
+                    $total,
+                    $queryIndex,
+                    $totalQueries
+                ),
+                'stats' => $stats,
+            ]);
+
+            $this->enrichOneProfile($run, $profileId, $stats);
+            if ($run->fresh()->status === 'failed') {
+                return true;
+            }
+
+            $this->throttle();
+        }
+
+        return false;
+    }
+
+    /**
+     * @param  array<string, int>  $stats
+     */
+    private function enrichOneProfile(
+        RcicRegisterSyncRun $run,
+        int $profileId,
+        array &$stats,
+        ?int $completedStepsOnFailure = null,
+    ): void {
+        try {
+            $details = $this->fetchLicenseeDetails($profileId);
+            $hasContact = isset($details['status'])
+                || isset($details['city'])
+                || isset($details['province'])
+                || isset($details['email'])
+                || isset($details['phone']);
+
+            if ($details !== []) {
+                RcicConsultant::where('profile_id', $profileId)->update($details);
+            }
+
+            if ($hasContact) {
+                $stats['enriched']++;
+                $stats['updated']++;
+            } else {
+                $stats['not_found']++;
+            }
+            $this->consecutiveSystemicFailures = 0;
+        } catch (\Throwable $e) {
+            Log::warning('RCIC profile enrich failed', [
+                'profile_id' => $profileId,
+                'error'      => $e->getMessage(),
+            ]);
+            $stats['errors']++;
+
+            if ($this->consecutiveSystemicFailures >= (int) config('rcic_register.max_consecutive_systemic_failures', 8)) {
+                $run->update([
+                    'status'          => 'failed',
+                    'finished_at'     => now(),
+                    'completed_steps' => $completedStepsOnFailure ?? $run->completed_steps,
+                    'stats'           => $stats,
+                    'error_message'   => 'Aborted during profile enrichment: '.$e->getMessage(),
+                    'current_step'    => 'Failed',
+                ]);
+            }
+        }
     }
 
     /**
@@ -589,9 +747,6 @@ class RcicRegisterSyncService
 
     /**
      * @param  array<string, int>  $stats
-     */
-    /**
-     * @param  array<string, int>  $stats
      * @return bool True when stop was requested and applied
      */
     private function scrapeSearchTerm(
@@ -628,9 +783,13 @@ class RcicRegisterSyncService
             $seenPageIndexes[$pageIndex] = true;
 
             $rows = $this->parseSearchResultRows($html);
+            $pageProfileIds = [];
             foreach ($rows as $row) {
                 $result = $this->upsertSearchRow($row);
                 $stats[$result]++;
+                if (! empty($row['profile_id'])) {
+                    $pageProfileIds[] = (int) $row['profile_id'];
+                }
             }
 
             $stats['pages']++;
@@ -650,6 +809,24 @@ class RcicRegisterSyncService
                 ),
                 'stats' => $stats,
             ]);
+
+            if ($this->enrichProfileIdsDuringSearch(
+                $run,
+                $pageProfileIds,
+                $stats,
+                $sourceLabel,
+                $term,
+                $pageIndex + 1,
+                $pageCount ?? 0,
+                $queryIndex,
+                $totalQueries,
+            )) {
+                return true;
+            }
+
+            if ($run->fresh()->status === 'failed') {
+                return true;
+            }
 
             if ($maxPages > 0 && $page >= $maxPages) {
                 break;

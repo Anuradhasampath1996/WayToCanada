@@ -640,6 +640,7 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('sync-status',    [AdminRcicController::class, 'syncStatus'])->name('sync-status');
             Route::post('sync',          [AdminRcicController::class, 'sync'])->name('sync');
             Route::post('sync-stop',     [AdminRcicController::class, 'stopSync'])->name('sync-stop');
+            Route::post('sync-enrich',   [AdminRcicController::class, 'syncEnrich'])->name('sync-enrich');
             Route::get('/',              [AdminRcicController::class, 'index'])->name('index');
             Route::post('/',             [AdminRcicController::class, 'store'])->name('store');
             Route::get('{profileId}',    [AdminRcicController::class, 'show'])->name('show');

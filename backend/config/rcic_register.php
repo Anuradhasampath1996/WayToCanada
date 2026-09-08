@@ -48,6 +48,12 @@ return [
      */
     'enrich_profiles' => filter_var(env('RCIC_SCRAPE_ENRICH_PROFILES', true), FILTER_VALIDATE_BOOL),
 
+    /**
+     * Enrich each search-result page immediately (so Status/City/Email/Phone
+     * appear while sync is still running — not only after the full register).
+     */
+    'enrich_during_search' => filter_var(env('RCIC_SCRAPE_ENRICH_DURING_SEARCH', true), FILTER_VALIDATE_BOOL),
+
     /** Only enrich rows missing status/city/email/phone (recommended). */
     'enrich_only_missing' => filter_var(env('RCIC_SCRAPE_ENRICH_ONLY_MISSING', true), FILTER_VALIDATE_BOOL),
 

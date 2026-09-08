@@ -4,7 +4,7 @@ import * as React from "react";
 import {
   Upload, Download, Search, ExternalLink, ChevronLeft, ChevronRight,
   X, Filter, Trash2, MoreHorizontal, Eye, Pencil, PlusCircle,
-  RefreshCw, CloudDownload, Clock, CheckCircle2, AlertCircle, Square,
+  RefreshCw, CloudDownload, Clock, CheckCircle2, AlertCircle, Square, MapPin,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -186,6 +186,7 @@ export default function RcicUsersPage() {
   const [syncStatus, setSyncStatus] = React.useState<SyncStatus | null>(null);
   const [syncLoading, setSyncLoading] = React.useState(false);
   const [syncStarting, setSyncStarting] = React.useState(false);
+  const [syncEnriching, setSyncEnriching] = React.useState(false);
   const [syncStopping, setSyncStopping] = React.useState(false);
   const [syncMsg, setSyncMsg] = React.useState<{ text: string; ok: boolean } | null>(null);
 
@@ -287,6 +288,28 @@ export default function RcicUsersPage() {
       setSyncMsg({ text: "Network error stopping sync.", ok: false });
     } finally {
       setSyncStopping(false);
+    }
+  };
+
+  const handleEnrichContacts = async () => {
+    setSyncEnriching(true);
+    setSyncMsg(null);
+    try {
+      const res = await fetch(`${API}/admin/rcic-consultants/sync-enrich`, {
+        method: "POST",
+        headers: authBearer(),
+      });
+      const json = await res.json();
+      setSyncMsg({
+        text: json.message ?? (res.ok || res.status === 202 ? "Enrichment started." : "Enrichment failed."),
+        ok: res.ok || res.status === 202,
+      });
+      if (json.status) setSyncStatus(json.status);
+      else await fetchSyncStatus();
+    } catch {
+      setSyncMsg({ text: "Network error starting enrichment.", ok: false });
+    } finally {
+      setSyncEnriching(false);
     }
   };
 
@@ -464,13 +487,23 @@ export default function RcicUsersPage() {
               {syncStopping ? "Stopping…" : "Stop Sync"}
             </Button>
           ) : (
-            <Button
-              onClick={handleSyncNow}
-              disabled={syncStarting}
-            >
-              <CloudDownload className={`mr-2 h-4 w-4 ${syncStarting ? "animate-pulse" : ""}`} />
-              {syncStarting ? "Starting…" : "Sync Now"}
-            </Button>
+            <>
+              <Button
+                onClick={handleSyncNow}
+                disabled={syncStarting || syncEnriching}
+              >
+                <CloudDownload className={`mr-2 h-4 w-4 ${syncStarting ? "animate-pulse" : ""}`} />
+                {syncStarting ? "Starting…" : "Sync Now"}
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={() => void handleEnrichContacts()}
+                disabled={syncStarting || syncEnriching}
+              >
+                <MapPin className={`mr-2 h-4 w-4 ${syncEnriching ? "animate-pulse" : ""}`} />
+                {syncEnriching ? "Starting…" : "Enrich contacts"}
+              </Button>
+            </>
           )}
           <Button variant="outline" onClick={() => void fetchSyncStatus()} disabled={syncLoading}>
             <RefreshCw className={`mr-2 h-4 w-4 ${syncLoading ? "animate-spin" : ""}`} />

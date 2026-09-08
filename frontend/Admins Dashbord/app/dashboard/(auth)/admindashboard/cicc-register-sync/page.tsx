@@ -11,6 +11,7 @@ import {
   RefreshCw,
   Square,
   Users,
+  MapPin,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -112,6 +113,7 @@ export default function CiccRegisterSyncPage() {
   const [status, setStatus] = React.useState<SyncStatus | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [syncing, setSyncing] = React.useState(false);
+  const [enriching, setEnriching] = React.useState(false);
   const [stopping, setStopping] = React.useState(false);
   const [error, setError] = React.useState("");
   const [syncMessage, setSyncMessage] = React.useState("");
@@ -165,6 +167,29 @@ export default function CiccRegisterSyncPage() {
       setError(e instanceof Error ? e.message : "Sync failed.");
     } finally {
       setSyncing(false);
+    }
+  }
+
+  async function runEnrichOnly() {
+    setEnriching(true);
+    setSyncMessage("");
+    setError("");
+    try {
+      const res = await fetch(`${API}/admin/rcic-consultants/sync-enrich`, {
+        method: "POST",
+        headers: authHeaders(),
+      });
+      const json = await res.json();
+      if (!res.ok && res.status !== 202) {
+        throw new Error(json.message ?? "Enrichment failed.");
+      }
+      setSyncMessage(json.message ?? "Contact enrichment started.");
+      if (json.status) setStatus(json.status);
+      else await loadStatus();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Enrichment failed.");
+    } finally {
+      setEnriching(false);
     }
   }
 
@@ -228,14 +253,24 @@ export default function CiccRegisterSyncPage() {
               {stopping ? "Stopping…" : "Stop Sync"}
             </Button>
           ) : (
-            <Button onClick={() => void runManualSync()} disabled={syncing || loading}>
-              <CloudDownload
-                className={`mr-2 h-4 w-4 ${syncing ? "animate-pulse" : ""}`}
-              />
-              {syncing ? "Starting…" : "Manual Sync Now"}
-            </Button>
+            <>
+              <Button onClick={() => void runManualSync()} disabled={syncing || enriching || loading}>
+                <CloudDownload
+                  className={`mr-2 h-4 w-4 ${syncing ? "animate-pulse" : ""}`}
+                />
+                {syncing ? "Starting…" : "Manual Sync Now"}
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={() => void runEnrichOnly()}
+                disabled={syncing || enriching || loading}
+              >
+                <MapPin className={`mr-2 h-4 w-4 ${enriching ? "animate-pulse" : ""}`} />
+                {enriching ? "Starting…" : "Enrich contacts"}
+              </Button>
+            </>
           )}
-          <Button variant="outline" onClick={() => void loadStatus()} disabled={loading || syncing || stopping}>
+          <Button variant="outline" onClick={() => void loadStatus()} disabled={loading || syncing || enriching || stopping}>
             <RefreshCw className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} />
             Refresh
           </Button>
