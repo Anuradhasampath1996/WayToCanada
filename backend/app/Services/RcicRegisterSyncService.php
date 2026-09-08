@@ -22,6 +22,8 @@ class RcicRegisterSyncService
     /** @var array<string, string> */
     private array $cookies = [];
 
+    private ?RcicRegisterSyncRun $activeRun = null;
+
     public function syncStatus(): array
     {
         $latest = RcicRegisterSyncRun::query()->orderByDesc('id')->first();
@@ -194,7 +196,13 @@ class RcicRegisterSyncService
 
     public function runSync(RcicRegisterSyncRun $run): array
     {
-        return $this->executeSync($run);
+        $this->activeRun = $run;
+
+        try {
+            return $this->executeSync($run);
+        } finally {
+            $this->activeRun = null;
+        }
     }
 
     private function executeSync(RcicRegisterSyncRun $run): array
@@ -298,6 +306,12 @@ class RcicRegisterSyncService
                     $stats['queries']++;
                     $this->consecutiveSystemicFailures = 0;
                 } catch (\Throwable $e) {
+                    if (str_contains($e->getMessage(), 'Sync stopped by admin')) {
+                        $this->stopIfRequested($run, $stats);
+
+                        return $stats;
+                    }
+
                     Log::warning('RCIC register search scrape failed', [
                         'source' => $source['label'],
                         'term'   => $term,
@@ -588,11 +602,20 @@ class RcicRegisterSyncService
             }
             $this->consecutiveSystemicFailures = 0;
         } catch (\Throwable $e) {
+            if (str_contains($e->getMessage(), 'Sync stopped by admin')) {
+                throw $e;
+            }
+
             Log::warning('RCIC profile enrich failed', [
                 'profile_id' => $profileId,
                 'error'      => $e->getMessage(),
             ]);
             $stats['errors']++;
+
+            RcicConsultant::where('profile_id', $profileId)->update([
+                'scrape_status' => 'error',
+                'scraped_at'    => now(),
+            ]);
 
             if ($this->consecutiveSystemicFailures >= (int) config('rcic_register.max_consecutive_systemic_failures', 8)) {
                 $run->update([
@@ -1052,6 +1075,17 @@ class RcicRegisterSyncService
         return [$parts[0] ?? null, $parts[1] ?? null];
     }
 
+    private function isStopRequested(): bool
+    {
+        if (! $this->activeRun) {
+            return false;
+        }
+
+        $this->activeRun->refresh();
+
+        return in_array($this->activeRun->status, ['cancel_requested', 'cancelled'], true);
+    }
+
     /**
      * @param  array<string, string>|null  $payload
      */
@@ -1062,6 +1096,10 @@ class RcicRegisterSyncService
         $lastError = 'unknown';
 
         for ($attempt = 1; $attempt <= $retries; $attempt++) {
+            if ($this->isStopRequested()) {
+                throw new \RuntimeException('Sync stopped by admin');
+            }
+
             try {
                 $request = $this->http();
                 /** @var Response $response */
@@ -1073,7 +1111,7 @@ class RcicRegisterSyncService
 
                 if (in_array($status, [429, 403], true) || $response->serverError()) {
                     $lastError = "HTTP {$status}";
-                    $wait = $backoff * (2 ** ($attempt - 1));
+                    $wait = min(60, $backoff * (2 ** ($attempt - 1)));
                     $this->adaptiveDelayMs = max($this->adaptiveDelayMs, (int) config('rcic_register.delay_ms', 1200) * 2);
                     Log::warning('CICC register rate-limited/blocked; backing off', [
                         'url'     => $url,
@@ -1081,7 +1119,23 @@ class RcicRegisterSyncService
                         'attempt' => $attempt,
                         'wait_s'  => $wait,
                     ]);
-                    sleep(min(300, $wait));
+
+                    if ($this->activeRun) {
+                        $this->activeRun->update([
+                            'current_step' => sprintf(
+                                'HTTP %s — waiting %ds before retry %d/%d…',
+                                $status,
+                                $wait,
+                                $attempt,
+                                $retries
+                            ),
+                        ]);
+                    }
+
+                    if ($this->sleepInterruptible($wait)) {
+                        throw new \RuntimeException('Sync stopped by admin');
+                    }
+
                     continue;
                 }
 
@@ -1099,18 +1153,51 @@ class RcicRegisterSyncService
                 throw $e;
             } catch (\Throwable $e) {
                 $lastError = $e->getMessage();
-                $wait = $backoff * $attempt;
+                $wait = min(45, $backoff * $attempt);
                 Log::warning('CICC register request exception; retrying', [
                     'url'     => $url,
                     'attempt' => $attempt,
                     'error'   => $lastError,
                 ]);
-                sleep(min(120, $wait));
+
+                if ($this->activeRun) {
+                    $this->activeRun->update([
+                        'current_step' => sprintf(
+                            'Request error — waiting %ds before retry %d/%d (%s)',
+                            $wait,
+                            $attempt,
+                            $retries,
+                            Str::limit($lastError, 80, '')
+                        ),
+                    ]);
+                }
+
+                if ($this->sleepInterruptible($wait)) {
+                    throw new \RuntimeException('Sync stopped by admin');
+                }
             }
         }
 
         $this->consecutiveSystemicFailures++;
         throw new \RuntimeException("Exhausted retries for {$url}: {$lastError}");
+    }
+
+    /**
+     * Sleep in short slices so Stop can take effect during long 429 backoffs.
+     */
+    private function sleepInterruptible(int $seconds): bool
+    {
+        $deadline = time() + max(0, $seconds);
+
+        while (time() < $deadline) {
+            if ($this->isStopRequested()) {
+                return true;
+            }
+
+            sleep(min(2, max(1, $deadline - time())));
+        }
+
+        return false;
     }
 
     private function extractInputValue(string $html, string $name): string
@@ -1128,7 +1215,9 @@ class RcicRegisterSyncService
 
     private function http(): PendingRequest
     {
-        $request = Http::timeout((int) config('rcic_register.http_timeout', 60))
+        $timeout = max(10, (int) config('rcic_register.http_timeout', 45));
+        $request = Http::timeout($timeout)
+            ->connectTimeout(min(15, $timeout))
             ->withHeaders([
                 'User-Agent'      => (string) config('rcic_register.user_agent'),
                 'Accept'          => 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',

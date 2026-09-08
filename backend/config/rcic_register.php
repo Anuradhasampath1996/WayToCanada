@@ -66,7 +66,7 @@ return [
     /** Abort the run after this many consecutive exhausted HTTP retries. */
     'max_consecutive_systemic_failures' => (int) env('RCIC_SCRAPE_MAX_SYSTEMIC_FAILURES', 8),
 
-    'http_timeout' => (int) env('RCIC_SCRAPE_HTTP_TIMEOUT', 60),
+    'http_timeout' => (int) env('RCIC_SCRAPE_HTTP_TIMEOUT', 45),
 
     /** Safety cap per last-name term (0 = no cap). */
     'max_pages_per_term' => (int) env('RCIC_SCRAPE_MAX_PAGES_PER_TERM', 0),
