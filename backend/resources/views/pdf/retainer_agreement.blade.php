@@ -23,6 +23,13 @@
         ul { margin: 4px 0 4px 16px; padding: 0; }
         li { margin-bottom: 3px; }
         .prose p { margin: 3px 0; }
+        .party-card { width: 48%; display: inline-block; vertical-align: top; border-top: 2px solid #1d4ed8; background: #f8fafc; padding: 8px; box-sizing: border-box; }
+        .party-card + .party-card { margin-left: 2%; border-top-color: #444; }
+        .party-label { color: #1d4ed8; font-size: 8px; font-weight: bold; letter-spacing: 1px; text-transform: uppercase; }
+        .party-name { font-size: 11px; font-weight: bold; margin: 5px 0; }
+        .party-row { margin: 2px 0; }
+        .party-key { color: #666; display: inline-block; width: 82px; }
+        .section-text { white-space: pre-line; }
     </style>
 </head>
 <body>
@@ -39,6 +46,15 @@
         ]))),
         $consultantProfile['company_country'] ?? null,
     ])->filter()->values();
+    $sectionEdits = is_array($config['sectionEdits'] ?? null) ? $config['sectionEdits'] : [];
+    $taxEnabled = (bool) ($config['taxEnabled'] ?? false) && (float) ($config['taxRate'] ?? 0) > 0;
+    $taxLabel = $config['taxLabel'] ?? 'Tax';
+    $taxRate = (float) ($config['taxRate'] ?? 0);
+    $taxAmount = $taxEnabled ? round((float) $config['totalFee'] * $taxRate) / 100 : 0;
+    $taxM1 = $taxEnabled ? round($m1 * $taxRate) / 100 : 0;
+    $taxM2 = $taxEnabled ? round($m2 * $taxRate) / 100 : 0;
+    $taxM3 = $taxEnabled ? round($m3 * $taxRate) / 100 : 0;
+    $grandTotal = (float) $config['totalFee'] + $taxAmount;
 @endphp
 
     <div class="header">
@@ -86,79 +102,142 @@
     </div>
 
     <div class="section-title">1. Parties to this Agreement</div>
-    <p>This Retainer Agreement is made effective as of <strong>{{ $docDate }}</strong> between the parties identified below.</p>
-    <table>
-        <thead>
-            <tr><th>Detail</th><th>Immigration Consultant</th><th>Client</th></tr>
-        </thead>
-        <tbody>
-            <tr><td>Full legal name</td><td>{{ $consultantName ?: '—' }}</td><td>{{ $displayClient ?: '—' }}</td></tr>
-            <tr><td>RCIC licence no.</td><td>{{ $rcicNo ?: '—' }}</td><td>—</td></tr>
-            <tr><td>Email</td><td>{{ $consultantProfile['email'] ?? '—' }}</td><td>{{ $details['email'] ?? $clientEmail ?: '—' }}</td></tr>
-            <tr><td>Telephone</td><td>{{ $companyPhone ?: '—' }}</td><td>{{ $details['phone'] ?? '—' }}</td></tr>
-            <tr><td>Residential address</td><td>{{ $companyAddress ?: '—' }}</td><td>{{ $details['residentialAddress'] ?? '—' }}</td></tr>
-            <tr><td>Date of birth</td><td>—</td><td>{{ $details['dateOfBirth'] ?? '—' }}</td></tr>
-            <tr><td>Passport / travel document no.</td><td>—</td><td>{{ $details['passportNumber'] ?? '—' }}</td></tr>
-            <tr><td>Country of citizenship</td><td>—</td><td>{{ $details['citizenship'] ?? '—' }}</td></tr>
-        </tbody>
-    </table>
+    @if(!empty($sectionEdits['parties']))
+        <div class="section-text">{!! $sectionEdits['parties'] !!}</div>
+    @else
+        <p>This Retainer Agreement is made effective as of <strong>{{ $docDate }}</strong> between the parties identified below.</p>
+        <div>
+            <div class="party-card">
+                <div class="party-label">Immigration Consultant</div>
+                <div class="party-name">{{ $consultantName ?: '[Consultant Name]' }}</div>
+                @if($companyName && $companyName !== $consultantName)<div>{{ $companyName }}</div>@endif
+                @if($rcicNo)<div class="party-row"><span class="party-key">RCIC licence</span>{{ $rcicNo }}</div>@endif
+                @if(!empty($consultantProfile['email']))<div class="party-row"><span class="party-key">Email</span>{{ $consultantProfile['email'] }}</div>@endif
+                @if($companyPhone)<div class="party-row"><span class="party-key">Telephone</span>{{ $companyPhone }}</div>@endif
+                @if($companyAddress)<div class="party-row"><span class="party-key">Address</span>{{ $companyAddress }}</div>@endif
+            </div><div class="party-card">
+                <div class="party-label" style="color:#444;">Client</div>
+                <div class="party-name">{{ $displayClient ?: '[Client Full Legal Name]' }}</div>
+                @if(!empty($details['email'] ?? $clientEmail))<div class="party-row"><span class="party-key">Email</span>{{ $details['email'] ?? $clientEmail }}</div>@endif
+                @if(!empty($details['phone']))<div class="party-row"><span class="party-key">Telephone</span>{{ $details['phone'] }}</div>@endif
+                @if(!empty($details['residentialAddress']))<div class="party-row"><span class="party-key">Address</span>{{ $details['residentialAddress'] }}</div>@endif
+            </div>
+        </div>
+    @endif
 
     <div class="section-title">2. Scope of Services</div>
-    <p>Services relate to the immigration pathway: <strong>{{ $pathway ?: '[Pathway]' }}</strong>.</p>
-    @if($scopeText)<p>{{ $scopeText }}</p>@endif
+    @if(!empty($sectionEdits['scope']))
+        <div class="section-text">{!! $sectionEdits['scope'] !!}</div>
+    @else
+        <p>Services relate to the immigration pathway: <strong>{{ $pathway ?: '[Pathway]' }}</strong>.</p>
+        @if($scopeText)<p>{{ $scopeText }}</p>@endif
+    @endif
 
     <div class="section-title">3. Professional Fees &amp; Payment Milestones</div>
-    <p>Total professional fee: <strong>{{ $fmt($config['totalFee']) }}</strong> ({{ $config['currency'] }}), exclusive of taxes and government fees.</p>
-    <table>
-        <thead><tr><th>Milestone</th><th>Trigger</th><th class="right">Amount</th></tr></thead>
-        <tbody>
-            <tr><td>1 ({{ $config['milestone1Pct'] }}%)</td><td>{{ $config['milestone1Label'] }}</td><td class="right">{{ $fmt($m1) }}</td></tr>
-            <tr><td>2 ({{ $config['milestone2Pct'] }}%)</td><td>{{ $config['milestone2Label'] }}</td><td class="right">{{ $fmt($m2) }}</td></tr>
-            <tr><td>3 ({{ $config['milestone3Pct'] }}%)</td><td>{{ $config['milestone3Label'] }}</td><td class="right">{{ $fmt($m3) }}</td></tr>
-        </tbody>
-    </table>
+    @if(!empty($sectionEdits['fees']))
+        <div class="section-text">{!! $sectionEdits['fees'] !!}</div>
+    @else
+        <p>Total professional fee: <strong>{{ $fmt($config['totalFee']) }}</strong> ({{ $config['currency'] }}), exclusive of taxes and government fees.</p>
+        <table>
+            <thead><tr><th>Milestone</th><th>Trigger</th>@if($taxEnabled)<th class="right">Tax</th>@endif<th class="right">Amount due</th></tr></thead>
+            <tbody>
+                <tr><td>1 ({{ $config['milestone1Pct'] }}%)</td><td>{{ $config['milestone1Label'] }}</td>@if($taxEnabled)<td class="right">{{ $fmt($taxM1) }}</td>@endif<td class="right">{{ $fmt($m1 + $taxM1) }}</td></tr>
+                <tr><td>2 ({{ $config['milestone2Pct'] }}%)</td><td>{{ $config['milestone2Label'] }}</td>@if($taxEnabled)<td class="right">{{ $fmt($taxM2) }}</td>@endif<td class="right">{{ $fmt($m2 + $taxM2) }}</td></tr>
+                <tr><td>3 ({{ $config['milestone3Pct'] }}%)</td><td>{{ $config['milestone3Label'] }}</td>@if($taxEnabled)<td class="right">{{ $fmt($taxM3) }}</td>@endif<td class="right">{{ $fmt($m3 + $taxM3) }}</td></tr>
+            </tbody>
+        </table>
+        <p class="muted">Any advance payment will be handled in accordance with applicable CICC requirements. Only fees earned under the agreed milestones may be treated as earned fees.</p>
+        @if($taxEnabled)
+            <div style="border-top:1px solid #ddd; margin-top:7px; padding-top:6px;">
+                <div>Professional fee: <strong>{{ $fmt($config['totalFee']) }}</strong></div>
+                <div>{{ $taxLabel }} ({{ $taxRate }}%): <strong>{{ $fmt($taxAmount) }}</strong></div>
+                <div style="border-top:1px solid #ddd; margin-top:3px; padding-top:3px;"><strong>Total amount payable: {{ $fmt($grandTotal) }}</strong></div>
+                <div class="muted">Tax is calculated on the professional fee and charged proportionally with each milestone payment.</div>
+            </div>
+        @endif
+    @endif
 
     <div class="section-title">4. Government &amp; Third-Party Fees</div>
-    <p>Government fees, biometrics, medicals, language tests, translations, and third-party costs are not included unless expressly stated in writing.</p>
+    @if(!empty($sectionEdits['governmentFees']))
+        <div class="section-text">{!! $sectionEdits['governmentFees'] !!}</div>
+    @else
+        <p>Government fees, biometrics, medicals, language tests, translations, and third-party costs are not included unless expressly stated in writing.</p>
+    @endif
 
     <div class="section-title">5. Client Obligations</div>
-    <ul>
-        <li>Provide complete and genuine documents within <strong>{{ $config['docDeadlineDays'] }} calendar days</strong> of request.</li>
-        <li>Disclose material changes in circumstances promptly.</li>
-        <li>Fraudulent or misrepresented documents void this Agreement without refund.</li>
-    </ul>
+    @if(!empty($sectionEdits['clientObligations']))
+        <div class="section-text">{!! $sectionEdits['clientObligations'] !!}</div>
+    @else
+        <ul>
+            <li>Provide complete and genuine documents within <strong>{{ $config['docDeadlineDays'] }} calendar days</strong> of request.</li>
+            <li>Disclose material changes in circumstances promptly.</li>
+            <li>Fraudulent or misrepresented documents void this Agreement without refund.</li>
+        </ul>
+    @endif
 
     <div class="section-title">6. Consultant Obligations</div>
-    <ul>
-        <li>Perform services diligently and in accordance with the CICC Code of Professional Ethics.</li>
-        <li>Maintain a client file and safeguard Client information.</li>
-    </ul>
+    @if(!empty($sectionEdits['consultantObligations']))
+        <div class="section-text">{!! $sectionEdits['consultantObligations'] !!}</div>
+    @else
+        <ul>
+            <li>Perform services diligently and in accordance with the CICC Code of Professional Ethics.</li>
+            <li>Maintain a client file and safeguard Client information.</li>
+        </ul>
+    @endif
 
     <div class="section-title">7. No Guarantee of Outcome</div>
-    <p>The Consultant does not guarantee approval of any application. Final decisions rest with IRCC or other authorities.</p>
+    @if(!empty($sectionEdits['outcome']))
+        <div class="section-text">{!! $sectionEdits['outcome'] !!}</div>
+    @else
+        <p>The Consultant does not guarantee approval of any application. Final decisions rest with IRCC or other authorities.</p>
+    @endif
 
     <div class="section-title">8. Termination</div>
-    <p>Either party may terminate in writing. Fees for work completed remain payable.</p>
+    @if(!empty($sectionEdits['termination']))
+        <div class="section-text">{!! $sectionEdits['termination'] !!}</div>
+    @else
+        <p>Either party may terminate in writing. Fees for work completed remain payable.</p>
+    @endif
 
     <div class="section-title">9. Confidentiality &amp; Privacy</div>
-    <p>Personal information is handled in accordance with applicable privacy legislation, including PIPEDA where applicable.</p>
+    @if(!empty($sectionEdits['privacy']))
+        <div class="section-text">{!! $sectionEdits['privacy'] !!}</div>
+    @else
+        <p>Personal information is handled in accordance with applicable privacy legislation, including PIPEDA where applicable.</p>
+    @endif
 
     <div class="section-title">10. Refund Policy</div>
-    <div class="prose">{!! $config['refundPolicy'] !!}</div>
+    @if(!empty($sectionEdits['refund']))
+        <div class="section-text">{!! $sectionEdits['refund'] !!}</div>
+    @else
+        <div class="prose">{!! $config['refundPolicy'] !!}</div>
+    @endif
 
     <div class="section-title">11. Regulatory Compliance &amp; Dispute Resolution</div>
-    <p>Complaints may be filed with the College of Immigration and Citizenship Consultants (CICC) at college-ic.ca.</p>
+    @if(!empty($sectionEdits['regulatory']))
+        <div class="section-text">{!! $sectionEdits['regulatory'] !!}</div>
+    @else
+        <p>Complaints may be filed with the College of Immigration and Citizenship Consultants (CICC) at college-ic.ca.</p>
+    @endif
 
     <div class="section-title">12. General Provisions</div>
-    <ul>
-        <li>This Agreement constitutes the entire agreement between the parties.</li>
-        <li>Amendments must be in writing and signed by both parties.</li>
-        <li>This Agreement is governed by the laws of Canada and the province in which the Consultant primarily practises.</li>
-    </ul>
+    @if(!empty($sectionEdits['general']))
+        <div class="section-text">{!! $sectionEdits['general'] !!}</div>
+    @else
+        <ul>
+            <li>This Agreement constitutes the entire agreement between the parties.</li>
+            <li>Amendments must be in writing and signed by both parties.</li>
+            <li>This Agreement is governed by the laws of Canada and the province in which the Consultant primarily practises.</li>
+        </ul>
+    @endif
 
-    @if(!empty($config['customClauses']) && trim(strip_tags($config['customClauses'])) !== '')
+    @if(!empty($sectionEdits['custom']) || (!empty($config['customClauses']) && trim(strip_tags($config['customClauses'])) !== ''))
         <div class="section-title">13. Additional Terms</div>
-        <div class="prose">{!! $config['customClauses'] !!}</div>
+        @if(!empty($sectionEdits['custom']))
+            <div class="section-text">{!! $sectionEdits['custom'] !!}</div>
+        @else
+            <div class="prose">{!! $config['customClauses'] !!}</div>
+        @endif
     @endif
 
     <div class="signatures">

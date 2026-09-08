@@ -1,4 +1,8 @@
 export type AgreementCurrency = "CAD" | "USD";
+export type AgreementSectionKey =
+  | "parties" | "scope" | "fees" | "governmentFees" | "clientObligations"
+  | "consultantObligations" | "outcome" | "termination" | "privacy"
+  | "refund" | "regulatory" | "general" | "custom";
 
 export interface AgreementConfig {
   totalFee: number;
@@ -18,7 +22,12 @@ export interface AgreementConfig {
   consultantName: string;
   pathway: string;
   scopeDescription: string;
+  taxEnabled: boolean;
+  taxProvince: string;
+  taxLabel: string;
+  taxRate: number;
   clientDetails?: ClientAgreementDetails;
+  sectionEdits?: Partial<Record<AgreementSectionKey, string>>;
 }
 
 export const DEFAULT_AGREEMENT_CONFIG: AgreementConfig = {
@@ -42,6 +51,11 @@ export const DEFAULT_AGREEMENT_CONFIG: AgreementConfig = {
   consultantName: "",
   pathway: "",
   scopeDescription: "",
+  taxEnabled: false,
+  taxProvince: "",
+  taxLabel: "GST/HST",
+  taxRate: 0,
+  sectionEdits: {},
 };
 
 export const PATHWAY_TEMPLATES: Record<string, { fee: number; description: string }> = {
@@ -91,6 +105,19 @@ export function milestoneAmounts(config: AgreementConfig) {
   const m2 = Math.round(config.totalFee * config.milestone2Pct / 100);
   const m3 = config.totalFee - m1 - m2;
   return { m1, m2, m3 };
+}
+
+export function agreementTaxForAmount(config: AgreementConfig, amount: number): number {
+  if (!config.taxEnabled || config.taxRate <= 0) return 0;
+  return Math.round(amount * config.taxRate) / 100;
+}
+
+export function agreementTaxAmount(config: AgreementConfig): number {
+  return agreementTaxForAmount(config, config.totalFee);
+}
+
+export function agreementGrandTotal(config: AgreementConfig): number {
+  return config.totalFee + agreementTaxAmount(config);
 }
 
 export function isHtmlEmpty(html: string): boolean {

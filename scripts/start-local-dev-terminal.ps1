@@ -115,7 +115,9 @@ $consDashDir = Join-Path $Fe "Consultant Dashbord"
 $consDashRoutesFile = Join-Path $consDashDir ".next\dev\types\routes.d.ts"
 if (Test-Path -LiteralPath $consDashRoutesFile) {
     $routesText = Get-Content -Raw -LiteralPath $consDashRoutesFile
-    $staleRoutes = $routesText -notmatch '/consultantdashboard' -or $routesText -match 'PageRoutes = never'
+    # Next.js 16 dev types omit nested routes until compiled; only clear when the
+    # manifest is truly broken (missing consultant home or client profile routes).
+    $staleRoutes = $routesText -notmatch '/consultantdashboard' -or $routesText -notmatch '/dashboard/clients/\[id\]"'
     if ($staleRoutes) {
         Write-Host ">>> Consultant dashboard: stale .next routes cache - clearing .next" -ForegroundColor Yellow
         Remove-Item -Recurse -Force (Join-Path $consDashDir ".next") -ErrorAction SilentlyContinue

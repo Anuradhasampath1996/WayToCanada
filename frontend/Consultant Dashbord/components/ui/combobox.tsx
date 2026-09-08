@@ -15,6 +15,16 @@ import {
 
 const Combobox = ComboboxPrimitive.Root
 
+// @base-ui/react ComboboxPositionerProps references a namespace merge that TypeScript
+// cannot resolve; mirror the positioning surface explicitly for this wrapper.
+type ComboboxPositionerOptions = {
+  anchor?: Element | null | React.RefObject<Element | null> | (() => Element | null)
+  side?: "top" | "right" | "bottom" | "left" | "inline-end" | "inline-start"
+  sideOffset?: number
+  align?: "start" | "center" | "end"
+  alignOffset?: number
+}
+
 function ComboboxValue({ ...props }: ComboboxPrimitive.Value.Props) {
   return <ComboboxPrimitive.Value data-slot="combobox-value" {...props} />
 }
@@ -97,21 +107,19 @@ function ComboboxContent({
   alignOffset = 0,
   anchor,
   ...props
-}: ComboboxPrimitive.Popup.Props &
-  Pick<
-    ComboboxPrimitive.Positioner.Props,
-    "side" | "align" | "sideOffset" | "alignOffset" | "anchor"
-  >) {
+}: ComboboxPrimitive.Popup.Props & ComboboxPositionerOptions) {
+  const positionerProps = {
+    side,
+    sideOffset,
+    align,
+    alignOffset,
+    anchor,
+    className: "isolate z-50",
+  } as React.ComponentProps<typeof ComboboxPrimitive.Positioner>
+
   return (
     <ComboboxPrimitive.Portal>
-      <ComboboxPrimitive.Positioner
-        side={side}
-        sideOffset={sideOffset}
-        align={align}
-        alignOffset={alignOffset}
-        anchor={anchor}
-        className="isolate z-50"
-      >
+      <ComboboxPrimitive.Positioner {...positionerProps}>
         <ComboboxPrimitive.Popup
           data-slot="combobox-content"
           data-chips={!!anchor}
@@ -214,12 +222,18 @@ function ComboboxEmpty({ className, ...props }: ComboboxPrimitive.Empty.Props) {
 function ComboboxSeparator({
   className,
   ...props
-}: ComboboxPrimitive.Separator.Props) {
+}: React.ComponentPropsWithoutRef<"div"> & {
+  orientation?: "horizontal" | "vertical"
+}) {
+  const separatorProps = {
+    ...props,
+    className: cn("bg-border -mx-1 my-1 h-px", className),
+  } as React.ComponentProps<typeof ComboboxPrimitive.Separator>
+
   return (
     <ComboboxPrimitive.Separator
       data-slot="combobox-separator"
-      className={cn("bg-border -mx-1 my-1 h-px", className)}
-      {...props}
+      {...separatorProps}
     />
   )
 }

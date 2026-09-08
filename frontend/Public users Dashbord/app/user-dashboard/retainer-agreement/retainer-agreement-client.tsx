@@ -3,11 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 import {
   Loader2, FileText, CheckCircle2, AlertCircle,
-  Download, PenLine, Upload, CloudCheck,
+  Download, PenLine, Upload, CloudCheck, Eye,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
 import { ClientJourneyPageChrome } from "@/components/client-workspace-ui";
 import { RetainerAgreementDocument } from "@/components/retainer-agreement-document";
 import { configFromCaseFile } from "@/lib/retainer-agreement";
@@ -357,30 +356,74 @@ export function RetainerAgreementClient() {
       }
     >
       <div className="space-y-5">
-      {/* Tabs — only show sign/upload if not yet signed */}
-      {!isSigned && (
-        <div className="flex w-full max-w-full gap-1 overflow-x-auto rounded-xl border bg-muted/40 p-1">
-          {(["view", "sign", "upload"] as const).map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={cn(
-                "flex shrink-0 items-center gap-1.5 whitespace-nowrap px-3 py-1.5 rounded-lg text-sm font-medium transition-all sm:px-4",
-                activeTab === tab
-                  ? "bg-background shadow text-foreground"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              {tab === "view"   && <FileText className="h-3.5 w-3.5" />}
-              {tab === "sign"   && <PenLine  className="h-3.5 w-3.5" />}
-              {tab === "upload" && <Upload   className="h-3.5 w-3.5" />}
-              {tab === "view"   ? "View"
-               : tab === "sign" ? "Sign Digitally"
-               : "Upload Signed PDF"}
-            </button>
-          ))}
+      <section className="rounded-2xl border-2 border-primary/15 bg-card p-4 shadow-sm sm:p-6">
+        <div className="mb-4">
+          <p className="text-base font-semibold text-foreground">Agreement actions</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Review the agreement first, then choose how you want to complete your signature.
+          </p>
         </div>
-      )}
+        <div className="grid gap-3 md:grid-cols-3">
+          <button
+            type="button"
+            onClick={() => setActiveTab("view")}
+            className={`group rounded-xl border-2 p-4 text-left transition-all ${
+              activeTab === "view"
+                ? "border-primary bg-primary/5 shadow-sm"
+                : "border-border hover:border-primary/40 hover:bg-muted/30"
+            }`}
+            aria-pressed={activeTab === "view"}
+          >
+            <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-100 text-blue-700">
+              <Eye className="h-5 w-5" />
+            </span>
+            <span className="mt-3 block font-semibold">View</span>
+            <span className="mt-1 block text-xs leading-relaxed text-muted-foreground">
+              Read the complete agreement, including services, fees, tax charges, refund terms, and signatures.
+            </span>
+          </button>
+          {!isSigned && (
+            <>
+              <button
+                type="button"
+                onClick={() => setActiveTab("sign")}
+                className={`group rounded-xl border-2 p-4 text-left transition-all ${
+                  activeTab === "sign"
+                    ? "border-primary bg-primary/5 shadow-sm"
+                    : "border-border hover:border-primary/40 hover:bg-muted/30"
+                }`}
+                aria-pressed={activeTab === "sign"}
+              >
+                <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-green-100 text-green-700">
+                  <PenLine className="h-5 w-5" />
+                </span>
+                <span className="mt-3 block font-semibold">Sign Digitally</span>
+                <span className="mt-1 block text-xs leading-relaxed text-muted-foreground">
+                  Draw your signature online and submit the agreement securely without printing.
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab("upload")}
+                className={`group rounded-xl border-2 p-4 text-left transition-all ${
+                  activeTab === "upload"
+                    ? "border-primary bg-primary/5 shadow-sm"
+                    : "border-border hover:border-primary/40 hover:bg-muted/30"
+                }`}
+                aria-pressed={activeTab === "upload"}
+              >
+                <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-violet-100 text-violet-700">
+                  <Upload className="h-5 w-5" />
+                </span>
+                <span className="mt-3 block font-semibold">Upload Signed PDF</span>
+                <span className="mt-1 block text-xs leading-relaxed text-muted-foreground">
+                  Download the agreement, sign it by hand, scan it, and upload the signed PDF here.
+                </span>
+              </button>
+            </>
+          )}
+        </div>
+      </section>
 
       {/* ── VIEW tab / signed preview ── */}
       {(activeTab === "view" || isSigned) && (

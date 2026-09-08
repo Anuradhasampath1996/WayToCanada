@@ -1,18 +1,24 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { Label } from "@/components/ui/label";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useTheme } from "next-themes";
 
 export function ColorModeSelector() {
   const { theme, setTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   return (
     <div className="flex flex-col gap-3">
       <Label htmlFor="roundedCorner">Color mode:</Label>
       <ToggleGroup
         className="w-full"
-        value={theme}
+        value={mounted ? theme : "light"}
         type="single"
         onValueChange={(value) => setTheme(value)}>
         <ToggleGroupItem variant="outline" className="grow" value="light">

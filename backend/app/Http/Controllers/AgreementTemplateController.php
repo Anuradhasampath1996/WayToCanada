@@ -104,7 +104,12 @@ class AgreementTemplateController extends Controller
         $allowed  = array_keys($defaults);
         $filtered = array_intersect_key($config, array_flip($allowed));
 
-        unset($filtered['clientName'], $filtered['clientEmail'], $filtered['consultantName']);
+        unset(
+            $filtered['clientName'],
+            $filtered['clientEmail'],
+            $filtered['consultantName'],
+            $filtered['clientDetails'],
+        );
 
         return RetainerAgreementConfig::normalize($filtered, $filtered['pathway'] ?? null);
     }

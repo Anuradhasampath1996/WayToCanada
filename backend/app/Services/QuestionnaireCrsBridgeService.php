@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\QuestionnaireSubmission;
+use App\Support\QuestionnaireStep3Data;
 
 class QuestionnaireCrsBridgeService
 {
@@ -41,10 +42,7 @@ class QuestionnaireCrsBridgeService
         $step1  = $submission->step1_data ?? [];
         $main   = $submission->main_data ?? [];
         $spouse = $submission->spouse_data ?? [];
-        $step3  = $submission->accompanying_data['step3'] ?? $submission->step1_data ?? [];
-        if (! is_array($step3)) {
-            $step3 = [];
-        }
+        $step3  = QuestionnaireStep3Data::resolve($submission);
 
         $filled = [];
         $hasSpouse = strtolower((string) ($step1['married'] ?? '')) === 'yes';

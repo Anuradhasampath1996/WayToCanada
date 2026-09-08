@@ -1,0 +1,28 @@
+# Isolated PostgreSQL for PHPUnit / CI-parity local testing.
+# Production dev data stays on Windows PostgreSQL @ 5432 (db_cws).
+# Tests use phpunit.xml env → 127.0.0.1:5433 (db_cws_test, db_lms_test).
+#
+# Start:  docker compose -f docker-compose.test.yml up -d
+# Stop:   docker compose -f docker-compose.test.yml down
+
+services:
+  postgres-test:
+    image: postgres:16
+    container_name: wtc_postgres_test
+    ports:
+      - "127.0.0.1:5433:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: secret
+      POSTGRES_DB: db_cws_test
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - wtc_pg_test_data:/var/lib/postgresql/data
+      - ./scripts/init-test-databases.sql:/docker-entrypoint-initdb.d/init-test-databases.sql:ro
+
+volumes:
+  wtc_pg_test_data:

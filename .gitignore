@@ -31,6 +31,18 @@ mobileapp/
 deploy/.ec2-key.pem
 deploy/*.log
 
+# Local env files
+**/.env.local
+
 # Government form processor build outputs + local Adobe smoke PDFs
 form-processor-poc/**/target/
 docs/government-forms-poc/adobe-live-check-*/
+
+# Local caches / backups / ephemeral
+backups/
+backend/public/hot
+**/*.tsbuildinfo
+**/*.png.bak
+volume/cache/*.pem
+volume/cache/*.pem.crt
+volume/cache/*.pem.key

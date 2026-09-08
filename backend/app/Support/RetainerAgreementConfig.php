@@ -29,6 +29,11 @@ class RetainerAgreementConfig
             'consultantName'      => '',
             'pathway'             => '',
             'scopeDescription'    => '',
+            'taxEnabled'          => false,
+            'taxProvince'         => '',
+            'taxLabel'            => 'GST/HST',
+            'taxRate'             => 0,
+            'sectionEdits'        => [],
         ];
     }
 
@@ -59,6 +64,12 @@ class RetainerAgreementConfig
             'agreement_config.consultantName'       => 'nullable|string|max:255',
             'agreement_config.pathway'              => 'nullable|string|max:150',
             'agreement_config.scopeDescription'     => 'nullable|string|max:2000',
+            'agreement_config.taxEnabled'            => 'nullable|boolean',
+            'agreement_config.taxProvince'           => 'nullable|string|size:2',
+            'agreement_config.taxLabel'              => 'nullable|string|max:40',
+            'agreement_config.taxRate'               => 'nullable|numeric|min:0|max:30',
+            'agreement_config.sectionEdits'          => 'nullable|array',
+            'agreement_config.sectionEdits.*'        => 'nullable|string|max:10000',
             'agreement_config.clientDetails'          => 'nullable|array',
             'agreement_config.clientDetails.fullLegalName' => 'nullable|string|max:255',
             'agreement_config.clientDetails.email'         => 'nullable|email|max:255',
@@ -89,8 +100,51 @@ class RetainerAgreementConfig
         }
 
         $config['totalFee'] = (float) ($config['totalFee'] ?? 0);
+        $config['taxEnabled'] = (bool) ($config['taxEnabled'] ?? false);
+        $config['taxProvince'] = strtoupper(trim((string) ($config['taxProvince'] ?? '')));
+        $config['taxRate'] = max(0, min(30, (float) ($config['taxRate'] ?? 0)));
+        $config['taxLabel'] = trim((string) ($config['taxLabel'] ?? 'GST/HST')) ?: 'GST/HST';
+        $config['sectionEdits'] = static::normalizeSectionEdits($config['sectionEdits'] ?? []);
 
         return $config;
+    }
+
+    /** @param mixed $edits @return array<string, string> */
+    private static function normalizeSectionEdits(mixed $edits): array
+    {
+        if (! is_array($edits)) {
+            return [];
+        }
+
+        $allowedKeys = [
+            'parties', 'scope', 'fees', 'governmentFees', 'clientObligations',
+            'consultantObligations', 'outcome', 'termination', 'privacy',
+            'refund', 'regulatory', 'general', 'custom',
+        ];
+        $normalized = [];
+
+        foreach ($allowedKeys as $key) {
+            if (isset($edits[$key]) && is_string($edits[$key]) && trim($edits[$key]) !== '') {
+                $normalized[$key] = static::sanitizeSectionHtml($edits[$key]);
+            }
+        }
+
+        return $normalized;
+    }
+
+    private static function sanitizeSectionHtml(string $html): string
+    {
+        $allowedTags = ['p', 'br', 'strong', 'em', 'u', 's', 'ul', 'ol', 'li', 'h1', 'h2', 'h3'];
+
+        return preg_replace_callback(
+            '/<\s*(\/?)\s*([a-z0-9]+)[^>]*>/i',
+            static function (array $match) use ($allowedTags): string {
+                $tag = strtolower($match[2]);
+
+                return in_array($tag, $allowedTags, true) ? '<'.$match[1].$tag.'>' : '';
+            },
+            $html
+        ) ?? '';
     }
 
     public static function formatAgreementPayload(CaseFile $caseFile): array
