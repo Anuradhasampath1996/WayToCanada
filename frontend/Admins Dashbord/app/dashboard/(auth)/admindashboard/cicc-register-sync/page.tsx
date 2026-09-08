@@ -33,7 +33,7 @@ import { adminAuthHeaders } from "@/lib/admin-auth";
 const API = (process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000") + "/api/v1";
 
 const CICC_REGISTER =
-  "https://register.college-ic.ca/Public-Register-EN/RCIC_Search.aspx";
+  "https://register.college-ic.ca/Public-Register-EN/Public-Register-EN/RCIC_Search.aspx";
 
 type SyncRun = {
   id: number;
@@ -71,9 +71,13 @@ type SyncStatus = {
   };
   config?: {
     delay_ms: number;
-    look_ahead: number;
+    search_terms?: string[];
+    include_risia?: boolean;
     enrich_via_search: boolean;
-    profile_url: string;
+    search_url?: string;
+    risia_search_url?: string;
+    profile_url?: string;
+    look_ahead?: number;
   };
 };
 
@@ -179,8 +183,9 @@ export default function CiccRegisterSyncPage() {
                 rel="noreferrer"
                 className="inline-flex items-center gap-0.5 underline"
               >
-                CICC public register <ExternalLink className="h-3 w-3" />
+                CICC public RCIC search <ExternalLink className="h-3 w-3" />
               </a>
+              {" "}(full register pagination + RISIA).
             </p>
           </div>
         </div>
@@ -378,18 +383,22 @@ export default function CiccRegisterSyncPage() {
                 <TableCell className="tabular-nums">{status?.config?.delay_ms ?? 500} ms</TableCell>
               </TableRow>
               <TableRow>
-                <TableCell className="font-medium">New ID look-ahead</TableCell>
-                <TableCell className="tabular-nums">{status?.config?.look_ahead ?? 500}</TableCell>
+                <TableCell className="font-medium">Include RISIA search</TableCell>
+                <TableCell>{status?.config?.include_risia ? "Yes" : "No"}</TableCell>
               </TableRow>
               <TableRow>
-                <TableCell className="font-medium">Enrich via search</TableCell>
-                <TableCell>{status?.config?.enrich_via_search ? "Yes" : "No"}</TableCell>
+                <TableCell className="font-medium">Search terms</TableCell>
+                <TableCell className="font-mono text-xs">
+                  {(status?.config?.search_terms?.length ?? 0) === 1 && status?.config?.search_terms?.[0] === ""
+                    ? "(blank = full register)"
+                    : (status?.config?.search_terms ?? []).join(", ") || "—"}
+                </TableCell>
               </TableRow>
               <TableRow>
-                <TableCell className="font-medium">Profile URL template</TableCell>
+                <TableCell className="font-medium">Search URL</TableCell>
                 <TableCell className="font-mono text-xs break-all">
-                  {status?.config?.profile_url
-                    ?? "https://register.college-ic.ca/Public-Register-EN/Licensee/Profile.aspx?ID={id}"}
+                  {status?.config?.search_url
+                    ?? "https://register.college-ic.ca/Public-Register-EN/Public-Register-EN/RCIC_Search.aspx"}
                 </TableCell>
               </TableRow>
             </TableBody>

@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\RcicConsultant;
 use App\Models\RcicRegisterSyncRun;
 use Illuminate\Http\Client\PendingRequest;
+use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -12,6 +13,8 @@ use Illuminate\Support\Str;
 class RcicRegisterSyncService
 {
     private int $consecutiveSystemicFailures = 0;
+
+    private int $adaptiveDelayMs = 0;
 
     /** @var array<string, string> */
     private array $cookies = [];
@@ -41,13 +44,15 @@ class RcicRegisterSyncService
             'auto_sync'           => [
                 'command'     => 'rcic:sync-register',
                 'schedule'    => 'Weekly on Sunday at 2:00 AM (America/Toronto)',
-                'description' => 'Scrapes the CICC public register profile pages, upserts by profile_id, and probes for newly issued profile IDs.',
+                'description' => 'Pages through the full CICC RCIC/RISIA public search results and upserts every licensee row.',
             ],
             'config'              => [
                 'delay_ms'          => (int) config('rcic_register.delay_ms'),
-                'look_ahead'        => (int) config('rcic_register.look_ahead'),
+                'search_terms'      => config('rcic_register.search_terms'),
+                'include_risia'     => (bool) config('rcic_register.include_risia'),
                 'enrich_via_search' => (bool) config('rcic_register.enrich_via_search'),
-                'profile_url'       => config('rcic_register.profile_url'),
+                'search_url'        => config('rcic_register.search_url'),
+                'risia_search_url'  => config('rcic_register.risia_search_url'),
             ],
         ];
     }
@@ -69,9 +74,6 @@ class RcicRegisterSyncService
         ];
     }
 
-    /**
-     * Create a pending run if none is active. Returns null when already running.
-     */
     public function startSyncRun(string $trigger = 'manual'): ?RcicRegisterSyncRun
     {
         if ($this->hasActiveRun()) {
@@ -79,15 +81,17 @@ class RcicRegisterSyncService
         }
 
         return RcicRegisterSyncRun::create([
-            'status'         => 'pending',
-            'trigger'        => $trigger,
-            'current_step'   => 'Queued',
-            'stats'          => [
+            'status'       => 'pending',
+            'trigger'      => $trigger,
+            'current_step' => 'Queued',
+            'stats'        => [
                 'updated'   => 0,
                 'created'   => 0,
                 'errors'    => 0,
                 'not_found' => 0,
                 'skipped'   => 0,
+                'pages'     => 0,
+                'queries'   => 0,
             ],
         ]);
     }
@@ -99,9 +103,6 @@ class RcicRegisterSyncService
             ->exists();
     }
 
-    /**
-     * Execute a full sync for the given run (called by the queue job / --sync).
-     */
     public function runSync(RcicRegisterSyncRun $run): array
     {
         return $this->executeSync($run);
@@ -111,6 +112,7 @@ class RcicRegisterSyncService
     {
         $this->consecutiveSystemicFailures = 0;
         $this->cookies = [];
+        $this->adaptiveDelayMs = max(0, (int) config('rcic_register.delay_ms', 1200));
 
         $stats = [
             'updated'   => 0,
@@ -118,86 +120,108 @@ class RcicRegisterSyncService
             'errors'    => 0,
             'not_found' => 0,
             'skipped'   => 0,
+            'pages'     => 0,
+            'queries'   => 0,
         ];
 
-        $knownIds = RcicConsultant::query()
-            ->orderBy('profile_id')
-            ->pluck('profile_id')
-            ->map(fn ($id) => (int) $id)
-            ->all();
-
-        $maxId = empty($knownIds) ? 0 : max($knownIds);
-        $lookAhead = max(0, (int) config('rcic_register.look_ahead', 500));
-        $discoverIds = [];
-        for ($id = $maxId + 1; $id <= $maxId + $lookAhead; $id++) {
-            $discoverIds[] = $id;
+        $terms = config('rcic_register.search_terms', range('a', 'z'));
+        if (! is_array($terms) || $terms === []) {
+            $terms = range('a', 'z');
         }
 
-        $allIds = array_values(array_unique(array_merge($knownIds, $discoverIds)));
-        $knownSet = array_fill_keys($knownIds, true);
+        $sources = [
+            [
+                'label' => 'RCIC',
+                'url'   => (string) config('rcic_register.search_url'),
+            ],
+        ];
+
+        if (config('rcic_register.include_risia')) {
+            $sources[] = [
+                'label' => 'RISIA',
+                'url'   => (string) config('rcic_register.risia_search_url'),
+            ];
+        }
+
+        $totalQueries = count($sources) * count($terms);
 
         $run->update([
             'status'          => 'running',
             'started_at'      => now(),
-            'total_steps'     => count($allIds),
+            'total_steps'     => max(1, $totalQueries),
             'completed_steps' => 0,
-            'current_step'    => 'Starting CICC register scrape…',
+            'current_step'    => 'Starting CICC public search scrape…',
             'stats'           => $stats,
             'error_message'   => null,
         ]);
 
-        foreach ($allIds as $index => $profileId) {
-            $isKnown = isset($knownSet[$profileId]);
-            $run->update([
-                'completed_steps' => $index,
-                'current_step'    => sprintf(
-                    'Scraping profile %d (%d / %d)%s',
-                    $profileId,
-                    $index + 1,
-                    count($allIds),
-                    $isKnown ? '' : ' [discover]'
-                ),
-                'stats'           => $stats,
-            ]);
+        $queryIndex = 0;
 
-            try {
-                $result = $this->scrapeAndUpsert($profileId, $isKnown);
-                $stats[$result]++;
-            } catch (\Throwable $e) {
-                Log::warning('RCIC register scrape failed for profile', [
-                    'profile_id' => $profileId,
-                    'error'      => $e->getMessage(),
+        foreach ($sources as $source) {
+            foreach ($terms as $term) {
+                $queryIndex++;
+                $term = (string) $term;
+
+                $run->update([
+                    'completed_steps' => $queryIndex - 1,
+                    'total_steps'     => max($run->total_steps, $totalQueries),
+                    'current_step'    => sprintf(
+                        'Searching %s %s (%d / %d queries)',
+                        $source['label'],
+                        $term === '' ? 'full register' : 'last-name “'.$term.'”',
+                        $queryIndex,
+                        $totalQueries
+                    ),
+                    'stats'           => $stats,
                 ]);
-                $stats['errors']++;
 
-                if ($this->consecutiveSystemicFailures >= (int) config('rcic_register.max_consecutive_systemic_failures', 5)) {
-                    $run->update([
-                        'status'          => 'failed',
-                        'finished_at'     => now(),
-                        'completed_steps' => $index,
-                        'stats'           => $stats,
-                        'error_message'   => 'Aborted after repeated systemic HTTP failures: '.$e->getMessage(),
-                        'current_step'    => 'Failed',
+                try {
+                    $this->scrapeSearchTerm($run, $source['url'], $source['label'], $term, $stats, $queryIndex, $totalQueries);
+                    $stats['queries']++;
+                    $this->consecutiveSystemicFailures = 0;
+                } catch (\Throwable $e) {
+                    Log::warning('RCIC register search scrape failed', [
+                        'source' => $source['label'],
+                        'term'   => $term,
+                        'error'  => $e->getMessage(),
                     ]);
+                    $stats['errors']++;
 
-                    return $stats;
+                    if ($this->consecutiveSystemicFailures >= (int) config('rcic_register.max_consecutive_systemic_failures', 8)) {
+                        $run->update([
+                            'status'          => 'failed',
+                            'finished_at'     => now(),
+                            'completed_steps' => $queryIndex - 1,
+                            'stats'           => $stats,
+                            'error_message'   => 'Aborted after repeated systemic HTTP failures: '.$e->getMessage(),
+                            'current_step'    => 'Failed',
+                        ]);
+
+                        return $stats;
+                    }
                 }
-            }
 
-            $this->throttle();
+                $run->update([
+                    'completed_steps' => $queryIndex,
+                    'stats'           => $stats,
+                ]);
+
+                $this->throttle();
+            }
         }
 
         $run->update([
             'status'          => 'completed',
             'finished_at'     => now(),
-            'completed_steps' => count($allIds),
+            'completed_steps' => $totalQueries,
             'stats'           => $stats,
             'current_step'    => sprintf(
-                'Complete — created %d, updated %d, errors %d, not found %d',
+                'Complete — created %d, updated %d, pages %d, errors %d (DB total %d)',
                 $stats['created'],
                 $stats['updated'],
+                $stats['pages'],
                 $stats['errors'],
-                $stats['not_found']
+                RcicConsultant::count()
             ),
         ]);
 
@@ -205,136 +229,263 @@ class RcicRegisterSyncService
     }
 
     /**
-     * @return 'created'|'updated'|'errors'|'not_found'|'skipped'
+     * @param  array<string, int>  $stats
      */
-    private function scrapeAndUpsert(int $profileId, bool $isKnown): string
-    {
-        $html = $this->fetchProfileHtml($profileId);
+    private function scrapeSearchTerm(
+        RcicRegisterSyncRun $run,
+        string $searchUrl,
+        string $sourceLabel,
+        string $term,
+        array &$stats,
+        int $queryIndex,
+        int $totalQueries,
+    ): void {
+        $html = $this->requestHtml('GET', $searchUrl);
+        $this->throttle();
 
-        if ($html === null) {
-            return 'errors';
-        }
+        $html = $this->postSearch($searchUrl, $html, $term);
+        $page = 0;
+        $maxPages = (int) config('rcic_register.max_pages_per_term', 0);
+        $seenPageIndexes = [];
 
-        $parsed = $this->parseProfileHtml($profileId, $html);
+        while (true) {
+            $meta = $this->parseGridMeta($html);
+            $pageIndex = $meta['current_page_index'] ?? $page;
+            if (isset($seenPageIndexes[$pageIndex])) {
+                break;
+            }
+            $seenPageIndexes[$pageIndex] = true;
 
-        if ($parsed === null) {
-            if ($isKnown) {
-                RcicConsultant::where('profile_id', $profileId)->update([
-                    'scrape_status' => 'error',
-                    'scraped_at'    => now(),
-                ]);
+            $rows = $this->parseSearchResultRows($html);
+            foreach ($rows as $row) {
+                $result = $this->upsertSearchRow($row);
+                $stats[$result]++;
             }
 
-            return 'not_found';
-        }
+            $stats['pages']++;
+            $page++;
 
-        if (config('rcic_register.enrich_via_search') && ! empty($parsed['college_id'])) {
+            $pageCount = $meta['page_count'] ?? null;
+            $run->update([
+                'current_step' => sprintf(
+                    '%s %s page %d%s — %d rows this page (query %d/%d)',
+                    $sourceLabel,
+                    $term === '' ? 'full register' : '“'.$term.'”',
+                    $pageIndex + 1,
+                    $pageCount ? "/{$pageCount}" : '',
+                    count($rows),
+                    $queryIndex,
+                    $totalQueries
+                ),
+                'stats' => $stats,
+            ]);
+
+            if ($maxPages > 0 && $page >= $maxPages) {
+                break;
+            }
+
+            if ($pageCount !== null && ($pageIndex + 1) >= $pageCount) {
+                break;
+            }
+
+            $nextTarget = $this->extractNextPageTarget($html);
+            if ($nextTarget === null) {
+                break;
+            }
+
             $this->throttle();
-            $enriched = $this->searchByCollegeId($parsed['college_id']);
-            if ($enriched) {
-                foreach ($enriched as $key => $value) {
-                    if ($value === null || $value === '') {
-                        continue;
-                    }
-                    $parsed[$key] = $value;
-                }
+            $html = $this->postEvent($searchUrl, $html, $nextTarget, $term);
+        }
+    }
+
+    private function postSearch(string $searchUrl, string $html, string $lastNameTerm): string
+    {
+        $prefix = $this->detectSheetPrefix($html);
+        $payload = [
+            '__VIEWSTATE'          => $this->extractInputValue($html, '__VIEWSTATE'),
+            '__VIEWSTATEGENERATOR' => $this->extractInputValue($html, '__VIEWSTATEGENERATOR'),
+            $prefix.'Input0$TextBox1' => '',
+            $prefix.'Input1$TextBox1' => $lastNameTerm,
+            $prefix.'Input2$TextBox1' => '',
+            $prefix.'Input3$TextBox1' => '',
+            $prefix.'Input4$TextBox1' => '',
+            $prefix.'Input5$TextBox1' => '',
+            $prefix.'SubmitButton'    => 'Search',
+        ];
+
+        $eventValidation = $this->extractInputValue($html, '__EVENTVALIDATION');
+        if ($eventValidation !== '') {
+            $payload['__EVENTVALIDATION'] = $eventValidation;
+        }
+
+        return $this->requestHtml('POST', $searchUrl, $payload);
+    }
+
+    private function postEvent(string $searchUrl, string $html, string $eventTarget, string $lastNameTerm): string
+    {
+        $prefix = $this->detectSheetPrefix($html);
+        $payload = [
+            '__EVENTTARGET'        => $eventTarget,
+            '__EVENTARGUMENT'      => '',
+            '__VIEWSTATE'          => $this->extractInputValue($html, '__VIEWSTATE'),
+            '__VIEWSTATEGENERATOR' => $this->extractInputValue($html, '__VIEWSTATEGENERATOR'),
+            $prefix.'Input0$TextBox1' => '',
+            $prefix.'Input1$TextBox1' => $lastNameTerm,
+            $prefix.'Input2$TextBox1' => '',
+            $prefix.'Input3$TextBox1' => '',
+            $prefix.'Input4$TextBox1' => '',
+            $prefix.'Input5$TextBox1' => '',
+        ];
+
+        $eventValidation = $this->extractInputValue($html, '__EVENTVALIDATION');
+        if ($eventValidation !== '') {
+            $payload['__EVENTVALIDATION'] = $eventValidation;
+        }
+
+        return $this->requestHtml('POST', $searchUrl, $payload);
+    }
+
+    private function detectSheetPrefix(string $html): string
+    {
+        if (preg_match(
+            '/name="(ctl01\$TemplateBody\$WebPartManager1\$gwpciSearchLicensee\$ciSearchLicensee\$ResultsGrid\$Sheet0\$)Input1\$TextBox1"/',
+            $html,
+            $m
+        )) {
+            return $m[1];
+        }
+
+        return 'ctl01$TemplateBody$WebPartManager1$gwpciSearchLicensee$ciSearchLicensee$ResultsGrid$Sheet0$';
+    }
+
+    /**
+     * @return array{virtual_item_count:?int, page_count:?int, current_page_index:?int}
+     */
+    private function parseGridMeta(string $html): array
+    {
+        $virtual = null;
+        $pages = null;
+        $index = null;
+
+        if (preg_match('/VirtualItemCount\\\\?":(\d+)/', $html, $m)) {
+            $virtual = (int) $m[1];
+        }
+        if (preg_match('/PageCount\\\\?":(\d+)/', $html, $m)) {
+            $pages = (int) $m[1];
+        }
+        if (preg_match('/CurrentPageIndex\\\\?":(\d+)/', $html, $m)) {
+            $index = (int) $m[1];
+        }
+
+        return [
+            'virtual_item_count'  => $virtual,
+            'page_count'          => $pages,
+            'current_page_index'  => $index,
+        ];
+    }
+
+    private function extractNextPageTarget(string $html): ?string
+    {
+        // Disabled next button includes onclick="return false;"
+        if (preg_match(
+            '/name="([^"]+ResultsGrid\$Grid1\$ctl00\$ctl03\$ctl01\$ctl\d+)"[^>]*title="Next Page"[^>]*onclick="return false;"/i',
+            $html
+        )) {
+            return null;
+        }
+
+        if (preg_match(
+            '/name="([^"]+ResultsGrid\$Grid1\$ctl00\$ctl03\$ctl01\$ctl\d+)"[^>]*title="Next Page"/i',
+            $html,
+            $m
+        )) {
+            return html_entity_decode($m[1], ENT_QUOTES | ENT_HTML5);
+        }
+
+        if (preg_match(
+            '/title="Next Page"[^>]*name="([^"]+)"/i',
+            $html,
+            $m
+        )) {
+            $tag = $m[0];
+            if (str_contains($tag, 'return false')) {
+                return null;
             }
+
+            return html_entity_decode($m[1], ENT_QUOTES | ENT_HTML5);
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function parseSearchResultRows(string $html): array
+    {
+        $rows = [];
+
+        if (! preg_match_all(
+            '/<tr class="rg(?:Alt)?Row"[^>]*>\s*<td>\s*<a[^>]*href="[^"]*Profile\.aspx\?ID=(\d+)"[^>]*>.*?<\/a>\s*<\/td>\s*<td>(.*?)<\/td>\s*<td>(.*?)<\/td>\s*<td>(.*?)<\/td>\s*<td>(.*?)<\/td>\s*<td>(.*?)<\/td>\s*<td>(.*?)<\/td>/is',
+            $html,
+            $matches,
+            PREG_SET_ORDER
+        )) {
+            return [];
+        }
+
+        foreach ($matches as $m) {
+            $profileId = (int) $m[1];
+            $collegeId = trim(html_entity_decode(strip_tags($m[2]), ENT_QUOTES | ENT_HTML5));
+            $fullName = trim(html_entity_decode(strip_tags($m[3]), ENT_QUOTES | ENT_HTML5));
+            $company = trim(html_entity_decode(strip_tags($m[4]), ENT_QUOTES | ENT_HTML5));
+            $country = trim(html_entity_decode(strip_tags($m[5]), ENT_QUOTES | ENT_HTML5));
+            $type = trim(html_entity_decode(strip_tags($m[6]), ENT_QUOTES | ENT_HTML5));
+            $entitledRaw = strtolower(trim(strip_tags($m[7])));
+
+            [$firstName, $lastName] = $this->splitName($fullName !== '' ? $fullName : null);
+
+            $rows[] = [
+                'profile_id'           => $profileId,
+                'college_id'           => $collegeId !== '' ? Str::limit($collegeId, 20, '') : null,
+                'full_name'            => $fullName !== '' ? Str::limit($fullName, 255, '') : null,
+                'first_name'           => $firstName ? Str::limit($firstName, 255, '') : null,
+                'last_name'            => $lastName ? Str::limit($lastName, 255, '') : null,
+                'company'              => $company !== '' ? $company : null,
+                'country'              => $country !== '' ? Str::limit($country, 100, '') : null,
+                'type'                 => $type !== '' ? Str::limit($type, 50, '') : null,
+                'entitled_to_practise' => in_array($entitledRaw, ['yes', 'y', '1', 'true'], true),
+                'profile_url'          => str_replace('{id}', (string) $profileId, (string) config('rcic_register.profile_url')),
+                'scrape_status'        => 'scraped',
+                'scraped_at'           => now(),
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param  array<string, mixed>  $row
+     * @return 'created'|'updated'|'skipped'
+     */
+    private function upsertSearchRow(array $row): string
+    {
+        $profileId = (int) ($row['profile_id'] ?? 0);
+        if ($profileId <= 0) {
+            return 'skipped';
         }
 
         $existing = RcicConsultant::where('profile_id', $profileId)->first();
-
         if ($existing) {
-            $existing->fill($parsed);
+            $existing->fill($row);
             $existing->save();
 
             return 'updated';
         }
 
-        RcicConsultant::create($parsed);
+        RcicConsultant::create($row);
 
         return 'created';
-    }
-
-    private function fetchProfileHtml(int $profileId): ?string
-    {
-        $url = str_replace('{id}', (string) $profileId, (string) config('rcic_register.profile_url'));
-
-        $response = $this->http()->get($url);
-
-        if ($response->status() === 403 || $response->status() === 429 || $response->serverError()) {
-            $this->consecutiveSystemicFailures++;
-            throw new \RuntimeException('Systemic HTTP '.$response->status().' from CICC profile '.$profileId);
-        }
-
-        if (! $response->successful()) {
-            $this->consecutiveSystemicFailures++;
-            throw new \RuntimeException('HTTP '.$response->status().' fetching profile '.$profileId);
-        }
-
-        $this->consecutiveSystemicFailures = 0;
-        $this->captureCookies($response->headers());
-
-        return $response->body();
-    }
-
-    /**
-     * @return array<string, mixed>|null
-     */
-    private function parseProfileHtml(int $profileId, string $html): ?array
-    {
-        if (! preg_match('/College\s*ID/i', $html)) {
-            return null;
-        }
-
-        $collegeId = null;
-        if (preg_match('/College\s*ID\s*(?:<\/span>)?\s*[-–—:]\s*([A-Z]?\d{4,})/i', $html, $m)) {
-            $collegeId = strtoupper(trim($m[1]));
-        } elseif (preg_match('/\b(R\d{5,})\b/', $html, $m)) {
-            $collegeId = strtoupper($m[1]);
-        }
-
-        $fullName = null;
-        if (preg_match('/<span[^>]*style="[^"]*font-size:\s*32px[^"]*"[^>]*>([^<]{2,200})<\/span>/i', $html, $m)) {
-            $fullName = html_entity_decode(trim($m[1]), ENT_QUOTES | ENT_HTML5);
-            $fullName = preg_replace('/\s+/', ' ', $fullName) ?: $fullName;
-        }
-
-        $type = null;
-        if (preg_match('/Type(?:<\/span>)?\s*(?:<span[^>]*>)?\s*(?:&nbsp;|\s)*[-–—:]\s*(?:<\/span>)?\s*(?:<span[^>]*>)?\s*([^<\n]{1,80})/i', $html, $m)) {
-            $type = trim(html_entity_decode(strip_tags($m[1]), ENT_QUOTES | ENT_HTML5));
-            $type = preg_replace('/\s+/', ' ', $type) ?: $type;
-        }
-
-        $entitled = null;
-        if (preg_match('/NOT\s+Eligible\s+to\s+Provide\s+Service/i', $html)) {
-            $entitled = false;
-        } elseif (preg_match('/Eligible\s+to\s+Provide\s+Service/i', $html)) {
-            $entitled = true;
-        }
-
-        if ($collegeId === null && $fullName === null) {
-            return null;
-        }
-
-        [$firstName, $lastName] = $this->splitName($fullName);
-
-        $data = [
-            'profile_id'    => $profileId,
-            'college_id'    => $collegeId ? Str::limit($collegeId, 20, '') : null,
-            'full_name'     => $fullName ? Str::limit($fullName, 255, '') : null,
-            'first_name'    => $firstName ? Str::limit($firstName, 255, '') : null,
-            'last_name'     => $lastName ? Str::limit($lastName, 255, '') : null,
-            'type'          => $type ? Str::limit($type, 50, '') : null,
-            'profile_url'   => str_replace('{id}', (string) $profileId, (string) config('rcic_register.profile_url')),
-            'scrape_status' => 'scraped',
-            'scraped_at'    => now(),
-        ];
-
-        if ($entitled !== null) {
-            $data['entitled_to_practise'] = $entitled;
-        }
-
-        return array_filter($data, fn ($v) => $v !== null);
     }
 
     /**
@@ -352,95 +503,64 @@ class RcicRegisterSyncService
     }
 
     /**
-     * @return array<string, mixed>|null
+     * @param  array<string, string>|null  $payload
      */
-    private function searchByCollegeId(string $collegeId): ?array
+    private function requestHtml(string $method, string $url, ?array $payload = null): string
     {
-        try {
-            $searchUrl = (string) config('rcic_register.search_url');
-            $get = $this->http()->get($searchUrl);
-            if (! $get->successful()) {
-                return null;
+        $retries = max(1, (int) config('rcic_register.http_retries', 6));
+        $backoff = max(5, (int) config('rcic_register.429_backoff_seconds', 30));
+        $lastError = 'unknown';
+
+        for ($attempt = 1; $attempt <= $retries; $attempt++) {
+            try {
+                $request = $this->http();
+                /** @var Response $response */
+                $response = strtoupper($method) === 'POST'
+                    ? $request->asForm()->post($url, $payload ?? [])
+                    : $request->get($url);
+
+                $status = $response->status();
+
+                if (in_array($status, [429, 403], true) || $response->serverError()) {
+                    $lastError = "HTTP {$status}";
+                    $wait = $backoff * (2 ** ($attempt - 1));
+                    $this->adaptiveDelayMs = max($this->adaptiveDelayMs, (int) config('rcic_register.delay_ms', 1200) * 2);
+                    Log::warning('CICC register rate-limited/blocked; backing off', [
+                        'url'     => $url,
+                        'status'  => $status,
+                        'attempt' => $attempt,
+                        'wait_s'  => $wait,
+                    ]);
+                    sleep(min(300, $wait));
+                    continue;
+                }
+
+                if (! $response->successful()) {
+                    $lastError = "HTTP {$status}";
+                    $this->consecutiveSystemicFailures++;
+                    throw new \RuntimeException("HTTP {$status} from {$url}");
+                }
+
+                $this->consecutiveSystemicFailures = 0;
+                $this->captureCookies($response->headers());
+
+                return $response->body();
+            } catch (\RuntimeException $e) {
+                throw $e;
+            } catch (\Throwable $e) {
+                $lastError = $e->getMessage();
+                $wait = $backoff * $attempt;
+                Log::warning('CICC register request exception; retrying', [
+                    'url'     => $url,
+                    'attempt' => $attempt,
+                    'error'   => $lastError,
+                ]);
+                sleep(min(120, $wait));
             }
-            $this->captureCookies($get->headers());
-            $html = $get->body();
-
-            $viewState = $this->extractInputValue($html, '__VIEWSTATE');
-            $viewStateGen = $this->extractInputValue($html, '__VIEWSTATEGENERATOR');
-            $eventValidation = $this->extractInputValue($html, '__EVENTVALIDATION');
-
-            $prefix = 'ctl01$TemplateBody$WebPartManager1$gwpciSearchLicensee$ciSearchLicensee$ResultsGrid$Sheet0$';
-
-            $payload = [
-                '__VIEWSTATE'          => $viewState,
-                '__VIEWSTATEGENERATOR' => $viewStateGen,
-                $prefix.'Input0$TextBox1' => '',
-                $prefix.'Input1$TextBox1' => '',
-                $prefix.'Input2$TextBox1' => $collegeId,
-                $prefix.'Input3$TextBox1' => '',
-                $prefix.'Input4$TextBox1' => '',
-                $prefix.'Input5$TextBox1' => '',
-                $prefix.'SubmitButton'    => 'Search',
-            ];
-
-            if ($eventValidation !== '') {
-                $payload['__EVENTVALIDATION'] = $eventValidation;
-            }
-
-            $post = $this->http()
-                ->asForm()
-                ->post($searchUrl, $payload);
-
-            if (! $post->successful()) {
-                return null;
-            }
-
-            $this->captureCookies($post->headers());
-
-            return $this->parseSearchResultRow($post->body(), $collegeId);
-        } catch (\Throwable $e) {
-            Log::debug('RCIC search enrich failed', [
-                'college_id' => $collegeId,
-                'error'      => $e->getMessage(),
-            ]);
-
-            return null;
-        }
-    }
-
-    /**
-     * @return array<string, mixed>|null
-     */
-    private function parseSearchResultRow(string $html, string $collegeId): ?array
-    {
-        $escaped = preg_quote($collegeId, '/');
-        if (! preg_match(
-            '/<tr class="rg(?:Alt)?Row"[^>]*>\s*<td>\s*<a[^>]*href="[^"]*Profile\.aspx\?ID=(\d+)"[^>]*>.*?<\/a>\s*<\/td>\s*<td>\s*'.
-            $escaped.
-            '\s*<\/td>\s*<td>(.*?)<\/td>\s*<td>(.*?)<\/td>\s*<td>(.*?)<\/td>\s*<td>(.*?)<\/td>\s*<td>(.*?)<\/td>/is',
-            $html,
-            $m
-        )) {
-            return null;
         }
 
-        $fullName = trim(html_entity_decode(strip_tags($m[2]), ENT_QUOTES | ENT_HTML5));
-        $company = trim(html_entity_decode(strip_tags($m[3]), ENT_QUOTES | ENT_HTML5));
-        $country = trim(html_entity_decode(strip_tags($m[4]), ENT_QUOTES | ENT_HTML5));
-        $type = trim(html_entity_decode(strip_tags($m[5]), ENT_QUOTES | ENT_HTML5));
-        $entitledRaw = strtolower(trim(strip_tags($m[6])));
-
-        [$firstName, $lastName] = $this->splitName($fullName !== '' ? $fullName : null);
-
-        return [
-            'full_name'            => $fullName !== '' ? Str::limit($fullName, 255, '') : null,
-            'first_name'           => $firstName ? Str::limit($firstName, 255, '') : null,
-            'last_name'            => $lastName ? Str::limit($lastName, 255, '') : null,
-            'company'              => $company !== '' ? $company : null,
-            'country'              => $country !== '' ? Str::limit($country, 100, '') : null,
-            'type'                 => $type !== '' ? Str::limit($type, 50, '') : null,
-            'entitled_to_practise' => in_array($entitledRaw, ['yes', 'y', '1', 'true'], true),
-        ];
+        $this->consecutiveSystemicFailures++;
+        throw new \RuntimeException("Exhausted retries for {$url}: {$lastError}");
     }
 
     private function extractInputValue(string $html, string $name): string
@@ -458,7 +578,7 @@ class RcicRegisterSyncService
 
     private function http(): PendingRequest
     {
-        $request = Http::timeout((int) config('rcic_register.http_timeout', 45))
+        $request = Http::timeout((int) config('rcic_register.http_timeout', 60))
             ->withHeaders([
                 'User-Agent'      => (string) config('rcic_register.user_agent'),
                 'Accept'          => 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
@@ -492,7 +612,9 @@ class RcicRegisterSyncService
 
     private function throttle(): void
     {
-        $ms = max(0, (int) config('rcic_register.delay_ms', 500));
+        $ms = max(0, $this->adaptiveDelayMs > 0
+            ? $this->adaptiveDelayMs
+            : (int) config('rcic_register.delay_ms', 1200));
         if ($ms > 0) {
             usleep($ms * 1000);
         }

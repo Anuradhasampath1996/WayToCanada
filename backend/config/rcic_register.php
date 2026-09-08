@@ -9,7 +9,12 @@ return [
 
     'search_url' => env(
         'RCIC_REGISTER_SEARCH_URL',
-        'https://register.college-ic.ca/Public-Register-EN/RCIC_Search.aspx'
+        'https://register.college-ic.ca/Public-Register-EN/Public-Register-EN/RCIC_Search.aspx'
+    ),
+
+    'risia_search_url' => env(
+        'RCIC_REGISTER_RISIA_SEARCH_URL',
+        'https://register.college-ic.ca/Public-Register-EN/Public-Register-EN/RISIA_Search.aspx'
     ),
 
     'user_agent' => env(
@@ -18,17 +23,40 @@ return [
     ),
 
     /** Delay between HTTP requests to the CICC register (milliseconds). */
-    'delay_ms' => (int) env('RCIC_SCRAPE_DELAY_MS', 500),
+    'delay_ms' => (int) env('RCIC_SCRAPE_DELAY_MS', 1200),
 
-    /** How many profile IDs above the current max to probe for new licensees. */
-    'look_ahead' => (int) env('RCIC_SCRAPE_LOOK_AHEAD', 500),
+    /**
+     * Last-name "contains" search terms.
+     * Use "*" (default) for a blank last-name search — returns the full public register.
+     * Or set e.g. a,b,c to shard by letter.
+     */
+    'search_terms' => (static function () {
+        $raw = env('RCIC_SCRAPE_SEARCH_TERMS', '*');
+        if ($raw === null || $raw === '' || $raw === '*') {
+            return [''];
+        }
 
-    /** After parsing a profile, also search by college ID for company/country/type. */
-    'enrich_via_search' => filter_var(env('RCIC_SCRAPE_ENRICH_SEARCH', true), FILTER_VALIDATE_BOOL),
+        return array_values(array_filter(array_map('trim', explode(',', (string) $raw)), fn ($t) => $t !== ''));
+    })(),
 
-    /** Abort the run after this many consecutive systemic HTTP failures (403/429/5xx). */
-    'max_consecutive_systemic_failures' => (int) env('RCIC_SCRAPE_MAX_SYSTEMIC_FAILURES', 5),
+    /** Also scrape the RISIA public search (same CICC register). */
+    'include_risia' => filter_var(env('RCIC_SCRAPE_INCLUDE_RISIA', true), FILTER_VALIDATE_BOOL),
 
-    'http_timeout' => (int) env('RCIC_SCRAPE_HTTP_TIMEOUT', 45),
+    /** Optional profile-page enrich after search rows (slow; avoid unless needed). */
+    'enrich_via_search' => filter_var(env('RCIC_SCRAPE_ENRICH_SEARCH', false), FILTER_VALIDATE_BOOL),
+
+    /** How many times to retry a single request after HTTP 429/403/5xx. */
+    'http_retries' => (int) env('RCIC_SCRAPE_HTTP_RETRIES', 6),
+
+    /** Base backoff (seconds) for 429; doubles each retry. */
+    '429_backoff_seconds' => (int) env('RCIC_SCRAPE_429_BACKOFF', 30),
+
+    /** Abort the run after this many consecutive exhausted HTTP retries. */
+    'max_consecutive_systemic_failures' => (int) env('RCIC_SCRAPE_MAX_SYSTEMIC_FAILURES', 8),
+
+    'http_timeout' => (int) env('RCIC_SCRAPE_HTTP_TIMEOUT', 60),
+
+    /** Safety cap per last-name term (0 = no cap). */
+    'max_pages_per_term' => (int) env('RCIC_SCRAPE_MAX_PAGES_PER_TERM', 0),
 
 ];
