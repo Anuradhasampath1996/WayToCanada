@@ -12,7 +12,10 @@ import { DEFAULT_THEME } from "@/lib/themes";
 import { Toaster } from "@/components/ui/sonner";
 
 export const metadata = {
-  title: "RCICMASTER — Admin Portal",
+  title: {
+    default: "RCICMASTER — Admin Portal",
+    template: "%s — RCICMASTER Admin",
+  },
   description: "RCICMASTER administration dashboard for super admins and platform managers.",
 };
 

@@ -13,7 +13,10 @@ import { DEFAULT_THEME } from "@/lib/themes";
 import { Toaster } from "@/components/ui/sonner";
 
 export const metadata = {
-  title: "RCICMASTER — Consultant Portal",
+  title: {
+    default: "RCICMASTER — Consultant Portal",
+    template: "%s — RCICMASTER",
+  },
   description: "RCICMASTER consultant workspace for RCIC case management, clients, and compliance.",
 };
 

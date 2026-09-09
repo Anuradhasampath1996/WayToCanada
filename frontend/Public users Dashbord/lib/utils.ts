@@ -25,9 +25,11 @@ export function generateMeta({
   canonical: string;
 }): Metadata {
   return {
-    title: `${title}`,
+    title: `${title} — RCICMASTER`,
     description: description,
-    metadataBase: new URL(`https://shadcnuikit.com`),
+    metadataBase: new URL(
+      process.env.NEXT_PUBLIC_APP_URL ?? "https://app.rcicmaster.ca"
+    ),
     alternates: {
       canonical: `/dashboard${canonical}`
     },

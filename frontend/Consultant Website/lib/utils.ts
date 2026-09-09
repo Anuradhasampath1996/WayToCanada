@@ -25,11 +25,13 @@ export function generateMeta({
   canonical: string;
 }): Metadata {
   return {
-    title: `${title} for Shadcn UI${additionalTitle ? " – Admin Dashboard Template" : ""}`,
+    title: `${title} — RCICMASTER`,
     description: description,
-    metadataBase: new URL(`https://shadcnuikit.com`),
+    metadataBase: new URL(
+      process.env.NEXT_PUBLIC_APP_URL ?? "https://rcicmaster.ca"
+    ),
     alternates: {
-      canonical: `/dashboard${canonical}`
+      canonical: canonical.startsWith("/") ? canonical : `/${canonical}`
     },
     openGraph: {
       images: [`/images/seo.jpg`]
