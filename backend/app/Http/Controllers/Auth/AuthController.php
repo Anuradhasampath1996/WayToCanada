@@ -173,18 +173,21 @@ class AuthController extends Controller
 
         // consultant login → go straight to consultant dashboard via auth/callback
         if ($isConsultantLogin) {
-            $dashboardUrl = rtrim(env('CONSULTANT_DASHBOARD_URL', 'http://localhost:3005'), '/');
+            $dashboardUrl = $this->portalUrl('consultant_dashboard', 'http://localhost:3005');
+
             return redirect()->away("{$dashboardUrl}/auth/callback#token={$token}");
         }
 
         // consultant register → go to Consultant Website auth/callback (shows registered banner)
         if ($isConsultantRegister) {
-            $frontendUrl = rtrim(env('CONSULTANT_FRONTEND_URL', 'http://localhost:3002'), '/');
+            $frontendUrl = $this->portalUrl('consultant_frontend', 'http://localhost:3003');
+
             return redirect()->away("{$frontendUrl}/auth/callback#token={$token}");
         }
 
         // Default: public/client portal
-        $frontendUrl = rtrim(env('PUBLIC_FRONTEND_URL', 'http://localhost:3000'), '/');
+        $frontendUrl = $this->portalUrl('public_frontend', 'http://localhost:3000');
+
         return redirect()->away("{$frontendUrl}/auth/callback#token={$token}");
     }
 
@@ -275,11 +278,13 @@ class AuthController extends Controller
         $token = $user->createToken('github-auth')->plainTextToken;
 
         if ($isConsultantLogin) {
-            $dashboardUrl = rtrim(env('CONSULTANT_DASHBOARD_URL', 'http://localhost:3005'), '/');
+            $dashboardUrl = $this->portalUrl('consultant_dashboard', 'http://localhost:3005');
+
             return redirect()->away("{$dashboardUrl}/dashboard/login?sso=" . urlencode($token));
         }
 
-        $frontendUrl = rtrim(env('PUBLIC_FRONTEND_URL', 'http://localhost:3000'), '/');
+        $frontendUrl = $this->portalUrl('public_frontend', 'http://localhost:3000');
+
         return redirect()->away("{$frontendUrl}/auth/callback#token={$token}");
     }
 
@@ -412,5 +417,30 @@ class AuthController extends Controller
         $separator = str_contains($returnTo, '?') ? '&' : '?';
 
         return redirect()->away($returnTo . $separator . 'token=' . $encoded);
+    }
+
+    /**
+     * Resolve a portal base URL. In production, refuse localhost fallbacks so
+     * OAuth callbacks never send users to a developer machine.
+     */
+    private function portalUrl(string $key, string $localFallback): string
+    {
+        $url = rtrim((string) config("portals.{$key}", $localFallback), '/');
+
+        if (app()->environment('production')
+            && (str_contains($url, 'localhost') || str_contains($url, '127.0.0.1'))
+        ) {
+            $productionDefaults = [
+                'admin_dashboard' => 'https://admin.rcicmaster.ca',
+                'consultant_dashboard' => 'https://consultant.rcicmaster.ca',
+                'consultant_frontend' => 'https://rcicmaster.ca',
+                'public_frontend' => 'https://apply.rcicmaster.ca',
+                'public_dashboard' => 'https://app.rcicmaster.ca',
+            ];
+
+            $url = $productionDefaults[$key] ?? $url;
+        }
+
+        return rtrim($url, '/');
     }
 }
