@@ -8,7 +8,9 @@ use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
+use Spatie\Permission\Models\Role;
 
 class AdminUsersController extends Controller
 {
@@ -73,7 +75,11 @@ class AdminUsersController extends Controller
             'role' => ['required', Rule::in(['super-admin', 'admin', 'rcic', 'client'])],
         ]);
 
-        $user->syncRoles([$data['role']]);
+        if ($forbidden = $this->guardElevatedRoleChange($request, $user, $data['role'])) {
+            return $forbidden;
+        }
+
+        $user->syncRoles([$this->roleForGuard($data['role'])]);
 
         return response()->json([
             'message' => 'Role updated.',
@@ -108,14 +114,18 @@ class AdminUsersController extends Controller
             'role'     => ['required', Rule::in(['super-admin', 'admin', 'rcic', 'client'])],
         ]);
 
+        if ($forbidden = $this->guardElevatedRoleChange($request, null, $data['role'])) {
+            return $forbidden;
+        }
+
         $user = User::create([
             'name'        => $data['name'],
             'email'       => $data['email'],
-            'password'    => \Illuminate\Support\Facades\Hash::make($data['password']),
+            'password'    => Hash::make($data['password']),
             'is_verified' => true,
         ]);
 
-        $user->assignRole($data['role']);
+        $user->syncRoles([$this->roleForGuard($data['role'])]);
 
         return response()->json([
             'message' => 'User created.',
@@ -138,12 +148,16 @@ class AdminUsersController extends Controller
 
         $user->name  = $data['name'];
         $user->email = $data['email'];
-        if (!empty($data['password'])) {
-            $user->password = \Illuminate\Support\Facades\Hash::make($data['password']);
+        if (! empty($data['password'])) {
+            $user->password = Hash::make($data['password']);
         }
         $user->save();
 
-        $user->syncRoles([$data['role']]);
+        if ($forbidden = $this->guardElevatedRoleChange($request, $user, $data['role'])) {
+            return $forbidden;
+        }
+
+        $user->syncRoles([$this->roleForGuard($data['role'])]);
 
         return response()->json([
             'message' => 'User updated.',
@@ -161,8 +175,39 @@ class AdminUsersController extends Controller
             return response()->json(['message' => 'Cannot delete your own account.'], 403);
         }
 
+        if ($user->hasRole('super-admin') && ! $request->user()->hasRole('super-admin')) {
+            return response()->json(['message' => 'Only a super admin can delete super admin accounts.'], 403);
+        }
+
         $user->delete();
 
         return response()->json(['message' => 'User deleted.']);
+    }
+
+    private function roleForGuard(string $role): Role
+    {
+        return Role::findByName($role, 'sanctum');
+    }
+
+    /**
+     * Non–super-admins cannot create/assign/edit the super-admin role,
+     * and cannot change an existing super-admin account.
+     */
+    private function guardElevatedRoleChange(Request $request, ?User $target, string $newRole): ?JsonResponse
+    {
+        $actor = $request->user();
+        if ($actor?->hasRole('super-admin')) {
+            return null;
+        }
+
+        if ($newRole === 'super-admin') {
+            return response()->json(['message' => 'Only a super admin can assign the super-admin role.'], 403);
+        }
+
+        if ($target && $target->hasRole('super-admin')) {
+            return response()->json(['message' => 'Only a super admin can modify super admin accounts.'], 403);
+        }
+
+        return null;
     }
 }

@@ -571,9 +571,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('{ticket}/messages', [ConsultantSupportTicketController::class, 'storeMessage'])->name('messages.store');
     });
 
-    // ── Super Admin Dashboard ────────────────────────────────────────────────
-    // Accessible by super-admin only.
-    Route::middleware('role:super-admin')->prefix('admin')->name('admin.')->group(function () {
+    // ── Admin Dashboard ──────────────────────────────────────────────────────
+    // Accessible by super-admin and admin.
+    Route::middleware('role:super-admin,admin')->prefix('admin')->name('admin.')->group(function () {
 
         // Overview stats
         Route::get('stats', [AdminStatsController::class, 'index'])->name('stats');

@@ -16,7 +16,18 @@ class EnsureHasRole
     {
         $user = $request->user();
 
-        if (! $user || ! $user->hasAnyRole($roles)) {
+        // Support both role:a,b (variadic) and a single "a,b" parameter.
+        $allowed = [];
+        foreach ($roles as $role) {
+            foreach (explode(',', $role) as $part) {
+                $part = trim($part);
+                if ($part !== '') {
+                    $allowed[] = $part;
+                }
+            }
+        }
+
+        if (! $user || $allowed === [] || ! $user->hasAnyRole($allowed)) {
             return response()->json(['message' => 'Forbidden.'], 403);
         }
 
