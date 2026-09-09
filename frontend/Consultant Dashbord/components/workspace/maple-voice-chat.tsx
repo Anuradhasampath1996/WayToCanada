@@ -331,14 +331,14 @@ export function MapleVoiceChat({
   }
 
   return (
-    <section className="rounded-xl border border-border/70 bg-background">
-      <div className="flex items-center justify-between border-b border-border/60 px-3 py-2.5">
-        <p className="text-xs font-semibold text-muted-foreground">
-          Ask {MAPLE_ASSISTANT.name} anything about this client
-        </p>
-        <div className="flex items-center gap-2">
+    <section className="overflow-hidden rounded-2xl border border-border/70 bg-white shadow-sm">
+      <div className="flex items-center justify-between border-b border-border/50 px-3.5 py-2.5">
+        <p className="text-sm font-semibold text-foreground">Ask Maple</p>
+        <div className="flex items-center gap-1.5">
           {!openAiAvailable && (
-            <Badge variant="secondary" className="text-[10px]">Rules mode</Badge>
+            <Badge variant="secondary" className="text-[10px]">
+              Rules mode
+            </Badge>
           )}
           {canSpeak && (
             <MapleVoiceToggle voiceOn={voiceOn} speaking={speaking} onClick={toggleVoiceReplies} />
@@ -346,9 +346,9 @@ export function MapleVoiceChat({
         </div>
       </div>
 
-      <div className="border-b border-border/60 px-3 py-2">
+      <div className="border-b border-border/50 px-3.5 py-2">
         <div className="flex items-center justify-between gap-2">
-          <p className="text-[11px] font-medium text-muted-foreground">Attached files for Q&amp;A</p>
+          <p className="text-[11px] text-muted-foreground">Files for this chat</p>
           <div>
             <input
               ref={fileInputRef}
@@ -369,7 +369,7 @@ export function MapleVoiceChat({
               onClick={() => fileInputRef.current?.click()}
             >
               {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Paperclip className="h-3.5 w-3.5" />}
-              Upload file
+              Attach
             </Button>
           </div>
         </div>
@@ -401,17 +401,13 @@ export function MapleVoiceChat({
               </li>
             ))}
           </ul>
-        ) : (
-          <p className="mt-1.5 text-[11px] text-muted-foreground">
-            PDF, image, or .txt — then ask Maple about what&apos;s inside (e.g. expiry date, refusal reason).
-          </p>
-        )}
+        ) : null}
       </div>
 
-      <div ref={scrollRef} className="max-h-[min(28rem,50vh)] space-y-3 overflow-y-auto px-3 py-3">
+      <div ref={scrollRef} className="max-h-[min(22rem,42vh)] space-y-3 overflow-y-auto px-3.5 py-3">
         {history.length === 0 && (
           <p className="text-xs leading-relaxed text-muted-foreground">
-            {MAPLE_ASSISTANT.voiceHint}
+            Ask about the questionnaire, pathway, CRS, or an attached file.
           </p>
         )}
         {history.map((turn, i) => (
@@ -422,31 +418,26 @@ export function MapleVoiceChat({
               turn.role === "user" ? "justify-end" : "justify-start",
             )}
           >
-            {turn.role === "assistant" && <MapleAvatar size="sm" className="h-7 w-7" />}
+            {turn.role === "assistant" && (
+              <MapleAvatar size="sm" variant="soft" className="h-7 w-7 ring-1 ring-red-100" />
+            )}
             <div className="max-w-[85%] space-y-1">
               <div
                 className={cn(
                   "rounded-2xl px-3 py-2 leading-relaxed whitespace-pre-line",
                   turn.role === "user"
-                    ? "bg-primary text-primary-foreground text-sm"
-                    : "bg-muted text-foreground text-[13px]",
+                    ? "bg-red-600 text-sm text-white"
+                    : "bg-muted text-[13px] text-foreground",
                 )}
               >
                 {turn.content}
               </div>
               {turn.role === "assistant" && (
-                <>
-                  <LegislationLinkChips
-                    links={turn.legislationLinks ?? []}
-                    compact
-                    onLinkClick={onLegislationLinkClick}
-                  />
-                  <p className="px-1 text-[10px] text-muted-foreground">
-                    {turn.intelligenceMode === "ai_enhanced" || turn.aiPowered
-                      ? "AI-enhanced reply"
-                      : "Rules engine reply"}
-                  </p>
-                </>
+                <LegislationLinkChips
+                  links={turn.legislationLinks ?? []}
+                  compact
+                  onLinkClick={onLegislationLinkClick}
+                />
               )}
             </div>
           </div>
@@ -459,7 +450,7 @@ export function MapleVoiceChat({
         )}
       </div>
 
-      <div className="border-t border-border/60 p-2">
+      <div className="border-t border-border/50 p-2.5">
         <form
           className="flex gap-2"
           onSubmit={(e) => {
@@ -485,14 +476,17 @@ export function MapleVoiceChat({
           >
             {listening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
           </Button>
-          <Button type="submit" size="icon" className="h-10 w-10 shrink-0 rounded-xl" disabled={loading || !input.trim()}>
+          <Button
+            type="submit"
+            size="icon"
+            className="h-10 w-10 shrink-0 rounded-xl bg-red-600 text-white hover:bg-red-700"
+            disabled={loading || !input.trim()}
+          >
             <Send className="h-4 w-4" />
           </Button>
         </form>
         {speaking && (
-          <p className="mt-1.5 text-center text-[10px] text-emerald-700">
-            {MAPLE_ASSISTANT.name} is speaking…
-          </p>
+          <p className="mt-1.5 text-center text-[10px] text-emerald-700">Maple is speaking…</p>
         )}
         {error && <p className="mt-2 text-xs text-destructive">{error}</p>}
       </div>

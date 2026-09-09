@@ -47,8 +47,13 @@ function ToolSheet({
   return (
     <Sheet open={activeTool !== null} onOpenChange={(open) => !open && onClose()}>
       <SheetContent side="right" className="flex w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-md">
-        <SheetHeader className="shrink-0 border-b px-4 py-4 pr-12 text-left sm:px-5">
-          <SheetTitle className="flex items-center gap-2 text-base">
+        <SheetHeader
+          className={cn(
+            "shrink-0 border-b px-4 py-3.5 pr-12 text-left sm:px-5",
+            activeTool === "ai-advisor" && "border-red-100 bg-gradient-to-r from-red-50/90 to-white",
+          )}
+        >
+          <SheetTitle className="flex items-center gap-2.5 text-base">
             {activeTool === "meetings" && (
               <>
                 <span className="flex size-7 items-center justify-center rounded-full bg-primary/10">
@@ -67,23 +72,23 @@ function ToolSheet({
             )}
             {activeTool === "ai-advisor" && (
               <>
-                <MapleAvatar size="sm" variant="soft" className="h-7 w-7 shadow-sm ring-1 ring-border/60" />
-                <span>
-                  {MAPLE_ASSISTANT.name}
-                  <span className="ml-1 text-xs font-normal text-muted-foreground">
-                    · always here for you
+                <MapleAvatar size="sm" variant="soft" className="h-9 w-9 ring-1 ring-red-100" />
+                <span className="leading-tight">
+                  Maple
+                  <span className="mt-0.5 block text-xs font-normal text-muted-foreground">
+                    Case co-pilot
                   </span>
                 </span>
               </>
             )}
           </SheetTitle>
-          <SheetDescription className="text-left text-xs">
-            {activeTool === "meetings"
-              ? "Schedule Google Meet, Zoom, or Teams with your client."
-              : activeTool === "payments"
-                ? "Send secure payment links at any stage of the case."
-                : `${MAPLE_ASSISTANT.name} is your friendly co-pilot in this workspace — click when you need case or pathway help.`}
-          </SheetDescription>
+          {activeTool !== "ai-advisor" && (
+            <SheetDescription className="text-left text-xs">
+              {activeTool === "meetings"
+                ? "Schedule Google Meet, Zoom, or Teams with your client."
+                : "Send secure payment links at any stage of the case."}
+            </SheetDescription>
+          )}
         </SheetHeader>
 
         <div className="flex-1 overflow-y-auto overscroll-contain px-3 py-4 sm:px-4">
