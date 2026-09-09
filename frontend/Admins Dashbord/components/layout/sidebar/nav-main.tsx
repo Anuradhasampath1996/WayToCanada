@@ -16,6 +16,7 @@ import {
   BellIcon,
   Building2Icon,
   CalculatorIcon,
+  CalendarClockIcon,
   ChevronRight,
   CreditCardIcon,
   FolderDotIcon,
@@ -110,6 +111,12 @@ export const navItems: NavGroup[] = [
         href: "/admindashboard/subscription-packages",
         icon: BadgeDollarSignIcon,
         match: (p) => p.startsWith("/admindashboard/subscription-packages"),
+      },
+      {
+        title: "Consultant Subscriptions",
+        href: "/admindashboard/consultant-subscriptions",
+        icon: CalendarClockIcon,
+        match: (p) => p.startsWith("/admindashboard/consultant-subscriptions"),
       },
       {
         title: "Storage Packages",

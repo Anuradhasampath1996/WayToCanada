@@ -22,6 +22,7 @@ use App\Http\Controllers\Admin\AdminSubscriptionPackageController;
 use App\Http\Controllers\Admin\AdminMarketingOrdersController;
 use App\Http\Controllers\Admin\AdminClientPaymentRequestsController;
 use App\Http\Controllers\Admin\AdminStorageSubscriptionsController;
+use App\Http\Controllers\Admin\AdminConsultantSubscriptionsController;
 use App\Http\Controllers\Admin\AdminSubscriptionPaymentsController;
 use App\Http\Controllers\Admin\AdminPlatformCompanyController;
 use App\Http\Controllers\Admin\AdminLmsController;
@@ -722,6 +723,11 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('client-payment-requests/export', [AdminClientPaymentRequestsController::class, 'export'])->name('client-payment-requests.export');
         Route::get('storage-subscriptions', [AdminStorageSubscriptionsController::class, 'index'])->name('storage-subscriptions.index');
         Route::get('storage-subscriptions/export', [AdminStorageSubscriptionsController::class, 'export'])->name('storage-subscriptions.export');
+
+        Route::prefix('consultant-subscriptions')->name('consultant-subscriptions.')->group(function () {
+            Route::get('/', [AdminConsultantSubscriptionsController::class, 'index'])->name('index');
+            Route::patch('{subscription}/expiry', [AdminConsultantSubscriptionsController::class, 'updateExpiry'])->name('expiry');
+        });
 
         Route::prefix('platform-company')->name('platform-company.')->group(function () {
             Route::get('/',              [AdminPlatformCompanyController::class, 'show'])->name('show');

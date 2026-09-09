@@ -281,7 +281,7 @@ class AdminRcicController extends Controller
     public function import(Request $request): JsonResponse
     {
         $request->validate([
-            'file' => 'required|file|mimes:csv,txt|max:20480',
+            'file' => 'required|file|mimes:csv,txt|max:51200',
         ]);
 
         $handle = fopen($request->file('file')->getRealPath(), 'r');
