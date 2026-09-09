@@ -63,7 +63,7 @@ function ToolSheet({
             )}
             {activeTool === "ai-advisor" && (
               <>
-                <MapleAvatar size="sm" className="h-7 w-7 rounded-lg text-sm shadow-none ring-0" />
+                <MapleAvatar size="sm" className="h-7 w-7 rounded-lg shadow-none ring-0" />
                 <span>
                   {MAPLE_ASSISTANT.name}
                   <span className="ml-1 text-xs font-normal text-muted-foreground">
@@ -117,9 +117,7 @@ function QuickToolButton({
         )}
       >
         {tool.maple ? (
-          <span className="text-lg leading-none" aria-hidden>
-            {MAPLE_ASSISTANT.emoji}
-          </span>
+          <MapleAvatar size="sm" className="h-6 w-6 rounded-md shadow-none ring-0" />
         ) : Icon ? (
           <Icon className="size-5 shrink-0" strokeWidth={2} />
         ) : null}
@@ -140,9 +138,7 @@ function QuickToolButton({
       )}
     >
       {tool.maple ? (
-        <span className="text-base leading-none" aria-hidden>
-          {MAPLE_ASSISTANT.emoji}
-        </span>
+        <MapleAvatar size="sm" className="h-7 w-7 rounded-lg shadow-none ring-1 ring-white/30" />
       ) : Icon ? (
         <Icon className="size-5 shrink-0" strokeWidth={2} />
       ) : null}

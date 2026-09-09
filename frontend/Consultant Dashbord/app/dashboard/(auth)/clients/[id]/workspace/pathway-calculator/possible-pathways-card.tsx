@@ -404,7 +404,7 @@ export function PossiblePathwaysCard({
             className="w-full gap-2 rounded-xl border-emerald-300/60 bg-background/80 hover:bg-emerald-50"
             onClick={() => setMapleOpen(true)}
           >
-            <MapleAvatar size="sm" className="h-5 w-5 rounded-md text-[10px] shadow-none ring-0" />
+            <MapleAvatar size="sm" className="h-5 w-5 rounded-md shadow-none ring-0" />
             Ask Maple for pathway advice
           </Button>
           <p className="mt-1.5 text-center text-[10px] text-muted-foreground">

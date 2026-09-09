@@ -2,7 +2,8 @@
 
 export const MAPLE_ASSISTANT = {
   name: "Maple",
-  emoji: "🍁",
+  /** Transparent support-mascot asset used across Maple AI UI */
+  imageSrc: "/images/maple-ai-mascot.png",
   role: "Your friendly case co-pilot",
   tagline: "Always here in every client workspace when you need a hand.",
   availability:

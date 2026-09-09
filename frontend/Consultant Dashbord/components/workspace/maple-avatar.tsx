@@ -9,21 +9,27 @@ export function MapleAvatar({
   className?: string;
 }) {
   const sizes = {
-    sm: "h-9 w-9 text-lg",
-    md: "h-12 w-12 text-xl",
-    lg: "h-16 w-16 text-3xl",
+    sm: "h-9 w-9",
+    md: "h-12 w-12",
+    lg: "h-16 w-16",
   };
 
   return (
     <div
       className={cn(
-        "flex shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 shadow-md shadow-emerald-600/25 ring-2 ring-white/80",
+        "relative flex shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-slate-950 shadow-md shadow-red-600/20 ring-2 ring-white/80",
         sizes[size],
         className,
       )}
       aria-hidden
     >
-      <span className="drop-shadow-sm">{MAPLE_ASSISTANT.emoji}</span>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={MAPLE_ASSISTANT.imageSrc}
+        alt=""
+        className="h-full w-full object-contain object-center p-[6%]"
+        draggable={false}
+      />
     </div>
   );
 }
