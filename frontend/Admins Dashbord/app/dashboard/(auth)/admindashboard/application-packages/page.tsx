@@ -48,7 +48,7 @@ import { Progress } from "@/components/ui/progress";
 const API = (process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000") + "/api/v1";
 
 /** Parse JSON API responses; surface gateway/HTML timeouts clearly instead of raw SyntaxError. */
-async function readApiJson<T = Record<string, unknown>>(res: Response): Promise<T> {
+async function readApiJson(res: Response): Promise<any> {
   const text = await res.text();
   const trimmed = text.trimStart();
   if (!trimmed) {
@@ -68,7 +68,7 @@ async function readApiJson<T = Record<string, unknown>>(res: Response): Promise<
     );
   }
   try {
-    return JSON.parse(text) as T;
+    return JSON.parse(text);
   } catch {
     throw new Error(`Invalid JSON from API (HTTP ${res.status}).`);
   }
