@@ -219,6 +219,7 @@
 .rcic-login-right-privacy {
   color: #64748b;
   white-space: nowrap;
+  pointer-events: none;
 }
 .rcic-login-right-privacy i {
   background: #cbd5e1;

@@ -25,6 +25,13 @@ const nextConfig: NextConfig = {
     ];
   },
   images: {
+    // Required in newer Next.js — without this, next/image throws on /logo.png
+    // and the login page hydrates without working submit handlers.
+    localPatterns: [
+      { pathname: "/logo.png" },
+      { pathname: "/images/**" },
+      { pathname: "/404.svg" },
+    ],
     remotePatterns: [
       {
         protocol: "http",

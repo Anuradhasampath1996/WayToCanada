@@ -13,7 +13,13 @@ export function getAdminToken(): string {
   if (ls) return ls;
   // Fallback: cookie
   const match = document.cookie.match(/(?:^|;\s*)wtc_admin_token=([^;]+)/);
-  const cookieToken = match?.[1] ?? "";
+  const raw = match?.[1] ?? "";
+  let cookieToken = raw;
+  try {
+    cookieToken = decodeURIComponent(raw);
+  } catch {
+    cookieToken = raw;
+  }
   // If we recovered from the cookie, sync it back to localStorage so
   // subsequent reads are consistent.
   if (cookieToken) {

@@ -26,7 +26,13 @@ const API = `${process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000"}/api/v
 
 function getCookie(name: string) {
   const match = document.cookie.match(new RegExp("(^| )" + name + "=([^;]+)"));
-  return match ? match[2] : null;
+  const raw = match ? match[2] : null;
+  if (!raw) return null;
+  try {
+    return decodeURIComponent(raw);
+  } catch {
+    return raw;
+  }
 }
 
 export default function AdminLoginPage() {
@@ -54,7 +60,19 @@ export default function AdminLoginPage() {
         headers: { "Content-Type": "application/json", Accept: "application/json" },
         body: JSON.stringify({ email, password }),
       });
-      const data = await res.json();
+
+      let data: {
+        token?: string;
+        user?: { roles?: string[] };
+        message?: string;
+        errors?: { email?: string[] };
+      } = {};
+      try {
+        data = await res.json();
+      } catch {
+        setError("Unexpected server response. Please try again.");
+        return;
+      }
 
       if (!res.ok) {
         setError(data?.message || data?.errors?.email?.[0] || "Invalid credentials.");
@@ -68,17 +86,21 @@ export default function AdminLoginPage() {
         return;
       }
 
-      if (typeof window !== "undefined") {
-        localStorage.setItem("wtc_admin_token", data.token);
-        localStorage.setItem("wtc_admin_user", JSON.stringify(data.user));
-        const maxAge = 60 * 60 * 24 * 30;
-        document.cookie = `wtc_admin_token=${data.token}; path=/; max-age=${maxAge}; SameSite=Lax`;
+      if (!data.token) {
+        setError("Login succeeded but no token was returned.");
+        return;
       }
 
-      router.push("/admindashboard");
+      localStorage.setItem("wtc_admin_token", data.token);
+      localStorage.setItem("wtc_admin_user", JSON.stringify(data.user));
+      const maxAge = 60 * 60 * 24 * 30;
+      const secure = window.location.protocol === "https:" ? "; Secure" : "";
+      document.cookie = `wtc_admin_token=${encodeURIComponent(data.token)}; path=/; max-age=${maxAge}; SameSite=Lax${secure}`;
+
+      // Full navigation so the auth cookie is always sent to middleware.
+      window.location.assign("/admindashboard");
     } catch {
-      setError("Network error. Is the backend server running?");
-    } finally {
+      setError("Network error. Please try again.");
       setLoading(false);
     }
   }
