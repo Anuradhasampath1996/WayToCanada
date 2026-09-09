@@ -17,7 +17,9 @@ class WorkspaceMapleImmigrationKnowledgeService
     {
         $topics = config('maple_immigration_topics', []);
         $q      = strtolower($message);
-        $excerpts = $this->searchLegislation($message);
+        $excerpts = $this->wantsLegislationSearch($message)
+            ? $this->searchLegislation($message)
+            : [];
 
         return [
             'crs_rules' => [
@@ -29,19 +31,34 @@ class WorkspaceMapleImmigrationKnowledgeService
             'pathway_guides'      => $this->pickTopicMap($topics['pathways'] ?? [], $q),
             'admissibility_guides'=> $this->pickTopicMap($topics['admissibility'] ?? [], $q),
             'legislation_excerpts'=> $excerpts,
-            'legislation_links'   => $this->hubLinks->enrichRows($excerpts),
+            'legislation_links'   => $excerpts === [] ? [] : $this->hubLinks->enrichRows($excerpts),
         ];
     }
 
     /**
+     * Only return hub chips Maple actually used in the reply.
+     * Never dump a broad search result list under every answer.
+     *
      * @param  array<string, mixed>  $immigrationKnowledge
      * @return list<array<string, mixed>>
      */
-    public function citationLinksForResponse(array $immigrationKnowledge): array
+    public function citationLinksForResponse(array $immigrationKnowledge, ?string $reply = null): array
     {
         $links = $immigrationKnowledge['legislation_links'] ?? [];
+        $links = array_values(array_filter($links, fn ($l) => ! empty($l['hub_path'])));
 
-        return array_values(array_filter($links, fn ($l) => ! empty($l['hub_path'])));
+        if ($links === [] || $reply === null || trim($reply) === '') {
+            return [];
+        }
+
+        $cited = [];
+        foreach ($links as $link) {
+            if ($this->replyCitesLink($reply, $link)) {
+                $cited[] = $link;
+            }
+        }
+
+        return array_slice($cited, 0, 4);
     }
 
     /** @return list<array<string, mixed>> */
@@ -125,6 +142,73 @@ class WorkspaceMapleImmigrationKnowledgeService
             'excerpt'        => $row['excerpt'],
             'viewer_document_id' => $row['viewer_document_id'] ?? null,
         ], $payload['results'] ?? []);
+    }
+
+    /**
+     * Gate legislation retrieval so casual case chat (esp. romanized Sinhala)
+     * does not match random IRPA substrings like "oni" / "mata".
+     */
+    private function wantsLegislationSearch(string $message): bool
+    {
+        $q = strtolower(trim($message));
+        if ($q === '') {
+            return false;
+        }
+
+        if (preg_match('/\b(s|sec|section)\s*\.?\s*\d+/i', $message)) {
+            return true;
+        }
+
+        if (preg_match('/\b(a|r)-\s*\d+\b/i', $message)) {
+            return true;
+        }
+
+        return $this->asksAny($q, [
+            'legislation', 'regulation', 'statute', 'irpa', 'irpr',
+            'inadmiss', 'criminality', 'misrepresent', 'residency obligation',
+            'study permit', 'work permit', 'visitor visa', 'temporary resident',
+            'permanent resident', 'pr card', 'citizenship', 'refugee',
+            'deport', 'removal order', 'detention', 'appeal', 'sponsor',
+            'express entry', 'provincial nominee', 'pnp', 'lmia',
+            'section ', 'niyamaya', 'niyama', 'act eka', 'regulation eka',
+        ]);
+    }
+
+    /** @param  array<string, mixed>  $link */
+    private function replyCitesLink(string $reply, array $link): bool
+    {
+        $hay = mb_strtolower($reply);
+
+        $section = trim((string) ($link['section_label'] ?? ''));
+        if ($section !== '') {
+            $escaped = preg_quote($section, '/');
+            if (preg_match('/\b(?:section|s\.?|sec\.?)\s*'.$escaped.'\b/iu', $reply)) {
+                return true;
+            }
+            if (preg_match('/\b'.$escaped.'\b/u', $reply) && str_contains($hay, 'section')) {
+                return true;
+            }
+        }
+
+        $key = trim((string) ($link['provision_key'] ?? ''));
+        if ($key !== '' && str_contains($hay, mb_strtolower($key))) {
+            return true;
+        }
+
+        $citation = trim((string) ($link['citation'] ?? ''));
+        if ($citation !== '' && str_contains($hay, mb_strtolower($citation))) {
+            return true;
+        }
+
+        $act = trim((string) ($link['act_code'] ?? ''));
+        if ($act !== '' && $section !== '') {
+            $combo = mb_strtolower($act.' '.$section);
+            if (str_contains($hay, $combo) || str_contains($hay, mb_strtolower($act.' — section '.$section))) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function topicMatches(string $key, string $q): bool

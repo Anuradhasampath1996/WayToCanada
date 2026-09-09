@@ -140,13 +140,21 @@ final class WorkspaceMapleCaseChatService
             return $fieldAnswer;
         }
 
-        if ($this->asksAny($q, ['summary', 'overview']) && ! $this->asksWhoIsMainApplicant($q)) {
+        if ($this->asksAny($q, [
+            'summary', 'overview', 'about this client', 'about the client', 'about him', 'about her',
+            'client gana', 'case eka gana', 'me client', 'tell me about', 'nadaganna', 'dannonna',
+            'kiyanawa', 'explain this case', 'case summary',
+        ]) && ! $this->asksWhoIsMainApplicant($q)) {
             return $this->caseSummary($context, $facts);
         }
 
         $docAnswer = $this->answerFromUploadedDocuments($context, $message);
         if ($docAnswer !== null) {
             return $docAnswer;
+        }
+
+        if ($this->asksAny($q, ['client', 'case']) && mb_strlen($q) < 48) {
+            return $this->caseSummary($context, $facts, true);
         }
 
         return $this->smartFallback($context, $facts, $q, $history);

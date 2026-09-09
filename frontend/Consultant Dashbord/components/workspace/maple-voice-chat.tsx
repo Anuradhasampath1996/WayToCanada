@@ -38,6 +38,32 @@ type MapleDocument = {
   created_at?: string;
 };
 
+/** Only keep legislation chips Maple actually mentioned in the reply text. */
+function citedLegislationLinks(
+  content: string,
+  links: LegislationLink[] | undefined | null,
+): LegislationLink[] | undefined {
+  if (!links?.length) return undefined;
+  const hay = content.toLowerCase();
+  const cited = links.filter((link) => {
+    const citation = (link.citation ?? "").toLowerCase();
+    const key = (link.provision_key ?? "").toLowerCase();
+    const act = (link.act_code ?? "").toLowerCase();
+    if (key && hay.includes(key)) return true;
+    if (citation && hay.includes(citation)) return true;
+    if (act && key && hay.includes(`${act} ${key}`)) return true;
+    const sectionNum = (link.citation ?? "").match(/section\s+([0-9.()]+)/i)?.[1];
+    if (sectionNum) {
+      const escaped = sectionNum.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      if (new RegExp(`\\b(?:section|s\\.?|sec\\.?)\\s*${escaped}\\b`, "i").test(content)) {
+        return true;
+      }
+    }
+    return false;
+  });
+  return cited.length ? cited.slice(0, 4) : undefined;
+}
+
 function authHeadersJson(): Record<string, string> {
   const token = typeof window !== "undefined" ? localStorage.getItem("wtc_consultant_token") : null;
   return {
@@ -168,7 +194,9 @@ export function MapleVoiceChat({
                   : "rules_engine"
                 : undefined,
             legislationLinks:
-              row.role === "assistant" ? row.metadata?.legislation_links : undefined,
+              row.role === "assistant"
+                ? citedLegislationLinks(row.content, row.metadata?.legislation_links)
+                : undefined,
           })),
         );
         setDocuments((json.data?.documents ?? []) as MapleDocument[]);
@@ -258,7 +286,10 @@ export function MapleVoiceChat({
         const reply = String(json.data?.reply ?? "");
         const aiPowered = Boolean(json.data?.openai_used);
         const intelligenceMode = String(json.data?.intelligence_mode ?? (aiPowered ? "ai_enhanced" : "rules_engine"));
-        const legislationLinks = (json.data?.legislation_links ?? []) as LegislationLink[];
+        const legislationLinks = citedLegislationLinks(
+          reply,
+          (json.data?.legislation_links ?? []) as LegislationLink[],
+        );
         setHistory((h) => [
           ...h,
           { role: "assistant", content: reply, aiPowered, intelligenceMode, legislationLinks },

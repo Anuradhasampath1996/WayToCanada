@@ -110,10 +110,11 @@ class WorkspaceAiAdvisorService
         $compact = $this->compactContext->forChat($context);
 
         $history = $this->loadChatHistory($profile, $consultant);
-        $legLinks = $this->immigrationKnowledge->citationLinksForResponse($context['immigration_knowledge'] ?? []);
+        $knowledge = $context['immigration_knowledge'] ?? [];
 
         if (! $this->openAiAvailableForChat()) {
             $fallback = $this->caseChat->reply($context, $message, $history);
+            $legLinks = $this->immigrationKnowledge->citationLinksForResponse($knowledge, $fallback);
 
             $this->persistChatTurn($profile, $consultant, $message, $fallback, false, $legLinks);
 
@@ -129,11 +130,12 @@ class WorkspaceAiAdvisorService
         try {
             $reply = $this->chatWithOpenAi(
                 $compact,
-                $context['immigration_knowledge'] ?? [],
+                $knowledge,
                 $context['uploaded_documents'] ?? [],
                 $message,
                 $history,
             );
+            $legLinks = $this->immigrationKnowledge->citationLinksForResponse($knowledge, $reply);
 
             $this->persistChatTurn($profile, $consultant, $message, $reply, true, $legLinks);
 
@@ -148,6 +150,7 @@ class WorkspaceAiAdvisorService
             Log::warning('Maple chat OpenAI fallback to rules: '.$e->getMessage());
 
             $fallback = $this->caseChat->reply($context, $message, $history);
+            $legLinks = $this->immigrationKnowledge->citationLinksForResponse($knowledge, $fallback);
             $this->persistChatTurn($profile, $consultant, $message, $fallback, false, $legLinks);
 
             return [
@@ -233,7 +236,7 @@ class WorkspaceAiAdvisorService
             ->timeout((int) config('workspace_ai.timeout', 90))
             ->post('https://api.openai.com/v1/chat/completions', [
                 'model'       => config('workspace_ai.model'),
-                'temperature' => 0.3,
+                'temperature' => 0.15,
                 'messages'    => $messages,
             ]);
 
