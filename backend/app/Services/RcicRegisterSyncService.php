@@ -49,7 +49,7 @@ class RcicRegisterSyncService
             'auto_sync'           => [
                 'command'     => 'rcic:sync-register',
                 'schedule'    => 'Weekly on Sunday at 2:00 AM (America/Toronto)',
-                'description' => 'Pages the CICC RCIC/RISIA search and enriches Status/City/Province/Email/Phone from Licensee Details as each page is scraped.',
+                'description' => 'Pages the full CICC RCIC/RISIA search first, then enriches Status/City/Province/Email/Phone from Licensee Details.',
             ],
             'config'              => [
                 'delay_ms'              => (int) config('rcic_register.delay_ms'),
@@ -323,6 +323,18 @@ class RcicRegisterSyncService
                         return $stats;
                     }
 
+                    if (str_contains($e->getMessage(), 'pagination stalled')) {
+                        $run->update([
+                            'status'        => 'failed',
+                            'finished_at'   => now(),
+                            'stats'         => $stats,
+                            'error_message' => $e->getMessage(),
+                            'current_step'  => 'Failed — search pagination stalled',
+                        ]);
+
+                        return $stats;
+                    }
+
                     Log::warning('RCIC register search scrape failed', [
                         'source' => $source['label'],
                         'term'   => $term,
@@ -478,7 +490,9 @@ class RcicRegisterSyncService
                 'stats'           => $stats,
             ]);
 
-            $this->enrichOneProfile($run, $profileId, $stats, $searchStepsDone + $index);
+            $this->withIsolatedCookies(function () use ($run, $profileId, &$stats, $searchStepsDone, $index) {
+                $this->enrichOneProfile($run, $profileId, $stats, $searchStepsDone + $index);
+            });
 
             if ($run->fresh()->status === 'failed') {
                 return;
@@ -553,35 +567,67 @@ class RcicRegisterSyncService
             return false;
         }
 
-        foreach ($ids as $index => $profileId) {
-            if ($this->stopIfRequested($run, $stats)) {
-                return true;
+        return $this->withIsolatedCookies(function () use (
+            $run,
+            $ids,
+            &$stats,
+            $sourceLabel,
+            $term,
+            $pageNumber,
+            $pageCount,
+            $queryIndex,
+            $totalQueries,
+            $total,
+        ) {
+            foreach ($ids as $index => $profileId) {
+                if ($this->stopIfRequested($run, $stats)) {
+                    return true;
+                }
+
+                $run->update([
+                    'current_step' => sprintf(
+                        '%s %s page %d%s — enriching %d/%d (query %d/%d)',
+                        $sourceLabel,
+                        $term === '' ? 'full register' : '“'.$term.'”',
+                        $pageNumber,
+                        $pageCount ? "/{$pageCount}" : '',
+                        $index + 1,
+                        $total,
+                        $queryIndex,
+                        $totalQueries
+                    ),
+                    'stats' => $stats,
+                ]);
+
+                $this->enrichOneProfile($run, $profileId, $stats);
+                if ($run->fresh()->status === 'failed') {
+                    return true;
+                }
+
+                $this->throttle();
             }
 
-            $run->update([
-                'current_step' => sprintf(
-                    '%s %s page %d%s — enriching %d/%d (query %d/%d)',
-                    $sourceLabel,
-                    $term === '' ? 'full register' : '“'.$term.'”',
-                    $pageNumber,
-                    $pageCount ? "/{$pageCount}" : '',
-                    $index + 1,
-                    $total,
-                    $queryIndex,
-                    $totalQueries
-                ),
-                'stats' => $stats,
-            ]);
+            return false;
+        });
+    }
 
-            $this->enrichOneProfile($run, $profileId, $stats);
-            if ($run->fresh()->status === 'failed') {
-                return true;
-            }
+    /**
+     * Run profile HTTP calls without polluting the CICC search session cookies.
+     *
+     * @template T
+     * @param  callable():T  $callback
+     * @return T
+     */
+    private function withIsolatedCookies(callable $callback): mixed
+    {
+        $saved = $this->cookies;
+        $this->cookies = [];
 
-            $this->throttle();
+        try {
+            return $callback();
+        } finally {
+            $this->cookies = $saved;
         }
-
-        return false;
     }
 
     /**
@@ -803,6 +849,10 @@ class RcicRegisterSyncService
         $page = 0;
         $maxPages = (int) config('rcic_register.max_pages_per_term', 0);
         $seenPageIndexes = [];
+        $uniqueProfileIds = [];
+        $expectedTotal = null;
+        $previousPageFingerprint = null;
+        $stagnantPages = 0;
 
         while (true) {
             if ($this->stopIfRequested($run, $stats)) {
@@ -810,8 +860,18 @@ class RcicRegisterSyncService
             }
 
             $meta = $this->parseGridMeta($html);
+            if ($expectedTotal === null && ! empty($meta['virtual_item_count'])) {
+                $expectedTotal = (int) $meta['virtual_item_count'];
+            }
+
             $pageIndex = $meta['current_page_index'] ?? $page;
             if (isset($seenPageIndexes[$pageIndex])) {
+                Log::warning('RCIC search pagination hit a repeated page index', [
+                    'source' => $sourceLabel,
+                    'term'   => $term,
+                    'page'   => $pageIndex,
+                    'unique' => count($uniqueProfileIds),
+                ]);
                 break;
             }
             $seenPageIndexes[$pageIndex] = true;
@@ -822,9 +882,28 @@ class RcicRegisterSyncService
                 $result = $this->upsertSearchRow($row);
                 $stats[$result]++;
                 if (! empty($row['profile_id'])) {
-                    $pageProfileIds[] = (int) $row['profile_id'];
+                    $pid = (int) $row['profile_id'];
+                    $pageProfileIds[] = $pid;
+                    $uniqueProfileIds[$pid] = true;
                 }
             }
+
+            $fingerprint = implode(',', $pageProfileIds);
+            if ($fingerprint !== '' && $fingerprint === $previousPageFingerprint) {
+                $stagnantPages++;
+                Log::warning('RCIC search returned duplicate page content', [
+                    'source' => $sourceLabel,
+                    'term'   => $term,
+                    'page'   => $pageIndex,
+                    'stagnant_pages' => $stagnantPages,
+                ]);
+                if ($stagnantPages >= 2) {
+                    break;
+                }
+            } else {
+                $stagnantPages = 0;
+            }
+            $previousPageFingerprint = $fingerprint;
 
             $stats['pages']++;
             $page++;
@@ -832,18 +911,20 @@ class RcicRegisterSyncService
             $pageCount = $meta['page_count'] ?? null;
             $run->update([
                 'current_step' => sprintf(
-                    '%s %s page %d%s — %d rows this page (query %d/%d)',
+                    '%s %s page %d%s — %d rows this page, %d unique so far (query %d/%d)',
                     $sourceLabel,
                     $term === '' ? 'full register' : '“'.$term.'”',
                     $pageIndex + 1,
                     $pageCount ? "/{$pageCount}" : '',
                     count($rows),
+                    count($uniqueProfileIds),
                     $queryIndex,
                     $totalQueries
                 ),
                 'stats' => $stats,
             ]);
 
+            // Never enrich with the search cookie jar — profile cookies break pagination.
             if ($this->enrichProfileIdsDuringSearch(
                 $run,
                 $pageProfileIds,
@@ -877,6 +958,18 @@ class RcicRegisterSyncService
 
             $this->throttle();
             $html = $this->postEvent($searchUrl, $html, $nextTarget, $term);
+        }
+
+        $uniqueCount = count($uniqueProfileIds);
+        if ($expectedTotal !== null && $expectedTotal >= 500 && $uniqueCount < (int) max(100, $expectedTotal * 0.05)) {
+            throw new \RuntimeException(sprintf(
+                'Search pagination stalled for %s (%s): only %d unique profiles of ~%d expected after %d pages. Retry sync; do not use enrich-during-search.',
+                $sourceLabel,
+                $term === '' ? 'full register' : $term,
+                $uniqueCount,
+                $expectedTotal,
+                $page
+            ));
         }
 
         return false;

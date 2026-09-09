@@ -49,10 +49,12 @@ return [
     'enrich_profiles' => filter_var(env('RCIC_SCRAPE_ENRICH_PROFILES', true), FILTER_VALIDATE_BOOL),
 
     /**
-     * Enrich each search-result page immediately (so Status/City/Email/Phone
-     * appear while sync is still running — not only after the full register).
+     * Enrich each search-result page immediately.
+     * Default OFF: visiting Licensee Details mid-search mixes cookies and
+     * breaks CICC search pagination (sync "completes" after ~40 pages with few rows).
+     * Prefer full search first, then enrich — or use Enrich contacts.
      */
-    'enrich_during_search' => filter_var(env('RCIC_SCRAPE_ENRICH_DURING_SEARCH', true), FILTER_VALIDATE_BOOL),
+    'enrich_during_search' => filter_var(env('RCIC_SCRAPE_ENRICH_DURING_SEARCH', false), FILTER_VALIDATE_BOOL),
 
     /** Only enrich rows missing status/city/email/phone (recommended). */
     'enrich_only_missing' => filter_var(env('RCIC_SCRAPE_ENRICH_ONLY_MISSING', true), FILTER_VALIDATE_BOOL),
