@@ -1,13 +1,33 @@
 import Image from "next/image";
 
-export default function Logo() {
+type LogoProps = {
+  /** icon = shield-sized mark for collapsed sidebar; full = wordmark lockup */
+  variant?: "icon" | "full";
+  className?: string;
+};
+
+export default function Logo({ variant = "icon", className = "" }: LogoProps) {
+  if (variant === "full") {
+    return (
+      <Image
+        src="/logo.png"
+        width={180}
+        height={40}
+        className={`h-8 w-auto object-contain object-left ${className}`}
+        alt="RCIC MASTER"
+        priority
+      />
+    );
+  }
+
   return (
     <Image
       src="/logo.png"
-      width={30}
-      height={30}
-      className="me-1 rounded-[5px] transition-all group-data-collapsible:size-6 group-data-[collapsible=icon]:size-8"
-      alt="RCICMASTER logo"
+      width={40}
+      height={40}
+      className={`size-8 object-contain object-left ${className}`}
+      alt="RCIC MASTER"
+      priority
     />
   );
 }

@@ -13,8 +13,13 @@ const nextConfig: NextConfig = {
   async redirects() {
     return [
       {
-        source: "/dashboard/login",
-        destination: "/dashboard/login/v1",
+        source: "/dashboard/login/v1",
+        destination: "/dashboard/login",
+        permanent: false,
+      },
+      {
+        source: "/dashboard/login/v2",
+        destination: "/dashboard/login",
         permanent: false,
       },
     ];

@@ -1,0 +1,321 @@
+/* Branded admin sign-in — matched to consultant login design */
+.rcic-login-page {
+  background: #f8fafc;
+  color: #0f172a;
+  font-family: var(--font-inter), Inter, sans-serif;
+}
+.rcic-login-brand-panel {
+  background: #b9000b;
+  flex: 0 0 50%;
+  min-height: 100vh;
+  padding-bottom: 32px !important;
+  padding-left: 48px !important;
+  padding-right: 48px !important;
+  padding-top: 40px !important;
+  width: 50%;
+}
+.rcic-login-brand-bg {
+  background:
+    radial-gradient(circle at 80% 12%, rgba(255, 255, 255, 0.08), transparent 28%),
+    linear-gradient(160deg, #cf0010 0%, #b9000b 56%, #930008 100%);
+}
+.rcic-login-brand-glow {
+  background:
+    linear-gradient(145deg, transparent 0 38%, rgba(255, 255, 255, 0.07) 38.1% 43%, transparent 43.1%),
+    linear-gradient(25deg, transparent 0 60%, rgba(255, 255, 255, 0.05) 60.1% 61%, transparent 61.1%);
+}
+.rcic-login-brand-panel::before,
+.rcic-login-brand-panel::after {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 50%;
+  content: "";
+  pointer-events: none;
+  position: absolute;
+  z-index: 0;
+}
+.rcic-login-brand-panel::before {
+  height: 420px;
+  left: 44%;
+  top: 42px;
+  transform: rotate(26deg);
+  width: 620px;
+}
+.rcic-login-brand-panel::after {
+  bottom: -105px;
+  height: 280px;
+  left: -170px;
+  transform: rotate(14deg);
+  width: 760px;
+}
+.rcic-login-brand-logo {
+  margin-left: -14px;
+}
+.rcic-login-brand-logo img {
+  filter: brightness(0) invert(1);
+  height: 36px;
+  object-fit: contain;
+  width: 167px;
+}
+.rcic-login-welcome {
+  left: 68px;
+  margin-bottom: 30px;
+  position: absolute;
+  top: 154px;
+}
+.rcic-login-welcome h2 {
+  color: #fff;
+  font-size: 34px;
+  font-weight: 400;
+  letter-spacing: -0.7px;
+  line-height: 1.18;
+  margin: 0;
+}
+.rcic-login-welcome h2 strong,
+.rcic-login-welcome h2 span {
+  display: block;
+}
+.rcic-login-welcome h2 strong {
+  font-weight: 700;
+}
+.rcic-login-accent {
+  display: none;
+}
+.rcic-login-welcome-copy {
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 13px;
+  line-height: 20px;
+  margin: 16px 0 0;
+}
+.rcic-login-features {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  margin-top: 52px;
+}
+.rcic-login-features > div {
+  align-items: center;
+  color: rgba(255, 255, 255, 0.92);
+  display: flex;
+  gap: 7px;
+  min-width: 0;
+}
+.rcic-login-features > div > span {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  display: flex;
+  flex: 0 0 30px;
+  height: 30px;
+  justify-content: center;
+  width: 30px;
+}
+.rcic-login-features svg {
+  height: 15px;
+  width: 15px;
+}
+.rcic-login-features b {
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 13px;
+  white-space: nowrap;
+}
+.rcic-login-features > i {
+  background: rgba(255, 255, 255, 0.32);
+  height: 36px;
+  width: 1px;
+}
+.rcic-login-copyright {
+  color: rgba(255, 255, 255, 0.74);
+  margin-left: -14px;
+}
+.rcic-login-form-panel {
+  background: #f8fafc;
+  border-left: 1px solid #eef0f3;
+}
+.rcic-login-card {
+  border-color: #e2e8f0;
+  border-radius: 12px;
+  box-shadow: 0 16px 32px -20px rgba(15, 23, 42, 0.28);
+  max-width: 298px !important;
+  margin-left: auto;
+  margin-right: auto;
+  padding: 28px !important;
+}
+.rcic-login-mobile-logo img {
+  height: auto;
+  width: 200px;
+}
+.rcic-login-link {
+  color: #d50000;
+}
+.rcic-login-card-header {
+  text-align: center;
+  margin-bottom: 20px !important;
+}
+.rcic-login-card-header h1 {
+  font-size: 18px;
+  line-height: 22px;
+}
+.rcic-login-card-header p {
+  font-size: 10px;
+  line-height: 14px;
+}
+.rcic-login-card label {
+  color: #1f2937;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 15px;
+}
+.rcic-login-card form > :not(:first-child) {
+  margin-top: 14px !important;
+}
+.rcic-login-card .my-6 {
+  margin-bottom: 16px !important;
+  margin-top: 16px !important;
+}
+.rcic-login-input-wrap {
+  position: relative;
+}
+.rcic-login-input-icon {
+  color: #64748b;
+  height: 14px;
+  position: absolute;
+  right: 12px;
+  top: 11px;
+  width: 14px;
+  z-index: 1;
+}
+.rcic-login-card input {
+  border-color: #e5e7eb;
+  border-radius: 4px;
+  font-size: 10px;
+  height: 30px !important;
+}
+.rcic-login-card input::placeholder {
+  color: #94a3b8;
+}
+.rcic-login-submit {
+  background: #d50000 !important;
+  border-radius: 4px !important;
+  color: #fff !important;
+  font-size: 11px;
+  height: 30px !important;
+  min-height: 30px !important;
+  box-shadow: 0 12px 24px -12px rgba(213, 0, 0, 0.65);
+}
+.rcic-login-submit:hover {
+  background: #b40000 !important;
+}
+.rcic-login-google {
+  border-radius: 4px !important;
+  height: 30px !important;
+  min-height: 30px !important;
+}
+.rcic-login-google:hover {
+  border-color: rgba(213, 0, 0, 0.35);
+  color: #d50000;
+}
+.rcic-login-right-privacy {
+  color: #64748b;
+  white-space: nowrap;
+}
+.rcic-login-right-privacy i {
+  background: #cbd5e1;
+  border-radius: 50%;
+  display: inline-block;
+  height: 3px;
+  margin: 0 7px;
+  width: 3px;
+}
+.rcic-login-card input:focus-visible {
+  border-color: #d50000;
+  box-shadow: 0 0 0 3px rgba(213, 0, 0, 0.12);
+  outline: none;
+}
+
+@media (max-width: 900px) {
+  .rcic-login-form-panel {
+    border-left: 0;
+  }
+}
+
+@media (min-width: 1200px) {
+  .rcic-login-brand-panel {
+    padding-bottom: clamp(32px, 3.1vw, 48px) !important;
+    padding-left: clamp(48px, 3.3vw, 64px) !important;
+    padding-right: clamp(48px, 3.3vw, 64px) !important;
+    padding-top: clamp(40px, 3.9vw, 60px) !important;
+  }
+  .rcic-login-brand-logo {
+    margin-left: clamp(-14px, -0.9vw, -10px);
+  }
+  .rcic-login-brand-logo img {
+    height: auto;
+    width: clamp(167px, 16.3vw, 250px);
+  }
+  .rcic-login-welcome {
+    left: clamp(68px, 6.6vw, 102px);
+    top: clamp(154px, 15.5vw, 240px);
+  }
+  .rcic-login-welcome h2 {
+    font-size: clamp(34px, 3.2vw, 50px);
+  }
+  .rcic-login-welcome-copy {
+    font-size: clamp(13px, 1.2vw, 18px);
+    line-height: 1.5;
+  }
+  .rcic-login-features {
+    gap: clamp(8px, 1vw, 16px);
+    margin-top: clamp(52px, 4.7vw, 72px);
+  }
+  .rcic-login-features > div {
+    gap: clamp(7px, 0.65vw, 10px);
+  }
+  .rcic-login-features > div > span {
+    flex-basis: clamp(30px, 2.2vw, 34px);
+    height: clamp(30px, 2.2vw, 34px);
+    width: clamp(30px, 2.2vw, 34px);
+  }
+  .rcic-login-features b {
+    font-size: clamp(9px, 0.65vw, 10px);
+  }
+  .rcic-login-copyright {
+    font-size: clamp(9px, 0.65vw, 10px);
+    margin-left: clamp(-14px, -0.9vw, -10px);
+  }
+  .rcic-login-card {
+    max-width: clamp(298px, 29.1vw, 440px) !important;
+    padding: clamp(28px, 2.7vw, 42px) !important;
+  }
+  .rcic-login-card-header {
+    margin-bottom: clamp(20px, 2vw, 30px) !important;
+  }
+  .rcic-login-card-header h1 {
+    font-size: clamp(18px, 1.7vw, 26px);
+    line-height: 1.25;
+  }
+  .rcic-login-card-header p {
+    font-size: clamp(10px, 0.8vw, 12px);
+    line-height: 1.4;
+  }
+  .rcic-login-card label {
+    font-size: clamp(10px, 0.7vw, 12px);
+  }
+  .rcic-login-card input {
+    font-size: clamp(10px, 0.8vw, 12px);
+    height: clamp(30px, 2vw, 37px) !important;
+  }
+  .rcic-login-card form > :not(:first-child) {
+    margin-top: clamp(14px, 1.3vw, 20px) !important;
+  }
+  .rcic-login-submit,
+  .rcic-login-google {
+    height: clamp(30px, 2vw, 37px) !important;
+    min-height: clamp(30px, 2vw, 37px) !important;
+  }
+  .rcic-login-right-privacy {
+    bottom: clamp(28px, 2.7vw, 42px);
+    font-size: clamp(9px, 0.65vw, 10px);
+  }
+}

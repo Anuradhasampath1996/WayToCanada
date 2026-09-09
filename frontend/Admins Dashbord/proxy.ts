@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-const ADMIN_LOGIN_URL = "/dashboard/login/v1";
+const ADMIN_LOGIN_URL = "/dashboard/login";
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;

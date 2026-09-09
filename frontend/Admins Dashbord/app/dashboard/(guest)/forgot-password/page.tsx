@@ -99,7 +99,7 @@ export default function Page() {
         <CardFooter className="flex justify-center">
           <p className="text-sm">
             Already have an account?{" "}
-            <a href="/dashboard/login/v2" className="underline">
+            <a href="/dashboard/login" className="underline">
               Log in
             </a>
           </p>

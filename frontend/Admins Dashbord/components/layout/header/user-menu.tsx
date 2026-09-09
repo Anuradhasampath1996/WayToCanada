@@ -115,7 +115,7 @@ export default function UserMenu() {
             localStorage.removeItem("wtc_admin_token");
             localStorage.removeItem("wtc_admin_user");
             document.cookie = "wtc_admin_token=; path=/; max-age=0; SameSite=Lax";
-            window.location.replace("/dashboard/login/v1");
+            window.location.replace("/dashboard/login");
           }}
         >
           <LogOut />

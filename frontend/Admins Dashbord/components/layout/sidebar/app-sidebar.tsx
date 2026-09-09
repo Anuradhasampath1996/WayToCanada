@@ -45,14 +45,16 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               asChild
               className="h-[52px] rounded-xl bg-sidebar/60 px-2.5 shadow-sm ring-1 ring-sidebar-border/50 transition-all hover:bg-sidebar-accent/40 hover:ring-sidebar-primary/20"
             >
-              <Link href="/admindashboard">
-                <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-sidebar-primary to-sidebar-primary/85 text-sidebar-primary-foreground shadow-md [&_img]:size-5 [&_img]:rounded-md">
-                  <Logo />
-                </div>
-                <div className="grid min-w-0 flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-semibold tracking-tight">RCICMASTER</span>
-                  <span className="truncate text-xs text-sidebar-foreground/55">Admin Portal</span>
-                </div>
+              <Link href="/admindashboard" className="gap-2.5 overflow-hidden">
+                <Logo
+                  variant="full"
+                  className="h-8 max-w-[170px] group-data-[collapsible=icon]:hidden"
+                />
+                <Logo
+                  variant="icon"
+                  className="hidden size-8 group-data-[collapsible=icon]:block"
+                />
+                <div className="sr-only">RCIC MASTER Admin Portal</div>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
