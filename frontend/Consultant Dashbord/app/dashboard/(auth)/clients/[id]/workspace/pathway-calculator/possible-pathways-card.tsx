@@ -166,7 +166,7 @@ function MaplePathwayAdviceDialog({
       <DialogContent className="flex max-h-[90vh] max-w-lg flex-col gap-0 overflow-hidden p-0 sm:max-w-xl">
         <DialogHeader className="border-b px-5 py-4">
           <div className="flex items-start gap-3">
-            <MapleAvatar size="sm" className="h-10 w-10 rounded-xl" />
+            <MapleAvatar size="sm" className="h-10 w-10" />
             <div className="min-w-0 text-left">
               <DialogTitle className="text-base">{MAPLE_ASSISTANT.name} · pathway advice</DialogTitle>
               <DialogDescription className="text-xs leading-relaxed">
@@ -258,7 +258,7 @@ function MaplePathwayAdviceDialog({
 
           {chatReply && (
             <div className="flex gap-2 rounded-xl border border-border/60 bg-card p-3">
-              <MapleAvatar size="sm" className="h-7 w-7 shrink-0 rounded-lg" />
+              <MapleAvatar size="sm" className="h-7 w-7 shrink-0" />
               <p className="text-sm leading-relaxed text-foreground">{chatReply}</p>
             </div>
           )}
@@ -404,7 +404,7 @@ export function PossiblePathwaysCard({
             className="w-full gap-2 rounded-xl border-emerald-300/60 bg-background/80 hover:bg-emerald-50"
             onClick={() => setMapleOpen(true)}
           >
-            <MapleAvatar size="sm" className="h-5 w-5 rounded-md shadow-none ring-0" />
+            <MapleAvatar size="sm" className="h-5 w-5 shadow-none ring-0" />
             Ask Maple for pathway advice
           </Button>
           <p className="mt-1.5 text-center text-[10px] text-muted-foreground">

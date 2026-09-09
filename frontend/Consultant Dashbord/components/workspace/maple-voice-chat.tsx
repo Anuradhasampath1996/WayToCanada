@@ -422,7 +422,7 @@ export function MapleVoiceChat({
               turn.role === "user" ? "justify-end" : "justify-start",
             )}
           >
-            {turn.role === "assistant" && <MapleAvatar size="sm" className="h-7 w-7 rounded-lg" />}
+            {turn.role === "assistant" && <MapleAvatar size="sm" className="h-7 w-7" />}
             <div className="max-w-[85%] space-y-1">
               <div
                 className={cn(

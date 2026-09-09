@@ -17,9 +17,11 @@ export function MapleAvatar({
   return (
     <div
       className={cn(
-        "relative flex shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-slate-950 shadow-md shadow-red-600/20 ring-2 ring-white/80",
+        // Pure black matches the mascot PNG so the circle edge is seamless.
+        "relative flex shrink-0 items-center justify-center overflow-hidden bg-black shadow-md shadow-red-600/20 ring-2 ring-white/80",
         sizes[size],
         className,
+        "rounded-full",
       )}
       aria-hidden
     >
@@ -27,7 +29,8 @@ export function MapleAvatar({
       <img
         src={MAPLE_ASSISTANT.imageSrc}
         alt=""
-        className="h-full w-full object-contain object-center p-[6%]"
+        // Cover fills the full circle — no inset padding that leaves a black gap ring.
+        className="h-full w-full object-cover object-center"
         draggable={false}
       />
     </div>
