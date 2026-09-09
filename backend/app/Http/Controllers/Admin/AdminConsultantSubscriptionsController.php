@@ -20,7 +20,7 @@ class AdminConsultantSubscriptionsController extends Controller
     {
         $query = ConsultantSubscription::query()
             ->with([
-                'user:id,name,email,role',
+                'user:id,name,email',
                 'package:id,name,monthly_price,yearly_price',
             ])
             ->latest('id');
@@ -155,7 +155,7 @@ class AdminConsultantSubscriptionsController extends Controller
         }
 
         $subscription->save();
-        $subscription->load(['user:id,name,email,role', 'package:id,name,monthly_price,yearly_price']);
+        $subscription->load(['user:id,name,email', 'package:id,name,monthly_price,yearly_price']);
 
         Log::info('Admin updated consultant subscription expiry', [
             'admin_id' => $request->user()?->id,
@@ -213,7 +213,7 @@ class AdminConsultantSubscriptionsController extends Controller
                 'id' => $sub->user->id,
                 'name' => $sub->user->name,
                 'email' => $sub->user->email,
-                'role' => $sub->user->role,
+                'role' => $sub->user->getRoleNames()->first(),
             ] : null,
             'package' => $sub->package ? [
                 'id' => $sub->package->id,
