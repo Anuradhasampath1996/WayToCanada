@@ -7,7 +7,9 @@ import {
   BadgeDollarSign,
   Calculator,
   CreditCard,
+  ExternalLink,
   FolderDot,
+  Globe,
   LayoutDashboard,
   Loader2,
   RefreshCw,
@@ -99,6 +101,39 @@ const QUICK_LINKS = [
     description: "Express Entry score data",
     href: "/admindashboard/crs-calculator-sync",
     icon: Calculator,
+  },
+] as const;
+
+const SYSTEM_URLS = [
+  {
+    name: "Admin Dashboard",
+    description: "Super admin & admin portal",
+    url: "https://admin.rcicmaster.ca",
+    path: "/admindashboard",
+  },
+  {
+    name: "Consultant Website",
+    description: "RCIC marketing & sign-in site",
+    url: "https://rcicmaster.ca",
+    path: "/",
+  },
+  {
+    name: "Consultant Dashboard",
+    description: "RCIC practice workspace",
+    url: "https://consultant.rcicmaster.ca",
+    path: "/consultantdashboard",
+  },
+  {
+    name: "Public Website",
+    description: "Applicant landing & apply flow",
+    url: "https://apply.rcicmaster.ca",
+    path: "/",
+  },
+  {
+    name: "Client Dashboard",
+    description: "Public user / client portal",
+    url: "https://app.rcicmaster.ca",
+    path: "/user-dashboard",
   },
 ] as const;
 
@@ -296,6 +331,44 @@ export function AdminDashboardClient() {
           tone="warning"
         />
       </div>
+
+      {/* System portal URLs */}
+      <Card className="shadow-sm">
+        <CardHeader className="pb-3">
+          <div className="flex items-center gap-2">
+            <div className="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <Globe className="size-4" />
+            </div>
+            <div>
+              <CardTitle className="text-base">System portal URLs</CardTitle>
+              <CardDescription>Live links for every RCICMASTER dashboard</CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {SYSTEM_URLS.map((portal) => {
+              const href = `${portal.url}${portal.path === "/" ? "" : portal.path}`;
+              return (
+                <a
+                  key={portal.url}
+                  href={href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="group flex items-start justify-between gap-3 rounded-xl border bg-muted/20 p-4 transition-colors hover:border-primary/30 hover:bg-primary/5"
+                >
+                  <div className="min-w-0 space-y-1">
+                    <p className="text-sm font-semibold">{portal.name}</p>
+                    <p className="text-xs text-muted-foreground">{portal.description}</p>
+                    <p className="truncate font-mono text-[11px] text-primary/90">{href}</p>
+                  </div>
+                  <ExternalLink className="mt-0.5 size-4 shrink-0 text-muted-foreground transition-colors group-hover:text-primary" />
+                </a>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
 
       <div className="grid gap-6 lg:grid-cols-5">
         {/* User breakdown */}
