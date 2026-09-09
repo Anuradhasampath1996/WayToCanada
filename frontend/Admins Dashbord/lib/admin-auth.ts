@@ -28,6 +28,27 @@ export function getAdminToken(): string {
   return cookieToken;
 }
 
+/** Clears admin auth cookie + localStorage. */
+export function clearAdminSession(): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.removeItem("wtc_admin_token");
+    localStorage.removeItem("wtc_admin_user");
+  } catch {}
+  document.cookie = "wtc_admin_token=; path=/; max-age=0; SameSite=Lax";
+}
+
+/**
+ * If the API says the session is gone, clear local auth and send the user
+ * back to login. Returns true when a redirect was triggered.
+ */
+export function handleAdminUnauthorized(status: number): boolean {
+  if (status !== 401) return false;
+  clearAdminSession();
+  window.location.assign("/dashboard/login");
+  return true;
+}
+
 /** Returns headers for authenticated admin API calls. */
 export function adminAuthHeaders(contentType?: string): Record<string, string> {
   const token = getAdminToken();

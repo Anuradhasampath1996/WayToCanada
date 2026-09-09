@@ -32,7 +32,7 @@ import {
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { generateAvatarFallback } from "@/lib/utils";
-import { adminAuthHeaders } from "@/lib/admin-auth";
+import { adminAuthHeaders, handleAdminUnauthorized } from "@/lib/admin-auth";
 
 const API = process.env.NEXT_PUBLIC_API_URL + "/api/v1";
 
@@ -78,6 +78,7 @@ export default function AdminUsersPage() {
       const res = await fetch(`${API}/admin/users?per_page=100`, {
         headers: authHeaders(),
       });
+      if (handleAdminUnauthorized(res.status)) return;
       const json = await res.json();
       const adminRoles = ["super-admin", "admin"];
       const filtered = (json.data ?? []).filter((u: AdminUser) =>
@@ -124,6 +125,7 @@ export default function AdminUsersPage() {
           }),
         });
         if (!res.ok) {
+          if (handleAdminUnauthorized(res.status)) return;
           const err = await res.json();
           const msg = err?.errors
             ? Object.values(err.errors).flat().join(", ")
@@ -140,6 +142,7 @@ export default function AdminUsersPage() {
           body: JSON.stringify(form),
         });
         if (!res.ok) {
+          if (handleAdminUnauthorized(res.status)) return;
           const err = await res.json();
           const msg = err?.errors
             ? Object.values(err.errors).flat().join(", ")
