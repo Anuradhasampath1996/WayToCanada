@@ -47,6 +47,33 @@ import { Progress } from "@/components/ui/progress";
 
 const API = (process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000") + "/api/v1";
 
+/** Parse JSON API responses; surface gateway/HTML timeouts clearly instead of raw SyntaxError. */
+async function readApiJson<T = Record<string, unknown>>(res: Response): Promise<T> {
+  const text = await res.text();
+  const trimmed = text.trimStart();
+  if (!trimmed) {
+    throw new Error(res.ok ? "Empty response from API." : `Request failed (HTTP ${res.status}).`);
+  }
+  if (trimmed.startsWith("<") || trimmed.startsWith("<!")) {
+    if (res.status === 504 || /gateway time-?out/i.test(trimmed)) {
+      throw new Error(
+        "Sync timed out waiting for the API (nginx gateway timeout). Retry — catalog sync can take several minutes."
+      );
+    }
+    if (res.status === 502 || /bad gateway/i.test(trimmed)) {
+      throw new Error("API gateway error (502). The API may be overloaded — wait a moment and retry.");
+    }
+    throw new Error(
+      `API returned HTML instead of JSON (HTTP ${res.status}). Check that /api/ reaches Laravel and is not timing out.`
+    );
+  }
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    throw new Error(`Invalid JSON from API (HTTP ${res.status}).`);
+  }
+}
+
 type PackageDocument = {
   id: number;
   label: string;
@@ -190,7 +217,7 @@ export default function ApplicationPackagesPage() {
       const res = await fetch(`${API}/admin/application-packages/${packageId}/interactive-forms`, {
         headers: adminAuthHeaders(),
       });
-      const data = await res.json();
+      const data = await readApiJson(res);
       if (res.ok) setInteractiveForms(data.data ?? []);
       else setInteractiveForms([]);
     } catch {
@@ -222,7 +249,7 @@ export default function ApplicationPackagesPage() {
       const res = await fetch(`${API}/admin/application-packages/sync-status`, {
         headers: adminAuthHeaders(),
       });
-      const data = await res.json();
+      const data = await readApiJson(res);
       if (res.ok) setSyncStatus(data);
     } catch {
       // ignore
@@ -236,7 +263,7 @@ export default function ApplicationPackagesPage() {
       const res = await fetch(`${API}/admin/application-packages/leaves`, {
         headers: adminAuthHeaders(),
       });
-      const data = await res.json();
+      const data = await readApiJson(res);
       if (!res.ok) throw new Error(data?.message ?? "Failed to load packages.");
       const list = data.data ?? [];
       setPackages(list);
@@ -273,7 +300,7 @@ export default function ApplicationPackagesPage() {
           headers: adminAuthHeaders("application/json"),
           body: JSON.stringify({ pdf_limit: 80 }),
         });
-        const data = await res.json();
+        const data = await readApiJson(res);
         if (!res.ok) throw new Error(data?.message ?? "Sync failed.");
         updateProgress(100, `Catalog updated — ${data.stats?.total ?? 0} forms indexed`);
         setSyncMessage(data.message ?? "Catalog sync completed.");
@@ -322,7 +349,7 @@ export default function ApplicationPackagesPage() {
               method: "POST",
               headers: adminAuthHeaders(),
             });
-            const data = await res.json();
+            const data = await readApiJson(res);
             if (!res.ok) {
               errors.push(`${pkg.label}: ${data?.message ?? "failed"}`);
               continue;
@@ -399,7 +426,7 @@ export default function ApplicationPackagesPage() {
         method: "POST",
         headers: adminAuthHeaders(),
       });
-      const data = await res.json();
+      const data = await readApiJson(res);
       if (!res.ok) throw new Error(data?.message ?? "Sync failed.");
 
       if (data.is_online_only && data.interactive_forms) {
@@ -466,7 +493,7 @@ export default function ApplicationPackagesPage() {
             .filter(Boolean),
         }),
       });
-      const data = await res.json();
+      const data = await readApiJson(res);
       if (!res.ok) throw new Error(data?.message ?? "Save failed.");
       setEditOpen(false);
       await loadPackages();
@@ -491,7 +518,7 @@ export default function ApplicationPackagesPage() {
         headers: adminAuthHeaders(),
         body,
       });
-      const data = await res.json();
+      const data = await readApiJson(res);
       if (!res.ok) throw new Error(data?.message ?? "Upload failed.");
       setUploadOpen(false);
       setUploadForm({ label: "", doc_type: "other", file: null });
