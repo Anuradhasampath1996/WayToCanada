@@ -1,12 +1,20 @@
 import { cn } from "@/lib/utils";
 import { MAPLE_ASSISTANT } from "@/lib/workspace-ai-character";
 
+type MapleAvatarVariant = "soft" | "rail" | "plain";
+
 export function MapleAvatar({
   size = "md",
+  variant = "soft",
   className,
+  highlight = false,
 }: {
   size?: "sm" | "md" | "lg";
+  /** soft = white frosted disc; rail = sidebar badge; plain = no plate */
+  variant?: MapleAvatarVariant;
   className?: string;
+  /** Soft float + glow so Maple stands out from other tools */
+  highlight?: boolean;
 }) {
   const sizes = {
     sm: "h-9 w-9",
@@ -14,14 +22,20 @@ export function MapleAvatar({
     lg: "h-16 w-16",
   };
 
+  const plates: Record<MapleAvatarVariant, string> = {
+    soft: "bg-white shadow-md shadow-red-600/15 ring-2 ring-white/90",
+    rail: "bg-white shadow-md shadow-black/10 ring-2 ring-white/95",
+    plain: "bg-transparent shadow-none ring-0",
+  };
+
   return (
     <div
       className={cn(
-        // Pure black matches the mascot PNG so the circle edge is seamless.
-        "relative flex shrink-0 items-center justify-center overflow-hidden bg-black shadow-md shadow-red-600/20 ring-2 ring-white/80",
+        "relative flex shrink-0 items-center justify-center overflow-hidden rounded-full",
         sizes[size],
+        plates[variant],
+        highlight && "animate-maple-highlight",
         className,
-        "rounded-full",
       )}
       aria-hidden
     >
@@ -29,8 +43,10 @@ export function MapleAvatar({
       <img
         src={MAPLE_ASSISTANT.imageSrc}
         alt=""
-        // Cover fills the full circle — no inset padding that leaves a black gap ring.
-        className="h-full w-full object-cover object-center"
+        className={cn(
+          "h-full w-full object-contain object-center",
+          variant === "plain" ? "p-0" : "p-[8%]",
+        )}
         draggable={false}
       />
     </div>
@@ -40,7 +56,7 @@ export function MapleAvatar({
 export function MapleIntroCard({ compact = false }: { compact?: boolean }) {
   return (
     <div className="flex items-start gap-3">
-      <MapleAvatar size={compact ? "sm" : "md"} />
+      <MapleAvatar size={compact ? "sm" : "md"} variant="soft" />
       <div className="min-w-0 flex-1">
         <p className="font-semibold tracking-tight">
           {MAPLE_ASSISTANT.name}
