@@ -16,6 +16,11 @@ import {
   stopSpeaking,
 } from "@/lib/maple-voice";
 import { LegislationLinkChips, type LegislationLink } from "@/components/legislation/legislation-link-chips";
+import {
+  MapleAccuracyBadge,
+  MapleReplyContent,
+  type MapleAccuracy,
+} from "@/components/workspace/maple-reply-content";
 
 const API = (process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000") + "/api/v1";
 
@@ -25,6 +30,7 @@ type ChatTurn = {
   aiPowered?: boolean;
   intelligenceMode?: string;
   legislationLinks?: LegislationLink[];
+  accuracy?: MapleAccuracy | null;
 };
 
 type MapleDocument = {
@@ -180,7 +186,10 @@ export function MapleVoiceChat({
           role: string;
           content: string;
           openai_used?: boolean | null;
-          metadata?: { legislation_links?: LegislationLink[] } | null;
+          metadata?: {
+            legislation_links?: LegislationLink[];
+            accuracy?: MapleAccuracy;
+          } | null;
         }>;
         setHistory(
           rows.map((row) => ({
@@ -197,6 +206,7 @@ export function MapleVoiceChat({
               row.role === "assistant"
                 ? citedLegislationLinks(row.content, row.metadata?.legislation_links)
                 : undefined,
+            accuracy: row.role === "assistant" ? row.metadata?.accuracy ?? null : undefined,
           })),
         );
         setDocuments((json.data?.documents ?? []) as MapleDocument[]);
@@ -290,15 +300,30 @@ export function MapleVoiceChat({
           reply,
           (json.data?.legislation_links ?? []) as LegislationLink[],
         );
+        const accuracy = (json.data?.accuracy ?? null) as MapleAccuracy | null;
         setHistory((h) => [
           ...h,
-          { role: "assistant", content: reply, aiPowered, intelligenceMode, legislationLinks },
+          {
+            role: "assistant",
+            content: reply,
+            aiPowered,
+            intelligenceMode,
+            legislationLinks,
+            accuracy,
+          },
         ]);
 
         if (voiceOn && canSpeak && reply) {
           setSpeaking(true);
           stopSpeakRef.current?.();
-          stopSpeakRef.current = speakMaple(reply, () => setSpeaking(false));
+          // Speak plain text without markdown table noise
+          const speakText = reply
+            .replace(/```[\s\S]*?```/g, " ")
+            .replace(/\|/g, " ")
+            .replace(/[#*_`]/g, "")
+            .replace(/\s+/g, " ")
+            .trim();
+          stopSpeakRef.current = speakMaple(speakText || reply, () => setSpeaking(false));
         }
       } catch (e: unknown) {
         setError(e instanceof Error ? e.message : "Chat failed.");
@@ -438,7 +463,7 @@ export function MapleVoiceChat({
       <div ref={scrollRef} className="max-h-[min(22rem,42vh)] space-y-3 overflow-y-auto px-3.5 py-3">
         {history.length === 0 && (
           <p className="text-xs leading-relaxed text-muted-foreground">
-            Ask about the questionnaire, pathway, CRS, or an attached file.
+            Ask in Canadian English or Québec French — pathway, CRS, forms, or an attached file.
           </p>
         )}
         {history.map((turn, i) => (
@@ -452,23 +477,30 @@ export function MapleVoiceChat({
             {turn.role === "assistant" && (
               <MapleAvatar size="sm" variant="soft" className="h-7 w-7 ring-1 ring-red-100" />
             )}
-            <div className="max-w-[85%] space-y-1">
+            <div className="max-w-[92%] space-y-1.5">
               <div
                 className={cn(
-                  "rounded-2xl px-3 py-2 leading-relaxed whitespace-pre-line",
+                  "rounded-2xl px-3 py-2",
                   turn.role === "user"
-                    ? "bg-red-600 text-sm text-white"
-                    : "bg-muted text-[13px] text-foreground",
+                    ? "bg-red-600 text-sm leading-relaxed whitespace-pre-line text-white"
+                    : "bg-muted text-foreground",
                 )}
               >
-                {turn.content}
+                {turn.role === "assistant" ? (
+                  <MapleReplyContent content={turn.content} />
+                ) : (
+                  turn.content
+                )}
               </div>
               {turn.role === "assistant" && (
-                <LegislationLinkChips
-                  links={turn.legislationLinks ?? []}
-                  compact
-                  onLinkClick={onLegislationLinkClick}
-                />
+                <div className="flex flex-wrap items-center gap-1.5 px-0.5">
+                  <MapleAccuracyBadge accuracy={turn.accuracy} />
+                  <LegislationLinkChips
+                    links={turn.legislationLinks ?? []}
+                    compact
+                    onLinkClick={onLegislationLinkClick}
+                  />
+                </div>
               )}
             </div>
           </div>

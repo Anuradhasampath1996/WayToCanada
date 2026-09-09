@@ -24,6 +24,7 @@ class WorkspaceAiAdvisorService
         private WorkspaceMaplePathwayAdvisorService $pathwayAdvisor,
         private WorkspaceMapleDocumentService $documents,
         private WorkspaceCaseLegislationService $caseLegislation,
+        private WorkspaceMapleAnswerAccuracyService $answerAccuracy,
     ) {}
 
     /** @return array<string, mixed> */
@@ -115,14 +116,16 @@ class WorkspaceAiAdvisorService
         if (! $this->openAiAvailableForChat()) {
             $fallback = $this->caseChat->reply($context, $message, $history);
             $legLinks = $this->immigrationKnowledge->citationLinksForResponse($knowledge, $fallback);
+            $accuracy = $this->answerAccuracy->assess($context, $message, $fallback, false);
 
-            $this->persistChatTurn($profile, $consultant, $message, $fallback, false, $legLinks);
+            $this->persistChatTurn($profile, $consultant, $message, $fallback, false, $legLinks, $accuracy);
 
             return [
                 'reply'              => $fallback,
                 'openai_used'        => false,
                 'intelligence_mode'  => 'rules_engine',
                 'legislation_links'  => $legLinks,
+                'accuracy'           => $accuracy,
                 'assistant'          => WorkspaceAiCharacter::meta(),
             ];
         }
@@ -136,14 +139,16 @@ class WorkspaceAiAdvisorService
                 $history,
             );
             $legLinks = $this->immigrationKnowledge->citationLinksForResponse($knowledge, $reply);
+            $accuracy = $this->answerAccuracy->assess($context, $message, $reply, true);
 
-            $this->persistChatTurn($profile, $consultant, $message, $reply, true, $legLinks);
+            $this->persistChatTurn($profile, $consultant, $message, $reply, true, $legLinks, $accuracy);
 
             return [
                 'reply'              => $reply,
                 'openai_used'        => true,
                 'intelligence_mode'  => 'ai_enhanced',
                 'legislation_links'  => $legLinks,
+                'accuracy'           => $accuracy,
                 'assistant'          => WorkspaceAiCharacter::meta(),
             ];
         } catch (\RuntimeException $e) {
@@ -151,7 +156,8 @@ class WorkspaceAiAdvisorService
 
             $fallback = $this->caseChat->reply($context, $message, $history);
             $legLinks = $this->immigrationKnowledge->citationLinksForResponse($knowledge, $fallback);
-            $this->persistChatTurn($profile, $consultant, $message, $fallback, false, $legLinks);
+            $accuracy = $this->answerAccuracy->assess($context, $message, $fallback, false);
+            $this->persistChatTurn($profile, $consultant, $message, $fallback, false, $legLinks, $accuracy);
 
             return [
                 'reply'              => $fallback,
@@ -159,6 +165,7 @@ class WorkspaceAiAdvisorService
                 'intelligence_mode'  => 'rules_engine',
                 'fallback_reason'    => $e->getMessage(),
                 'legislation_links'  => $legLinks,
+                'accuracy'           => $accuracy,
                 'assistant'          => WorkspaceAiCharacter::meta(),
             ];
         }
@@ -618,7 +625,10 @@ class WorkspaceAiAdvisorService
             ->all();
     }
 
-    /** @param  list<array<string, mixed>>  $legislationLinks */
+    /**
+     * @param  list<array<string, mixed>>  $legislationLinks
+     * @param  array<string, mixed>|null  $accuracy
+     */
     private function persistChatTurn(
         ClientProfile $profile,
         User $consultant,
@@ -626,6 +636,7 @@ class WorkspaceAiAdvisorService
         string $reply,
         bool $openAiUsed,
         array $legislationLinks = [],
+        ?array $accuracy = null,
     ): void {
         ConsultantClientAiChatMessage::create([
             'client_profile_id' => $profile->id,
@@ -635,13 +646,21 @@ class WorkspaceAiAdvisorService
             'openai_used'       => null,
         ]);
 
+        $metadata = [];
+        if ($legislationLinks !== []) {
+            $metadata['legislation_links'] = $legislationLinks;
+        }
+        if ($accuracy !== null) {
+            $metadata['accuracy'] = $accuracy;
+        }
+
         ConsultantClientAiChatMessage::create([
             'client_profile_id' => $profile->id,
             'consultant_id'     => $consultant->id,
             'role'              => 'assistant',
             'content'           => $reply,
             'openai_used'       => $openAiUsed,
-            'metadata'          => $legislationLinks !== [] ? ['legislation_links' => $legislationLinks] : null,
+            'metadata'          => $metadata !== [] ? $metadata : null,
         ]);
     }
 }

@@ -367,7 +367,7 @@ final class WorkspaceMapleCaseChatService
     {
         $name = $facts['main_applicant']['display_name'] ?? $facts['account']['name'] ?? 'this client';
 
-        return "Hi! I'm Maple. Ask me anything about {$name}'s case or Canadian immigration rules — CRS, pathways, questionnaire fields, or next steps.";
+        return "Hi! I'm Maple. Ask me anything about {$name}'s case or Canadian immigration rules — in English or French. Try CRS, pathways, questionnaire fields, or next steps.";
     }
 
     /** @param array<string, mixed> $facts */
@@ -749,15 +749,25 @@ final class WorkspaceMapleCaseChatService
         $next    = $context['next_action']['title'] ?? 'continue workflow';
         $pathway = $context['case_file']['immigration_pathway'] ?? 'not assigned yet';
         $crs     = $context['case_detail']['crs_estimate']['crs_total'] ?? null;
+        $phase   = $context['workflow_phase'] ?? '—';
 
         $lead = $unmatched
             ? "I couldn't match that exact question, but here's what I have for {$name}:"
-            : "Here's a quick snapshot for {$name}:";
+            : "Here's a case snapshot for {$name}:";
 
-        $crsBit = $crs !== null ? "; estimated CRS {$crs}" : '';
+        $crsCell = $crs !== null ? (string) $crs : 'not estimated';
+        $stageLabel = str_replace('_', ' ', (string) $stage);
+        $phaseLabel = str_replace('_', ' ', (string) $phase);
 
-        return "{$lead} stage {$stage}; pathway {$pathway}{$crsBit}; next focus: {$next}. "
-            .'Ask about any questionnaire field, CRS, Express Entry draws, pathways, admissibility, or uploaded documents.';
+        return "{$lead}\n\n"
+            ."| Field | On file |\n"
+            ."| --- | --- |\n"
+            ."| Stage | {$stageLabel} |\n"
+            ."| Workflow phase | {$phaseLabel} |\n"
+            ."| Pathway | {$pathway} |\n"
+            ."| Estimated CRS | {$crsCell} |\n"
+            ."| Next focus | {$next} |\n\n"
+            .'Ask about any questionnaire field, CRS, pathways, admissibility, or uploaded documents.';
     }
 
     /**
