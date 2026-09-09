@@ -16,7 +16,8 @@ class RunRcicRegisterSyncJob implements ShouldQueue, ShouldBeUnique
     /** Full register scrape can take many hours with respectful rate limiting. */
     public int $timeout = 28800;
 
-    public int $tries = 1;
+    /** Allow a couple of recoveries after container/worker restarts mid-scrape. */
+    public int $tries = 3;
 
     public int $uniqueFor = 28800;
 

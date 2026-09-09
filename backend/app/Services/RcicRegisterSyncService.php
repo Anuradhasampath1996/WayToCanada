@@ -140,6 +140,10 @@ class RcicRegisterSyncService
      */
     public function reclaimStaleRuns(int $minutes = 20): int
     {
+        // Dead workers leave jobs reserved; with tries=1 that becomes MaxAttemptsExceeded
+        // on the next pickup. Release/reset those rows so a fresh worker can resume.
+        $this->releaseOrphanedSyncJobReservations();
+
         $stale = RcicRegisterSyncRun::query()
             ->whereIn('status', ['pending', 'running', 'cancel_requested'])
             ->where('updated_at', '<', now()->subMinutes($minutes))
@@ -164,6 +168,31 @@ class RcicRegisterSyncService
         }
 
         return $stale->count();
+    }
+
+    /**
+     * If a queue worker died while a sync job was reserved, clear the reservation
+     * and attempt counter so another worker can continue the same run.
+     */
+    private function releaseOrphanedSyncJobReservations(int $reservedMinutes = 5): void
+    {
+        try {
+            $cutoff = now()->subMinutes($reservedMinutes)->getTimestamp();
+
+            DB::table('jobs')
+                ->where('payload', 'like', '%RunRcicRegisterSyncJob%')
+                ->whereNotNull('reserved_at')
+                ->where('reserved_at', '<', $cutoff)
+                ->update([
+                    'reserved_at'  => null,
+                    'attempts'     => 0,
+                    'available_at' => time(),
+                ]);
+        } catch (\Throwable $e) {
+            Log::warning('Failed to release orphaned RCIC sync job reservations', [
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     /**
