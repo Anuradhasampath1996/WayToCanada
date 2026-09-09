@@ -34,6 +34,7 @@ type PublicUser = {
   locale: string | null;
   is_verified: boolean;
   roles: string[];
+  assigned_consultant: { id: number; name: string; email: string } | null;
   created_at: string;
 };
 
@@ -239,7 +240,7 @@ export default function PublicUsersPage() {
       {/* Search */}
       <div className="flex items-center gap-3">
         <Input
-          placeholder="Search by name or email..."
+          placeholder="Search by name, email, or consultant..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="max-w-xs"
@@ -262,6 +263,7 @@ export default function PublicUsersPage() {
                 </Button>
               </TableHead>
               <TableHead>Locale</TableHead>
+              <TableHead>Assigned consultant</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>
                 <Button variant="ghost" size="sm" className="-ml-3" onClick={() => toggleSort("created_at")}>
@@ -274,13 +276,13 @@ export default function PublicUsersPage() {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={6} className="py-10 text-center text-muted-foreground">
+                <TableCell colSpan={7} className="py-10 text-center text-muted-foreground">
                   Loading...
                 </TableCell>
               </TableRow>
             ) : sorted.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="py-10 text-center text-muted-foreground">
+                <TableCell colSpan={7} className="py-10 text-center text-muted-foreground">
                   No public users found.
                 </TableCell>
               </TableRow>
@@ -304,6 +306,18 @@ export default function PublicUsersPage() {
                   </TableCell>
                   <TableCell>
                     <span className="text-sm text-muted-foreground">{u.locale ?? "—"}</span>
+                  </TableCell>
+                  <TableCell>
+                    {u.assigned_consultant ? (
+                      <div>
+                        <p className="font-medium leading-none">{u.assigned_consultant.name}</p>
+                        <p className="mt-0.5 text-xs text-muted-foreground">{u.assigned_consultant.email}</p>
+                      </div>
+                    ) : (
+                      <Badge variant="outline" className="font-normal text-muted-foreground">
+                        Not assigned
+                      </Badge>
+                    )}
                   </TableCell>
                   <TableCell>
                     <Badge
@@ -469,6 +483,17 @@ export default function PublicUsersPage() {
                 <div>
                   <p className="text-xs text-muted-foreground">Locale</p>
                   <p className="font-medium">{viewUser.locale ?? "—"}</p>
+                </div>
+                <div className="col-span-2">
+                  <p className="text-xs text-muted-foreground">Assigned consultant</p>
+                  {viewUser.assigned_consultant ? (
+                    <div>
+                      <p className="font-medium">{viewUser.assigned_consultant.name}</p>
+                      <p className="text-xs text-muted-foreground">{viewUser.assigned_consultant.email}</p>
+                    </div>
+                  ) : (
+                    <p className="font-medium text-muted-foreground">Not assigned</p>
+                  )}
                 </div>
                 <div className="col-span-2">
                   <p className="text-xs text-muted-foreground">Registered</p>

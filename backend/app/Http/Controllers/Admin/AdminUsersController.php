@@ -33,12 +33,24 @@ class AdminUsersController extends Controller
             'per_page' => 'nullable|integer|min:1|max:100',
         ]);
 
-        $query = User::with('roles');
+        $query = User::with([
+            'roles',
+            'assignedConsultant:id,name,email',
+            'clientProfiles' => fn ($q) => $q->with('consultant:id,name,email')->latest('id'),
+        ]);
 
         if ($search = $request->input('search')) {
             $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('email', 'like', "%{$search}%");
+                  ->orWhere('email', 'like', "%{$search}%")
+                  ->orWhereHas('assignedConsultant', function ($c) use ($search) {
+                      $c->where('name', 'like', "%{$search}%")
+                        ->orWhere('email', 'like', "%{$search}%");
+                  })
+                  ->orWhereHas('clientProfiles.consultant', function ($c) use ($search) {
+                      $c->where('name', 'like', "%{$search}%")
+                        ->orWhere('email', 'like', "%{$search}%");
+                  });
             });
         }
 
@@ -60,7 +72,11 @@ class AdminUsersController extends Controller
      */
     public function show(User $user): UserResource
     {
-        $user->load('roles');
+        $user->load([
+            'roles',
+            'assignedConsultant:id,name,email',
+            'clientProfiles' => fn ($q) => $q->with('consultant:id,name,email')->latest('id'),
+        ]);
         return new UserResource($user);
     }
 

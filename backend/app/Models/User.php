@@ -7,6 +7,7 @@ use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Laravel\Sanctum\HasApiTokens;
@@ -106,6 +107,12 @@ class User extends Authenticatable implements MustVerifyEmail
             ->where('user_id', $this->id)
             ->latest('id')
             ->first();
+    }
+
+    /** Consultant this public client is linked to (users.consultant_id). */
+    public function assignedConsultant(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'consultant_id');
     }
 
     public function userNotifications(): HasMany
