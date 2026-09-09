@@ -407,9 +407,18 @@ export default function CiccRegisterSyncPage() {
                   </div>
                 )}
                 <p className="text-xs text-muted-foreground mt-1 tabular-nums">
-                  {activeRun.completed_steps.toLocaleString()} / {activeRun.total_steps.toLocaleString()}
-                  {" · "}
-                  {activeRun.progress_percent}%
+                  {(() => {
+                    const step = activeRun.current_step ?? "";
+                    const pageMatch = step.match(/page\s+(\d+)\s*\/\s*(\d+)/i);
+                    if (pageMatch) {
+                      return `Page ${Number(pageMatch[1]).toLocaleString()} / ${Number(pageMatch[2]).toLocaleString()} · ${activeRun.progress_percent}%`;
+                    }
+                    const parenMatch = step.match(/\((\d+)\s*\/\s*(\d+)\)/);
+                    if (parenMatch) {
+                      return `${Number(parenMatch[1]).toLocaleString()} / ${Number(parenMatch[2]).toLocaleString()} · ${activeRun.progress_percent}%`;
+                    }
+                    return `${activeRun.completed_steps.toLocaleString()} / ${activeRun.total_steps.toLocaleString()} · ${activeRun.progress_percent}%`;
+                  })()}
                 </p>
               </div>
 

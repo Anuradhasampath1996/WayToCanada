@@ -45,6 +45,7 @@ set_var DB_LEGAL_DATABASE db_legal
 
 set_var SESSION_DRIVER cookie
 set_var QUEUE_CONNECTION database
+set_var DB_QUEUE_RETRY_AFTER 28800
 set_var CACHE_STORE database
 
 # Live frontend URLs (OAuth redirects after login)

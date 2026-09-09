@@ -64,4 +64,20 @@ class RunRcicRegisterSyncJob implements ShouldQueue, ShouldBeUnique
             throw $e;
         }
     }
+
+    public function failed(?\Throwable $e): void
+    {
+        $run = RcicRegisterSyncRun::find($this->syncRunId);
+        if (! $run || in_array($run->status, ['completed', 'failed', 'cancelled'], true)) {
+            return;
+        }
+
+        $message = $e?->getMessage() ?: 'Queue job failed';
+        $run->update([
+            'status'        => 'failed',
+            'finished_at'   => now(),
+            'error_message' => $message,
+            'current_step'  => 'Failed — queue worker stopped',
+        ]);
+    }
 }

@@ -26,6 +26,8 @@ class RcicRegisterSyncService
 
     public function syncStatus(): array
     {
+        $this->reclaimStaleRuns();
+
         $latest = RcicRegisterSyncRun::query()->orderByDesc('id')->first();
         $running = RcicRegisterSyncRun::query()
             ->whereIn('status', ['pending', 'running', 'cancel_requested'])
@@ -124,9 +126,44 @@ class RcicRegisterSyncService
 
     public function hasActiveRun(): bool
     {
+        $this->reclaimStaleRuns();
+
         return RcicRegisterSyncRun::query()
             ->whereIn('status', ['pending', 'running', 'cancel_requested'])
             ->exists();
+    }
+
+    /**
+     * Mark zombie runs as failed when the queue worker died mid-scrape.
+     * Long jobs used to leave status=running forever after MaxAttemptsExceeded
+     * (retry_after too short) or container restarts.
+     */
+    public function reclaimStaleRuns(int $minutes = 20): int
+    {
+        $stale = RcicRegisterSyncRun::query()
+            ->whereIn('status', ['pending', 'running', 'cancel_requested'])
+            ->where('updated_at', '<', now()->subMinutes($minutes))
+            ->get();
+
+        foreach ($stale as $run) {
+            $run->update([
+                'status'        => 'failed',
+                'finished_at'   => now(),
+                'error_message' => 'Sync stalled (no progress for '.$minutes.'+ minutes). Queue worker likely died — click Sync again, or Enrich contacts to fill Status/City/Email/Phone.',
+                'current_step'  => 'Failed — stalled (worker stopped)',
+            ]);
+            Log::warning('Reclaimed stale RCIC register sync run', [
+                'run_id' => $run->id,
+                'minutes' => $minutes,
+            ]);
+        }
+
+        if ($stale->isNotEmpty()) {
+            $this->purgeQueuedSyncJobs();
+            $this->releaseSyncUniqueLock();
+        }
+
+        return $stale->count();
     }
 
     /**
