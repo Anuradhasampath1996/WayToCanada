@@ -803,6 +803,7 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::put('{category}', [AdminApplicationPackageController::class, 'updateCategory'])->name('update');
             Route::delete('{category}', [AdminApplicationPackageController::class, 'destroyCategory'])->name('destroy');
             Route::post('{category}/documents', [AdminApplicationPackageController::class, 'uploadDocument'])->name('documents.store');
+            Route::get('{category}/documents/{document}/stream', [AdminApplicationPackageController::class, 'streamDocument'])->name('documents.stream');
             Route::delete('{category}/documents/{document}', [AdminApplicationPackageController::class, 'destroyDocument'])->name('documents.destroy');
         });
 

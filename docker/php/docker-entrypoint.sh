@@ -11,6 +11,8 @@ if [ -f .env ]; then
   php artisan config:clear --ansi || true
   php artisan route:clear --ansi || true
   php artisan view:clear --ansi || true
+  # public/storage → storage/app/public (needed for /storage/* via artisan serve)
+  php artisan storage:link --ansi || true
   php artisan migrate --force --no-ansi || true
 fi
 

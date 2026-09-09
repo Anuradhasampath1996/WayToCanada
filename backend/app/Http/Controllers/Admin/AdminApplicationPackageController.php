@@ -12,6 +12,7 @@ use App\Services\IrccInteractiveFormSyncService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class AdminApplicationPackageController extends Controller
 {
@@ -186,6 +187,36 @@ class AdminApplicationPackageController extends Controller
         return response()->json(['message' => 'Document deleted.']);
     }
 
+    /**
+     * Stream a package PDF via the admin API (/api/ is proxied to Laravel).
+     * Avoids broken host-relative /storage/... links on admin.rcicmaster.ca
+     * which nginx routes to the Next.js app instead of Laravel.
+     *
+     * GET /api/v1/admin/application-packages/{category}/documents/{document}/stream
+     */
+    public function streamDocument(IrccCategory $category, IrccCategoryDocument $document): StreamedResponse|JsonResponse
+    {
+        if ($document->ircc_category_id !== $category->id) {
+            abort(404);
+        }
+
+        if (! $document->file_path || ! Storage::disk('public')->exists($document->file_path)) {
+            return response()->json([
+                'message' => 'PDF file is missing on the server. Re-sync this package or re-upload the document.',
+            ], 404);
+        }
+
+        $filename = $document->original_filename ?: ($document->label.'.pdf');
+        $mime = $document->mime_type
+            ?: (Storage::disk('public')->mimeType($document->file_path) ?: 'application/pdf');
+
+        return Storage::disk('public')->response($document->file_path, $filename, [
+            'Content-Type'        => $mime,
+            'Content-Disposition' => 'inline; filename="'.addslashes($filename).'"',
+            'Cache-Control'       => 'private, max-age=3600',
+        ]);
+    }
+
     /** POST /api/v1/admin/application-packages/sync-catalog */
     public function syncCatalog(Request $request, IrccFormsSyncService $sync): JsonResponse
     {
@@ -330,12 +361,24 @@ class AdminApplicationPackageController extends Controller
 
     private function formatDocument(IrccCategoryDocument $doc): array
     {
+        $fileExists = $doc->file_path && Storage::disk('public')->exists($doc->file_path);
+
+        // Prefer the authenticated API stream URL. Host-relative asset('storage/...')
+        // resolves to admin.rcicmaster.ca/storage/... which Next.js 404s (nginx only
+        // proxies /api/ to Laravel on the admin host).
+        $streamUrl = url(sprintf(
+            '/api/v1/admin/application-packages/%d/documents/%d/stream',
+            $doc->ircc_category_id,
+            $doc->id
+        ));
+
         return [
             'id'                => $doc->id,
             'label'             => $doc->label,
             'doc_type'          => $doc->doc_type,
             'original_filename' => $doc->original_filename,
-            'file_url'          => asset('storage/' . $doc->file_path),
+            'file_url'          => $streamUrl,
+            'file_available'    => $fileExists,
             'mime_type'         => $doc->mime_type,
             'file_size'         => $doc->file_size,
             'sort_order'        => $doc->sort_order,

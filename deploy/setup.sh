@@ -153,6 +153,17 @@ server {
         proxy_send_timeout 300s;
     }
 
+    # ── Laravel public disk (/storage/* via storage:link) ───────────────────
+    location /storage/ {
+        proxy_pass         http://wtc_api;
+        proxy_http_version 1.1;
+        proxy_set_header   Host              \$host;
+        proxy_set_header   X-Real-IP         \$remote_addr;
+        proxy_set_header   X-Forwarded-For   \$proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto \$scheme;
+        proxy_set_header   Connection        "";
+    }
+
     # ── Laravel health / artisan routes (if exposed at root) ─────────────────
     location ~ ^/(health|sanctum)(/|\$) {
         proxy_pass         http://wtc_api;

@@ -42,7 +42,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { adminAuthHeaders } from "@/lib/admin-auth";
+import { adminAuthHeaders, getAdminToken } from "@/lib/admin-auth";
 import { Progress } from "@/components/ui/progress";
 
 const API = (process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000") + "/api/v1";
@@ -80,6 +80,7 @@ type PackageDocument = {
   doc_type: string;
   original_filename: string;
   file_url: string;
+  file_available?: boolean;
   mime_type: string | null;
   file_size: number | null;
 };
@@ -210,6 +211,7 @@ export default function ApplicationPackagesPage() {
   const [formsLoading, setFormsLoading] = React.useState(false);
   const [viewFormOpen, setViewFormOpen] = React.useState(false);
   const [viewingForm, setViewingForm] = React.useState<InteractiveForm | null>(null);
+  const [viewingDocId, setViewingDocId] = React.useState<number | null>(null);
 
   async function loadInteractiveForms(packageId: number) {
     setFormsLoading(true);
@@ -552,6 +554,55 @@ export default function ApplicationPackagesPage() {
     }
   }
 
+  /** Open PDF via authenticated API stream (not admin host /storage/..., which 404s in Next.js). */
+  async function viewDocument(doc: PackageDocument) {
+    if (!selected) return;
+    if (doc.file_available === false) {
+      setError(
+        `PDF for “${doc.label}” is missing on the server. Re-sync this package or re-upload the document.`
+      );
+      return;
+    }
+    setViewingDocId(doc.id);
+    setError("");
+    try {
+      const res = await fetch(
+        `${API}/admin/application-packages/${selected.id}/documents/${doc.id}/stream`,
+        {
+          headers: {
+            Authorization: `Bearer ${getAdminToken()}`,
+            Accept: "application/pdf,application/octet-stream,*/*",
+          },
+        }
+      );
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(
+          data?.message ??
+            (res.status === 404
+              ? "PDF file not found on the server. Re-sync this package or re-upload."
+              : `Could not open PDF (HTTP ${res.status}).`)
+        );
+      }
+      const blob = await res.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const opened = window.open(objectUrl, "_blank", "noopener,noreferrer");
+      if (!opened) {
+        // Popup blocked — fall back to same-tab navigation via temporary anchor.
+        const a = document.createElement("a");
+        a.href = objectUrl;
+        a.target = "_blank";
+        a.rel = "noreferrer";
+        a.click();
+      }
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 120_000);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not open PDF.");
+    } finally {
+      setViewingDocId(null);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
@@ -781,8 +832,17 @@ export default function ApplicationPackagesPage() {
                       <p className="truncate text-xs text-muted-foreground">{doc.original_filename}</p>
                       <Badge variant="outline" className="mt-1 text-[10px]">{doc.doc_type}</Badge>
                     </div>
-                    <Button size="sm" variant="ghost" asChild>
-                      <a href={doc.file_url} target="_blank" rel="noreferrer">View</a>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      disabled={viewingDocId === doc.id}
+                      onClick={() => viewDocument(doc)}
+                    >
+                      {viewingDocId === doc.id ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        "View"
+                      )}
                     </Button>
                     <Button size="sm" variant="ghost" onClick={() => deleteDocument(doc.id)}>
                       <Trash2 className="h-4 w-4 text-destructive" />
