@@ -1,32 +1,24 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="utf-8">
-    <title>Payment Request</title>
-</head>
-<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #1e293b; max-width: 600px; margin: 0 auto; padding: 24px;">
-    <h2 style="color: #047857;">Payment request</h2>
-    <p>Hi {{ $clientName }},</p>
-    <p>
-        <strong>{{ $companyName ?: $consultantName }}</strong> has sent you a payment request through RCICMASTER.
+@extends($mailLayout ?? 'emails.layouts.client')
+
+@section('content')
+    <h1 style="margin:0 0 12px;font-size:20px;font-weight:700;color:{{ $inkColor ?? '#000103' }};line-height:1.3;">
+        Payment request
+    </h1>
+    <p style="margin:0 0 14px;font-size:15px;line-height:1.65;color:#3f3f46;">
+        <strong>{{ $companyName ?: $consultantName }}</strong> has sent you a payment request.
     </p>
-    <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; margin: 24px 0;">
-        <p style="margin: 0 0 8px; font-size: 14px; color: #64748b;">Amount due</p>
-        <p style="margin: 0 0 12px; font-size: 28px; font-weight: bold; color: #047857;">${{ $amount }} {{ $currency }}</p>
-        <p style="margin: 0; font-weight: 600;">{{ $title }}</p>
-        @if($description)
-            <p style="margin: 12px 0 0; color: #475569;">{{ $description }}</p>
+    <div style="background:#fafafa;border:1px solid #e4e4e7;border-radius:12px;padding:20px;margin:8px 0 8px;">
+        <p style="margin:0 0 6px;font-size:13px;color:#71717a;">Amount due</p>
+        <p style="margin:0 0 12px;font-size:28px;font-weight:700;color:{{ $inkColor ?? '#000103' }};">${{ $amount }} {{ $currency }}</p>
+        <p style="margin:0;font-weight:600;font-size:15px;color:{{ $inkColor ?? '#000103' }};">{{ $title }}</p>
+        @if(!empty($description))
+            <p style="margin:12px 0 0;color:#52525b;font-size:14px;line-height:1.55;">{{ $description }}</p>
         @endif
     </div>
-    <p>
-        <a href="{{ $payUrl }}"
-           style="display: inline-block; background: #059669; color: #fff; text-decoration: none; padding: 12px 24px; border-radius: 8px; font-weight: 600;">
-            Pay now
-        </a>
-    </p>
-    <p style="font-size: 13px; color: #64748b;">
-        Or copy this link: <a href="{{ $payUrl }}">{{ $payUrl }}</a>
-    </p>
-    <p style="font-size: 13px; color: #94a3b8; margin-top: 32px;">RCICMASTER — Immigration consultant workspace</p>
-</body>
-</html>
+    @include('emails.partials.cta', [
+        'href' => $payUrl,
+        'label' => 'Pay now',
+        'showFallback' => true,
+        'primaryColor' => $primaryColor ?? '#000103',
+    ])
+@endsection

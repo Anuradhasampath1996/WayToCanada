@@ -1,31 +1,23 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="utf-8">
-    <title>Retainer Agreement Reminder</title>
-</head>
-<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 24px;">
-    <h2 style="color: #1a365d;">Reminder: Retainer Agreement Pending Signature</h2>
+@extends($mailLayout ?? 'emails.layouts.client')
 
-    <p>Hi {{ $clientName }},</p>
-
-    <p>
+@section('content')
+    <h1 style="margin:0 0 12px;font-size:20px;font-weight:700;color:{{ $inkColor ?? '#000103' }};line-height:1.3;">
+        Reminder: retainer agreement pending
+    </h1>
+    <p style="margin:0 0 14px;font-size:15px;line-height:1.65;color:#3f3f46;">
         This is a friendly reminder from <strong>{{ $consultantName }}</strong> that your retainer agreement
-        @if($sentAt)
+        @if(!empty($sentAt))
             (sent on {{ $sentAt }})
         @endif
         is still awaiting your signature.
     </p>
-
-    <p style="margin: 28px 0;">
-        <a href="{{ $agreementUrl }}"
-           style="background: #2563eb; color: #fff; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
-            Review &amp; Sign Agreement
-        </a>
+    @include('emails.partials.cta', [
+        'href' => $agreementUrl,
+        'label' => 'Review & Sign Agreement',
+        'showFallback' => true,
+        'primaryColor' => $primaryColor ?? '#000103',
+    ])
+    <p style="margin:18px 0 0;font-size:13px;color:#71717a;line-height:1.55;">
+        If you have questions, contact your consultant directly.
     </p>
-
-    <p style="font-size: 13px; color: #666;">
-        If you have questions, reply to this email or contact your consultant directly.
-    </p>
-</body>
-</html>
+@endsection

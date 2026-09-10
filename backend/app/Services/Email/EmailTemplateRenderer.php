@@ -67,7 +67,10 @@ class EmailTemplateRenderer
     private function renderEmailPreview(array $template): string
     {
         $recipientName = $template['sample']['recipient_name'] ?? 'User';
-        $branding      = $this->branding->viewData($recipientName);
+        $audience      = $template['audience'] ?? 'consultant';
+        $branding      = $audience === 'client'
+            ? $this->branding->forConsultant($this->sampleConsultant(), $recipientName)
+            : $this->branding->forPlatform($recipientName);
 
         if ($template['kind'] === 'notification') {
             $type = NotificationType::from($template['notification_type']);
@@ -88,6 +91,11 @@ class EmailTemplateRenderer
 
         $sample = $template['sample'];
         unset($sample['recipient_name']);
+
+        // Ensure sample consultant object has company fields for white-label previews
+        if ($audience === 'client' && empty($sample['consultant'])) {
+            $sample['consultant'] = $this->sampleConsultant();
+        }
 
         return View::make($template['view'], array_merge($branding, $sample, [
             'emailSubject' => $template['subject_example'],
@@ -125,8 +133,17 @@ class EmailTemplateRenderer
     private function sampleConsultant(): User
     {
         return new User([
-            'name'         => 'Sarah Chen',
-            'company_name' => 'Chen Immigration Services',
+            'name'                    => 'Sarah Chen',
+            'email'                   => 'sarah@chenimmigration.ca',
+            'company_name'            => 'Chen Immigration Services',
+            'company_logo'            => null,
+            'company_website'         => 'https://www.chenimmigration.ca',
+            'company_phone'           => '+1 (416) 555-0142',
+            'company_address_line1'   => '100 King Street West',
+            'company_city'            => 'Toronto',
+            'company_province'        => 'ON',
+            'company_postal_code'     => 'M5X 1A9',
+            'company_country'         => 'CA',
         ]);
     }
 }

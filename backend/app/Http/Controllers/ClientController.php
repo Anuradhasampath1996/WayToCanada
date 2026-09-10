@@ -383,21 +383,26 @@ class ClientController extends Controller
             app(\App\Services\IntegrationSettingsService::class)->applyRuntimeConfig();
 
             $loginUrl = rtrim(
-                (string) (env('PUBLIC_FRONTEND_URL') ?: env('CLIENT_PORTAL_URL', 'http://localhost:3000')),
+                (string) (env('PUBLIC_FRONTEND_URL') ?: env('CLIENT_PORTAL_URL', 'http://localhost:3002')),
                 '/'
             ) . '/login';
 
-            $html = view('emails.client-invitation', [
-                'client'     => $client,
-                'password'   => $plainPassword,
-                'consultant' => $consultant,
-                'loginUrl'   => $loginUrl,
-            ])->render();
+            $branding = app(\App\Services\Email\EmailBrandingService::class)
+                ->forConsultant($consultant, $client->name);
+            $firm = $consultant->company_name ?: $consultant->name;
 
-            Mail::html($html, function ($message) use ($client) {
+            $html = view('emails.client-invitation', array_merge($branding, [
+                'emailSubject' => 'Your client portal invitation',
+                'client'       => $client,
+                'password'     => $plainPassword,
+                'consultant'   => $consultant,
+                'loginUrl'     => $loginUrl,
+            ]))->render();
+
+            Mail::html($html, function ($message) use ($client, $firm) {
                 $message
                     ->to($client->email, $client->name)
-                    ->subject('Your RCICMASTER Client Portal Invitation');
+                    ->subject('Your client portal invitation from '.$firm);
             });
 
             Log::info('[ClientController] Invitation email sent', [
@@ -423,19 +428,25 @@ class ClientController extends Controller
             app(\App\Services\IntegrationSettingsService::class)->applyRuntimeConfig();
 
             $loginUrl = rtrim(
-                (string) (env('PUBLIC_FRONTEND_URL') ?: env('CLIENT_PORTAL_URL', 'http://localhost:3000')),
+                (string) (env('PUBLIC_FRONTEND_URL') ?: env('CLIENT_PORTAL_URL', 'http://localhost:3002')),
                 '/'
             ) . '/login';
             $consultantName = $consultant->company_name ?: $consultant->name;
-            $html = '<p>Hello '.e($client->name).',</p>'
-                .'<p><strong>'.e($consultantName).'</strong> has added you to their RCICMASTER practice workspace.</p>'
-                .'<p>Sign in with your existing account: <a href="'.e($loginUrl).'">'.e($loginUrl).'</a></p>'
-                .'<p>If you work with more than one consultant, each practice keeps its own case files.</p>';
+            $branding = app(\App\Services\Email\EmailBrandingService::class)
+                ->forConsultant($consultant, $client->name);
+
+            $html = view('emails.client-linked', array_merge($branding, [
+                'emailSubject'   => 'You were added to a practice',
+                'clientName'     => $client->name,
+                'consultantName' => $consultant->name,
+                'companyName'    => $consultant->company_name,
+                'loginUrl'       => $loginUrl,
+            ]))->render();
 
             Mail::html($html, function ($message) use ($client, $consultantName) {
                 $message
                     ->to($client->email, $client->name)
-                    ->subject('You were added by '.$consultantName.' on RCICMASTER');
+                    ->subject('You were added by '.$consultantName);
             });
 
             Log::info('[ClientController] Link email sent', [

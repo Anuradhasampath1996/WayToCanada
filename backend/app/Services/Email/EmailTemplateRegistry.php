@@ -357,7 +357,11 @@ class EmailTemplateRegistry
                 ],
                 'sample'          => [
                     'client'         => (object) ['name' => 'Alex Johnson', 'email' => 'alex@example.com'],
-                    'consultant'     => (object) ['name' => 'Jane RCIC'],
+                    'consultant'     => (object) [
+                        'name'         => 'Jane RCIC',
+                        'company_name' => 'Jane RCIC Immigration',
+                        'email'        => 'jane@example.com',
+                    ],
                     'password'       => 'TempPass123!',
                     'loginUrl'       => $publicUrl . '/auth/login',
                     'recipient_name' => 'Alex Johnson',

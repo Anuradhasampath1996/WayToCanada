@@ -3,6 +3,7 @@
 namespace App\Mail;
 
 use App\Models\User;
+use App\Services\Email\EmailBrandingService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Content;
@@ -28,8 +29,16 @@ class RcicLicenseVerificationMail extends Mailable
 
     public function content(): Content
     {
+        $branding = app(EmailBrandingService::class)->forPlatform();
+
         return new Content(
             view: 'emails.rcic_license_verify',
+            with: array_merge($branding, [
+                'emailSubject'     => 'RCIC Licence Verification Request',
+                'applicant'        => $this->applicant,
+                'rcicNumber'       => $this->rcicNumber,
+                'verificationUrl'  => $this->verificationUrl,
+            ]),
         );
     }
 }

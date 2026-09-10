@@ -5,6 +5,7 @@ namespace App\Mail;
 use App\Models\ClientMeeting;
 use App\Models\ClientProfile;
 use App\Models\User;
+use App\Services\Email\EmailBrandingService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Content;
@@ -35,10 +36,15 @@ class ClientMeetingInviteEmail extends Mailable
     public function content(): Content
     {
         $local = $this->meeting->scheduled_at->timezone($this->meeting->timezone);
+        $branding = app(EmailBrandingService::class)->forConsultant(
+            $this->consultant,
+            $this->clientProfile->user->name,
+        );
 
         return new Content(
             view: 'emails.client_meeting_invite',
-            with: [
+            with: array_merge($branding, [
+                'emailSubject'   => 'Meeting invitation',
                 'clientName'     => $this->clientProfile->user->name,
                 'consultantName' => $this->consultant->name,
                 'companyName'    => $this->consultant->company_name,
@@ -54,7 +60,7 @@ class ClientMeetingInviteEmail extends Mailable
                 },
                 'meetingUrl'     => $this->meeting->meeting_url,
                 'inviteUrl'      => $this->meeting->publicUrl(),
-            ],
+            ]),
         );
     }
 }

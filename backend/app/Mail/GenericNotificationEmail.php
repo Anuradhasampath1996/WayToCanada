@@ -26,7 +26,10 @@ class GenericNotificationEmail extends Mailable
     {
         $notification = $this->notification->loadMissing('user');
         $type         = NotificationType::tryFrom($notification->type);
-        $branding     = app(EmailBrandingService::class)->viewData($notification->user?->name);
+        $user         = $notification->user;
+        $branding     = $user
+            ? app(EmailBrandingService::class)->forRecipient($user)
+            : app(EmailBrandingService::class)->forPlatform();
 
         return new Content(
             view: 'emails.generic_notification',
