@@ -5,14 +5,10 @@ import { useRouter } from "next/navigation";
 import {
   AlertTriangle,
   Check,
-  CreditCard,
-  Info,
   Loader2,
   Lock,
   LogOut,
-  RefreshCw,
   ShieldCheck,
-  Sparkles,
   Zap,
 } from "lucide-react";
 
@@ -152,18 +148,6 @@ function pkgFeatures(pkg: SubscriptionPackage, lang: Lang): string[] {
   if (lang === "fr" && pkg.features_fr && pkg.features_fr.length > 0) return pkg.features_fr;
   return pkg.features ?? [];
 }
-
-// Banner icon + colour mapping (RCICMASTER red brand)
-const bannerMeta: Record<
-  Exclude<GuardStatus, "loading" | "active">,
-  { Icon: React.ElementType; iconClass: string; ringClass: string }
-> = {
-  none:             { Icon: Sparkles,      iconClass: "text-[#D01D20]", ringClass: "ring-red-100 bg-red-50" },
-  trial_expired:    { Icon: AlertTriangle, iconClass: "text-[#D01D20]", ringClass: "ring-red-100 bg-red-50" },
-  expired:          { Icon: RefreshCw,     iconClass: "text-[#D01D20]", ringClass: "ring-red-100 bg-red-50" },
-  payment_declined: { Icon: CreditCard,    iconClass: "text-[#D01D20]", ringClass: "ring-red-100 bg-red-50" },
-  cancelled:        { Icon: Info,          iconClass: "text-[#D01D20]", ringClass: "ring-red-100 bg-red-50" },
-};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Trust bar
@@ -407,9 +391,7 @@ export function SubscriptionGuard() {
 
   if (guardStatus === "loading" || guardStatus === "active") return null;
 
-  const meta      = bannerMeta[guardStatus];
   const banner    = t.banners[guardStatus];
-  const BannerIcon = meta.Icon;
   const popularIdx = packages.length > 1 ? Math.floor((packages.length - 1) / 2) : 0;
 
   return (
@@ -419,18 +401,7 @@ export function SubscriptionGuard() {
       <div className="relative min-h-full flex flex-col items-center px-4 py-12 gap-10">
 
         {/* ── Header bar ── */}
-        <div className="w-full max-w-5xl flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="rounded-xl bg-white px-3 py-2 shadow-lg shadow-black/20 ring-1 ring-white/40">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src="/brand/rcicmaster-logo.png"
-                alt="RCICMASTER"
-                className="h-8 w-auto object-contain"
-              />
-            </div>
-          </div>
-
+        <div className="w-full max-w-5xl flex items-center justify-end">
           <div className="flex items-center gap-3">
             {/* Language toggle */}
             <div className="flex items-center gap-1 bg-white/10 rounded-full p-1 border border-white/15">
@@ -471,8 +442,13 @@ export function SubscriptionGuard() {
           {/* Status banner */}
           <div className="relative flex flex-col items-center text-center gap-4 px-8 pt-10 pb-8 border-b border-zinc-100 overflow-hidden">
             <div className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-[#D01D20]" />
-            <div className={`flex h-16 w-16 items-center justify-center rounded-2xl ring-8 ${meta.ringClass}`}>
-              <BannerIcon className={`h-7 w-7 ${meta.iconClass}`} />
+            <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-white ring-8 ring-red-100 shadow-sm">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/brand/rcicmaster-logo.png"
+                alt="RCICMASTER"
+                className="h-12 w-auto object-contain"
+              />
             </div>
             <div className="space-y-2">
               <span className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-[#D01D20] bg-red-50 px-3 py-1 rounded-full border border-red-100">
