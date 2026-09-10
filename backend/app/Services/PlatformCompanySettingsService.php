@@ -10,7 +10,10 @@ class PlatformCompanySettingsService
 {
     public function get(): PlatformCompanySetting
     {
-        return PlatformCompanySetting::firstOrCreate([], $this->defaults());
+        $setting = PlatformCompanySetting::firstOrCreate([], $this->defaults());
+        $this->normalizeLegacyDomains($setting);
+
+        return $setting;
     }
 
     /** @return array<string, mixed> */
@@ -122,6 +125,42 @@ class PlatformCompanySettingsService
         return $setting->fresh();
     }
 
+    /**
+     * Migrate legacy .com contact defaults to the live rcicmaster.ca domain.
+     */
+    private function normalizeLegacyDomains(PlatformCompanySetting $setting): void
+    {
+        $replacements = [
+            'billing_email' => [
+                'billing@rcicmaster.com' => 'billing@rcicmaster.ca',
+            ],
+            'support_email' => [
+                'support@rcicmaster.com' => 'support@rcicmaster.ca',
+            ],
+            'website' => [
+                'https://www.rcicmaster.com' => 'https://www.rcicmaster.ca',
+                'http://www.rcicmaster.com'  => 'https://www.rcicmaster.ca',
+                'https://rcicmaster.com'     => 'https://rcicmaster.ca',
+                'http://rcicmaster.com'      => 'https://rcicmaster.ca',
+            ],
+        ];
+
+        $payload = [];
+        foreach ($replacements as $field => $map) {
+            $current = (string) ($setting->{$field} ?? '');
+            if ($current !== '' && isset($map[$current])) {
+                $payload[$field] = $map[$current];
+            }
+        }
+
+        if ($payload === []) {
+            return;
+        }
+
+        $setting->fill($payload);
+        $setting->save();
+    }
+
     /** @return array<string, mixed> */
     private function defaults(): array
     {
@@ -133,9 +172,9 @@ class PlatformCompanySettingsService
             'province'       => 'ON',
             'postal_code'    => 'M5X 1A9',
             'country'        => 'CA',
-            'billing_email'  => 'billing@rcicmaster.com',
-            'support_email'  => 'support@rcicmaster.com',
-            'website'        => 'https://www.rcicmaster.com',
+            'billing_email'  => 'billing@rcicmaster.ca',
+            'support_email'  => 'support@rcicmaster.ca',
+            'website'        => 'https://www.rcicmaster.ca',
             'invoice_prefix' => 'RCM',
             'invoice_footer' => 'Thank you for your business. This tax invoice is issued in accordance with CRA requirements for Canadian sales tax.',
         ];
