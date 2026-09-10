@@ -9,6 +9,7 @@ import {
   Lock,
   LogOut,
   ShieldCheck,
+  X,
 } from "lucide-react";
 
 import { CONSULTANT_LOGIN_URL } from "@/lib/auth-urls";
@@ -268,6 +269,7 @@ export function SubscriptionGuard() {
   const [lang, setLang] = useState<Lang>("en");
   const [actionLoading, setActionLoading] = useState<number | null>(null);
   const [error, setError] = useState("");
+  const [dismissed, setDismissed] = useState(false);
 
   const t = strings[lang];
 
@@ -406,7 +408,7 @@ export function SubscriptionGuard() {
     window.location.replace(CONSULTANT_LOGIN_URL);
   }
 
-  if (guardStatus === "loading" || guardStatus === "active") return null;
+  if (guardStatus === "loading" || guardStatus === "active" || dismissed) return null;
 
   const banner = t.banners[guardStatus];
   const popularIdx = packages.length > 1 ? Math.floor((packages.length - 1) / 2) : 0;
@@ -441,9 +443,9 @@ export function SubscriptionGuard() {
           inset: 0;
           z-index: 60;
           overflow-y: auto;
-          background:
-            radial-gradient(ellipse 80% 50% at 50% -20%, rgba(208, 29, 32, 0.08), transparent 55%),
-            linear-gradient(180deg, #fafbfc 0%, #eef1f5 100%);
+          background: rgba(15, 17, 21, 0.35);
+          backdrop-filter: blur(10px);
+          -webkit-backdrop-filter: blur(10px);
         }
 
         .sg-shell {
@@ -479,37 +481,14 @@ export function SubscriptionGuard() {
         .sg-brand {
           display: flex;
           align-items: center;
-          gap: 0.85rem;
           min-width: 0;
         }
 
         .sg-brand img {
-          height: 36px;
+          height: 40px;
           width: auto;
           display: block;
           object-fit: contain;
-        }
-
-        .sg-brand__meta {
-          display: flex;
-          flex-direction: column;
-          gap: 0.15rem;
-          min-width: 0;
-        }
-
-        .sg-brand__meta strong {
-          font-size: 0.95rem;
-          font-weight: 800;
-          letter-spacing: -0.02em;
-          line-height: 1.1;
-        }
-
-        .sg-brand__meta span {
-          font-size: 0.68rem;
-          font-weight: 700;
-          letter-spacing: 0.08em;
-          text-transform: uppercase;
-          color: var(--red);
         }
 
         .sg-bar__actions {
@@ -517,6 +496,25 @@ export function SubscriptionGuard() {
           align-items: center;
           gap: 0.5rem;
           flex-shrink: 0;
+        }
+
+        .sg-close {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 34px;
+          height: 34px;
+          border-radius: 999px;
+          border: 1px solid var(--line);
+          background: var(--white);
+          color: var(--muted);
+          cursor: pointer;
+        }
+
+        .sg-close:hover {
+          color: var(--ink);
+          border-color: #d0d5dd;
+          background: var(--soft);
         }
 
         .sg-lang {
@@ -912,7 +910,6 @@ export function SubscriptionGuard() {
           .sg-bar {
             flex-wrap: wrap;
           }
-          .sg-brand__meta strong { display: none; }
           .sg-shell { padding: 0.75rem; align-items: flex-start; }
           .sg-panel { border-radius: 14px; }
         }
@@ -926,10 +923,6 @@ export function SubscriptionGuard() {
               <div className="sg-brand">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src="/brand/rcicmaster-logo.png" alt="RCICMASTER" />
-                <div className="sg-brand__meta">
-                  <strong>RCICMASTER</strong>
-                  <span>{t.badgeActive}</span>
-                </div>
               </div>
 
               <div className="sg-bar__actions">
@@ -948,6 +941,14 @@ export function SubscriptionGuard() {
                 <button type="button" className="sg-logout" onClick={handleLogout}>
                   <LogOut className="h-3.5 w-3.5" />
                   {t.logout}
+                </button>
+                <button
+                  type="button"
+                  className="sg-close"
+                  onClick={() => setDismissed(true)}
+                  aria-label={lang === "fr" ? "Fermer" : "Close"}
+                >
+                  <X className="h-4 w-4" />
                 </button>
               </div>
             </div>
