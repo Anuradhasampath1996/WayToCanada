@@ -24,13 +24,13 @@ const strings = {
     monthly: "Monthly",
     yearly: "Yearly",
     saveLabel: "Save ~20%",
-    perMonth: "/month",
-    perYear: "/year",
+    perMonth: "/mo",
+    perYear: "/yr",
     trialAvailable: (days: number) => `${days}-day free trial`,
     trialUsed: "Trial already used",
     trialBtn: (days: number) => `Start ${days}-day trial`,
-    subscribeMonthly: "Continue with monthly",
-    subscribeYearly: "Continue with yearly",
+    subscribeMonthly: "Continue monthly",
+    subscribeYearly: "Continue yearly",
     mostPopular: "Recommended",
     choosePlan: "Choose a plan",
     footer:
@@ -53,7 +53,7 @@ const strings = {
       },
       payment_declined: {
         title: "Payment could not be processed",
-        sub: "Update billing by choosing a plan below — your workspace unlocks as soon as payment succeeds.",
+        sub: "Choose a plan below — your workspace unlocks as soon as payment succeeds.",
       },
       cancelled: {
         title: "Your subscription is inactive",
@@ -71,7 +71,7 @@ const strings = {
     saveLabel: "Économisez ~20 %",
     perMonth: "/mois",
     perYear: "/an",
-    trialAvailable: (days: number) => `Essai gratuit de ${days} jours`,
+    trialAvailable: (days: number) => `Essai de ${days} jours`,
     trialUsed: "Essai déjà utilisé",
     trialBtn: (days: number) => `Commencer l'essai de ${days} jours`,
     subscribeMonthly: "Continuer au mensuel",
@@ -79,7 +79,7 @@ const strings = {
     mostPopular: "Recommandé",
     choosePlan: "Choisir un forfait",
     footer:
-      "Les paiements sont traités de façon sécurisée par Stripe. Annulez en tout temps dans les paramètres du compte.",
+      "Les paiements sont traités de façon sécurisée par Stripe. Annulez en tout temps dans les paramètres.",
     errorGeneric: "Une erreur est survenue. Veuillez réessayer.",
     errorNetwork: "Erreur réseau. Veuillez vérifier votre connexion.",
     logout: "Déconnexion",
@@ -98,11 +98,11 @@ const strings = {
       },
       payment_declined: {
         title: "Le paiement n'a pas pu être traité",
-        sub: "Choisissez un forfait ci-dessous — l'accès se rétablit dès que le paiement réussit.",
+        sub: "Choisissez un forfait — l'accès se rétablit dès que le paiement réussit.",
       },
       cancelled: {
         title: "Votre abonnement est inactif",
-        sub: "Réactivez un forfait pour continuer la gestion des dossiers et des communications.",
+        sub: "Réactivez un forfait pour continuer la gestion des dossiers.",
       },
     },
   },
@@ -177,7 +177,6 @@ function PlanCard({
   lang,
   t,
   isPopular,
-  index,
   onStartTrial,
   onSubscribe,
   loading,
@@ -188,7 +187,6 @@ function PlanCard({
   lang: Lang;
   t: LocaleStrings;
   isPopular: boolean;
-  index: number;
   onStartTrial: (id: number) => void;
   onSubscribe: (id: number, cycle: "monthly" | "yearly") => void;
   loading: boolean;
@@ -198,16 +196,13 @@ function PlanCard({
   const features = pkgFeatures(pkg, lang);
 
   return (
-    <article
-      className={`sg-plan relative flex flex-col ${isPopular ? "sg-plan--popular" : ""}`}
-      style={{ animationDelay: `${180 + index * 90}ms` }}
-    >
-      {isPopular && <span className="sg-plan__badge">{t.mostPopular}</span>}
+    <article className={`sg-plan ${isPopular ? "sg-plan--popular" : ""}`}>
+      {isPopular ? <span className="sg-plan__badge">{t.mostPopular}</span> : null}
 
-      <header className="sg-plan__head">
+      <div className="sg-plan__top">
         <h3>{pkgName(pkg, lang)}</h3>
-        {pkgDesc(pkg, lang) ? <p>{pkgDesc(pkg, lang)}</p> : null}
-      </header>
+        {pkgDesc(pkg, lang) ? <p>{pkgDesc(pkg, lang)}</p> : <p className="sg-plan__desc-spacer">&nbsp;</p>}
+      </div>
 
       <div className="sg-plan__price">
         <strong>{fmtPrice(price, lang)}</strong>
@@ -218,20 +213,20 @@ function PlanCard({
         <p className={`sg-plan__trial ${trialUsed ? "is-used" : ""}`}>
           {trialUsed ? t.trialUsed : t.trialAvailable(pkg.free_trial_days)}
         </p>
-      ) : null}
-
-      {features.length > 0 ? (
-        <ul className="sg-plan__features">
-          {features.map((f, i) => (
-            <li key={i}>
-              <Check className="h-3.5 w-3.5" strokeWidth={2.75} aria-hidden />
-              <span>{f}</span>
-            </li>
-          ))}
-        </ul>
       ) : (
-        <div className="sg-plan__features-spacer" />
+        <p className="sg-plan__trial sg-plan__trial--empty">&nbsp;</p>
       )}
+
+      <ul className="sg-plan__features">
+        {features.map((f, i) => (
+          <li key={i}>
+            <span className="sg-check" aria-hidden>
+              <Check className="h-3 w-3" strokeWidth={3} />
+            </span>
+            <span>{f}</span>
+          </li>
+        ))}
+      </ul>
 
       <div className="sg-plan__actions">
         {showTrial ? (
@@ -246,7 +241,7 @@ function PlanCard({
         ) : null}
         <button
           type="button"
-          className={`sg-btn ${isPopular ? "sg-btn--primary" : "sg-btn--dark"}`}
+          className={`sg-btn ${isPopular ? "sg-btn--primary" : "sg-btn--secondary"}`}
           onClick={() => onSubscribe(pkg.id, billing)}
           disabled={loading}
         >
@@ -420,53 +415,25 @@ export function SubscriptionGuard() {
     <>
       <link
         rel="stylesheet"
-        href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap"
+        href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&display=swap"
       />
       <style>{`
         .sg-root {
-          --sg-red: #d01d20;
-          --sg-red-deep: #9e1417;
-          --sg-ink: #0a0b0d;
-          --sg-paper: #f3f5f8;
-          --sg-line: rgba(10, 11, 13, 0.08);
-          --sg-muted: #5c616b;
-          font-family: "Outfit", sans-serif;
-          color: var(--sg-ink);
+          --red: #d01d20;
+          --red-dark: #b0181b;
+          --ink: #111318;
+          --muted: #667085;
+          --line: #e6e8ee;
+          --soft: #f6f7f9;
+          --white: #ffffff;
+          font-family: "Manrope", "Segoe UI", sans-serif;
+          color: var(--ink);
         }
+        .sg-root *, .sg-root *::before, .sg-root *::after { box-sizing: border-box; }
 
-        .sg-root * {
-          box-sizing: border-box;
-        }
-
-        @keyframes sg-fade {
-          from {
-            opacity: 0;
-          }
-          to {
-            opacity: 1;
-          }
-        }
-
-        @keyframes sg-rise {
-          from {
-            opacity: 0;
-            transform: translateY(18px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-
-        @keyframes sg-logo {
-          0% {
-            opacity: 0;
-            transform: scale(0.92);
-          }
-          100% {
-            opacity: 1;
-            transform: scale(1);
-          }
+        @keyframes sg-in {
+          from { opacity: 0; transform: translateY(10px); }
+          to { opacity: 1; transform: translateY(0); }
         }
 
         .sg-backdrop {
@@ -475,275 +442,251 @@ export function SubscriptionGuard() {
           z-index: 60;
           overflow-y: auto;
           background:
-            radial-gradient(ellipse 90% 60% at 50% -10%, rgba(208, 29, 32, 0.28), transparent 55%),
-            radial-gradient(circle at 85% 90%, rgba(208, 29, 32, 0.12), transparent 40%),
-            linear-gradient(165deg, #16171b 0%, #0a0b0d 48%, #111214 100%);
-          animation: sg-fade 0.45s ease both;
-        }
-
-        .sg-backdrop::before {
-          content: "";
-          position: absolute;
-          inset: 0;
-          pointer-events: none;
-          opacity: 0.35;
-          background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
-          mix-blend-mode: soft-light;
+            radial-gradient(ellipse 80% 50% at 50% -20%, rgba(208, 29, 32, 0.08), transparent 55%),
+            linear-gradient(180deg, #fafbfc 0%, #eef1f5 100%);
         }
 
         .sg-shell {
-          position: relative;
           min-height: 100%;
           display: flex;
-          flex-direction: column;
           align-items: center;
-          padding: 1.25rem 1rem 2.5rem;
-          gap: 1.25rem;
-        }
-
-        @media (min-width: 768px) {
-          .sg-shell {
-            padding: 2rem 1.5rem 3rem;
-            gap: 1.75rem;
-          }
-        }
-
-        .sg-topbar {
-          width: 100%;
-          max-width: 68rem;
-          display: flex;
-          justify-content: flex-end;
-          animation: sg-fade 0.5s ease 0.1s both;
-        }
-
-        .sg-topbar__actions {
-          display: flex;
-          align-items: center;
-          gap: 0.5rem;
-        }
-
-        .sg-lang {
-          display: inline-flex;
-          padding: 0.2rem;
-          border-radius: 999px;
-          background: rgba(255, 255, 255, 0.06);
-          border: 1px solid rgba(255, 255, 255, 0.1);
-        }
-
-        .sg-lang button {
-          border: 0;
-          background: transparent;
-          color: rgba(255, 255, 255, 0.55);
-          font: 600 0.7rem/1 Outfit, sans-serif;
-          letter-spacing: 0.04em;
-          padding: 0.45rem 0.85rem;
-          border-radius: 999px;
-          cursor: pointer;
-          transition: color 0.2s, background 0.2s;
-        }
-
-        .sg-lang button.is-on {
-          background: var(--sg-red);
-          color: #fff;
-        }
-
-        .sg-lang button:not(.is-on):hover {
-          color: #fff;
-        }
-
-        .sg-logout {
-          display: inline-flex;
-          align-items: center;
-          gap: 0.4rem;
-          border: 1px solid rgba(255, 255, 255, 0.12);
-          background: rgba(255, 255, 255, 0.05);
-          color: rgba(255, 255, 255, 0.72);
-          font: 500 0.72rem/1 Outfit, sans-serif;
-          padding: 0.55rem 0.95rem;
-          border-radius: 999px;
-          cursor: pointer;
-          transition: background 0.2s, color 0.2s;
-        }
-
-        .sg-logout:hover {
-          background: rgba(255, 255, 255, 0.12);
-          color: #fff;
+          justify-content: center;
+          padding: 1.5rem 1rem 2rem;
         }
 
         .sg-panel {
           width: 100%;
-          max-width: 68rem;
-          border-radius: 1.5rem;
+          max-width: 1080px;
+          background: var(--white);
+          border: 1px solid var(--line);
+          border-radius: 20px;
+          box-shadow: 0 20px 50px rgba(17, 19, 24, 0.08);
           overflow: hidden;
-          background: var(--sg-paper);
-          box-shadow:
-            0 0 0 1px rgba(255, 255, 255, 0.08),
-            0 28px 80px rgba(0, 0, 0, 0.45);
-          animation: sg-rise 0.55s cubic-bezier(0.22, 1, 0.36, 1) 0.12s both;
+          animation: sg-in 0.4s ease both;
         }
 
-        .sg-hero {
-          position: relative;
-          padding: 2.25rem 1.5rem 1.75rem;
-          text-align: center;
-          background:
-            linear-gradient(180deg, #ffffff 0%, var(--sg-paper) 100%);
-          border-bottom: 1px solid var(--sg-line);
-        }
-
-        @media (min-width: 768px) {
-          .sg-hero {
-            padding: 2.75rem 3rem 2rem;
-          }
-        }
-
-        .sg-hero::before {
-          content: "";
-          position: absolute;
-          left: 0;
-          right: 0;
-          top: 0;
-          height: 3px;
-          background: linear-gradient(90deg, var(--sg-red-deep), var(--sg-red), #e85a5c);
-        }
-
-        .sg-logo {
-          display: inline-flex;
+        /* ── Top bar: logo | controls ── */
+        .sg-bar {
+          display: flex;
           align-items: center;
-          justify-content: center;
-          margin: 0 auto 1.35rem;
-          padding: 0.85rem 1.15rem;
-          border-radius: 1rem;
-          background: #fff;
-          box-shadow:
-            0 1px 0 rgba(10, 11, 13, 0.04),
-            0 12px 32px rgba(208, 29, 32, 0.1);
-          animation: sg-logo 0.6s cubic-bezier(0.22, 1, 0.36, 1) 0.2s both;
+          justify-content: space-between;
+          gap: 1rem;
+          padding: 1rem 1.5rem;
+          border-bottom: 1px solid var(--line);
+          background: var(--white);
         }
 
-        .sg-logo img {
-          height: 2.75rem;
+        .sg-brand {
+          display: flex;
+          align-items: center;
+          gap: 0.85rem;
+          min-width: 0;
+        }
+
+        .sg-brand img {
+          height: 36px;
           width: auto;
           display: block;
           object-fit: contain;
         }
 
-        .sg-kicker {
-          display: inline-block;
-          margin-bottom: 0.75rem;
-          font: 600 0.68rem/1 Outfit, sans-serif;
-          letter-spacing: 0.14em;
+        .sg-brand__meta {
+          display: flex;
+          flex-direction: column;
+          gap: 0.15rem;
+          min-width: 0;
+        }
+
+        .sg-brand__meta strong {
+          font-size: 0.95rem;
+          font-weight: 800;
+          letter-spacing: -0.02em;
+          line-height: 1.1;
+        }
+
+        .sg-brand__meta span {
+          font-size: 0.68rem;
+          font-weight: 700;
+          letter-spacing: 0.08em;
           text-transform: uppercase;
-          color: var(--sg-red);
+          color: var(--red);
         }
 
-        .sg-hero h1 {
+        .sg-bar__actions {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          flex-shrink: 0;
+        }
+
+        .sg-lang {
+          display: inline-flex;
+          padding: 3px;
+          border-radius: 999px;
+          background: var(--soft);
+          border: 1px solid var(--line);
+        }
+
+        .sg-lang button {
+          border: 0;
+          background: transparent;
+          cursor: pointer;
+          font: 700 0.7rem/1 Manrope, sans-serif;
+          letter-spacing: 0.04em;
+          color: var(--muted);
+          padding: 0.4rem 0.7rem;
+          border-radius: 999px;
+        }
+
+        .sg-lang button.is-on {
+          background: var(--white);
+          color: var(--ink);
+          box-shadow: 0 1px 2px rgba(17, 19, 24, 0.08);
+        }
+
+        .sg-logout {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.35rem;
+          border: 1px solid var(--line);
+          background: var(--white);
+          color: var(--muted);
+          font: 600 0.75rem/1 Manrope, sans-serif;
+          padding: 0.48rem 0.8rem;
+          border-radius: 999px;
+          cursor: pointer;
+        }
+
+        .sg-logout:hover {
+          color: var(--ink);
+          border-color: #d0d5dd;
+        }
+
+        /* ── Intro ── */
+        .sg-intro {
+          text-align: center;
+          padding: 1.75rem 1.5rem 0.25rem;
+          max-width: 560px;
           margin: 0 auto;
-          max-width: 30rem;
-          font: 700 clamp(1.5rem, 2.5vw, 2rem)/1.2 Outfit, sans-serif;
+        }
+
+        .sg-intro h1 {
+          margin: 0;
+          font-size: clamp(1.35rem, 2.2vw, 1.75rem);
+          font-weight: 800;
           letter-spacing: -0.03em;
-          color: var(--sg-ink);
+          line-height: 1.25;
+          color: var(--ink);
         }
 
-        .sg-hero p {
-          margin: 0.75rem auto 0;
-          max-width: 32rem;
-          font: 400 0.95rem/1.55 Outfit, sans-serif;
-          color: var(--sg-muted);
+        .sg-intro p {
+          margin: 0.55rem 0 0;
+          font-size: 0.92rem;
+          line-height: 1.55;
+          color: var(--muted);
+          font-weight: 500;
         }
 
+        /* ── Body ── */
         .sg-body {
-          padding: 1.5rem 1.25rem 1.75rem;
+          padding: 1.25rem 1.5rem 1.5rem;
         }
 
-        @media (min-width: 768px) {
-          .sg-body {
-            padding: 1.75rem 2.5rem 2.25rem;
-          }
+        @media (min-width: 900px) {
+          .sg-bar, .sg-body { padding-left: 2rem; padding-right: 2rem; }
+          .sg-intro { padding-left: 2rem; padding-right: 2rem; }
         }
 
         .sg-controls {
           display: flex;
           flex-direction: column;
           align-items: center;
-          gap: 1rem;
-          margin-bottom: 1.5rem;
+          gap: 0.65rem;
+          margin: 1.25rem 0 1.35rem;
         }
 
         .sg-controls__label {
-          font: 600 0.72rem/1 Outfit, sans-serif;
-          letter-spacing: 0.12em;
+          font-size: 0.68rem;
+          font-weight: 700;
+          letter-spacing: 0.1em;
           text-transform: uppercase;
-          color: var(--sg-muted);
+          color: var(--muted);
         }
 
         .sg-billing {
           display: inline-grid;
           grid-template-columns: 1fr 1fr;
-          gap: 0.25rem;
-          padding: 0.25rem;
+          gap: 2px;
+          padding: 3px;
           border-radius: 999px;
-          background: rgba(10, 11, 13, 0.05);
-          border: 1px solid var(--sg-line);
+          background: var(--soft);
+          border: 1px solid var(--line);
         }
 
         .sg-billing button {
-          position: relative;
           border: 0;
           background: transparent;
           cursor: pointer;
-          font: 600 0.85rem/1 Outfit, sans-serif;
-          color: var(--sg-muted);
-          padding: 0.65rem 1.35rem;
-          border-radius: 999px;
-          transition: color 0.2s, background 0.2s, box-shadow 0.2s;
           display: inline-flex;
           align-items: center;
           justify-content: center;
-          gap: 0.45rem;
+          gap: 0.4rem;
           white-space: nowrap;
+          font: 700 0.84rem/1 Manrope, sans-serif;
+          color: var(--muted);
+          padding: 0.6rem 1.15rem;
+          border-radius: 999px;
         }
 
         .sg-billing button.is-on {
-          background: #fff;
-          color: var(--sg-ink);
-          box-shadow: 0 1px 3px rgba(10, 11, 13, 0.08);
+          background: var(--white);
+          color: var(--ink);
+          box-shadow: 0 1px 3px rgba(17, 19, 24, 0.08);
         }
 
         .sg-save {
-          font: 700 0.62rem/1 Outfit, sans-serif;
-          letter-spacing: 0.02em;
-          color: var(--sg-red);
+          font-size: 0.62rem;
+          font-weight: 800;
+          color: var(--red);
           background: rgba(208, 29, 32, 0.08);
-          padding: 0.28rem 0.45rem;
+          padding: 0.22rem 0.4rem;
           border-radius: 999px;
         }
 
         .sg-error {
           display: flex;
           align-items: flex-start;
-          gap: 0.65rem;
-          margin: 0 auto 1.25rem;
-          max-width: 36rem;
-          padding: 0.85rem 1rem;
-          border-radius: 0.85rem;
-          border: 1px solid rgba(208, 29, 32, 0.25);
-          background: rgba(208, 29, 32, 0.06);
-          color: var(--sg-red-deep);
-          font: 500 0.85rem/1.4 Outfit, sans-serif;
+          gap: 0.55rem;
+          max-width: 520px;
+          margin: 0 auto 1rem;
+          padding: 0.75rem 0.9rem;
+          border-radius: 10px;
+          border: 1px solid rgba(208, 29, 32, 0.22);
+          background: rgba(208, 29, 32, 0.05);
+          color: var(--red-dark);
+          font-size: 0.85rem;
+          font-weight: 600;
         }
 
+        .sg-loading {
+          display: flex;
+          justify-content: center;
+          padding: 3rem 0;
+          color: var(--red);
+        }
+
+        /* ── Plans grid — equal columns, equal height ── */
         .sg-plans {
           display: grid;
-          gap: 1rem;
           grid-template-columns: 1fr;
+          gap: 1rem;
+          align-items: stretch;
         }
 
-        @media (min-width: 720px) {
+        @media (min-width: 860px) {
           .sg-plans {
-            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-            gap: 1.15rem;
-            align-items: stretch;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 1rem;
           }
         }
 
@@ -751,261 +694,265 @@ export function SubscriptionGuard() {
           position: relative;
           display: flex;
           flex-direction: column;
-          gap: 1.1rem;
-          padding: 1.5rem 1.35rem 1.35rem;
-          border-radius: 1.15rem;
-          background: #fff;
-          border: 1px solid var(--sg-line);
-          transition:
-            transform 0.25s ease,
-            border-color 0.25s ease,
-            box-shadow 0.25s ease;
-          animation: sg-rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+          height: 100%;
+          min-height: 100%;
+          padding: 1.35rem 1.2rem 1.2rem;
+          border: 1px solid var(--line);
+          border-radius: 14px;
+          background: var(--white);
+          transition: border-color 0.2s, box-shadow 0.2s;
         }
 
         .sg-plan:hover {
-          transform: translateY(-3px);
-          box-shadow: 0 16px 40px rgba(10, 11, 13, 0.08);
+          border-color: #d0d5dd;
+          box-shadow: 0 8px 24px rgba(17, 19, 24, 0.05);
         }
 
         .sg-plan--popular {
           border-color: rgba(208, 29, 32, 0.45);
-          box-shadow:
-            0 0 0 1px rgba(208, 29, 32, 0.12),
-            0 18px 44px rgba(208, 29, 32, 0.1);
+          background: linear-gradient(180deg, #fff8f8 0%, #ffffff 40%);
+          box-shadow: 0 10px 28px rgba(208, 29, 32, 0.08);
         }
 
         .sg-plan__badge {
           position: absolute;
-          top: -0.7rem;
+          top: -10px;
           left: 50%;
           transform: translateX(-50%);
-          background: var(--sg-red);
+          background: var(--red);
           color: #fff;
-          font: 700 0.65rem/1 Outfit, sans-serif;
+          font-size: 0.62rem;
+          font-weight: 800;
           letter-spacing: 0.06em;
           text-transform: uppercase;
-          padding: 0.4rem 0.75rem;
+          padding: 0.32rem 0.65rem;
           border-radius: 999px;
           white-space: nowrap;
         }
 
-        .sg-plan__head h3 {
-          margin: 0;
-          font: 700 1.05rem/1.25 Outfit, sans-serif;
-          letter-spacing: -0.02em;
-          color: var(--sg-ink);
+        .sg-plan__top {
+          min-height: 4.4rem;
         }
 
-        .sg-plan__head p {
-          margin: 0.4rem 0 0;
-          font: 400 0.82rem/1.45 Outfit, sans-serif;
-          color: var(--sg-muted);
+        .sg-plan__top h3 {
+          margin: 0;
+          font-size: 1.05rem;
+          font-weight: 800;
+          letter-spacing: -0.02em;
+        }
+
+        .sg-plan__top p {
+          margin: 0.35rem 0 0;
+          font-size: 0.8rem;
+          line-height: 1.4;
+          color: var(--muted);
+          font-weight: 500;
         }
 
         .sg-plan__price {
           display: flex;
           align-items: baseline;
-          gap: 0.35rem;
+          gap: 0.3rem;
+          margin-top: 0.85rem;
         }
 
         .sg-plan__price strong {
-          font: 800 2.15rem/1 Outfit, sans-serif;
+          font-size: 2rem;
+          font-weight: 800;
           letter-spacing: -0.04em;
-          color: var(--sg-ink);
+          line-height: 1;
         }
 
         .sg-plan__price span {
-          font: 500 0.85rem/1 Outfit, sans-serif;
-          color: var(--sg-muted);
+          font-size: 0.82rem;
+          font-weight: 600;
+          color: var(--muted);
         }
 
         .sg-plan__trial {
-          margin: 0;
+          margin: 0.75rem 0 0;
           align-self: flex-start;
-          font: 600 0.72rem/1 Outfit, sans-serif;
-          color: #1f6b45;
-          background: rgba(31, 107, 69, 0.08);
-          border: 1px solid rgba(31, 107, 69, 0.18);
-          padding: 0.4rem 0.65rem;
+          font-size: 0.7rem;
+          font-weight: 700;
+          color: #147a45;
+          background: rgba(20, 122, 69, 0.08);
+          border: 1px solid rgba(20, 122, 69, 0.16);
+          padding: 0.32rem 0.55rem;
           border-radius: 999px;
+          min-height: 1.55rem;
         }
 
         .sg-plan__trial.is-used {
-          color: var(--sg-muted);
-          background: rgba(10, 11, 13, 0.04);
-          border-color: var(--sg-line);
+          color: var(--muted);
+          background: var(--soft);
+          border-color: var(--line);
+        }
+
+        .sg-plan__trial--empty {
+          background: transparent;
+          border-color: transparent;
         }
 
         .sg-plan__features {
           list-style: none;
-          margin: 0;
+          margin: 1rem 0 0;
           padding: 0;
           display: flex;
           flex-direction: column;
-          gap: 0.7rem;
-          flex: 1;
-        }
-
-        .sg-plan__features-spacer {
+          gap: 0.55rem;
           flex: 1;
         }
 
         .sg-plan__features li {
-          display: flex;
-          align-items: flex-start;
-          gap: 0.55rem;
-          font: 500 0.86rem/1.4 Outfit, sans-serif;
-          color: #2a2e36;
+          display: grid;
+          grid-template-columns: 18px 1fr;
+          gap: 0.5rem;
+          align-items: start;
+          font-size: 0.82rem;
+          line-height: 1.4;
+          font-weight: 500;
+          color: #344054;
         }
 
-        .sg-plan__features svg {
-          margin-top: 0.15rem;
-          flex-shrink: 0;
-          color: var(--sg-red);
+        .sg-check {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 18px;
+          height: 18px;
+          border-radius: 999px;
+          background: rgba(208, 29, 32, 0.08);
+          color: var(--red);
+          margin-top: 1px;
         }
 
         .sg-plan__actions {
           display: flex;
           flex-direction: column;
-          gap: 0.55rem;
-          margin-top: auto;
-          padding-top: 0.35rem;
+          gap: 0.45rem;
+          margin-top: 1.15rem;
         }
 
         .sg-btn {
           display: inline-flex;
           align-items: center;
           justify-content: center;
-          gap: 0.4rem;
           width: 100%;
-          min-height: 2.75rem;
-          border-radius: 0.75rem;
+          min-height: 42px;
+          border-radius: 10px;
           border: 0;
           cursor: pointer;
-          font: 600 0.88rem/1 Outfit, sans-serif;
-          letter-spacing: -0.01em;
-          transition:
-            background 0.2s,
-            transform 0.15s,
-            opacity 0.2s;
+          font: 700 0.84rem/1 Manrope, sans-serif;
+          transition: background 0.15s, opacity 0.15s;
         }
 
-        .sg-btn:disabled {
-          opacity: 0.65;
-          cursor: not-allowed;
-        }
-
-        .sg-btn:not(:disabled):active {
-          transform: scale(0.985);
-        }
+        .sg-btn:disabled { opacity: 0.6; cursor: not-allowed; }
 
         .sg-btn--primary {
-          background: var(--sg-red);
-          color: #fff;
-          box-shadow: 0 10px 24px rgba(208, 29, 32, 0.28);
-        }
-
-        .sg-btn--primary:hover:not(:disabled) {
-          background: var(--sg-red-deep);
-        }
-
-        .sg-btn--dark {
-          background: var(--sg-ink);
+          background: var(--red);
           color: #fff;
         }
+        .sg-btn--primary:hover:not(:disabled) { background: var(--red-dark); }
 
-        .sg-btn--dark:hover:not(:disabled) {
-          background: #1c1f26;
+        .sg-btn--secondary {
+          background: var(--ink);
+          color: #fff;
         }
+        .sg-btn--secondary:hover:not(:disabled) { background: #1d2129; }
 
         .sg-btn--ghost {
           background: transparent;
-          color: var(--sg-red);
+          color: var(--red);
           border: 1px solid rgba(208, 29, 32, 0.28);
         }
-
         .sg-btn--ghost:hover:not(:disabled) {
-          background: rgba(208, 29, 32, 0.05);
+          background: rgba(208, 29, 32, 0.04);
         }
 
-        .sg-loading {
+        /* ── Footer inside panel ── */
+        .sg-foot {
+          margin-top: 1.5rem;
+          padding-top: 1.15rem;
+          border-top: 1px solid var(--line);
           display: flex;
-          justify-content: center;
-          padding: 3.5rem 0;
-          color: var(--sg-red);
+          flex-direction: column;
+          align-items: center;
+          gap: 0.75rem;
+          text-align: center;
         }
 
         .sg-trust {
           display: flex;
           flex-wrap: wrap;
           justify-content: center;
-          gap: 1rem 1.75rem;
-          margin-top: 1.75rem;
-          padding-top: 1.35rem;
-          border-top: 1px solid var(--sg-line);
+          gap: 0.75rem 1.5rem;
         }
 
         .sg-trust span {
           display: inline-flex;
           align-items: center;
-          gap: 0.4rem;
-          font: 500 0.78rem/1 Outfit, sans-serif;
-          color: var(--sg-muted);
+          gap: 0.35rem;
+          font-size: 0.75rem;
+          font-weight: 600;
+          color: var(--muted);
         }
 
-        .sg-trust svg {
-          color: var(--sg-red);
+        .sg-trust svg { color: var(--red); }
+
+        .sg-foot p {
+          margin: 0;
+          max-width: 420px;
+          font-size: 0.72rem;
+          line-height: 1.5;
+          color: #98a2b3;
+          font-weight: 500;
         }
 
-        .sg-foot {
-          margin-top: 1.15rem;
-          text-align: center;
-          font: 400 0.75rem/1.5 Outfit, sans-serif;
-          color: var(--sg-muted);
-          max-width: 34rem;
-          margin-left: auto;
-          margin-right: auto;
-        }
-
-        .sg-copy {
-          font: 400 0.7rem/1 Outfit, sans-serif;
-          letter-spacing: 0.04em;
-          color: rgba(255, 255, 255, 0.32);
-          animation: sg-fade 0.6s ease 0.35s both;
+        @media (max-width: 640px) {
+          .sg-bar {
+            flex-wrap: wrap;
+          }
+          .sg-brand__meta strong { display: none; }
+          .sg-shell { padding: 0.75rem; align-items: flex-start; }
+          .sg-panel { border-radius: 14px; }
         }
       `}</style>
 
       <div className="sg-root sg-backdrop" role="dialog" aria-modal="true" aria-labelledby="sg-title">
         <div className="sg-shell">
-          <div className="sg-topbar">
-            <div className="sg-topbar__actions">
-              <div className="sg-lang" role="group" aria-label="Language">
-                {(["en", "fr"] as Lang[]).map((l) => (
-                  <button
-                    key={l}
-                    type="button"
-                    className={lang === l ? "is-on" : ""}
-                    onClick={() => setLang(l)}
-                  >
-                    {l === "en" ? "EN" : "FR"}
-                  </button>
-                ))}
-              </div>
-              <button type="button" className="sg-logout" onClick={handleLogout}>
-                <LogOut className="h-3.5 w-3.5" />
-                {t.logout}
-              </button>
-            </div>
-          </div>
-
           <div className="sg-panel">
-            <header className="sg-hero">
-              <div className="sg-logo">
+            {/* Header: logo + status | language + logout — all inside panel */}
+            <div className="sg-bar">
+              <div className="sg-brand">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src="/brand/rcicmaster-logo.png" alt="RCICMASTER" />
+                <div className="sg-brand__meta">
+                  <strong>RCICMASTER</strong>
+                  <span>{t.badgeActive}</span>
+                </div>
               </div>
-              <span className="sg-kicker">{t.badgeActive}</span>
+
+              <div className="sg-bar__actions">
+                <div className="sg-lang" role="group" aria-label="Language">
+                  {(["en", "fr"] as Lang[]).map((l) => (
+                    <button
+                      key={l}
+                      type="button"
+                      className={lang === l ? "is-on" : ""}
+                      onClick={() => setLang(l)}
+                    >
+                      {l.toUpperCase()}
+                    </button>
+                  ))}
+                </div>
+                <button type="button" className="sg-logout" onClick={handleLogout}>
+                  <LogOut className="h-3.5 w-3.5" />
+                  {t.logout}
+                </button>
+              </div>
+            </div>
+
+            <header className="sg-intro">
               <h1 id="sg-title">{banner.title}</h1>
               <p>{banner.sub}</p>
             </header>
@@ -1041,7 +988,7 @@ export function SubscriptionGuard() {
 
               {packages.length === 0 ? (
                 <div className="sg-loading">
-                  <Loader2 className="h-8 w-8 animate-spin" />
+                  <Loader2 className="h-7 w-7 animate-spin" />
                 </div>
               ) : (
                 <div className="sg-plans">
@@ -1054,7 +1001,6 @@ export function SubscriptionGuard() {
                       lang={lang}
                       t={t}
                       isPopular={idx === popularIdx}
-                      index={idx}
                       onStartTrial={handleStartTrial}
                       onSubscribe={handleSubscribe}
                       loading={actionLoading === pkg.id}
@@ -1063,26 +1009,25 @@ export function SubscriptionGuard() {
                 </div>
               )}
 
-              <div className="sg-trust">
-                <span>
-                  <Lock className="h-3.5 w-3.5" />
-                  {t.trustSecure}
-                </span>
-                <span>
-                  <ShieldCheck className="h-3.5 w-3.5" />
-                  {t.trustCancel}
-                </span>
-                <span>
-                  <ShieldCheck className="h-3.5 w-3.5" />
-                  {t.trustSupport}
-                </span>
+              <div className="sg-foot">
+                <div className="sg-trust">
+                  <span>
+                    <Lock className="h-3.5 w-3.5" />
+                    {t.trustSecure}
+                  </span>
+                  <span>
+                    <ShieldCheck className="h-3.5 w-3.5" />
+                    {t.trustCancel}
+                  </span>
+                  <span>
+                    <ShieldCheck className="h-3.5 w-3.5" />
+                    {t.trustSupport}
+                  </span>
+                </div>
+                <p>{t.footer}</p>
               </div>
-
-              <p className="sg-foot">{t.footer}</p>
             </div>
           </div>
-
-          <p className="sg-copy">© {new Date().getFullYear()} RCICMASTER · rcicmaster.ca</p>
         </div>
       </div>
     </>
