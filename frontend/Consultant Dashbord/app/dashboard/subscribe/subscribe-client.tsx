@@ -271,10 +271,10 @@ export function SubscribeClient({ packageId, packageName, price, billingCycle, l
 
   if (status === "success") {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-950 to-slate-900 flex items-center justify-center p-6">
-        <div className="bg-white rounded-2xl shadow-2xl p-10 max-w-md w-full text-center space-y-5">
+      <div className="min-h-screen bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-zinc-800 via-zinc-950 to-black flex items-center justify-center p-6">
+        <div className="bg-white rounded-2xl shadow-2xl p-10 max-w-md w-full text-center space-y-5 border-t-4 border-[#D01D20]">
           <div className="flex justify-center">
-            <CheckCircle2 className="h-16 w-16 text-green-500" />
+            <CheckCircle2 className="h-16 w-16 text-[#D01D20]" />
           </div>
           <h2 className="text-2xl font-extrabold text-slate-900">{t.successTitle}</h2>
           <p className="text-slate-500 text-sm">{t.successDesc}</p>
@@ -285,14 +285,16 @@ export function SubscribeClient({ packageId, packageName, price, billingCycle, l
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-950 to-slate-900 flex flex-col">
-      <header className="flex items-center justify-between px-6 py-5 max-w-5xl mx-auto w-full">
-        <span className="text-2xl font-black tracking-tight text-white">
-          RCIC<span className="text-blue-400">MASTER</span>
-        </span>
+    <div className="min-h-screen bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-zinc-800 via-zinc-950 to-black flex flex-col">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(208,29,32,0.16),transparent_45%)]" />
+      <header className="relative flex items-center justify-between px-6 py-5 max-w-5xl mx-auto w-full">
+        <div className="rounded-xl bg-white px-3 py-2 shadow-lg ring-1 ring-white/40">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/brand/rcicmaster-logo.png" alt="RCICMASTER" className="h-8 w-auto object-contain" />
+        </div>
         <button
           onClick={() => router.back()}
-          className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold text-white/80 bg-white/10 border border-white/20 hover:bg-white/20 hover:text-white transition-all"
+          className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold text-white/80 bg-white/10 border border-white/15 hover:bg-white/20 hover:text-white transition-all"
         >
           <ArrowLeft className="h-4 w-4" />
           {t.back}
@@ -307,13 +309,13 @@ export function SubscribeClient({ packageId, packageName, price, billingCycle, l
 
           <div className="grid grid-cols-1 md:grid-cols-[1fr_1.2fr] gap-6 items-start">
             <div className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-2xl p-6 text-white space-y-5">
-              <h2 className="text-sm font-semibold uppercase tracking-wider text-blue-300">
+              <h2 className="text-sm font-semibold uppercase tracking-wider text-red-300">
                 {t.summary}
               </h2>
 
               <div className="flex items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-600/30 border border-blue-500/40">
-                  <CreditCard className="h-6 w-6 text-blue-300" />
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#D01D20]/25 border border-[#D01D20]/40">
+                  <CreditCard className="h-6 w-6 text-red-200" />
                 </div>
                 <div>
                   <p className="font-bold text-lg leading-tight">{packageName}</p>
@@ -358,7 +360,7 @@ export function SubscribeClient({ packageId, packageName, price, billingCycle, l
                   { Icon: RefreshCw,   label: t.autoRenew },
                 ].map(({ Icon, label }) => (
                   <div key={label} className="flex items-center gap-2.5 text-sm text-white/70">
-                    <Icon className="h-4 w-4 text-blue-400 shrink-0" />
+                    <Icon className="h-4 w-4 text-[#D01D20] shrink-0" />
                     {label}
                   </div>
                 ))}
@@ -367,12 +369,12 @@ export function SubscribeClient({ packageId, packageName, price, billingCycle, l
 
             <div className="bg-white rounded-2xl shadow-2xl overflow-hidden">
               <div className="p-8 space-y-6">
-                <div className="rounded-xl bg-blue-50 border border-blue-100 px-4 py-3 text-sm text-blue-800">
+                <div className="rounded-xl bg-red-50 border border-red-100 px-4 py-3 text-sm text-red-900">
                   <p className="font-semibold mb-1 flex items-center gap-1.5">
-                    <RefreshCw className="h-4 w-4" />
+                    <RefreshCw className="h-4 w-4 text-[#D01D20]" />
                     {t.autoRenew}
                   </p>
-                  <p className="text-blue-700 leading-relaxed">{t.autoRenewDesc}</p>
+                  <p className="text-red-800/80 leading-relaxed">{t.autoRenewDesc}</p>
                 </div>
 
                 {status === "error" && (

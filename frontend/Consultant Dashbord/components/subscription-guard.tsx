@@ -153,16 +153,16 @@ function pkgFeatures(pkg: SubscriptionPackage, lang: Lang): string[] {
   return pkg.features ?? [];
 }
 
-// Banner icon + colour mapping
+// Banner icon + colour mapping (RCICMASTER red brand)
 const bannerMeta: Record<
   Exclude<GuardStatus, "loading" | "active">,
   { Icon: React.ElementType; iconClass: string; ringClass: string }
 > = {
-  none:             { Icon: Sparkles,      iconClass: "text-blue-600",  ringClass: "ring-blue-100 bg-blue-50"   },
-  trial_expired:    { Icon: AlertTriangle, iconClass: "text-amber-500", ringClass: "ring-amber-100 bg-amber-50" },
-  expired:          { Icon: RefreshCw,     iconClass: "text-amber-500", ringClass: "ring-amber-100 bg-amber-50" },
-  payment_declined: { Icon: CreditCard,    iconClass: "text-red-500",   ringClass: "ring-red-100 bg-red-50"     },
-  cancelled:        { Icon: Info,          iconClass: "text-slate-500", ringClass: "ring-slate-100 bg-slate-50" },
+  none:             { Icon: Sparkles,      iconClass: "text-[#D01D20]", ringClass: "ring-red-100 bg-red-50" },
+  trial_expired:    { Icon: AlertTriangle, iconClass: "text-[#D01D20]", ringClass: "ring-red-100 bg-red-50" },
+  expired:          { Icon: RefreshCw,     iconClass: "text-[#D01D20]", ringClass: "ring-red-100 bg-red-50" },
+  payment_declined: { Icon: CreditCard,    iconClass: "text-[#D01D20]", ringClass: "ring-red-100 bg-red-50" },
+  cancelled:        { Icon: Info,          iconClass: "text-[#D01D20]", ringClass: "ring-red-100 bg-red-50" },
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -171,15 +171,15 @@ const bannerMeta: Record<
 
 function TrustBar({ t }: { t: LocaleStrings }) {
   return (
-    <div className="flex flex-wrap justify-center gap-6 text-sm text-slate-500">
+    <div className="flex flex-wrap justify-center gap-6 text-sm text-zinc-500">
       <span className="flex items-center gap-1.5">
-        <Lock className="h-4 w-4 text-slate-400" />{t.trustSecure}
+        <Lock className="h-4 w-4 text-[#D01D20]/ />{t.trustSecure}
       </span>
       <span className="flex items-center gap-1.5">
-        <ShieldCheck className="h-4 w-4 text-slate-400" />{t.trustCancel}
+        <ShieldCheck className="h-4 w-4 text-[#D01D20]" />{t.trustCancel}
       </span>
       <span className="flex items-center gap-1.5">
-        <Zap className="h-4 w-4 text-slate-400" />{t.trustSupport}
+        <Zap className="h-4 w-4 text-[#D01D20]" />{t.trustSupport}
       </span>
     </div>
   );
@@ -208,11 +208,11 @@ function PlanCard({
 
   return (
     <div className={`relative flex flex-col rounded-2xl border bg-white shadow-md transition-shadow hover:shadow-lg w-full max-w-[300px]
-      ${isPopular ? "border-blue-500 ring-2 ring-blue-500/20" : "border-slate-200"}`}>
+      ${isPopular ? "border-[#D01D20] ring-2 ring-[#D01D20]/20" : "border-zinc-200"}`}>
 
       {isPopular && (
         <div className="absolute -top-3.5 left-1/2 -translate-x-1/2">
-          <span className="bg-blue-600 text-white text-xs font-semibold px-3 py-1 rounded-full shadow-sm whitespace-nowrap">
+          <span className="bg-[#D01D20] text-white text-xs font-semibold px-3 py-1 rounded-full shadow-sm whitespace-nowrap">
             {t.mostPopular}
           </span>
         </div>
@@ -220,22 +220,22 @@ function PlanCard({
 
       <div className="p-7 flex flex-col gap-5 flex-1">
         <div className="space-y-1">
-          <h3 className="text-base font-bold text-slate-900 tracking-tight">{pkgName(pkg, lang)}</h3>
+          <h3 className="text-base font-bold text-zinc-900 tracking-tight">{pkgName(pkg, lang)}</h3>
           {pkgDesc(pkg, lang) && (
-            <p className="text-sm text-slate-500 leading-relaxed">{pkgDesc(pkg, lang)}</p>
+            <p className="text-sm text-zinc-500 leading-relaxed">{pkgDesc(pkg, lang)}</p>
           )}
         </div>
 
         <div className="flex items-end gap-1.5">
-          <span className="text-4xl font-extrabold text-slate-900 tracking-tight">{fmtPrice(price, lang)}</span>
-          <span className="text-sm text-slate-400 mb-1.5 font-medium">
+          <span className="text-4xl font-extrabold text-zinc-900 tracking-tight">{fmtPrice(price, lang)}</span>
+          <span className="text-sm text-zinc-400 mb-1.5 font-medium">
             {billing === "yearly" ? t.perYear : t.perMonth}
           </span>
         </div>
 
         {pkg.free_trial_days && pkg.free_trial_days > 0 && (
           <div className={`inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full self-start border
-            ${trialUsed ? "text-slate-400 border-slate-200 bg-slate-50" : "text-emerald-700 border-emerald-200 bg-emerald-50"}`}>
+            ${trialUsed ? "text-zinc-400 border-zinc-200 bg-zinc-50" : "text-emerald-700 border-emerald-200 bg-emerald-50"}`}>
             <ShieldCheck className="h-3.5 w-3.5" />
             {trialUsed ? t.trialUsed : t.trialAvailable(pkg.free_trial_days)}
           </div>
@@ -246,9 +246,9 @@ function PlanCard({
         {features.length > 0 && (
           <ul className="space-y-3 flex-1">
             {features.map((f, i) => (
-              <li key={i} className="flex items-start gap-2.5 text-sm text-slate-700">
-                <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-50">
-                  <Check className="h-3.5 w-3.5 text-blue-600 stroke-[2.5]" />
+              <li key={i} className="flex items-start gap-2.5 text-sm text-zinc-700">
+                <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-red-50">
+                  <Check className="h-3.5 w-3.5 text-[#D01D20] stroke-[2.5]" />
                 </span>
                 {f}
               </li>
@@ -260,7 +260,7 @@ function PlanCard({
           {showTrial && (
             <Button
               variant="outline"
-              className="w-full h-10 border-blue-300 text-blue-700 hover:bg-blue-50 hover:border-blue-400 font-semibold"
+              className="w-full h-10 border-[#D01D20]/40 text-[#D01D20] hover:bg-red-50 hover:border-[#D01D20] font-semibold"
               onClick={() => onStartTrial(pkg.id)}
               disabled={loading}
             >
@@ -268,7 +268,11 @@ function PlanCard({
             </Button>
           )}
           <Button
-            className={`w-full h-11 font-semibold text-sm ${isPopular ? "bg-blue-600 hover:bg-blue-700 shadow" : ""}`}
+            className={`w-full h-11 font-semibold text-sm ${
+              isPopular
+                ? "bg-[#D01D20] text-white hover:bg-[#B0181B] shadow"
+                : "bg-zinc-900 text-white hover:bg-zinc-800"
+            }`}
             onClick={() => onSubscribe(pkg.id, billing)}
             disabled={loading}
           >
@@ -410,24 +414,34 @@ export function SubscriptionGuard() {
 
   return (
     <>
-    <div className="fixed inset-0 z-[60] overflow-y-auto bg-slate-900/60 backdrop-blur-md">
-      <div className="min-h-full flex flex-col items-center px-4 py-12 gap-10">
+    <div className="fixed inset-0 z-[60] overflow-y-auto bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-zinc-800 via-zinc-950 to-black">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(208,29,32,0.18),transparent_45%),radial-gradient(circle_at_80%_0%,rgba(208,29,32,0.12),transparent_40%)]" />
+      <div className="relative min-h-full flex flex-col items-center px-4 py-12 gap-10">
 
         {/* ── Header bar ── */}
         <div className="w-full max-w-5xl flex items-center justify-between">
-          <span className="text-2xl font-black tracking-tight text-white">
-            Way<span className="text-blue-400">To</span>Canada
-          </span>
+          <div className="flex items-center gap-3">
+            <div className="rounded-xl bg-white px-3 py-2 shadow-lg shadow-black/20 ring-1 ring-white/40">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/brand/rcicmaster-logo.png"
+                alt="RCICMASTER"
+                className="h-8 w-auto object-contain"
+              />
+            </div>
+          </div>
 
           <div className="flex items-center gap-3">
             {/* Language toggle */}
-            <div className="flex items-center gap-1 bg-white/10 rounded-full p-1 border border-white/20">
+            <div className="flex items-center gap-1 bg-white/10 rounded-full p-1 border border-white/15">
               {(["en", "fr"] as Lang[]).map((l) => (
                 <button
                   key={l}
                   onClick={() => setLang(l)}
                   className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-all ${
-                    lang === l ? "bg-white text-slate-900 shadow" : "text-white/70 hover:text-white"
+                    lang === l
+                      ? "bg-[#D01D20] text-white shadow"
+                      : "text-white/70 hover:text-white"
                   }`}
                 >
                   {l === "en" ? "🇨🇦 EN" : "🇫🇷 FR"}
@@ -443,7 +457,7 @@ export function SubscriptionGuard() {
                 document.cookie = "wtc_consultant_token=; path=/; max-age=0; SameSite=Lax";
                 window.location.replace(CONSULTANT_LOGIN_URL);
               }}
-              className="flex items-center gap-2 px-4 py-2 rounded-full text-xs font-semibold text-white/80 bg-white/10 border border-white/20 hover:bg-white/20 hover:text-white transition-all"
+              className="flex items-center gap-2 px-4 py-2 rounded-full text-xs font-semibold text-white/80 bg-white/10 border border-white/15 hover:bg-white/20 hover:text-white transition-all"
             >
               <LogOut className="h-3.5 w-3.5" />
               {lang === "fr" ? "Déconnexion" : "Log out"}
@@ -452,30 +466,31 @@ export function SubscriptionGuard() {
         </div>
 
         {/* ── Main card ── */}
-        <div className="w-full max-w-5xl bg-white rounded-3xl shadow-2xl overflow-hidden">
+        <div className="w-full max-w-5xl bg-white rounded-3xl shadow-2xl shadow-black/40 overflow-hidden border border-zinc-100">
 
           {/* Status banner */}
-          <div className="flex flex-col items-center text-center gap-4 px-8 pt-10 pb-8 border-b border-slate-100">
+          <div className="relative flex flex-col items-center text-center gap-4 px-8 pt-10 pb-8 border-b border-zinc-100 overflow-hidden">
+            <div className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-[#D01D20]" />
             <div className={`flex h-16 w-16 items-center justify-center rounded-2xl ring-8 ${meta.ringClass}`}>
               <BannerIcon className={`h-7 w-7 ${meta.iconClass}`} />
             </div>
             <div className="space-y-2">
-              <span className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-slate-400 bg-slate-100 px-3 py-1 rounded-full">
+              <span className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-[#D01D20] bg-red-50 px-3 py-1 rounded-full border border-red-100">
                 {t.badgeActive}
               </span>
-              <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">{banner.title}</h1>
-              <p className="text-slate-500 max-w-lg text-sm leading-relaxed">{banner.sub}</p>
+              <h1 className="text-2xl font-extrabold text-zinc-900 tracking-tight">{banner.title}</h1>
+              <p className="text-zinc-500 max-w-lg text-sm leading-relaxed">{banner.sub}</p>
             </div>
             <div className="pt-2"><TrustBar t={t} /></div>
           </div>
 
           {/* Billing toggle */}
           <div className="flex justify-center pt-8 pb-2 px-8">
-            <div className="inline-flex items-center bg-slate-100 rounded-full p-1 gap-0.5">
+            <div className="inline-flex items-center bg-zinc-100 rounded-full p-1 gap-0.5">
               <button
                 onClick={() => setBilling("monthly")}
                 className={`px-6 py-2 rounded-full text-sm font-semibold transition-all ${
-                  billing === "monthly" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-800"
+                  billing === "monthly" ? "bg-white text-zinc-900 shadow-sm" : "text-zinc-500 hover:text-zinc-800"
                 }`}
               >
                 {t.monthly}
@@ -483,11 +498,11 @@ export function SubscriptionGuard() {
               <button
                 onClick={() => setBilling("yearly")}
                 className={`flex items-center gap-2 px-6 py-2 rounded-full text-sm font-semibold transition-all ${
-                  billing === "yearly" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-800"
+                  billing === "yearly" ? "bg-white text-zinc-900 shadow-sm" : "text-zinc-500 hover:text-zinc-800"
                 }`}
               >
                 {t.yearly}
-                <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-full">
+                <span className="text-[10px] font-bold text-[#D01D20] bg-red-50 border border-red-100 px-1.5 py-0.5 rounded-full">
                   {t.saveLabel}
                 </span>
               </button>
@@ -506,7 +521,7 @@ export function SubscriptionGuard() {
           <div className="px-8 pt-8 pb-10">
             {packages.length === 0 ? (
               <div className="flex justify-center items-center py-16">
-                <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+                <Loader2 className="h-8 w-8 animate-spin text-[#D01D20]" />
               </div>
             ) : (
               <div className="flex flex-wrap justify-center gap-6">
@@ -529,11 +544,15 @@ export function SubscriptionGuard() {
           </div>
 
           {/* Footer */}
-          <div className="border-t border-slate-100 bg-slate-50/60 px-8 py-5 flex items-start gap-2.5">
-            <ShieldCheck className="h-4 w-4 text-slate-400 mt-0.5 shrink-0" />
-            <p className="text-xs text-slate-400 leading-relaxed">{t.footer}</p>
+          <div className="border-t border-zinc-100 bg-zinc-50/80 px-8 py-5 flex items-start gap-2.5">
+            <ShieldCheck className="h-4 w-4 text-[#D01D20] mt-0.5 shrink-0" />
+            <p className="text-xs text-zinc-500 leading-relaxed">{t.footer}</p>
           </div>
         </div>
+
+        <p className="text-[11px] text-white/40 tracking-wide">
+          © {new Date().getFullYear()} RCICMASTER · rcicmaster.ca
+        </p>
 
       </div>
     </div>
