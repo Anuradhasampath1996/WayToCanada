@@ -1,3 +1,19 @@
+@php
+    $logoSrc = null;
+    if (! empty($logoEmbedPath) && isset($message) && is_string($logoEmbedPath) && is_file($logoEmbedPath)) {
+        try {
+            $logoSrc = $message->embed($logoEmbedPath);
+        } catch (\Throwable) {
+            $logoSrc = null;
+        }
+    }
+    if (! $logoSrc && ! empty($logoDataUri)) {
+        $logoSrc = $logoDataUri;
+    }
+    if (! $logoSrc && ! empty($logoUrl)) {
+        $logoSrc = $logoUrl;
+    }
+@endphp
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -11,14 +27,13 @@
     <tr>
         <td align="center">
             <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:600px;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #e4e4e7;">
-                {{-- Clean white header with consultant brand --}}
                 <tr>
                     <td style="padding:24px 28px 20px;background:#ffffff;border-bottom:1px solid #f4f4f5;">
                         <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
                             <tr>
                                 <td align="left" style="vertical-align:middle;">
-                                    @if(!empty($logoUrl))
-                                        <img src="{{ $logoUrl }}" alt="{{ $brandName }}" width="160" style="display:block;max-width:160px;height:auto;border:0;margin-bottom:10px;">
+                                    @if($logoSrc)
+                                        <img src="{{ $logoSrc }}" alt="{{ $brandName }}" width="160" style="display:block;max-width:160px;width:160px;height:auto;border:0;margin-bottom:10px;outline:none;text-decoration:none;">
                                     @endif
                                     <p style="margin:0;font-size:20px;font-weight:700;letter-spacing:-0.02em;color:{{ $inkColor ?? '#000103' }};">
                                         {{ $brandName }}

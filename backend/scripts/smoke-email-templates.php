@@ -38,7 +38,7 @@ $html3 = view('emails.auth.verify-email', array_merge($platform, [
     'actionUrl' => 'https://example.com/verify',
 ]))->render();
 
-echo 'platform_ok='.(str_contains($html1, 'D01D20') && str_contains($html1, 'rcicmaster-logo') ? 'yes' : 'no').PHP_EOL;
+echo 'platform_ok='.(str_contains($html1, 'D01D20') && (str_contains($html1, 'data:image/png;base64,') || str_contains($html1, 'rcicmaster-logo')) ? 'yes' : 'no').PHP_EOL;
 echo 'client_ok='.(str_contains($html2, 'Chen Immigration') && str_contains($html2, 'Powered by RCICMASTER') ? 'yes' : 'no').PHP_EOL;
 echo 'verify_ok='.(str_contains($html3, 'Verify Email Address') && str_contains($html3, 'D01D20') ? 'yes' : 'no').PHP_EOL;
 

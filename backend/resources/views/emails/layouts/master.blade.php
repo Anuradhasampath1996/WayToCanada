@@ -1,3 +1,19 @@
+@php
+    $logoSrc = null;
+    if (! empty($logoEmbedPath) && isset($message) && is_string($logoEmbedPath) && is_file($logoEmbedPath)) {
+        try {
+            $logoSrc = $message->embed($logoEmbedPath);
+        } catch (\Throwable) {
+            $logoSrc = null;
+        }
+    }
+    if (! $logoSrc && ! empty($logoDataUri)) {
+        $logoSrc = $logoDataUri;
+    }
+    if (! $logoSrc && ! empty($logoUrl)) {
+        $logoSrc = $logoUrl;
+    }
+@endphp
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -11,20 +27,18 @@
     <tr>
         <td align="center">
             <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:600px;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #e4e4e7;">
-                {{-- Red accent bar --}}
                 <tr>
                     <td style="height:4px;line-height:4px;font-size:0;background:{{ $primaryColor ?? '#D01D20' }};">&nbsp;</td>
                 </tr>
-                {{-- Logo header --}}
                 <tr>
                     <td style="padding:22px 28px 18px;background:#ffffff;border-bottom:1px solid #f4f4f5;">
-                        <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+                        <table role="presentation" cellspacing="0" cellpadding="0">
                             <tr>
                                 <td align="left" style="vertical-align:middle;">
-                                    @if(!empty($logoUrl))
-                                        <img src="{{ $logoUrl }}" alt="{{ $brandName ?? 'RCICMASTER' }}" width="180" style="display:block;max-width:180px;height:auto;border:0;">
+                                    @if($logoSrc)
+                                        <img src="{{ $logoSrc }}" alt="{{ $brandName ?? 'RCICMASTER' }}" width="180" height="auto" style="display:block;max-width:180px;width:180px;height:auto;border:0;outline:none;text-decoration:none;">
                                     @else
-                                        <p style="margin:0;font-size:22px;font-weight:700;letter-spacing:-0.02em;color:{{ $inkColor ?? '#000103' }};">
+                                        <p style="margin:0;font-size:22px;font-weight:700;letter-spacing:-0.02em;line-height:1;">
                                             <span style="color:{{ $inkColor ?? '#000103' }};">RCIC</span><span style="color:{{ $primaryColor ?? '#D01D20' }};">MASTER</span>
                                         </p>
                                     @endif
