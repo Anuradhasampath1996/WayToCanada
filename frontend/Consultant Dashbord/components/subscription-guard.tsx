@@ -173,7 +173,7 @@ function TrustBar({ t }: { t: LocaleStrings }) {
   return (
     <div className="flex flex-wrap justify-center gap-6 text-sm text-zinc-500">
       <span className="flex items-center gap-1.5">
-        <Lock className="h-4 w-4 text-[#D01D20]/ />{t.trustSecure}
+        <Lock className="h-4 w-4 text-[#D01D20]" />{t.trustSecure}
       </span>
       <span className="flex items-center gap-1.5">
         <ShieldCheck className="h-4 w-4 text-[#D01D20]" />{t.trustCancel}
