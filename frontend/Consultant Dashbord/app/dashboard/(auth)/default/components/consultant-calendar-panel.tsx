@@ -371,7 +371,7 @@ export function ConsultantCalendarPanel({
         </Badge>
       </div>
 
-      <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_340px]">
+      <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-stretch">
         <div className="relative border-b p-3 sm:p-4 lg:border-b-0 lg:border-r lg:border-border/50">
           {loading && (
             <div className="absolute right-3 top-3 z-10 inline-flex items-center gap-1.5 rounded-full border bg-background/95 px-2.5 py-1 text-xs text-muted-foreground shadow-sm sm:right-6 sm:top-6 sm:px-3">
@@ -430,8 +430,15 @@ export function ConsultantCalendarPanel({
           </div>
         </div>
 
-        <aside className="consultant-day-panel flex min-h-0 flex-col">
-          <div className="border-b border-border/50 px-4 py-4">
+        <aside
+          className="consultant-day-panel flex min-h-0 flex-col max-h-[min(56vh,480px)] lg:max-h-none"
+          style={
+            isMobile
+              ? undefined
+              : { height: CALENDAR_HEIGHT_DESKTOP + 32, maxHeight: CALENDAR_HEIGHT_DESKTOP + 32 }
+          }
+        >
+          <div className="shrink-0 border-b border-border/50 px-4 py-4">
             <div className="flex items-start justify-between gap-2">
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
@@ -454,7 +461,7 @@ export function ConsultantCalendarPanel({
             </div>
           </div>
 
-          <div className="flex-1 space-y-4 overflow-y-auto p-4">
+          <div className="consultant-day-panel__scroll min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain p-4">
             {dayEvents.length === 0 ? (
               <div className="rounded-2xl border border-dashed border-border/70 bg-background/50 px-4 py-8 text-center">
                 <Sparkles className="mx-auto size-5 text-muted-foreground/70" />
