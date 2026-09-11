@@ -96,6 +96,152 @@ export const PATHWAY_TEMPLATES: Record<string, { fee: number; description: strin
   },
 };
 
+/** Resolve retainer defaults from catalog label and/or pathway_code. */
+export function resolvePathwayTemplate(
+  pathwayLabel: string | null | undefined,
+  pathwayCode?: string | null,
+): { fee: number; description: string; key: string } | null {
+  const label = (pathwayLabel ?? "").trim();
+  if (label && PATHWAY_TEMPLATES[label]) {
+    return { ...PATHWAY_TEMPLATES[label], key: label };
+  }
+
+  const code = (pathwayCode ?? "").trim();
+  if (code === "ee.fsw") {
+    return { ...PATHWAY_TEMPLATES["Express Entry – Federal Skilled Worker"], key: "Express Entry – Federal Skilled Worker" };
+  }
+  if (code === "ee.cec" || code.startsWith("ee.category")) {
+    return { ...PATHWAY_TEMPLATES["Express Entry – Canadian Experience Class"], key: "Express Entry – Canadian Experience Class" };
+  }
+  if (code === "ee.fst") {
+    return { ...PATHWAY_TEMPLATES["Express Entry – Federal Skilled Trades"], key: "Express Entry – Federal Skilled Trades" };
+  }
+  if (code === "pnp" || code.startsWith("pnp.") || code.startsWith("pilot.")) {
+    return {
+      fee: code.startsWith("pilot.rcip") || code.startsWith("pilot.fcip") ? 4000 : code.startsWith("pilot.aip") ? 3800 : 4000,
+      description: label
+        ? `${label} — stream matching, nomination/community recommendation, and PR pathway support.`
+        : PATHWAY_TEMPLATES["Provincial Nominee Program"].description,
+      key: "Provincial Nominee Program",
+    };
+  }
+  if (code.startsWith("quebec")) {
+    const fee = code === "quebec.business" ? 5500 : code === "quebec.peq" ? 4200 : 4500;
+    return {
+      fee,
+      description: label
+        ? `${label} — Quebec selection (CSQ) and federal PR application support.`
+        : "Quebec selection (CSQ) and federal PR application support.",
+      key: "Quebec Immigration",
+    };
+  }
+  if (code.startsWith("business")) {
+    const fee =
+      code === "business.startup" ? 6500 : code === "business.self-employed" ? 5500 : code === "business.caregiver" ? 4000 : 6000;
+    return {
+      fee,
+      description: label
+        ? `${label} — eligibility, documentation, and IRCC application support.`
+        : "Federal business immigration assessment and PR application support.",
+      key: "Business Immigration",
+    };
+  }
+  if (code.startsWith("family")) {
+    const fee = code === "family.pgp" ? 3000 : code === "family.child" ? 2200 : 2800;
+    return {
+      fee,
+      description: label
+        ? `${label} — sponsorship forms, evidence, and IRCC submission.`
+        : PATHWAY_TEMPLATES["Family Sponsorship"].description,
+      key: "Family Sponsorship",
+    };
+  }
+  if (code === "study") {
+    return { ...PATHWAY_TEMPLATES["Study Permit"], key: "Study Permit" };
+  }
+  if (code === "work") {
+    return { ...PATHWAY_TEMPLATES["Work Permit"], key: "Work Permit" };
+  }
+  if (code === "visitor" || code.startsWith("visitor.")) {
+    return {
+      fee: code === "visitor.super" ? 1800 : 1200,
+      description: label
+        ? `${label} — eligibility, supporting documents, and IRCC submission.`
+        : "Temporary resident visa assessment and IRCC submission.",
+      key: code === "visitor.super" ? "Super Visa (Parents and Grandparents)" : "Visitor Visa (TRV)",
+    };
+  }
+  if (code === "citizenship" || code.startsWith("citizenship.")) {
+    return {
+      fee: code === "citizenship.proof" ? 1500 : 2500,
+      description: label
+        ? `${label} — eligibility, documentation, and IRCC filing.`
+        : "Citizenship application preparation and IRCC submission.",
+      key: code === "citizenship.proof" ? "Proof of Citizenship Certificate" : "Canadian Citizenship (Grant)",
+    };
+  }
+  if (code === "pr_card") {
+    return {
+      fee: 1200,
+      description: label
+        ? `${label} — forms, supporting evidence, and IRCC submission.`
+        : "PR card renewal or replacement support.",
+      key: "PR Card Renew / Replace",
+    };
+  }
+
+  const lower = label.toLowerCase();
+  if (lower.includes("express entry") || lower.includes("ee category")) {
+    return { ...PATHWAY_TEMPLATES["Express Entry – Canadian Experience Class"], key: "Express Entry – Canadian Experience Class" };
+  }
+  if (lower.includes("nominee") || lower.includes("pnp") || lower.includes("rcip") || lower.includes("fcip") || lower.includes("atlantic") || lower.includes("oinp") || lower.includes("aaip")) {
+    return {
+      fee: 4000,
+      description: `${label} — provincial/community pathway and PR support.`,
+      key: "Provincial Nominee Program",
+    };
+  }
+  if (lower.includes("quebec") || lower.includes("pstq") || lower.includes("peq") || lower.includes("arrima")) {
+    return {
+      fee: 4500,
+      description: `${label} — Quebec selection (CSQ) and federal PR application support.`,
+      key: "Quebec Immigration",
+    };
+  }
+  if (lower.includes("start-up") || lower.includes("startup") || lower.includes("self-employed") || lower.includes("caregiver")) {
+    return {
+      fee: lower.includes("start") ? 6500 : 5500,
+      description: `${label} — eligibility, documentation, and IRCC application support.`,
+      key: "Business Immigration",
+    };
+  }
+  if (lower.includes("family") || lower.includes("sponsor") || lower.includes("spouse") || lower.includes("parent")) {
+    return { ...PATHWAY_TEMPLATES["Family Sponsorship"], key: "Family Sponsorship" };
+  }
+  if (lower.includes("study")) {
+    return { ...PATHWAY_TEMPLATES["Study Permit"], key: "Study Permit" };
+  }
+  if (lower.includes("super visa")) {
+    return {
+      fee: 1800,
+      description: `${label} — eligibility, insurance, invitation, and IRCC submission.`,
+      key: "Super Visa (Parents and Grandparents)",
+    };
+  }
+  if (lower.includes("visitor") || lower.includes("trv")) {
+    return {
+      fee: 1200,
+      description: `${label} — temporary resident visa assessment and IRCC submission.`,
+      key: "Visitor Visa (TRV)",
+    };
+  }
+  if (lower.includes("work permit") || lower === "work permit") {
+    return { ...PATHWAY_TEMPLATES["Work Permit"], key: "Work Permit" };
+  }
+
+  return null;
+}
+
 export function formatAgreementCurrency(amount: number, currency: AgreementCurrency = "CAD") {
   return new Intl.NumberFormat("en-CA", { style: "currency", currency }).format(amount);
 }
@@ -215,34 +361,89 @@ export function extractClientAgreementDetails(params: {
   clientUser?: { name?: string | null; email?: string | null; phone?: string | null } | null;
   questionnaireMain?: Record<string, unknown> | null;
   questionnaireStep1?: Record<string, unknown> | null;
+  verifiedFields?: Record<string, boolean> | null;
   storedDetails?: Partial<ClientAgreementDetails> | null;
   clientProfileId?: string | number | null;
 }): ClientAgreementDetails {
   const md = params.questionnaireMain ?? {};
   const s1 = params.questionnaireStep1 ?? {};
-  const passportName = pickString(md.passportFullName, md.fullName, md.nicFullName);
+  const vf = params.verifiedFields ?? {};
+  const isVf = (...keys: string[]) => keys.some((k) => !!vf[k]);
+  const pickVf = (candidates: Array<{ keys: string[]; value: unknown }>): string | null => {
+    for (const c of candidates) {
+      if (c.keys.length === 0 || isVf(...c.keys)) {
+        const v = pickString(c.value);
+        if (v) return v;
+      }
+    }
+    for (const c of candidates) {
+      const v = pickString(c.value);
+      if (v) return v;
+    }
+    return null;
+  };
+
   const composedName = [md.firstName, md.lastName].filter((v) => typeof v === "string" && v.trim()).join(" ").trim();
+  const fullLegalName = pickVf([
+    { keys: ["main_data.passportFullName", "main_data.fullName"], value: md.passportFullName },
+    { keys: ["main_data.fullName", "main_data.passportFullName"], value: md.fullName },
+    { keys: ["main_data.nicFullName"], value: md.nicFullName },
+    { keys: ["main_data.firstName", "main_data.lastName"], value: composedName || null },
+    { keys: ["step1_data.fullName"], value: s1.fullName },
+    { keys: [], value: params.clientUser?.name },
+  ]);
+
   const residentialAddress = cleanAddressText(
-    pickString(
-      md.nicAddress,
-      md.currentAddress,
-      md.address,
-      md.mailingAddress,
-      md.residentialAddress,
-      composeAddressParts(md.streetAddress, md.city, md.province, md.postalCode, md.country),
-    ),
+    pickVf([
+      { keys: ["main_data.nicAddress"], value: md.nicAddress },
+      { keys: ["main_data.currentAddress"], value: md.currentAddress },
+      { keys: ["main_data.address"], value: md.address },
+      { keys: ["main_data.mailingAddress"], value: md.mailingAddress },
+      { keys: ["main_data.residentialAddress"], value: md.residentialAddress },
+      { keys: ["main_data.addressLine1"], value: composeAddressParts(md.streetAddress ?? md.addressLine1, md.city, md.province, md.postalCode, md.country) },
+    ]),
   );
 
   const extracted: ClientAgreementDetails = {
-    fullLegalName: passportName || composedName || pickString(s1.fullName) || params.clientUser?.name || null,
-    email: pickString(s1.email, params.clientUser?.email),
-    phone: pickString(md.phone, md.mobile, s1.whatsapp, params.clientProfile?.phone, params.clientUser?.phone),
-    dateOfBirth: formatAgreementDob(md.dob ?? md.passportDob ?? md.nicDob),
-    passportNumber: pickString(md.passportNumber, params.clientProfile?.passport_number),
-    citizenship: pickString(md.passportNationality, md.nationality),
+    fullLegalName,
+    email: pickVf([
+      { keys: ["step1_data.email"], value: s1.email },
+      { keys: [], value: params.clientUser?.email },
+    ]),
+    phone: pickVf([
+      { keys: ["main_data.phone"], value: md.phone },
+      { keys: ["main_data.mobile"], value: md.mobile },
+      { keys: ["step1_data.whatsapp"], value: s1.whatsapp },
+      { keys: [], value: params.clientProfile?.phone },
+      { keys: [], value: params.clientUser?.phone },
+    ]),
+    dateOfBirth: formatAgreementDob(pickVf([
+      { keys: ["main_data.dob"], value: md.dob },
+      { keys: ["main_data.passportDob"], value: md.passportDob },
+      { keys: ["main_data.nicDob"], value: md.nicDob },
+    ])),
+    passportNumber: pickVf([
+      { keys: ["main_data.passportNumber"], value: md.passportNumber },
+      { keys: [], value: params.clientProfile?.passport_number },
+    ]),
+    citizenship: pickVf([
+      { keys: ["main_data.passportNationality"], value: md.passportNationality },
+      { keys: ["main_data.nationality"], value: md.nationality },
+    ]),
     residentialAddress,
     caseReference: params.clientProfileId ? `WTC-${params.clientProfileId}` : null,
   };
 
-  return mergeClientAgreementDetails(extracted, params.storedDetails);
+  // Prefer questionnaire extract; stored fills gaps only.
+  if (!params.storedDetails) return extracted;
+  const merged = { ...extracted };
+  (Object.keys(params.storedDetails) as (keyof ClientAgreementDetails)[]).forEach((key) => {
+    const existing = merged[key];
+    if (typeof existing === "string" && existing.trim()) return;
+    const value = params.storedDetails?.[key];
+    if (typeof value === "string" && value.trim()) {
+      merged[key] = key === "residentialAddress" ? cleanAddressText(value) : value.trim();
+    }
+  });
+  return merged;
 }

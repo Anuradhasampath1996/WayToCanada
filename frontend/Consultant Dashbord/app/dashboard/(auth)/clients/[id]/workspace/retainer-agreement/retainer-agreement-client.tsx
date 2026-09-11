@@ -29,6 +29,7 @@ import {
   agreementGrandTotal,
   milestoneAmounts,
   PATHWAY_TEMPLATES,
+  resolvePathwayTemplate,
   resolveAgreementConfig,
 } from "@/lib/retainer-agreement";
 
@@ -385,7 +386,7 @@ export function RetainerAgreementClient({ paramsPromise }: { paramsPromise: Prom
         const pw = caseFile?.immigration_pathway ?? "";
         setPathway(pw);
 
-        const tmpl = PATHWAY_TEMPLATES[pw];
+        const tmpl = resolvePathwayTemplate(pw, caseFile?.pathway_code);
         if (tmpl) set("totalFee", tmpl.fee);
 
         if (caseFile?.agreement_config) {
@@ -410,21 +411,19 @@ export function RetainerAgreementClient({ paramsPromise }: { paramsPromise: Prom
           setStep(4);
         }
 
-        if (q?.submission?.main_data) {
-          const md   = q.submission.main_data as Record<string, unknown>;
-          const name = [md.firstName, md.lastName].filter(Boolean).join(" ");
-          if (name) setClientName(name);
-        }
-
         const extractedDetails = extractClientAgreementDetails({
           clientProfile: client ?? null,
           clientUser: client?.user ?? null,
           questionnaireMain: (q?.submission?.main_data as Record<string, unknown> | undefined) ?? null,
           questionnaireStep1: (q?.submission?.step1_data as Record<string, unknown> | undefined) ?? null,
+          verifiedFields: (q?.submission?.verified_fields as Record<string, boolean> | undefined) ?? null,
           storedDetails: (caseFile?.agreement_config as { clientDetails?: ClientAgreementDetails } | undefined)?.clientDetails ?? null,
           clientProfileId: id,
         });
         setClientDetails(extractedDetails);
+        // Prefer questionnaire / verified legal name & email over account display name.
+        if (extractedDetails.fullLegalName) setClientName(extractedDetails.fullLegalName);
+        if (extractedDetails.email) setClientEmail(extractedDetails.email);
 
         const storedTaxProvince = (caseFile?.agreement_config as { taxProvince?: string } | undefined)?.taxProvince;
         if (!storedTaxProvince) {
@@ -512,7 +511,7 @@ export function RetainerAgreementClient({ paramsPromise }: { paramsPromise: Prom
   }
 
   function openMapleDialog() {
-    setMapleFee(String(config.totalFee || PATHWAY_TEMPLATES[pathway]?.fee || ""));
+    setMapleFee(String(config.totalFee || resolvePathwayTemplate(pathway)?.fee || ""));
     setMapleCurrency(config.currency);
     setMapleRefundPolicy(isHtmlEmpty(config.refundPolicy) ? "" : config.refundPolicy);
     setMapleOpen(true);
@@ -523,7 +522,7 @@ export function RetainerAgreementClient({ paramsPromise }: { paramsPromise: Prom
       ? sanitizeAgreementHtml(config.sectionEdits[section])
       : (() => {
       const scopeText = config.scopeDescription
-        || PATHWAY_TEMPLATES[pathway]?.description
+        || resolvePathwayTemplate(pathway)?.description
         || "Services include assessment, application preparation, and submission to relevant Canadian immigration authorities.";
       const consultantAddress = consultantProfile
         ? [consultantProfile.company_address_line1, consultantProfile.company_address_line2,
@@ -762,7 +761,7 @@ export function RetainerAgreementClient({ paramsPromise }: { paramsPromise: Prom
       clientEmail,
       consultantName,
       pathway,
-      scopeDescription: config.scopeDescription || PATHWAY_TEMPLATES[pathway]?.description || "",
+      scopeDescription: config.scopeDescription || resolvePathwayTemplate(pathway)?.description || "",
       clientDetails: {
         ...clientDetails,
         fullLegalName: clientName || clientDetails.fullLegalName || null,
@@ -1132,7 +1131,22 @@ export function RetainerAgreementClient({ paramsPromise }: { paramsPromise: Prom
                   </div>
                 </div>
               </div>
-              <div className="flex justify-end">
+              <div className="flex justify-end gap-2 flex-wrap">
+                <Button
+                  variant="outline"
+                  className="gap-2"
+                  disabled={!pathway || !clientEmail || Number(config.totalFee) <= 0 || sending || alreadySigned}
+                  onClick={() => {
+                    const tmpl = resolvePathwayTemplate(pathway);
+                    if (tmpl && (!config.totalFee || config.totalFee <= 0)) {
+                      set("totalFee", tmpl.fee);
+                    }
+                    setConfirmOpen(true);
+                  }}
+                >
+                  <Send className="h-4 w-4" />
+                  {alreadySent ? "Quick resend with defaults" : "Quick send with defaults"}
+                </Button>
                 <Button onClick={() => setStep(2)} className="gap-2">
                   Next: Client Details <ChevronRight className="h-4 w-4" />
                 </Button>
