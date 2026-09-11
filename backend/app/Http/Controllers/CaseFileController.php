@@ -14,6 +14,7 @@ use App\Services\AgreementReminderService;
 use App\Services\CaseFileLifecycleService;
 use App\Services\GstHstRatesService;
 use App\Services\IrccInteractiveFormVerificationService;
+use App\Services\IrccPackageSuggestionService;
 use App\Services\ClientActivity\ClientActivityTriggers;
 use App\Services\Notifications\WorkspaceNotificationTriggers;
 use App\Services\RetainerAgreementPdfService;
@@ -38,6 +39,8 @@ class CaseFileController extends Controller
         private ClientActivityTriggers $activity,
         private TrustLedgerService $trust,
         private CaseFileLifecycleService $lifecycle,
+        private IrccPackageSuggestionService $packageSuggestion,
+        private \App\Services\PathwayCatalogService $pathwayCatalog,
     ) {}
 
     // ── Private helper ─────────────────────────────────────────────────────────
@@ -53,6 +56,17 @@ class CaseFileController extends Controller
     {
         return $this->lifecycle->resolveActiveCaseFile($profile, $request->user()->id);
     }
+
+    private function requireActiveCaseFile(ClientProfile $profile, Request $request): CaseFile
+    {
+        $caseFile = $this->lifecycle->resolveActiveCaseFile($profile, $request->user()->id, createIfMissing: false);
+        if (! $caseFile) {
+            abort(404, 'No case file found.');
+        }
+
+        return $caseFile;
+    }
+
 
     private function prepareCaseFile(?CaseFile $caseFile): ?CaseFile
     {
@@ -73,6 +87,13 @@ class CaseFileController extends Controller
         $profile->load('user:id,name,email,phone');
 
         $caseFile = $this->prepareCaseFile($this->getOrCreateCaseFile($profile, $request));
+        $healed = false;
+        if ($caseFile) {
+            $caseFile = $this->pathwayCatalog->backfillCodeIfNeeded($caseFile);
+            $heal = $this->packageSuggestion->healMismatchIfNeeded($caseFile);
+            $healed = (bool) ($heal['healed'] ?? false);
+            $caseFile = $caseFile->fresh();
+        }
         $caseFile?->loadMissing('assignedIrccCategory.documents');
 
         $consultant = $request->user();
@@ -88,11 +109,14 @@ class CaseFileController extends Controller
                 'email'       => $consultant->email,
                 'rcic_number' => $consultant->rcic_number,
             ],
-            'application_forms_verification' => $this->verificationService->getVerificationStatus($caseFile),
+            'application_forms_verification' => $caseFile
+                ? $this->verificationService->getVerificationStatus($caseFile)
+                : null,
             'application_package' => ApplicationPackageController::formatPackage(
-                $caseFile->assignedIrccCategory,
-                $caseFile->id
+                $caseFile?->assignedIrccCategory,
+                $caseFile?->id
             ),
+            'package_auto_healed' => $healed,
         ]);
     }
 
@@ -103,16 +127,20 @@ class CaseFileController extends Controller
         $this->authorizeConsultant($request, $profile);
 
         $data = $request->validate([
-            'immigration_pathway' => 'nullable|string|max:100',
+            'immigration_pathway' => 'nullable|string|max:255',
+            'pathway_code'        => 'nullable|string|max:64',
         ]);
 
-        $caseFile = CaseFile::where('client_profile_id', $profile->id)->firstOrFail();
+        $caseFile = $this->requireActiveCaseFile($profile, $request);
 
-        $pathway = isset($data['immigration_pathway']) && $data['immigration_pathway'] !== ''
+        $rawLabel = isset($data['immigration_pathway']) && $data['immigration_pathway'] !== ''
             ? $data['immigration_pathway']
             : null;
+        $rawCode = isset($data['pathway_code']) && $data['pathway_code'] !== ''
+            ? $data['pathway_code']
+            : null;
 
-        if ($pathway === null) {
+        if ($rawLabel === null && $rawCode === null) {
             if ($caseFile->statusStep() >= CaseFile::statusOrder()['AGREEMENT_SENT']) {
                 return response()->json([
                     'message' => 'Cannot clear the pathway after the retainer agreement has been sent.',
@@ -121,12 +149,16 @@ class CaseFileController extends Controller
 
             $caseFile->update([
                 'immigration_pathway'         => null,
+                'pathway_code'                => null,
                 'assigned_ircc_category_id'   => null,
                 'application_package_assigned_at' => null,
                 'status'                      => 'PENDING_ASSESSMENT',
             ]);
 
-            $profile->update(['immigration_pathway' => null]);
+            $profile->update([
+                'immigration_pathway' => null,
+                'pathway_code' => null,
+            ]);
 
             return response()->json([
                 'case_file' => $caseFile->fresh(),
@@ -134,7 +166,18 @@ class CaseFileController extends Controller
             ]);
         }
 
-        $updates = ['immigration_pathway' => $pathway];
+        $resolved = $this->pathwayCatalog->resolve($rawCode, $rawLabel);
+        $pathway = $resolved['label'] ?? $rawLabel;
+        $pathwayCode = $resolved['code'] ?? $rawCode;
+
+        if (! $pathway) {
+            return response()->json(['message' => 'Unknown pathway.'], 422);
+        }
+
+        $updates = [
+            'immigration_pathway' => $pathway,
+            'pathway_code' => $pathwayCode,
+        ];
 
         // Advance workflow only — never downgrade after agreement sent/signed.
         if ($caseFile->statusStep() < CaseFile::statusOrder()['PATHWAY_SELECTED']) {
@@ -144,14 +187,75 @@ class CaseFileController extends Controller
         $caseFile->update($updates);
 
         // Mirror pathway to the client profile
-        $profile->update(['immigration_pathway' => $pathway]);
+        $profile->update([
+            'immigration_pathway' => $pathway,
+            'pathway_code' => $pathwayCode,
+        ]);
 
         $this->activity->onPathwayAssigned($profile, $caseFile->fresh(), $request->user(), $pathway, $request);
 
+        // Auto-assign matching IRCC application package (consultant can override on Step 3).
+        $auto = $this->packageSuggestion->autoAssignForPathway($caseFile->fresh(), $pathway);
+        $fresh = $caseFile->fresh();
+
+        $node = $resolved['node'] ?? null;
+
         return response()->json([
-            'case_file' => $caseFile->fresh(),
-            'message'   => 'Immigration pathway confirmed.',
+            'case_file' => $fresh,
+            'message'   => $auto['assigned']
+                ? 'Immigration pathway confirmed and application package auto-assigned.'
+                : 'Immigration pathway confirmed.',
+            'package_suggestion' => $this->serializePackageSuggestion($auto['suggestion']),
+            'package_auto_assigned' => (bool) $auto['assigned'],
+            'pathway_code' => $pathwayCode,
+            'pathway_node' => $node ? [
+                'code' => $node->code,
+                'label' => $node->label,
+                'family' => $node->family,
+                'crs_backend_value' => $node->crs_backend_value,
+                'retainer_fee' => $node->retainer_fee,
+                'retainer_description' => $node->retainer_description,
+            ] : null,
         ]);
+    }
+
+    // ── GET /consultant/clients/{profile}/case-file/suggested-application-package ─
+
+    public function suggestedApplicationPackage(Request $request, ClientProfile $profile): JsonResponse
+    {
+        $this->authorizeConsultant($request, $profile);
+
+        $caseFile = $this->requireActiveCaseFile($profile, $request);
+        $heal = $this->packageSuggestion->healMismatchIfNeeded($caseFile);
+        $caseFile = $caseFile->fresh();
+        $suggestion = $heal['suggestion'];
+
+        return response()->json([
+            'suggestion' => $this->serializePackageSuggestion($suggestion),
+            'assigned_ircc_category_id' => $caseFile->assigned_ircc_category_id,
+            'package_auto_healed' => (bool) ($heal['healed'] ?? false),
+            'message' => ($heal['healed'] ?? false)
+                ? 'Assigned package did not match the pathway — Maple/rules corrected it automatically.'
+                : null,
+        ]);
+    }
+
+    /**
+     * @param  array<string, mixed>  $suggestion
+     * @return array<string, mixed>
+     */
+    private function serializePackageSuggestion(array $suggestion): array
+    {
+        $category = $suggestion['category'] ?? null;
+
+        return [
+            'ircc_category_id' => $category instanceof IrccCategory ? $category->id : null,
+            'label'            => $category instanceof IrccCategory ? $category->label : null,
+            'path'             => $suggestion['path'] ?? [],
+            'source'           => $suggestion['source'] ?? 'none',
+            'reason'           => $suggestion['reason'] ?? '',
+            'confidence'       => $suggestion['confidence'] ?? 'low',
+        ];
     }
 
     // ── PATCH /consultant/clients/{profile}/case-file/pathway-assessment ───────
@@ -168,7 +272,7 @@ class CaseFileController extends Controller
             'assessment_snapshot'=> 'nullable|array',
         ]);
 
-        $caseFile = CaseFile::where('client_profile_id', $profile->id)->firstOrFail();
+        $caseFile = $this->requireActiveCaseFile($profile, $request);
 
         $caseFile->update([
             'pathway_assessment_notes'         => $data['notes'] ?? $caseFile->pathway_assessment_notes,
@@ -199,7 +303,7 @@ class CaseFileController extends Controller
             ->where('level', 3)
             ->firstOrFail();
 
-        $caseFile = CaseFile::where('client_profile_id', $profile->id)->firstOrFail();
+        $caseFile = $this->requireActiveCaseFile($profile, $request);
 
         if ($caseFile->statusStep() < CaseFile::statusOrder()['PATHWAY_SELECTED']) {
             return response()->json(['message' => 'Pathway must be selected before assigning an application package.'], 422);
@@ -208,7 +312,10 @@ class CaseFileController extends Controller
         $caseFile->update([
             'assigned_ircc_category_id'       => $category->id,
             'application_package_assigned_at'   => now(),
+            'application_forms_verified_at'   => null,
         ]);
+
+        $this->verificationService->getVerificationStatus($caseFile->fresh());
 
         $this->activity->onApplicationPackageAssigned(
             $profile,
@@ -252,7 +359,7 @@ class CaseFileController extends Controller
         $this->authorizeConsultant($request, $profile);
         $profile->load('user');
 
-        $caseFile = CaseFile::where('client_profile_id', $profile->id)->firstOrFail();
+        $caseFile = $this->requireActiveCaseFile($profile, $request);
 
         if ($caseFile->statusStep() < CaseFile::statusOrder()['PATHWAY_SELECTED']) {
             return response()->json(['message' => 'Pathway must be selected before sending the agreement.'], 422);
@@ -337,7 +444,7 @@ class CaseFileController extends Controller
         $this->authorizeConsultant($request, $profile);
         $profile->load('user');
 
-        $caseFile = CaseFile::where('client_profile_id', $profile->id)->firstOrFail();
+        $caseFile = $this->requireActiveCaseFile($profile, $request);
 
         if (! $caseFile->agreement_sent_at) {
             return response()->json(['message' => 'Agreement has not been sent yet.'], 422);
@@ -396,7 +503,7 @@ class CaseFileController extends Controller
     {
         $this->authorizeConsultant($request, $profile);
 
-        $caseFile = CaseFile::where('client_profile_id', $profile->id)->firstOrFail();
+        $caseFile = $this->requireActiveCaseFile($profile, $request);
 
         if (! $caseFile->agreement_sent_at) {
             abort(422, 'Agreement has not been sent yet.');
@@ -435,7 +542,7 @@ class CaseFileController extends Controller
             'milestone_payments.3' => 'boolean',
         ]);
 
-        $caseFile = CaseFile::where('client_profile_id', $profile->id)->firstOrFail();
+        $caseFile = $this->requireActiveCaseFile($profile, $request);
 
         if (! $caseFile->isAgreementSigned()) {
             return response()->json(['message' => 'Agreement must be signed before tracking milestone payments.'], 422);
@@ -461,7 +568,7 @@ class CaseFileController extends Controller
             'checklist_data' => 'required|array',
         ]);
 
-        $caseFile = CaseFile::where('client_profile_id', $profile->id)->firstOrFail();
+        $caseFile = $this->requireActiveCaseFile($profile, $request);
 
         if ($caseFile->statusStep() < CaseFile::statusOrder()['AGREEMENT_SIGNED']) {
             return response()->json(['message' => 'Agreement must be signed first.'], 422);

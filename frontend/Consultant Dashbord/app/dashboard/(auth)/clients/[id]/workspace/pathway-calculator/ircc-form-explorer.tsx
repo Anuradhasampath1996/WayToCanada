@@ -263,6 +263,8 @@ export function IrccFormExplorer({
   const [suggestion, setSuggestion] = useState<PackageSuggestion | null>(null);
   const [autoFilled, setAutoFilled] = useState(false);
   const [manualOverride, setManualOverride] = useState(false);
+  const [suggesting, setSuggesting] = useState(false);
+  const [suggestError, setSuggestError] = useState<string | null>(null);
 
   const [sel1, setSel1] = useState<number | "">("");
   const [sel2, setSel2] = useState<number | "">("");
@@ -288,15 +290,18 @@ export function IrccFormExplorer({
     let cancelled = false;
 
     (async () => {
+      setSuggestError(null);
       // Always load suggestion when pathway is present (for mismatch banner + Maple reason).
       let s: PackageSuggestion | null = null;
       if (immigrationPathway) {
+        setSuggesting(true);
         try {
           const res = await fetch(
             `${API}/consultant/clients/${clientProfileId}/case-file/suggested-application-package`,
             { headers: authHeaders() },
           );
-          if (res.ok && !cancelled) {
+          if (cancelled) return;
+          if (res.ok) {
             const json = await res.json();
             s = (json.suggestion as PackageSuggestion | undefined) ?? null;
             if (s) setSuggestion(s);
@@ -306,9 +311,18 @@ export function IrccFormExplorer({
               onAssigned?.(healedId);
               appliedLeafRef.current = null;
             }
+            if (!s?.ircc_category_id) {
+              setSuggestError(s?.reason || "No matching IRCC package found — select manually.");
+            }
+          } else {
+            setSuggestError("Could not auto-suggest a package — select the three levels manually.");
           }
         } catch {
-          /* ignore */
+          if (!cancelled) {
+            setSuggestError("Could not auto-suggest a package — select the three levels manually.");
+          }
+        } finally {
+          if (!cancelled) setSuggesting(false);
         }
       }
 
@@ -323,6 +337,7 @@ export function IrccFormExplorer({
           setSel3(path.l3);
           setAutoFilled(true);
           appliedLeafRef.current = targetId;
+          setSuggestError(null);
         }
         return;
       }
@@ -332,13 +347,19 @@ export function IrccFormExplorer({
 
       const leafId = s.ircc_category_id;
       const path = findPathIds(tree, leafId);
-      if (!path) return;
+      if (!path) {
+        setSuggestError(
+          `Suggested package “${s.label ?? leafId}” is not in the IRCC tree — select manually or re-seed categories.`,
+        );
+        return;
+      }
 
       setSel1(path.l1);
       setSel2(path.l2);
       setSel3(path.l3);
       setAutoFilled(true);
       appliedLeafRef.current = leafId;
+      setSuggestError(null);
 
       setAssigning(true);
       try {
@@ -528,9 +549,13 @@ export function IrccFormExplorer({
 
             {!result && sel1 === "" && (
               <p className="text-xs text-muted-foreground text-center pt-4 pb-1">
-                {immigrationPathway
-                  ? "Loading the package that matches this pathway…"
-                  : "Assign a pathway first, or select all 3 levels manually."}
+                {!immigrationPathway
+                  ? "Assign a pathway first, or select all 3 levels manually."
+                  : suggesting || assigning
+                    ? "Loading the package that matches this pathway…"
+                    : suggestError
+                      ? suggestError
+                      : "Select all 3 levels, or wait for auto-suggest."}
               </p>
             )}
           </div>

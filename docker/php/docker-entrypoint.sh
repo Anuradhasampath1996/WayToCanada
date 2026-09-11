@@ -14,12 +14,24 @@ if [ -f .env ]; then
   # public/storage → storage/app/public (needed for /storage/* via artisan serve)
   php artisan storage:link --ansi || true
   php artisan migrate --force --no-ansi || true
+  php artisan db:seed --class=PathwayCatalogSeeder --force --no-ansi || true
 
   # Long jobs (CICC sync, legislation) need dedicated workers inside the API container.
-  pkill -f "artisan queue:work" 2>/dev/null || true
-  nohup php artisan queue:work database --sleep=2 --tries=1 --timeout=28800 --memory=512 \
+  # Minimal images may lack pkill/kill — stop workers via /proc + posix_kill.
+  php -r '
+    foreach (glob("/proc/[0-9]*/cmdline") as $f) {
+      $c = @file_get_contents($f);
+      if ($c !== false && str_contains($c, "artisan queue:work")) {
+        $pid = (int) basename(dirname($f));
+        if ($pid > 1) { @posix_kill($pid, 9); }
+      }
+    }
+  ' || true
+  sleep 1
+  # --tries must be >= Job::$tries (CICC sync uses 3) or restarts mark runs failed.
+  nohup php artisan queue:work database --sleep=2 --tries=3 --timeout=28800 --memory=512 \
     >> /tmp/queue-worker-1.log 2>&1 &
-  nohup php artisan queue:work database --sleep=2 --tries=1 --timeout=28800 --memory=512 \
+  nohup php artisan queue:work database --sleep=2 --tries=3 --timeout=28800 --memory=512 \
     >> /tmp/queue-worker-2.log 2>&1 &
 fi
 

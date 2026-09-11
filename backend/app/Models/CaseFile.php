@@ -20,6 +20,7 @@ class CaseFile extends Model
         'lifecycle_note',
         'lifecycle_changed_at',
         'immigration_pathway',
+        'pathway_code',
         'pathway_assessment_notes',
         'pathway_assessment_crs_score',
         'pathway_assessment_ircc_crs_score',

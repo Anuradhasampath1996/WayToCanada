@@ -18,6 +18,7 @@ class ClientProfile extends Model
         'phone',
         'passport_number',
         'immigration_pathway',
+        'pathway_code',
         'family_id',
         'notes',
         'notes_updated_at',

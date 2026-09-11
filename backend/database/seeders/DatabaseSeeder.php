@@ -20,6 +20,7 @@ class DatabaseSeeder extends Seeder
             RcicConsultantsSeeder::class,
             IrccCategorySeeder::class,
             IrccInteractiveFormSeeder::class,
+            PathwayCatalogSeeder::class,
         ]);
     }
 }
