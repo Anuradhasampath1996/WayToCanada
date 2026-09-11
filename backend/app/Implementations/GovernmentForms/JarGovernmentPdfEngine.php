@@ -198,6 +198,7 @@ class JarGovernmentPdfEngine implements GovernmentPdfEngine
         $candidates = array_filter([
             is_string($configured) && $configured !== '' ? $configured : null,
             dirname((string) config('government_forms.processor.jar_path')).DIRECTORY_SEPARATOR.'itextkey.json',
+            base_path('form-processor/itextkey.json'),
             base_path('../form-processor-poc/java-itext/itextkey.json'),
         ]);
 

@@ -57,7 +57,7 @@ jobs:
                   "repository": "waytocanada-api",
                   "context": ".",
                   "dockerfile": "docker/php/Dockerfile",
-                  "paths": ("backend/", "docker/php/"),
+                  "paths": ("backend/", "docker/php/", "form-processor-poc/"),
               },
               "public": {
                   "compose": "frontend",

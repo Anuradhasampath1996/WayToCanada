@@ -1,0 +1,128 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<IMM_5476 xmlns:xfa="http://www.xfa.org/schema/xfa-data/1.0/" xmlns:default="http://www.w3.org/1999/xhtml">
+  <Page1>
+    <RadioButtonList/>
+    <SectionA>
+      <familyName>
+        <default:body xmlns="http://www.w3.org/1999/xhtml">
+          <default:p style="margin-top:0in;margin-bottom:0in;">
+            <default:span style="xfa-spacerun:yes"> </default:span>
+          </default:p>
+        </default:body>
+      </familyName>
+      <givenName/>
+      <DOB/>
+      <office/>
+      <office/>
+      <office/>
+      <application/>
+      <UCI/>
+    </SectionA>
+    <SectionB>
+      <List>
+        <S1 xfa:dataNode="dataGroup"/>
+        <S2 xfa:dataNode="dataGroup"/>
+        <S3 xfa:dataNode="dataGroup"/>
+      </List>
+      <familyName>
+        <default:body xmlns="http://www.w3.org/1999/xhtml">
+          <default:p style="margin-top:0in;margin-bottom:0in;">
+            <default:span style="xfa-spacerun:yes"> </default:span>
+          </default:p>
+        </default:body>
+      </familyName>
+      <givenName/>
+      <question6>
+        <questionI>
+          <membership/>
+          <province2/>
+          <membership2/>
+          <uncompensated/>
+          <otherRep/>
+          <membership/>
+        </questionI>
+        <questionII>
+          <compensated/>
+          <ICCRCMember/>
+          <province/>
+          <membership/>
+          <quebecLaw/>
+        </questionII>
+      </question6>
+      <question7>
+        <organization/>
+        <lawyer/>
+        <membershipID/>
+        <unit/>
+        <streetNo/>
+        <streetName/>
+        <city/>
+        <province/>
+        <country/>
+        <postalcode/>
+        <phoneCountryCode/>
+        <phoneNumber/>
+        <faxCountryCode/>
+        <faxNumber/>
+        <email/>
+      </question7>
+      <question8>
+        <List>
+          <s1 xfa:dataNode="dataGroup"/>
+          <s2 xfa:dataNode="dataGroup"/>
+        </List>
+        <signatrureApplicant/>
+        <dateSigned/>
+        <signatrureApplicant/>
+        <dateSigned/>
+      </question8>
+    </SectionB>
+    <sectionC>
+      <familyName>
+        <default:body xmlns="http://www.w3.org/1999/xhtml">
+          <default:p style="margin-top:0in;margin-bottom:0in;">
+            <default:span style="xfa-spacerun:yes"> </default:span>
+          </default:p>
+        </default:body>
+      </familyName>
+      <givenName/>
+      <organization/>
+    </sectionC>
+    <sectionD>
+      <familyName>
+        <default:body xmlns="http://www.w3.org/1999/xhtml">
+          <default:p style="margin-top:0in;margin-bottom:0in;">
+            <default:span style="xfa-spacerun:yes"> </default:span>
+          </default:p>
+        </default:body>
+      </familyName>
+      <givenName/>
+      <organization/>
+      <signatrureApplicant/>
+      <dateApplicantSigned/>
+    </sectionD>
+    <sectionE>
+      <List>
+        <s1 xfa:dataNode="dataGroup"/>
+        <s2 xfa:dataNode="dataGroup"/>
+      </List>
+      <signatrureApplicant/>
+      <dateApplicantSigned/>
+      <signatrureApplicant/>
+      <dateSpouseSigned/>
+    </sectionE>
+    <disclaimer xfa:dataNode="dataGroup"/>
+  </Page1>
+  <num>1</num>
+  <totPage>4</totPage>
+  <FormNumber>IMM 5476 (11-2025) E</FormNumber>
+  <num>2</num>
+  <totPage>4</totPage>
+  <FormNumber>IMM 5476 (11-2025) E</FormNumber>
+  <num>3</num>
+  <totPage>4</totPage>
+  <FormNumber>IMM 5476 (11-2025) E</FormNumber>
+  <num>4</num>
+  <totPage>4</totPage>
+  <FormNumber>IMM 5476 (11-2025) E</FormNumber>
+</IMM_5476>

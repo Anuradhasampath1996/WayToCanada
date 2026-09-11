@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xfa:datasets xmlns:xfa="http://www.xfa.org/schema/xfa-data/1.0/">
+  <xfa:data>
+    <IMM_5406>
+      <page1>
+        <SectionA>
+          <SectionAinfo>
+            <Applicant>
+              <PaddedEntry>
+                <PersonalData>
+                  <Row>
+                    <FamilyName>POCTEST</FamilyName>
+                    <GivenNames>Synthetic Applicant</GivenNames>
+                    <DOB>1990-01-15</DOB>
+                  </Row>
+                </PersonalData>
+                <PersonalData>
+                  <Row>
+                    <COB>Country of birth</COB>
+                    <Address>123 PoC Street</Address>
+                    <MaritalStatus>Single</MaritalStatus>
+                    <Email>poc.test@example.invalid</Email>
+                  </Row>
+                </PersonalData>
+              </PaddedEntry>
+            </Applicant>
+          </SectionAinfo>
+        </SectionA>
+      </page1>
+    </IMM_5406>
+  </xfa:data>
+</xfa:datasets>
