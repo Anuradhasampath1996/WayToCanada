@@ -82,7 +82,14 @@ interface Submission {
 }
 
 type FieldType = "text" | "date" | "textarea" | "document";
-type FieldDef  = { key: string; label: string; section: string; type?: FieldType };
+type FieldDef  = {
+  key: string;
+  label: string;
+  section: string;
+  type?: FieldType;
+  /** Hide row unless this returns true (e.g. otherRelationship only when relationship=other). */
+  showWhen?: (data: Record<string, unknown>) => boolean;
+};
 
 // --- Field definitions ---
 
@@ -96,13 +103,39 @@ const STEP1_FIELDS: FieldDef[] = [
   { key: "accompanyingCount", label: "Number of Other Accompanying Persons", section: "Family" },
 ];
 
-const PERSON_BASE_FIELDS: FieldDef[] = [
-  { key: "fullName",               label: "Full Name",                               section: "Identity" },
-  { key: "name",                   label: "Full Name",                               section: "Identity" },
-  { key: "relationship",           label: "Relationship",                            section: "Identity" },
-  { key: "otherRelationship",      label: "Other Relationship (specify)",            section: "Identity" },
-  { key: "dob",                    label: "Date of Birth",                           section: "Identity",           type: "date" },
-  { key: "email",                  label: "Email",                                   section: "Identity" },
+/** Main applicant Identity — name/email live in step1 + passport OCR, not relationship. */
+const MAIN_IDENTITY_FIELDS: FieldDef[] = [
+  { key: "fullName", label: "Full Name",     section: "Identity" },
+  { key: "dob",      label: "Date of Birth", section: "Identity", type: "date" },
+  { key: "email",    label: "Email",         section: "Identity" },
+];
+
+const SPOUSE_IDENTITY_FIELDS: FieldDef[] = [
+  { key: "fullName", label: "Full Name",     section: "Identity" },
+  { key: "dob",      label: "Date of Birth", section: "Identity", type: "date" },
+  { key: "email",    label: "Email",         section: "Identity" },
+];
+
+const CHILD_IDENTITY_FIELDS: FieldDef[] = [
+  { key: "name",  label: "Full Name",     section: "Identity" },
+  { key: "dob",   label: "Date of Birth", section: "Identity", type: "date" },
+  { key: "email", label: "Email",         section: "Identity" },
+];
+
+const ACCOMPANYING_IDENTITY_FIELDS: FieldDef[] = [
+  { key: "fullName",          label: "Full Name",                    section: "Identity" },
+  { key: "relationship",      label: "Relationship",                 section: "Identity" },
+  {
+    key: "otherRelationship",
+    label: "Other Relationship (specify)",
+    section: "Identity",
+    showWhen: (d) => String(d.relationship ?? "") === "other",
+  },
+  { key: "dob",   label: "Date of Birth", section: "Identity", type: "date" },
+  { key: "email", label: "Email",         section: "Identity" },
+];
+
+const PERSON_DETAIL_FIELDS: FieldDef[] = [
   { key: "passportFullName",       label: "Full Name (as on Passport)",              section: "Passport" },
   { key: "passportNumber",         label: "Passport Number",                         section: "Passport" },
   { key: "passportIssueDate",      label: "Date of Issue",                           section: "Passport",           type: "date" },
@@ -176,12 +209,25 @@ const MAIN_ONLY_FIELDS: FieldDef[] = [
 ];
 
 const PERSON_FIELDS: FieldDef[] = [
-  ...PERSON_BASE_FIELDS.slice(0, 6), // identity through email
+  ...MAIN_IDENTITY_FIELDS,
   ...MAIN_ONLY_FIELDS,
-  ...PERSON_BASE_FIELDS.slice(6),
+  ...PERSON_DETAIL_FIELDS,
 ];
 
-const FAMILY_PERSON_FIELDS: FieldDef[] = PERSON_BASE_FIELDS;
+const SPOUSE_FIELDS: FieldDef[] = [
+  ...SPOUSE_IDENTITY_FIELDS,
+  ...PERSON_DETAIL_FIELDS,
+];
+
+const CHILD_FIELDS: FieldDef[] = [
+  ...CHILD_IDENTITY_FIELDS,
+  ...PERSON_DETAIL_FIELDS,
+];
+
+const ACCOMPANYING_FIELDS: FieldDef[] = [
+  ...ACCOMPANYING_IDENTITY_FIELDS,
+  ...PERSON_DETAIL_FIELDS,
+];
 
 // --- Helpers ---
 
@@ -237,6 +283,37 @@ function hasValue(val: unknown): boolean {
     );
   }
   return true;
+}
+
+/** Prefer identity name/email from passport OCR / step1 when person blob omits them. */
+function withIdentityFallbacks(
+  data: Record<string, unknown> | null,
+  step1?: Record<string, unknown> | null,
+): Record<string, unknown> | null {
+  if (!data && !step1) return data;
+  const out: Record<string, unknown> = { ...(data ?? {}) };
+  const passportName = String(out.passportFullName ?? "").trim();
+  const stepName = String(step1?.fullName ?? "").trim();
+  const stepEmail = String(step1?.email ?? "").trim();
+  const nicName = String(out.nicFullName ?? "").trim();
+
+  if (!hasValue(out.fullName)) {
+    const fallback = passportName || nicName || stepName;
+    if (fallback) out.fullName = fallback;
+  }
+  if (!hasValue(out.name)) {
+    const fallback = passportName || nicName || String(out.fullName ?? "").trim() || stepName;
+    if (fallback) out.name = fallback;
+  }
+  if (!hasValue(out.email) && stepEmail) {
+    out.email = stepEmail;
+  }
+  return out;
+}
+
+function visibleFields(fields: FieldDef[], data: Record<string, unknown> | null): FieldDef[] {
+  const safe = data ?? {};
+  return fields.filter((f) => !f.showWhen || f.showWhen(safe));
 }
 
 function fileBasename(path: string): string {
@@ -798,14 +875,15 @@ function PersonTab({
   refillKey: string | null;
 }) {
   const safeData = data ?? {};
+  const visible = visibleFields(fields, safeData);
   const sections = new Map<string, FieldDef[]>();
-  for (const f of fields) {
+  for (const f of visible) {
     const list = sections.get(f.section) ?? [];
     list.push(f);
     sections.set(f.section, list);
   }
 
-  const identityDocs = fields.filter((f) => f.type === "document" && IDENTITY_DOC_KEYS.has(f.key));
+  const identityDocs = visible.filter((f) => f.type === "document" && IDENTITY_DOC_KEYS.has(f.key));
   const hasIdentityDocs = identityDocs.length > 0;
 
   return (
@@ -913,7 +991,7 @@ function countTab(tabId: string, submission: Submission, vf: Record<string, bool
   let total = 0; let verified = 0;
   const count = (data: Record<string, unknown> | null, prefix: string, fields: FieldDef[]) => {
     if (!data) return;
-    for (const f of fields) {
+    for (const f of visibleFields(fields, data)) {
       const empty = !hasValue(data[f.key]);
       if (!empty || f.type === "document") {
         total++;
@@ -922,17 +1000,63 @@ function countTab(tabId: string, submission: Submission, vf: Record<string, bool
     }
   };
 
-  if (tabId === "step1")       count(submission.step1_data,  "step1_data",  STEP1_FIELDS);
-  else if (tabId === "main")   count(submission.main_data,   "main_data",   PERSON_FIELDS);
-  else if (tabId === "spouse") count(submission.spouse_data, "spouse_data", FAMILY_PERSON_FIELDS);
+  const step1 = submission.step1_data;
+  if (tabId === "step1")       count(step1,  "step1_data",  STEP1_FIELDS);
+  else if (tabId === "main")   count(withIdentityFallbacks(submission.main_data, step1),   "main_data",   PERSON_FIELDS);
+  else if (tabId === "spouse") count(withIdentityFallbacks(submission.spouse_data), "spouse_data", SPOUSE_FIELDS);
   else if (tabId.startsWith("child_")) {
     const idx = parseInt(tabId.replace("child_", ""), 10);
-    count((submission.children_data ?? [])[idx] ?? null, `children_data.${idx}`, FAMILY_PERSON_FIELDS);
+    count(withIdentityFallbacks((submission.children_data ?? [])[idx] ?? null), `children_data.${idx}`, CHILD_FIELDS);
   } else if (tabId.startsWith("other_")) {
     const idx = parseInt(tabId.replace("other_", ""), 10);
-    count((submission.accompanying_data ?? [])[idx] ?? null, `accompanying_data.${idx}`, FAMILY_PERSON_FIELDS);
+    count(withIdentityFallbacks((submission.accompanying_data ?? [])[idx] ?? null), `accompanying_data.${idx}`, ACCOMPANYING_FIELDS);
   }
   return { verified, total };
+}
+
+/** Keys eligible for bulk verify: has value (or document path), not already verified, not pending refill. */
+function collectVerifiableFieldKeys(
+  submission: Submission,
+  vf: Record<string, boolean>,
+  fr: Record<string, { status: string }>,
+): string[] {
+  const keys: string[] = [];
+  const push = (data: Record<string, unknown> | null, prefix: string, fields: FieldDef[]) => {
+    if (!data) return;
+    for (const f of visibleFields(fields, data)) {
+      const key = `${prefix}.${f.key}`;
+      if (vf[key]) continue;
+      if (fr[key]?.status === "pending") continue;
+      const empty = !hasValue(data[f.key]);
+      if (empty && f.type !== "document") continue;
+      if (f.type === "document" && empty) continue;
+      keys.push(key);
+    }
+  };
+
+  const step1 = submission.step1_data;
+  push(step1, "step1_data", STEP1_FIELDS);
+  push(withIdentityFallbacks(submission.main_data, step1), "main_data", PERSON_FIELDS);
+  if (step1?.married === "yes") {
+    push(withIdentityFallbacks(submission.spouse_data), "spouse_data", SPOUSE_FIELDS);
+  }
+  const children = submission.children_data ?? [];
+  const accompanying = submission.accompanying_data ?? [];
+  const childCount = Math.max(
+    parseInt(String(step1?.dependentChildren ?? "0"), 10) || 0,
+    children.length,
+  );
+  const otherCount = Math.max(
+    step1?.hasAccompanying === "yes" ? (parseInt(String(step1?.accompanyingCount ?? "0"), 10) || 0) : 0,
+    accompanying.length,
+  );
+  for (let i = 0; i < childCount; i++) {
+    push(withIdentityFallbacks((children[i] ?? null) as Record<string, unknown> | null), `children_data.${i}`, CHILD_FIELDS);
+  }
+  for (let i = 0; i < otherCount; i++) {
+    push(withIdentityFallbacks((accompanying[i] ?? null) as Record<string, unknown> | null), `accompanying_data.${i}`, ACCOMPANYING_FIELDS);
+  }
+  return keys;
 }
 
 // --- Main component ---
@@ -948,6 +1072,7 @@ export function QuestionnaireReviewClient({ paramsPromise }: { paramsPromise: Pr
   const [refillKey, setRefillKey] = useState<string | null>(null);
   const [refillDialog, setRefillDialog] = useState<{ fieldKey: string; label: string } | null>(null);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
+  const [bulkVerifying, setBulkVerifying] = useState(false);
 
   const showToast = (msg: string, type: "success" | "error" = "success") => {
     setToast({ msg, type });
@@ -985,6 +1110,40 @@ export function QuestionnaireReviewClient({ paramsPromise }: { paramsPromise: Pr
       showToast(e instanceof Error ? e.message : "Verification failed.", "error");
     } finally {
       setSavingKey(null);
+    }
+  };
+
+  const handleVerifyAllNonFlagged = async () => {
+    if (!submission || bulkVerifying) return;
+    const keys = collectVerifiableFieldKeys(
+      submission,
+      submission.verified_fields ?? {},
+      submission.field_remarks ?? {},
+    );
+    if (keys.length === 0) {
+      showToast("Nothing left to verify (empty fields and pending refills are skipped).", "error");
+      return;
+    }
+    setBulkVerifying(true);
+    try {
+      const res = await fetch(`${API}/consultant/clients/${id}/questionnaire/verify-all`, {
+        method: "PATCH",
+        headers: authHeaders(),
+        body: JSON.stringify({ field_keys: keys }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.message ?? "Bulk verify failed.");
+      setSubmission((prev) => prev ? { ...prev, verified_fields: json.verified_fields } : prev);
+      const flagged = (json.skipped_flagged as string[] | undefined)?.length ?? 0;
+      showToast(
+        flagged > 0
+          ? `Verified ${json.verified_count ?? 0} field(s). ${flagged} pending refill(s) skipped.`
+          : `Verified ${json.verified_count ?? 0} field(s).`,
+      );
+    } catch (e: unknown) {
+      showToast(e instanceof Error ? e.message : "Bulk verify failed.", "error");
+    } finally {
+      setBulkVerifying(false);
     }
   };
 
@@ -1096,15 +1255,47 @@ export function QuestionnaireReviewClient({ paramsPromise }: { paramsPromise: Pr
   function renderContent(tabId: string) {
     if (!submission) return null;
     if (tabId === "step1") return <PersonTab fields={STEP1_FIELDS} data={submission.step1_data} prefix="step1_data" {...commonProps} />;
-    if (tabId === "main") return <PersonTab fields={PERSON_FIELDS} data={submission.main_data} prefix="main_data" {...commonProps} />;
-    if (tabId === "spouse") return <PersonTab fields={FAMILY_PERSON_FIELDS} data={submission.spouse_data} prefix="spouse_data" {...commonProps} />;
+    if (tabId === "main") {
+      return (
+        <PersonTab
+          fields={PERSON_FIELDS}
+          data={withIdentityFallbacks(submission.main_data, submission.step1_data)}
+          prefix="main_data"
+          {...commonProps}
+        />
+      );
+    }
+    if (tabId === "spouse") {
+      return (
+        <PersonTab
+          fields={SPOUSE_FIELDS}
+          data={withIdentityFallbacks(submission.spouse_data)}
+          prefix="spouse_data"
+          {...commonProps}
+        />
+      );
+    }
     if (tabId.startsWith("child_")) {
       const idx = parseInt(tabId.replace("child_", ""), 10);
-      return <PersonTab fields={FAMILY_PERSON_FIELDS} data={(submission.children_data ?? [])[idx] ?? null} prefix={`children_data.${idx}`} {...commonProps} />;
+      return (
+        <PersonTab
+          fields={CHILD_FIELDS}
+          data={withIdentityFallbacks((submission.children_data ?? [])[idx] ?? null)}
+          prefix={`children_data.${idx}`}
+          {...commonProps}
+        />
+      );
     }
     if (tabId.startsWith("other_")) {
       const idx = parseInt(tabId.replace("other_", ""), 10);
-      return <PersonTab fields={FAMILY_PERSON_FIELDS} data={(submission.accompanying_data ?? [])[idx] ?? null} prefix={`accompanying_data.${idx}`} {...commonProps} />;
+      return (
+        <PersonTab
+          fields={ACCOMPANYING_FIELDS}
+          data={withIdentityFallbacks((submission.accompanying_data ?? [])[idx] ?? null)}
+          prefix={`accompanying_data.${idx}`}
+          {...commonProps}
+        />
+      );
     }
     return null;
   }
@@ -1149,6 +1340,18 @@ export function QuestionnaireReviewClient({ paramsPromise }: { paramsPromise: Pr
             <Clock className="size-3.5" />
             Awaiting client submission
           </Badge>
+        )}
+        {submission && (
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 gap-1.5 rounded-lg"
+            disabled={bulkVerifying}
+            onClick={() => void handleVerifyAllNonFlagged()}
+          >
+            {bulkVerifying ? <Loader2 className="size-3.5 animate-spin" /> : <ShieldCheck className="size-3.5" />}
+            Verify all non-flagged
+          </Button>
         )}
       </WorkspaceSubpageHero>
 
