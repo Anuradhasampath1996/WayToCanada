@@ -90,6 +90,7 @@ class StripeSubscriptionService extends StripeService
             'cancel_url'          => $cancelUrl,
             'client_reference_id' => (string) $userId,
             'metadata'            => [
+                'type'                    => 'platform_subscription',
                 'subscription_package_id' => (string) $package->id,
                 'billing_cycle'           => $cycle,
                 'user_id'                 => (string) $userId,
@@ -98,6 +99,7 @@ class StripeSubscriptionService extends StripeService
             ],
             'subscription_data' => [
                 'metadata' => [
+                    'type'                    => 'platform_subscription',
                     'subscription_package_id' => (string) $package->id,
                     'billing_cycle'           => $cycle,
                     'user_id'                 => (string) $userId,

@@ -30,7 +30,11 @@ export function ReturnClient({ sessionId }: Props) {
     async function verify() {
       try {
         const token = localStorage.getItem("wtc_consultant_token");
-        const res   = await fetch(`${API}/consultant/payment/stripe/verify-session`, {
+        if (!token) {
+          throw new Error("Please log in again, then open this return link or retry checkout.");
+        }
+
+        const res = await fetch(`${API}/consultant/payment/stripe/verify-session`, {
           method: "POST",
           headers: {
             Authorization: `Bearer ${token}`,
@@ -40,10 +44,16 @@ export function ReturnClient({ sessionId }: Props) {
           body: JSON.stringify({ session_id: sessionId }),
         });
 
-        const json = await res.json();
+        const raw = await res.text();
+        let json: { message?: string } = {};
+        try {
+          json = raw ? JSON.parse(raw) : {};
+        } catch {
+          throw new Error(raw?.slice(0, 180) || `Activation failed (HTTP ${res.status}).`);
+        }
 
         if (!res.ok) {
-          throw new Error(json?.message ?? "Activation failed. Please contact support.");
+          throw new Error(json?.message || `Activation failed (HTTP ${res.status}).`);
         }
 
         if (!cancelled) {

@@ -150,42 +150,92 @@ class StripePaymentController extends Controller
                 'id'     => $data['session_id'],
                 'expand' => ['subscription', 'invoice'],
             ]);
-        } catch (\Throwable $e) {
-            return response()->json(['message' => 'Could not verify payment session.'], 503);
-        }
 
-        if (($session->payment_status ?? '') !== 'paid' && ($session->status ?? '') !== 'complete') {
+            if (($session->payment_status ?? '') !== 'paid' && ($session->status ?? '') !== 'complete') {
+                return response()->json([
+                    'message' => 'Payment was not completed. Status: ' . ($session->status ?? 'unknown'),
+                ], 422);
+            }
+
+            $meta   = $this->stripeMeta($session);
+            $userId = (int) ($session->client_reference_id ?? ($meta['user_id'] ?? 0));
+            if ($userId <= 0 || $request->user()->id !== $userId) {
+                return response()->json(['message' => 'Session does not belong to this user.'], 403);
+            }
+
+            $type = (string) ($meta['type'] ?? '');
+            if ($type !== '' && $type !== 'platform_subscription') {
+                return response()->json(['message' => 'This session is not for a platform subscription.'], 422);
+            }
+
+            $result = $fulfillment->fulfillPlatformSubscriptionCheckout($session, $request->user());
+
+            if (! empty($result['already'])) {
+                return response()->json([
+                    'message'      => 'Subscription already activated.',
+                    'subscription' => $result['subscription']->load('package'),
+                ]);
+            }
+
+            $paymentPayload = null;
+            try {
+                if (! empty($result['payment'])) {
+                    $paymentPayload = $recorder->formatRecord($result['payment']);
+                }
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning('[Stripe verify] formatRecord failed', [
+                    'error' => $e->getMessage(),
+                ]);
+            }
+
             return response()->json([
-                'message' => 'Payment was not completed. Status: ' . ($session->status ?? 'unknown'),
+                'message'      => 'Subscription activated successfully.',
+                'subscription' => $result['subscription'],
+                'payment'      => $paymentPayload,
+            ], 201);
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('[Stripe verify] Activation failed', [
+                'session_id' => $data['session_id'],
+                'user_id'    => $request->user()?->id,
+                'error'      => $e->getMessage(),
+                'class'      => $e::class,
+            ]);
+
+            $message = $e->getMessage() !== ''
+                ? $e->getMessage()
+                : 'Could not activate subscription. Please contact support with your session ID.';
+
+            return response()->json([
+                'message'    => $message,
+                'session_id' => $data['session_id'],
             ], 422);
         }
+    }
 
-        $userId = (int) ($session->client_reference_id ?? $session->metadata['user_id'] ?? 0);
-        if ($request->user()->id !== $userId) {
-            return response()->json(['message' => 'Session does not belong to this user.'], 403);
+    /** @return array<string, string> */
+    private function stripeMeta(object $session): array
+    {
+        $raw = $session->metadata ?? null;
+        if ($raw === null) {
+            return [];
+        }
+        if (is_array($raw)) {
+            return array_map(static fn ($v) => is_scalar($v) || $v === null ? (string) $v : '', $raw);
+        }
+        if (is_object($raw) && method_exists($raw, 'toArray')) {
+            $arr = $raw->toArray();
+
+            return array_map(static fn ($v) => is_scalar($v) || $v === null ? (string) $v : '', $arr);
         }
 
-        if (($session->metadata['type'] ?? '') !== '' && ($session->metadata['type'] ?? '') !== null) {
-            return response()->json(['message' => 'This session is not for a platform subscription.'], 422);
+        $out = [];
+        foreach (['subscription_package_id', 'billing_cycle', 'user_id', 'province', 'billing_country', 'type'] as $key) {
+            $val = $raw[$key] ?? ($raw->$key ?? null);
+            if ($val !== null && $val !== '') {
+                $out[$key] = (string) $val;
+            }
         }
 
-        try {
-            $result = $fulfillment->fulfillPlatformSubscriptionCheckout($session, $request->user());
-        } catch (\Throwable $e) {
-            return response()->json(['message' => $e->getMessage()], 422);
-        }
-
-        if (! empty($result['already'])) {
-            return response()->json([
-                'message'      => 'Subscription already activated.',
-                'subscription' => $result['subscription']->load('package'),
-            ]);
-        }
-
-        return response()->json([
-            'message'      => 'Subscription activated successfully.',
-            'subscription' => $result['subscription'],
-            'payment'      => isset($result['payment']) ? $recorder->formatRecord($result['payment']) : null,
-        ], 201);
+        return $out;
     }
 }

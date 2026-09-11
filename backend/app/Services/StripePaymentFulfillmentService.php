@@ -151,12 +151,12 @@ class StripePaymentFulfillmentService
             return ['type' => 'subscription', 'subscription' => $existing, 'already' => true];
         }
 
-        $metadata  = (array) ($session->metadata ?? []);
+        $metadata  = $this->metaArray($session);
         $packageId = (int) ($metadata['subscription_package_id'] ?? 0);
         $cycle     = $metadata['billing_cycle'] ?? 'monthly';
         $userId    = (int) ($session->client_reference_id ?? $metadata['user_id'] ?? 0);
         $country   = $metadata['billing_country'] ?? 'CA';
-        $province  = $metadata['province'] ?? null;
+        $province  = ($metadata['province'] ?? null) ?: null;
 
         if (! $packageId || ! $userId) {
             throw new \RuntimeException('Missing subscription checkout metadata.');
@@ -171,8 +171,9 @@ class StripePaymentFulfillmentService
         }
 
         $package = SubscriptionPackage::findOrFail($packageId);
-        $endsAt  = $stripeSub?->current_period_end
-            ? Carbon::createFromTimestamp($stripeSub->current_period_end)
+        $periodEnd = $this->subscriptionPeriodEnd($stripeSub);
+        $endsAt  = $periodEnd
+            ? Carbon::createFromTimestamp($periodEnd)
             : ($cycle === 'yearly' ? now()->addYear() : now()->addMonth());
 
         $billingAddress = $this->billingAddressFromUser($user, $country, $province);
@@ -201,8 +202,27 @@ class StripePaymentFulfillmentService
         ]);
 
         $subtotal     = $cycle === 'yearly' ? (float) $package->yearly_price : (float) $package->monthly_price;
-        $taxBreakdown = $this->taxService->quote($subtotal, $billingAddress);
         $stripeInvoice = $this->resolveInvoice($session->invoice);
+        try {
+            $taxBreakdown = $this->taxService->quote($subtotal, $billingAddress);
+        } catch (\Throwable $e) {
+            Log::warning('[Fulfillment] Tax quote failed; using Stripe totals', [
+                'error' => $e->getMessage(),
+                'session_id' => $session->id,
+            ]);
+            $taxBreakdown = [
+                'tax_label'      => null,
+                'tax_type'       => null,
+                'province'       => $province,
+                'subtotal'       => $this->sessionSubtotal($session, $stripeInvoice) ?? $subtotal,
+                'total_tax'      => $this->sessionTax($session, $stripeInvoice) ?? 0.0,
+                'total'          => $this->sessionTotal($session, $stripeInvoice) ?? $subtotal,
+                'gst_amount'     => null,
+                'provincial_tax' => null,
+                'total_rate_pct' => null,
+                'tax_applicable' => false,
+            ];
+        }
 
         $payment = $this->recorder->recordFromCheckout(
             $sub,
@@ -220,7 +240,14 @@ class StripePaymentFulfillmentService
             $this->sessionTotal($session, $stripeInvoice),
         );
 
-        $this->billingNotifications->onPaymentSucceeded($user, $payment, $package->name);
+        try {
+            $this->billingNotifications->onPaymentSucceeded($user, $payment, $package->name);
+        } catch (\Throwable $e) {
+            Log::warning('[Fulfillment] Billing notification failed after payment', [
+                'error' => $e->getMessage(),
+                'session_id' => $session->id,
+            ]);
+        }
 
         return ['type' => 'subscription', 'subscription' => $sub->load('package'), 'payment' => $payment];
     }
@@ -648,6 +675,57 @@ class StripePaymentFulfillmentService
 
         if (isset($session->amount_total)) {
             return round($session->amount_total / 100, 2);
+        }
+
+        return null;
+    }
+
+    /** @return array<string, string> */
+    private function metaArray(object $session): array
+    {
+        $raw = $session->metadata ?? null;
+        if ($raw === null) {
+            return [];
+        }
+        if (is_array($raw)) {
+            return array_map(static fn ($v) => is_scalar($v) || $v === null ? (string) $v : '', $raw);
+        }
+        if (is_object($raw) && method_exists($raw, 'toArray')) {
+            return array_map(
+                static fn ($v) => is_scalar($v) || $v === null ? (string) $v : '',
+                $raw->toArray()
+            );
+        }
+
+        $out = [];
+        foreach (['subscription_package_id', 'billing_cycle', 'user_id', 'province', 'billing_country', 'type'] as $key) {
+            $val = is_array($raw) ? ($raw[$key] ?? null) : ($raw[$key] ?? ($raw->$key ?? null));
+            if ($val !== null && $val !== '') {
+                $out[$key] = (string) $val;
+            }
+        }
+
+        return $out;
+    }
+
+    private function subscriptionPeriodEnd(mixed $stripeSub): ?int
+    {
+        if (! is_object($stripeSub)) {
+            return null;
+        }
+
+        $end = $stripeSub->current_period_end ?? null;
+        if (is_numeric($end)) {
+            return (int) $end;
+        }
+
+        // Newer Stripe API versions expose period on subscription items.
+        $items = $stripeSub->items->data ?? null;
+        if (is_array($items) && isset($items[0]) && is_object($items[0])) {
+            $itemEnd = $items[0]->current_period_end ?? null;
+            if (is_numeric($itemEnd)) {
+                return (int) $itemEnd;
+            }
         }
 
         return null;
