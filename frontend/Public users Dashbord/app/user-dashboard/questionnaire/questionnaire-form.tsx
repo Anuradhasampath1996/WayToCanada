@@ -129,6 +129,11 @@ interface OcrExtracted {
   birthDate?: string;
   expiryDate?: string;
   issueDate?: string;
+  dateOfIssue?: string;
+  date_of_issue?: string;
+  dateIssued?: string;
+  issuedDate?: string;
+  issuedOn?: string;
   nationality?: string;
   gender?: string;
   sex?: string;
@@ -259,11 +264,15 @@ function toInputDate(value?: string): string {
     y = Number(m[1]);
     mo = Number(m[2]);
     d = Number(m[3]);
-  } else if ((m = raw.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/))) {
-    // Prefer DMY (passports / most non-US IDs).
+  } else if ((m = raw.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/))) {
+    // Prefer DMY (passports / most non-US IDs). Supports 2-digit years.
     d = Number(m[1]);
     mo = Number(m[2]);
     y = Number(m[3]);
+    if (y < 100) {
+      const cutoff = (new Date().getFullYear() + 15) % 100;
+      y = y <= cutoff ? 2000 + y : 1900 + y;
+    }
     if (mo > 12 && d <= 12) {
       const tmp = d;
       d = mo;
@@ -273,18 +282,26 @@ function toInputDate(value?: string): string {
     y = Number(m[1]);
     mo = Number(m[2]);
     d = Number(m[3]);
-  } else if ((m = raw.match(/^(\d{1,2})\s+([A-Za-z]{3,9})\s+(\d{4})$/))) {
+  } else if ((m = raw.match(/^(\d{1,2})\s+([A-Za-z]{3,9})\s+(\d{2,4})$/))) {
     const month = MONTH_NAME_TO_NUM[m[2].toUpperCase()];
     if (!month) return "";
     d = Number(m[1]);
     mo = Number(month);
     y = Number(m[3]);
-  } else if ((m = raw.match(/^([A-Za-z]{3,9})\s+(\d{1,2}),?\s+(\d{4})$/))) {
+    if (y < 100) {
+      const cutoff = (new Date().getFullYear() + 15) % 100;
+      y = y <= cutoff ? 2000 + y : 1900 + y;
+    }
+  } else if ((m = raw.match(/^([A-Za-z]{3,9})\s+(\d{1,2}),?\s+(\d{2,4})$/))) {
     const month = MONTH_NAME_TO_NUM[m[1].toUpperCase()];
     if (!month) return "";
     d = Number(m[2]);
     mo = Number(month);
     y = Number(m[3]);
+    if (y < 100) {
+      const cutoff = (new Date().getFullYear() + 15) % 100;
+      y = y <= cutoff ? 2000 + y : 1900 + y;
+    }
   } else if (/^\d{6}$/.test(raw)) {
     // MRZ YYMMDD
     const yy = Number(raw.slice(0, 2));
@@ -305,7 +322,9 @@ function toInputDate(value?: string): string {
 function passportOcrPatch(d: OcrExtracted): Record<string, string> {
   const patch: Record<string, string> = {};
   const dob = toInputDate(d.dob || d.dateOfBirth || d.birthDate);
-  const issue = toInputDate(d.issueDate);
+  const issue = toInputDate(
+    d.issueDate || d.dateOfIssue || d.date_of_issue || d.dateIssued || d.issuedDate || d.issuedOn,
+  );
   const expiry = toInputDate(d.expiryDate);
   if (dob) patch.dob = dob;
   if (d.fullName?.trim()) patch.passportFullName = d.fullName.trim();
@@ -1603,7 +1622,7 @@ function MainApplicantTab({
             if (d.birthPlace) onChange("nicBirthPlace", d.birthPlace);
             const nicIssue = toInputDate(d.issueDate);
             if (nicIssue) onChange("nicIssueDate", nicIssue);
-            if (d.gender && !data.passportGender) onChange("passportGender", mapPassportGender(d.gender) || d.gender);
+            if (d.gender && !data.passportGender) onChange("passportGender", mapPassportGender(d.gender || d.sex) || d.gender);
             if (d.nationality && !data.passportNationality) onChange("passportNationality", d.nationality);
           }}
         />
@@ -2344,7 +2363,7 @@ function SpouseTab({
             if (d.birthPlace) onChange("nicBirthPlace", d.birthPlace);
             const nicIssue = toInputDate(d.issueDate);
             if (nicIssue) onChange("nicIssueDate", nicIssue);
-            if (d.gender && !data.passportGender) onChange("passportGender", mapPassportGender(d.gender) || d.gender);
+            if (d.gender && !data.passportGender) onChange("passportGender", mapPassportGender(d.gender || d.sex) || d.gender);
             if (d.nationality && !data.passportNationality) onChange("passportNationality", d.nationality);
           }}
         />
@@ -3873,7 +3892,7 @@ function DocumentUploadCard({
           const fields: Array<[string, string | undefined]> = [
             ["Name",        d.fullName || undefined],
             ["DOB",         dobLabel || undefined],
-            ["Issue",       toInputDate(d.issueDate) || d.issueDate || undefined],
+            ["Issue",       toInputDate(d.issueDate || d.dateOfIssue || d.date_of_issue || d.dateIssued || d.issuedDate || d.issuedOn) || d.issueDate || d.dateOfIssue || undefined],
             ["ID / No.",    d.passportNumber || d.idNumber || undefined],
             ["Expiry",      toInputDate(d.expiryDate) || d.expiryDate || undefined],
             ["Nationality", d.nationality || undefined],

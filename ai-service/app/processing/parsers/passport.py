@@ -83,10 +83,18 @@ class PassportParser(BaseParser):
     _GENDER       = re.compile(r"(?:SEX|GENDER)"      + r"(?:[^\n]{0,80}\n(?:[^\x00-\x7F][^\n]*\n)*[ \t]*|[:\-]?[ \t]+)" + r"(MALE|FEMALE|M|F)\b", re.I)
     _EXPIRY_DATE  = re.compile(r"(?:DATE[ \t]+OF[ \t]+EXPIRY|DATE[ \t]+OF[ \t]+EXPIRATION|EXPIRY[ \t]*DATE|EXPIRY)" + _SEP + r"([0-9][^\n]{4,11})", re.I)
     _DOB_LABEL    = re.compile(r"(?:DATE[ \t]+OF[ \t]+BIRTH|BIRTH[ \t]*DATE|DOB)"                    + _SEP + r"([0-9][^\n]{4,11})", re.I)
-    _ISSUE_DATE   = re.compile(r"(?:DATE[ \t]+OF[ \t]+ISSUE|DATE[ \t]+OF[ \t]+ISSUANCE|ISSUE[ \t]*DATE|ISSUED[ \t]*ON)" + _SEP + r"([0-9][^\n]{4,11})", re.I)
-    # Same-line: "Date of Issue 27/05/2021" (no newline before value)
+    _ISSUE_DATE   = re.compile(r"(?:DATE[ \t]+OF[ \t]+ISSUE|DATE[ \t]+OF[ \t]+ISSUANCE|ISSUE[ \t]*DATE|ISSUED[ \t]*ON|DATE[ \t]+ISSUED)" + _SEP + r"([0-9][^\n]{4,20})", re.I)
+    # Same-line: "Date of Issue 27/05/2021" or "Date of Issue 27 MAY 2021"
     _ISSUE_SAME_LINE = re.compile(
-        r"DATE[ \t]+OF[ \t]+ISSUE[ \t:/\-]*(\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4})",
+        r"(?:DATE[ \t]+OF[ \t]+ISSUE|ISSUE[ \t]*DATE|ISSUED[ \t]*ON)"
+        r"[ \t:/\-]*"
+        r"("
+        r"\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4}"
+        r"|"
+        r"\d{1,2}[ \t]+[A-Za-z]{3,9}[ \t]+\d{2,4}"
+        r"|"
+        r"\d{4}-\d{2}-\d{2}"
+        r")",
         re.I,
     )
     # LKA-style paired row: Issue + Expiry labels on one line, two dates on the next
@@ -95,10 +103,11 @@ class PassportParser(BaseParser):
         r"(?:[^\n]*)"
         r"DATE[ \t]+OF[ \t]+EXPIR"
         r"[^\n]*\n"
+        r"(?:[^\x00-\x7F][^\n]*\n)*"  # optional Sinhala/Tamil line between labels and dates
         r"[^\d]*"
-        r"(\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4})"
+        r"(\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4}|\d{1,2}[ \t]+[A-Za-z]{3,9}[ \t]+\d{2,4}|\d{4}-\d{2}-\d{2})"
         r"\s+"
-        r"(\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4})",
+        r"(\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4}|\d{1,2}[ \t]+[A-Za-z]{3,9}[ \t]+\d{2,4}|\d{4}-\d{2}-\d{2})",
         re.I,
     )
 

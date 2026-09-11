@@ -52,10 +52,12 @@ class BaseParser(ABC):
         # Try explicit format strings
         for fmt in (
             "%d/%m/%Y", "%d-%m-%Y", "%d.%m.%Y",
+            "%d/%m/%y", "%d-%m-%y", "%d.%m.%y",
             "%Y-%m-%d", "%Y/%m/%d",
             "%d %b %Y", "%d %B %Y",
+            "%d %b %y", "%d %B %y",
             "%b %d, %Y", "%B %d, %Y",
-            "%m/%d/%Y",
+            "%m/%d/%Y", "%m/%d/%y",
         ):
             try:
                 return datetime.strptime(raw, fmt).strftime("%Y-%m-%d")

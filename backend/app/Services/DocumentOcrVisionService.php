@@ -287,9 +287,11 @@ Extraction rules:
 - Always extract sex/gender from the passport bio page or MRZ (M/F/X → Male/Female/Other). Never leave gender empty when sex is visible on the document.
 - gender must be Male, Female, Other, or "".
 - Always extract date of birth (DOB) when visible on the document or MRZ.
+- For passports: issueDate is NOT in the MRZ. Always read the printed "Date of Issue" / "Date of Issuance" / "Issued on" field on the bio-data page. Never leave issueDate empty when that printed date is visible (often near Date of Expiry).
+- Always extract expiryDate (MRZ or printed Date of Expiry).
 - graduationYear must be YYYY or "".
 - Language scores: keep numeric strings as printed (IELTS 0-9, CELPIP 1-12, TEF/TCF as printed).
-- Prefer MRZ on passports when visible.
+- Prefer MRZ on passports for name, passport number, nationality, DOB, sex, and expiry when visible — then still fill issueDate from the printed page.
 - Never invent values. Use "" when unsure.
 - Match fields to the document type (ignore irrelevant keys).
 
@@ -307,7 +309,7 @@ PROMPT;
     private function userPrompt(?string $hint): string
     {
         return match ($hint) {
-            'passport' => 'Document hint: passport bio-data page. Extract passport fields (prefer MRZ) and screen authenticity.',
+            'passport' => 'Document hint: passport bio-data page. Extract all passport fields (prefer MRZ for name/number/DOB/sex/expiry/nationality). Critically: also read the printed Date of Issue (not in MRZ) into issueDate as YYYY-MM-DD. Screen authenticity.',
             'id' => 'Document hint: national ID / CNIC / government identity card (front or back). Extract ID fields and screen authenticity.',
             'licence' => 'Document hint: driving licence (front or back). Extract licence/ID fields and screen authenticity.',
             'education' => 'Document hint: degree, diploma, or academic transcript. Extract institution, degree/course, graduation year, country if present, and screen authenticity.',
@@ -348,7 +350,15 @@ PROMPT;
             'idNumber'         => $this->cleanStr($parsed['idNumber'] ?? ''),
             'dob'              => $this->cleanDate($parsed['dob'] ?? $parsed['dateOfBirth'] ?? $parsed['birthDate'] ?? ''),
             'expiryDate'       => $this->cleanDate($parsed['expiryDate'] ?? $parsed['expiry'] ?? ''),
-            'issueDate'        => $this->cleanDate($parsed['issueDate'] ?? $parsed['dateOfIssue'] ?? ''),
+            'issueDate'        => $this->cleanDate(
+                $parsed['issueDate']
+                ?? $parsed['dateOfIssue']
+                ?? $parsed['date_of_issue']
+                ?? $parsed['dateIssued']
+                ?? $parsed['issuedDate']
+                ?? $parsed['issuedOn']
+                ?? ''
+            ),
             'nationality'      => $this->cleanStr($parsed['nationality'] ?? ''),
             'gender'           => $this->mapGender($parsed['gender'] ?? $parsed['sex'] ?? ''),
             'address'          => $this->cleanStr($parsed['address'] ?? ''),
@@ -518,14 +528,18 @@ PROMPT;
 
             return '';
         }
-        if (preg_match('/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/', $raw, $m)) {
+        if (preg_match('/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/', $raw, $m)) {
             $d = (int) $m[1];
             $mo = (int) $m[2];
             $y = (int) $m[3];
+            if ($y < 100) {
+                $cutoff = ((int) date('Y') + 15) % 100;
+                $y = $y <= $cutoff ? 2000 + $y : 1900 + $y;
+            }
             if ($mo > 12 && $d <= 12) {
                 [$d, $mo] = [$mo, $d];
             }
-            if (checkdate($mo, $d, $y)) {
+            if (checkdate($mo, $d, $y) && $y >= 1900 && $y <= 2100) {
                 return sprintf('%04d-%02d-%02d', $y, $mo, $d);
             }
         }
@@ -537,19 +551,27 @@ PROMPT;
                 return sprintf('%04d-%02d-%02d', $y, $mo, $d);
             }
         }
-        if (preg_match('/^(\d{1,2})\s+([A-Za-z]{3,9})\s+(\d{4})$/', $raw, $m)) {
+        if (preg_match('/^(\d{1,2})\s+([A-Za-z]{3,9})\s+(\d{2,4})$/', $raw, $m)) {
             $mo = $this->monthNameToNumber($m[2]);
             $d = (int) $m[1];
             $y = (int) $m[3];
-            if ($mo && checkdate($mo, $d, $y)) {
+            if ($y < 100) {
+                $cutoff = ((int) date('Y') + 15) % 100;
+                $y = $y <= $cutoff ? 2000 + $y : 1900 + $y;
+            }
+            if ($mo && checkdate($mo, $d, $y) && $y >= 1900 && $y <= 2100) {
                 return sprintf('%04d-%02d-%02d', $y, $mo, $d);
             }
         }
-        if (preg_match('/^([A-Za-z]{3,9})\s+(\d{1,2}),?\s+(\d{4})$/', $raw, $m)) {
+        if (preg_match('/^([A-Za-z]{3,9})\s+(\d{1,2}),?\s+(\d{2,4})$/', $raw, $m)) {
             $mo = $this->monthNameToNumber($m[1]);
             $d = (int) $m[2];
             $y = (int) $m[3];
-            if ($mo && checkdate($mo, $d, $y)) {
+            if ($y < 100) {
+                $cutoff = ((int) date('Y') + 15) % 100;
+                $y = $y <= $cutoff ? 2000 + $y : 1900 + $y;
+            }
+            if ($mo && checkdate($mo, $d, $y) && $y >= 1900 && $y <= 2100) {
                 return sprintf('%04d-%02d-%02d', $y, $mo, $d);
             }
         }
