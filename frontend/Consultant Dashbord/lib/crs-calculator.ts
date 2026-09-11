@@ -566,7 +566,21 @@ export const DEF_PERSON: PersonInput = {
 };
 
 export const DEF_SPOUSE: SpouseInput = {
-  education: "bachelors",
-  ielts: { speaking: 6.0, listening: 6.0, reading: 6.0, writing: 6.0 },
+  education: "none",
+  ielts: { speaking: 0, listening: 0, reading: 0, writing: 0 },
   canadianWorkExp: 0,
 };
+
+/** True when spouse form still looks blank (no edu / language / Canadian WE). */
+export function isBlankSpouseProfile(spouse: SpouseInput): boolean {
+  const scores = [
+    spouse.ielts?.speaking ?? 0,
+    spouse.ielts?.listening ?? 0,
+    spouse.ielts?.reading ?? 0,
+    spouse.ielts?.writing ?? 0,
+  ];
+  const noLang = scores.every((v) => !v || Number(v) === 0);
+  const noEdu = !spouse.education || spouse.education === "none";
+  const noWork = !spouse.canadianWorkExp || Number(spouse.canadianWorkExp) === 0;
+  return noEdu && noLang && noWork;
+}

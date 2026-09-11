@@ -18,6 +18,7 @@ import { WorkspaceSubpageHero } from "../workspace-subpage-hero";
 import { INTAKE_WORKSPACE_TASKS } from "../workspace-flow-ui";
 import { IrccFormExplorer } from "./ircc-form-explorer";
 import { PossiblePathwaysCard } from "./possible-pathways-card";
+import { ConsultantPathwayCatalogPicker } from "./pathway-catalog-picker";
 import {
   HowItWorksCard,
   SimulationStatusBanner,
@@ -26,7 +27,7 @@ import {
 } from "./pathway-calculator-shell";
 import {
   calcCRS, calcFSW, getPathwayInsights, ieltsToCLB,
-  DEF_PERSON, DEF_SPOUSE, EDU_LABELS,
+  DEF_PERSON, DEF_SPOUSE, EDU_LABELS, isBlankSpouseProfile,
   OFFICIAL_CRS_TOOL_URL,
   type PersonInput, type SpouseInput, type CRSBreakdown, type FSWBreakdown, type EducationLevel,
   type PathwayInsight,
@@ -868,6 +869,24 @@ const ALL_PATHWAY_OPTIONS = [
   "Family Sponsorship",
 ] as const;
 
+function pathwayCodeMatchesInsight(
+  code: string | null | undefined,
+  backendValue: string,
+  assignedLabel: string | null,
+): boolean {
+  if (assignedLabel === backendValue) return true;
+  if (!code) return Boolean(assignedLabel && assignedLabel === backendValue);
+  if (code === "ee.fsw" && backendValue.includes("Federal Skilled Worker")) return true;
+  if (code === "ee.cec" && backendValue.includes("Canadian Experience")) return true;
+  if (code === "ee.fst" && backendValue.includes("Skilled Trades")) return true;
+  if (code.startsWith("ee.category") && backendValue.includes("Canadian Experience")) return true;
+  if ((code === "pnp" || code.startsWith("pnp.") || code.startsWith("pilot.")) && backendValue === "Provincial Nominee Program") return true;
+  if (code.startsWith("family") && backendValue === "Family Sponsorship") return true;
+  if (code === "study" && backendValue === "Study Permit") return true;
+  if (code === "work" && backendValue === "Work Permit") return true;
+  return false;
+}
+
 function PathwaySelectRow({
   row,
   isAssigned,
@@ -882,7 +901,7 @@ function PathwaySelectRow({
   isAssigned: boolean;
   isRecommended?: boolean;
   assigning: string | null;
-  onAssign: (backendValue: string, displayName: string) => void;
+  onAssign: (backendValue: string, displayName: string, pathwayCode?: string | null) => void;
   onClear?: () => void;
   showClear?: boolean;
   compact?: boolean;
@@ -976,80 +995,42 @@ function PathwaySelectRow({
 }
 
 function ConsultantPathwayPicker({
+  profileId,
   assignedPathway,
+  assignedPathwayCode,
   assigning,
   onAssign,
 }: {
+  profileId: string;
   assignedPathway: string | null;
+  assignedPathwayCode?: string | null;
   assigning: string | null;
-  onAssign: (backendValue: string, displayName: string) => void;
+  onAssign: (backendValue: string, displayName: string, pathwayCode?: string | null) => void;
 }) {
-  const [selected, setSelected] = useState<string>(ALL_PATHWAY_OPTIONS[0]);
-  const [customPathway, setCustomPathway] = useState("");
-  const useCustom = selected === "__custom__";
-  const pendingValue = useCustom ? customPathway.trim() : selected;
-  const isLoading = Boolean(pendingValue) && assigning === pendingValue;
-
-  useEffect(() => {
-    if (!assignedPathway) return;
-    if ((ALL_PATHWAY_OPTIONS as readonly string[]).includes(assignedPathway)) {
-      setSelected(assignedPathway);
-      setCustomPathway("");
-    } else {
-      setSelected("__custom__");
-      setCustomPathway(assignedPathway);
-    }
-  }, [assignedPathway]);
-
   return (
-    <div className="rounded-xl border border-dashed border-primary/30 bg-primary/[0.03] p-4">
-      <p className="text-sm font-semibold">Your choice — assign any pathway</p>
-      <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-        Suggestions above are based on the profile. As the consultant, you decide the final immigration route.
-      </p>
-
-      <div className="mt-4 space-y-3">
-        <select
-          value={selected}
-          onChange={(e) => setSelected(e.target.value)}
-          className="h-10 w-full rounded-xl border border-border/70 bg-background px-3 text-sm outline-none focus:border-primary/50"
-        >
-          {ALL_PATHWAY_OPTIONS.map((p) => (
-            <option key={p} value={p}>{pathwayShortName(p)}</option>
-          ))}
-          <option value="__custom__">Other pathway (type your own)</option>
-        </select>
-
-        {useCustom && (
-          <input
-            type="text"
-            value={customPathway}
-            onChange={(e) => setCustomPathway(e.target.value)}
-            placeholder="e.g. Atlantic Immigration Program"
-            maxLength={100}
-            className="h-10 w-full rounded-xl border border-border/70 bg-background px-3 text-sm outline-none focus:border-primary/50"
-          />
-        )}
-
-        <Button
-          className="w-full gap-2 rounded-xl"
-          variant="outline"
-          disabled={!pendingValue || isLoading || assignedPathway === pendingValue}
-          onClick={() => onAssign(pendingValue, pendingValue)}
-        >
-          {isLoading ? <Loader2 className="size-4 animate-spin" /> : <Award className="size-4" />}
-          {assignedPathway === pendingValue ? "Already assigned" : "Assign selected pathway"}
-        </Button>
-      </div>
-    </div>
+    <ConsultantPathwayCatalogPicker
+      profileId={profileId}
+      assignedPathway={assignedPathway}
+      assignedPathwayCode={assignedPathwayCode}
+      assigning={assigning}
+      onAssign={({ pathway_code, immigration_pathway, crs_backend_value }) => {
+        onAssign(
+          crs_backend_value || immigration_pathway,
+          immigration_pathway,
+          pathway_code,
+        );
+      }}
+    />
   );
 }
 
 function PathwayAssignPanel({
+  profileId,
   crs,
   fsw,
   person,
   assignedPathway,
+  assignedPathwayCode,
   assigning,
   onAssign,
   onClear,
@@ -1057,12 +1038,14 @@ function PathwayAssignPanel({
   hasSpouse,
   spouse,
 }: {
+  profileId: string;
   crs: CRSBreakdown;
   fsw: FSWBreakdown;
   person: PersonInput;
   assignedPathway: string | null;
+  assignedPathwayCode?: string | null;
   assigning: string | null;
-  onAssign: (backendValue: string, displayName: string) => void;
+  onAssign: (backendValue: string, displayName: string, pathwayCode?: string | null) => void;
   onClear?: () => void;
   insights?: PathwayInsight[];
   hasSpouse?: boolean;
@@ -1120,7 +1103,7 @@ function PathwayAssignPanel({
                 <PathwaySelectRow
                   key={row.backendValue}
                   row={row}
-                  isAssigned={assignedPathway === row.backendValue}
+                  isAssigned={pathwayCodeMatchesInsight(assignedPathwayCode, row.backendValue, assignedPathway)}
                   isRecommended={row.backendValue === recommendedId}
                   assigning={assigning}
                   onAssign={onAssign}
@@ -1152,7 +1135,7 @@ function PathwayAssignPanel({
                   <PathwaySelectRow
                     key={row.backendValue}
                     row={row}
-                    isAssigned={assignedPathway === row.backendValue}
+                    isAssigned={pathwayCodeMatchesInsight(assignedPathwayCode, row.backendValue, assignedPathway)}
                     assigning={assigning}
                     onAssign={onAssign}
                     onClear={onClear}
@@ -1166,7 +1149,9 @@ function PathwayAssignPanel({
         )}
 
         <ConsultantPathwayPicker
+          profileId={profileId}
           assignedPathway={assignedPathway}
+          assignedPathwayCode={assignedPathwayCode}
           assigning={assigning}
           onAssign={onAssign}
         />
@@ -1277,12 +1262,20 @@ function AssessmentNotesCard({
 // ─── Accompanying spouse card (prominent toggle) ─────────────────────────────
 
 function AccompanyingSpouseCard({
-  enabled, onChange, onRunSimulation,
+  enabled, onChange, onRunSimulation, questionnaireMarried, spouseIncomplete,
 }: {
   enabled: boolean;
   onChange: (v: boolean) => void;
   onRunSimulation?: () => void;
+  /** null = questionnaire not loaded yet */
+  questionnaireMarried?: boolean | null;
+  spouseIncomplete?: boolean;
 }) {
+  const overrideOn =
+    questionnaireMarried === false && enabled;
+  const marriedButBlank =
+    enabled && (questionnaireMarried === true || questionnaireMarried == null) && !!spouseIncomplete;
+
   return (
     <div className={cn(
       "rounded-2xl border p-4 transition-all sm:p-5",
@@ -1320,6 +1313,26 @@ function AccompanyingSpouseCard({
         </div>
       </div>
 
+      {overrideOn && (
+        <div className="mt-3 flex items-start gap-2 rounded-xl border border-amber-300/70 bg-amber-50/90 px-3 py-2.5 text-xs text-amber-950">
+          <AlertCircle className="mt-0.5 size-3.5 shrink-0 text-amber-700" />
+          <p>
+            Questionnaire shows this client as <strong>not married</strong>. Spouse scoring is a consultant override —
+            fill real spouse education and language scores, or scores will treat the spouse as blank (0 spouse points).
+          </p>
+        </div>
+      )}
+
+      {marriedButBlank && (
+        <div className="mt-3 flex items-start gap-2 rounded-xl border border-amber-300/70 bg-amber-50/90 px-3 py-2.5 text-xs text-amber-950">
+          <AlertCircle className="mt-0.5 size-3.5 shrink-0 text-amber-700" />
+          <p>
+            Spouse profile is still empty. Enter spouse education and English scores before trusting this CRS —
+            accompanying applicants use the with-spouse point tables even when spouse factors are 0.
+          </p>
+        </div>
+      )}
+
       {enabled && onRunSimulation && (
         <div className="mt-4 flex flex-col gap-2 border-t border-violet-200/50 pt-4 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-xs text-violet-900/80">
@@ -1330,6 +1343,7 @@ function AccompanyingSpouseCard({
             size="sm"
             className="shrink-0 gap-1.5 rounded-xl border-violet-300 bg-white/80 text-violet-900 hover:bg-violet-50"
             onClick={onRunSimulation}
+            disabled={spouseIncomplete}
           >
             <Users className="size-3.5" />
             Compare main vs spouse
@@ -1349,11 +1363,14 @@ export function PathwayCalculatorClient({ paramsPromise }: { paramsPromise: Prom
   const [main,      setMain]      = useState<ExtendedPersonInput>(EXT_DEF_PERSON);
   const [spouse,    setSpouse]    = useState<SpouseInput & { age?: number; englishTestType?: "ielts" | "celpip" }>({ ...DEF_SPOUSE, age: 28 });
   const [hasSpouse,         setHasSpouse]         = useState(false);
+  /** Marital status from last questionnaire load; null until loaded. */
+  const [questionnaireMarried, setQuestionnaireMarried] = useState<boolean | null>(null);
   const [principalApplicant, setPrincipalApplicant] = useState<"main" | "spouse">("main");
   const [showCompareModal,  setShowCompareModal]  = useState(false);
   const [showScoreBreakdown, setShowScoreBreakdown] = useState(false);
 
   const [assignedPathway, setAssignedPathway] = useState<string | null>(null);
+  const [assignedPathwayCode, setAssignedPathwayCode] = useState<string | null>(null);
   const [assignedPackageId, setAssignedPackageId] = useState<number | null>(null);
   const [agreementSentAt, setAgreementSentAt] = useState<string | null>(null);
   const [assigning,       setAssigning]       = useState<string | null>(null);
@@ -1390,6 +1407,7 @@ export function PathwayCalculatorClient({ paramsPromise }: { paramsPromise: Prom
       .then(r => r.json())
       .then(data => {
         setAssignedPathway(data.case_file?.immigration_pathway ?? null);
+        setAssignedPathwayCode(data.case_file?.pathway_code ?? null);
         setAssignedPackageId(data.case_file?.assigned_ircc_category_id ?? null);
         setAgreementSentAt(data.case_file?.agreement_sent_at ?? null);
         setAssessmentNotes(data.case_file?.pathway_assessment_notes ?? "");
@@ -1426,12 +1444,26 @@ export function PathwayCalculatorClient({ paramsPromise }: { paramsPromise: Prom
     const s = overrides?.spouse ?? spouse;
     const hs = overrides?.hasSpouse ?? hasSpouse;
     const p = overrides?.principal ?? principalApplicant;
+
+    if (hs && isBlankSpouseProfile(s) && source === "manual") {
+      const proceed = window.confirm(
+        "Spouse profile is still empty (no education / English scores).\n\n" +
+        "Calculate anyway? The score will use with-spouse tables for the principal applicant and 0 spouse factor points until you fill spouse details.",
+      );
+      if (!proceed) return;
+    }
+
     setCalcLoading(true);
     try {
       const payload = toApiPayload(m, s, hs, p);
       const result = await calculateCrs(payload);
       setSimulation({ result, inputKey: JSON.stringify(payload), source });
       setApiResult(result);
+      if (hs && isBlankSpouseProfile(s)) {
+        setPrefillMessage(
+          "CRS calculated with an empty spouse profile (0 spouse points). Fill spouse education and language scores for an accurate accompanying score.",
+        );
+      }
     } catch {
       setSimulation(null);
       setApiResult(null);
@@ -1474,18 +1506,25 @@ export function PathwayCalculatorClient({ paramsPromise }: { paramsPromise: Prom
         return;
       }
       const nextMain = mergePersonInput(main, mapped.main);
-      const nextSpouse = mergeSpouseInput(spouse, mapped.spouse);
-      const nextHasSpouse = mapped.hasSpouse || hasSpouse;
+      const nextSpouse = mapped.hasSpouse
+        ? mergeSpouseInput(spouse, mapped.spouse)
+        : { ...DEF_SPOUSE, age: 28 };
+      const nextHasSpouse = mapped.hasSpouse;
+      setQuestionnaireMarried(mapped.hasSpouse);
       setMain(nextMain);
       setSpouse(nextSpouse);
-      if (mapped.hasSpouse) setHasSpouse(true);
+      setHasSpouse(nextHasSpouse);
+      if (!nextHasSpouse) setPrincipalApplicant("main");
       await runSimulation("questionnaire", {
         main: nextMain,
         spouse: nextSpouse,
         hasSpouse: nextHasSpouse,
       });
+      const blankSpouseNote = nextHasSpouse && isBlankSpouseProfile(nextSpouse)
+        ? " Spouse details were missing in the questionnaire — fill them before relying on accompanying CRS points."
+        : "";
       setPrefillMessage(
-        `Loaded ${mapped.filledFields.length} field(s) and ran CRS simulation. Review values below — simulated result is not saved until you record it on the case file.`,
+        `Loaded ${mapped.filledFields.length} field(s) and ran CRS simulation.${blankSpouseNote} Review values below — simulated result is not saved until you record it on the case file.`,
       );
     } catch (e) {
       setPrefillMessage(e instanceof Error ? e.message : "Could not load questionnaire.");
@@ -1549,19 +1588,28 @@ export function PathwayCalculatorClient({ paramsPromise }: { paramsPromise: Prom
     setStep(2);
   }
 
-  async function assignPathway(backendValue: string, displayName: string) {
-    setAssigning(backendValue);
+  async function assignPathway(backendValue: string, displayName: string, pathwayCode?: string | null) {
+    setAssigning(pathwayCode || backendValue);
     try {
       const res = await fetch(
         `${API}/consultant/clients/${id}/case-file/select-pathway`,
         {
           method: "PATCH",
           headers: authHeaders(),
-          body: JSON.stringify({ immigration_pathway: backendValue }),
+          body: JSON.stringify({
+            immigration_pathway: displayName || backendValue,
+            pathway_code: pathwayCode ?? undefined,
+          }),
         }
       );
       if (res.ok) {
-        setAssignedPathway(backendValue);
+        const json = await res.json().catch(() => ({}));
+        setAssignedPathway(json?.case_file?.immigration_pathway ?? displayName ?? backendValue);
+        setAssignedPathwayCode(json?.case_file?.pathway_code ?? pathwayCode ?? null);
+        const autoId = json?.case_file?.assigned_ircc_category_id
+          ?? json?.package_suggestion?.ircc_category_id
+          ?? null;
+        if (autoId) setAssignedPackageId(Number(autoId));
         setTimeout(() => setStep(3), 800);
       }
     } finally {
@@ -1586,6 +1634,7 @@ export function PathwayCalculatorClient({ paramsPromise }: { paramsPromise: Prom
         return;
       }
       setAssignedPathway(null);
+      setAssignedPathwayCode(null);
       setAssignedPackageId(null);
       setSaveMessage(null);
       if (step === 3) setStep(2);
@@ -1667,9 +1716,17 @@ export function PathwayCalculatorClient({ paramsPromise }: { paramsPromise: Prom
 
               <AccompanyingSpouseCard
                 enabled={hasSpouse}
+                questionnaireMarried={questionnaireMarried}
+                spouseIncomplete={hasSpouse && isBlankSpouseProfile(spouse)}
                 onChange={(v) => {
                   setHasSpouse(v);
-                  if (!v) setPrincipalApplicant("main");
+                  if (!v) {
+                    setPrincipalApplicant("main");
+                    return;
+                  }
+                  if (isBlankSpouseProfile(spouse)) {
+                    setSpouse({ ...DEF_SPOUSE, age: spouse.age ?? 28 });
+                  }
                 }}
                 onRunSimulation={() => setShowCompareModal(true)}
               />
@@ -1720,10 +1777,12 @@ export function PathwayCalculatorClient({ paramsPromise }: { paramsPromise: Prom
               )}
 
               <PathwayAssignPanel
+                profileId={id}
                 crs={activeCRS}
                 fsw={activeFSW}
                 person={activePerson}
                 assignedPathway={assignedPathway}
+                assignedPathwayCode={assignedPathwayCode}
                 assigning={assigning}
                 onAssign={assignPathway}
                 onClear={canClearPathway ? clearPathway : undefined}
@@ -1786,6 +1845,7 @@ export function PathwayCalculatorClient({ paramsPromise }: { paramsPromise: Prom
               <IrccFormExplorer
                 clientProfileId={id}
                 assignedCategoryId={assignedPackageId}
+                immigrationPathway={assignedPathway}
                 onAssigned={setAssignedPackageId}
               />
               <div className="flex justify-end">

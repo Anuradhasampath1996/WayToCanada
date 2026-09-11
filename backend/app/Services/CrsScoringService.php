@@ -53,7 +53,7 @@ class CrsScoringService
     private function normalizeSpouse(array $raw): array
     {
         return [
-            'education'           => $raw['education'] ?? 'bachelors',
+            'education'           => $raw['education'] ?? 'none',
             'english_test_type'   => $raw['english_test_type'] ?? 'ielts',
             'english_scores'      => $raw['english_scores'] ?? ['speaking' => 0, 'listening' => 0, 'reading' => 0, 'writing' => 0],
             'canadian_work_years' => (float) ($raw['canadian_work_years'] ?? 0),
