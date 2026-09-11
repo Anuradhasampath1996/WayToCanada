@@ -34,7 +34,7 @@ class GovernmentFormOfficialSyncServiceTest extends TestCase
 
     public function test_matching_hash_is_up_to_date_and_does_not_create_draft(): void
     {
-        $pdfBytes = '%PDF-1.4 official-same-content';
+        $pdfBytes = $this->fakePdfBytes('official-same-content');
         $sha = hash('sha256', $pdfBytes);
 
         $active = $this->createActiveVersion('IMM5476', '11-2025', $sha);
@@ -54,8 +54,8 @@ class GovernmentFormOfficialSyncServiceTest extends TestCase
 
     public function test_hash_change_creates_mapping_review_draft_not_active(): void
     {
-        $oldBytes = '%PDF-1.4 old-template-bytes';
-        $newBytes = '%PDF-1.4 new-official-template-bytes!!';
+        $oldBytes = $this->fakePdfBytes('old-template-bytes');
+        $newBytes = $this->fakePdfBytes('new-official-template-bytes!!');
         $oldSha = hash('sha256', $oldBytes);
         $newSha = hash('sha256', $newBytes);
 
@@ -84,17 +84,14 @@ class GovernmentFormOfficialSyncServiceTest extends TestCase
         $this->assertSame(GovernmentFormMappingStatus::MAPPING_REVIEW_REQUIRED, $draft->mapping_status);
         $this->assertNotSame(GovernmentFormVersionStatus::ACTIVE, $draft->status);
 
-        // Previous active stays active until explicit activate.
         $this->assertSame(GovernmentFormVersionStatus::ACTIVE, $active->fresh()->status);
         $this->assertSame(GovernmentFormMappingStatus::VERIFIED, $active->fresh()->mapping_status);
-
-        // Mappings cloned for review.
         $this->assertSame(1, $draft->mappings()->count());
     }
 
     public function test_activate_requires_verified_mappings(): void
     {
-        $bytes = '%PDF-1.4 pending';
+        $bytes = $this->fakePdfBytes('pending');
         $sha = hash('sha256', $bytes);
         Storage::disk('local')->put('government-forms-poc/templates/official/imm0008-test.pdf', $bytes);
 
@@ -122,8 +119,8 @@ class GovernmentFormOfficialSyncServiceTest extends TestCase
 
     public function test_activate_after_mark_verified_deprecates_previous_active(): void
     {
-        $oldBytes = '%PDF-1.4 old';
-        $newBytes = '%PDF-1.4 newer-content';
+        $oldBytes = $this->fakePdfBytes('old');
+        $newBytes = $this->fakePdfBytes('newer-content');
         $oldSha = hash('sha256', $oldBytes);
         $newSha = hash('sha256', $newBytes);
 
@@ -158,7 +155,7 @@ class GovernmentFormOfficialSyncServiceTest extends TestCase
 
     public function test_ensure_template_downloads_direct_pdf_when_missing(): void
     {
-        $pdfBytes = "%PDF-1.4 restored-from-canada";
+        $pdfBytes = $this->fakePdfBytes('restored-from-canada');
         $sha = hash('sha256', $pdfBytes);
         $relative = 'government-forms-poc/templates/official/imm5476-missing.pdf';
 
@@ -194,6 +191,11 @@ class GovernmentFormOfficialSyncServiceTest extends TestCase
         $this->assertNotNull($result['path']);
         $this->assertTrue(Storage::disk('local')->exists($relative));
         $this->assertSame($sha, hash('sha256', Storage::disk('local')->get($relative)));
+    }
+
+    private function fakePdfBytes(string $marker): string
+    {
+        return '%PDF-1.4 '.$marker.str_repeat('0', 32);
     }
 
     private function createActiveVersion(string $formCode, string $label, string $sha): GovernmentFormVersion

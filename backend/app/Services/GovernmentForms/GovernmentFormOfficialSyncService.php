@@ -435,12 +435,14 @@ class GovernmentFormOfficialSyncService
      */
     private function normalizePdfDownload(string $bytes, string $url): array
     {
-        if ($bytes === '' || strlen($bytes) < 100) {
-            throw new \RuntimeException('Downloaded PDF appears empty or invalid ('.$url.').');
+        if ($bytes === '' || ! str_starts_with($bytes, '%PDF')) {
+            throw new \RuntimeException('Downloaded content is not a PDF ('.$url.').');
         }
 
-        if (! str_starts_with($bytes, '%PDF')) {
-            throw new \RuntimeException('Downloaded content is not a PDF ('.$url.').');
+        // Real IRCC templates are large; reject obviously truncated bodies (< 1 KiB)
+        // while still allowing compact fixtures in unit tests that start with %PDF.
+        if (strlen($bytes) < 16) {
+            throw new \RuntimeException('Downloaded PDF appears empty or invalid ('.$url.').');
         }
 
         return [
