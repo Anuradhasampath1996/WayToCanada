@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { BookOpen, ChevronDown, FileCheck, FileText, RotateCcw, Send, CheckCircle2, Download } from "lucide-react";
+import { BookOpen, ChevronDown, FileCheck, FileText, RotateCcw, Send, CheckCircle2, Download, Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -33,6 +33,15 @@ interface Level3 {
 interface Level2 { id: number; label: string; children: Level3[]; }
 interface Level1 { id: number; label: string; children: Level2[]; }
 
+interface PackageSuggestion {
+  ircc_category_id: number | null;
+  label: string | null;
+  path: { id: number; label: string; level: number }[];
+  source: "deterministic" | "maple" | "none";
+  reason: string;
+  confidence: "high" | "medium" | "low";
+}
+
 // ─── Module-level cache ─────────────────────────────────────────────────────
 
 let treeCache: Level1[] | null = null;
@@ -54,6 +63,17 @@ function authHeaders(): Record<string, string> {
   const h: Record<string, string> = { "Content-Type": "application/json", Accept: "application/json" };
   if (token) h.Authorization = `Bearer ${token}`;
   return h;
+}
+
+function findPathIds(tree: Level1[], leafId: number): { l1: number; l2: number; l3: number } | null {
+  for (const l1 of tree) {
+    for (const l2 of l1.children ?? []) {
+      for (const l3 of l2.children ?? []) {
+        if (l3.id === leafId) return { l1: l1.id, l2: l2.id, l3: l3.id };
+      }
+    }
+  }
+  return null;
 }
 
 // ─── Custom styled select ────────────────────────────────────────────────────
@@ -227,10 +247,12 @@ function StepConnector({ active }: { active: boolean }) {
 export function IrccFormExplorer({
   clientProfileId,
   assignedCategoryId: initialAssignedId,
+  immigrationPathway,
   onAssigned,
 }: {
   clientProfileId: string;
   assignedCategoryId?: number | null;
+  immigrationPathway?: string | null;
   onAssigned?: (categoryId: number) => void;
 }) {
   const [tree, setTree] = useState<Level1[]>([]);
@@ -238,12 +260,16 @@ export function IrccFormExplorer({
   const [error, setError] = useState(false);
   const [assigning, setAssigning] = useState(false);
   const [assignedCategoryId, setAssignedCategoryId] = useState<number | null>(initialAssignedId ?? null);
+  const [suggestion, setSuggestion] = useState<PackageSuggestion | null>(null);
+  const [autoFilled, setAutoFilled] = useState(false);
+  const [manualOverride, setManualOverride] = useState(false);
 
   const [sel1, setSel1] = useState<number | "">("");
   const [sel2, setSel2] = useState<number | "">("");
   const [sel3, setSel3] = useState<number | "">("");
 
   const resultRef = useRef<HTMLDivElement>(null);
+  const appliedLeafRef = useRef<number | null>(null);
 
   useEffect(() => {
     setAssignedCategoryId(initialAssignedId ?? null);
@@ -254,6 +280,95 @@ export function IrccFormExplorer({
       .then(data => { setTree(data); setLoading(false); })
       .catch(() => { setError(true); setLoading(false); });
   }, []);
+
+  // Prefill dropdowns from assigned package, else fetch Maple/deterministic suggestion.
+  useEffect(() => {
+    if (loading || tree.length === 0 || manualOverride) return;
+
+    let cancelled = false;
+
+    (async () => {
+      // Always load suggestion when pathway is present (for mismatch banner + Maple reason).
+      let s: PackageSuggestion | null = null;
+      if (immigrationPathway) {
+        try {
+          const res = await fetch(
+            `${API}/consultant/clients/${clientProfileId}/case-file/suggested-application-package`,
+            { headers: authHeaders() },
+          );
+          if (res.ok && !cancelled) {
+            const json = await res.json();
+            s = (json.suggestion as PackageSuggestion | undefined) ?? null;
+            if (s) setSuggestion(s);
+            if (json.package_auto_healed && json.assigned_ircc_category_id) {
+              const healedId = Number(json.assigned_ircc_category_id);
+              setAssignedCategoryId(healedId);
+              onAssigned?.(healedId);
+              appliedLeafRef.current = null;
+            }
+          }
+        } catch {
+          /* ignore */
+        }
+      }
+
+      if (cancelled) return;
+
+      const targetId = assignedCategoryId;
+      if (targetId && appliedLeafRef.current !== targetId) {
+        const path = findPathIds(tree, targetId);
+        if (path) {
+          setSel1(path.l1);
+          setSel2(path.l2);
+          setSel3(path.l3);
+          setAutoFilled(true);
+          appliedLeafRef.current = targetId;
+        }
+        return;
+      }
+
+      if (targetId || !immigrationPathway || !s?.ircc_category_id) return;
+      if (appliedLeafRef.current !== null) return;
+
+      const leafId = s.ircc_category_id;
+      const path = findPathIds(tree, leafId);
+      if (!path) return;
+
+      setSel1(path.l1);
+      setSel2(path.l2);
+      setSel3(path.l3);
+      setAutoFilled(true);
+      appliedLeafRef.current = leafId;
+
+      setAssigning(true);
+      try {
+        const assignRes = await fetch(
+          `${API}/consultant/clients/${clientProfileId}/case-file/assign-application-package`,
+          {
+            method: "PATCH",
+            headers: authHeaders(),
+            body: JSON.stringify({ ircc_category_id: leafId }),
+          },
+        );
+        if (assignRes.ok) {
+          setAssignedCategoryId(leafId);
+          onAssigned?.(leafId);
+        }
+      } finally {
+        setAssigning(false);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [
+    loading,
+    tree,
+    assignedCategoryId,
+    immigrationPathway,
+    clientProfileId,
+    manualOverride,
+    onAssigned,
+  ]);
 
   useEffect(() => {
     if (sel3 !== "" && resultRef.current) {
@@ -275,14 +390,26 @@ export function IrccFormExplorer({
       if (res.ok) {
         setAssignedCategoryId(categoryId);
         onAssigned?.(categoryId);
-        alert("Application package assigned. The client can now fill the assigned forms in their dashboard (Pathway Recommendation step).");
+        appliedLeafRef.current = categoryId;
       }
     } finally {
       setAssigning(false);
     }
   }
 
-  function reset() { setSel1(""); setSel2(""); setSel3(""); }
+  function reset() {
+    setSel1("");
+    setSel2("");
+    setSel3("");
+    setManualOverride(true);
+    setAutoFilled(false);
+    appliedLeafRef.current = null;
+  }
+
+  const markManual = () => {
+    setManualOverride(true);
+    setAutoFilled(false);
+  };
 
   const level2 = sel1 !== "" ? (tree.find(n => n.id === sel1)?.children ?? []) : [];
   const level3 = sel2 !== "" ? (level2.find(n => n.id === sel2)?.children ?? []) : [];
@@ -301,7 +428,7 @@ export function IrccFormExplorer({
           <div>
             <p className="text-sm font-semibold">IRCC Application Forms & Guides</p>
             <p className="text-xs text-muted-foreground">
-              Select a package, then assign it so the client can access documents in their dashboard
+              Auto-fills from the assigned pathway — change only if you need a different package
             </p>
           </div>
         </div>
@@ -329,17 +456,61 @@ export function IrccFormExplorer({
 
         {!loading && !error && (
           <div className="space-y-0">
+            {autoFilled && immigrationPathway && (
+              <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50/80 px-3 py-2.5 text-sm text-emerald-950">
+                <p className="flex items-center gap-1.5 font-medium">
+                  <Sparkles className="h-3.5 w-3.5 text-emerald-700" />
+                  Auto-selected from pathway
+                  {suggestion?.source === "maple" ? " (Maple)" : ""}
+                </p>
+                <p className="mt-0.5 text-xs text-emerald-800">
+                  {suggestion?.reason || `Matched “${immigrationPathway}”. Change the dropdowns only if this package is wrong.`}
+                </p>
+              </div>
+            )}
+
+            {suggestion?.ircc_category_id
+              && assignedCategoryId
+              && suggestion.ircc_category_id !== assignedCategoryId
+              && (
+              <div className="mb-4 flex flex-col gap-2 rounded-lg border border-amber-200 bg-amber-50/80 px-3 py-2.5 text-sm text-amber-950 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-xs">
+                  Assigned package may not match <span className="font-medium">{immigrationPathway}</span>.
+                  Suggested: <span className="font-medium">{suggestion.label}</span>
+                </p>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8 shrink-0 border-amber-300 bg-white text-xs"
+                  disabled={assigning}
+                  onClick={() => {
+                    const path = findPathIds(tree, suggestion.ircc_category_id!);
+                    if (!path) return;
+                    setManualOverride(false);
+                    setSel1(path.l1);
+                    setSel2(path.l2);
+                    setSel3(path.l3);
+                    setAutoFilled(true);
+                    appliedLeafRef.current = suggestion.ircc_category_id;
+                    void assignPackage(suggestion.ircc_category_id!);
+                  }}
+                >
+                  Use suggested package
+                </Button>
+              </div>
+            )}
+
             <StepSelect step={1} stepLabel="What do you want to do?" placeholder="— Select a category —"
               value={sel1} options={tree} disabled={false}
-              onChange={v => { setSel1(v); setSel2(""); setSel3(""); }} />
+              onChange={v => { markManual(); setSel1(v); setSel2(""); setSel3(""); }} />
             <StepConnector active={sel1 !== ""} />
             <StepSelect step={2} stepLabel="Sub-category" placeholder="— Select a sub-category —"
               value={sel2} options={level2} disabled={sel1 === ""}
-              onChange={v => { setSel2(v); setSel3(""); }} />
+              onChange={v => { markManual(); setSel2(v); setSel3(""); }} />
             <StepConnector active={sel2 !== ""} />
             <StepSelect step={3} stepLabel="Specific application" placeholder="— Select a specific application —"
               value={sel3} options={level3} disabled={sel2 === ""}
-              onChange={v => setSel3(v)} />
+              onChange={v => { markManual(); setSel3(v); }} />
 
             {result && selectedLeaf && (
               <div ref={resultRef} className="pt-4">
@@ -357,7 +528,9 @@ export function IrccFormExplorer({
 
             {!result && sel1 === "" && (
               <p className="text-xs text-muted-foreground text-center pt-4 pb-1">
-                Select all 3 levels above to view and assign the application package to your client.
+                {immigrationPathway
+                  ? "Loading the package that matches this pathway…"
+                  : "Assign a pathway first, or select all 3 levels manually."}
               </p>
             )}
           </div>
