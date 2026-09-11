@@ -428,10 +428,13 @@ export function SubscribeClient({ packageId, packageName, price, billingCycle, l
               </div>
             ) : null}
 
-            <div className="ck-cards" aria-hidden>
-              <span className="ck-card visa">VISA</span>
-              <span className="ck-card mc">MC</span>
-              <span className="ck-card amex">AMEX</span>
+            <div className="ck-cards">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/brand/payments/visa.png" alt="Visa" className="ck-card-img" />
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/brand/payments/mastercard.png" alt="Mastercard" className="ck-card-img" />
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/brand/payments/amex.png" alt="American Express" className="ck-card-img" />
             </div>
 
             <button type="button" className="ck-pay" onClick={handleStripeCheckout} disabled={!canPay}>
@@ -701,27 +704,20 @@ const CK_CSS = `
 .ck-cards {
   display: flex;
   align-items: center;
-  gap: 0.4rem;
-  padding-top: 0.25rem;
+  gap: 0.5rem;
+  padding-top: 0.35rem;
 }
 
-.ck-card {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  height: 24px;
-  min-width: 40px;
-  padding: 0 0.4rem;
+.ck-card-img {
+  height: 28px;
+  width: auto;
+  display: block;
+  object-fit: contain;
   border-radius: 4px;
-  font-size: 0.58rem;
-  font-weight: 800;
-  letter-spacing: 0.04em;
-  color: #fff;
+  border: 1px solid var(--line);
+  background: #fff;
+  padding: 2px 4px;
 }
-
-.ck-card.visa { background: #1a1f71; }
-.ck-card.mc { background: #eb001b; }
-.ck-card.amex { background: #2e77bc; }
 
 .ck-pay {
   display: inline-flex;
