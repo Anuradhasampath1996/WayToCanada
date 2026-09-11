@@ -1,10 +1,16 @@
+FROM eclipse-temurin:17-jre-jammy AS jre
+
 FROM php:8.2-cli
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     git curl libpng-dev libonig-dev libxml2-dev libzip-dev zip unzip libpq-dev \
-    openjdk-17-jre-headless \
     && docker-php-ext-install pdo_pgsql pgsql mbstring exif pcntl bcmath gd zip \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Java 17 JRE for government-form PDF processor (avoid distro openjdk package drift)
+COPY --from=jre /opt/java/openjdk /opt/java/openjdk
+ENV JAVA_HOME=/opt/java/openjdk
+ENV PATH="${JAVA_HOME}/bin:${PATH}"
 
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
@@ -27,7 +33,7 @@ COPY docker/php/form-processor/ /var/www/form-processor/
 # Keep monorepo-relative fixtures available for any hardcoded fallbacks
 COPY form-processor-poc/fixtures/ /var/www/form-processor/fixtures/
 ENV GOVERNMENT_FORM_PROCESSOR_JAR=/var/www/form-processor/government-form-poc-itext-0.1.0-SNAPSHOT.jar \
-    GOVERNMENT_FORM_PROCESSOR_JAVA=java \
+    GOVERNMENT_FORM_PROCESSOR_JAVA=/opt/java/openjdk/bin/java \
     GOVERNMENT_FORM_PROCESSOR_DRIVER=jar
 
 RUN test -f /var/www/form-processor/government-form-poc-itext-0.1.0-SNAPSHOT.jar \
