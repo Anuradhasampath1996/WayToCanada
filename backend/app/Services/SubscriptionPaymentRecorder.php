@@ -499,8 +499,8 @@ class SubscriptionPaymentRecorder
 
         $category = $record->payment_category ?? SubscriptionPaymentRecord::CATEGORY_SUBSCRIPTION;
         $invoiceDownload = $audience === 'consultant'
-            ? url("/api/v1/consultant/billing/payments/{$record->id}/invoice")
-            : url("/api/v1/admin/subscription-payments/{$record->id}/invoice");
+            ? "/api/v1/consultant/billing/payments/{$record->id}/invoice"
+            : "/api/v1/admin/subscription-payments/{$record->id}/invoice";
 
         return [
             'id'                 => $record->id,

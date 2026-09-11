@@ -30,6 +30,12 @@ return [
         'http://app.rcicmaster.com',
         'http://consultant.rcicmaster.com',
         'http://portal.rcicmaster.com',
+        'https://consultant.rcicmaster.ca',
+        'https://admin.rcicmaster.ca',
+        'https://app.rcicmaster.ca',
+        'https://apply.rcicmaster.ca',
+        'https://rcicmaster.ca',
+        'https://www.rcicmaster.ca',
     ],
 
     'allowed_origins_patterns' => [
@@ -37,6 +43,7 @@ return [
         '#^https?://127\.0\.0\.1:\d+$#',
         '#^https?://10\.0\.2\.2:\d+$#',
         '#^https?://([a-z0-9-]+\.)?rcicmaster\.com$#',
+        '#^https?://([a-z0-9-]+\.)?rcicmaster\.ca$#',
     ],
 
     'allowed_headers' => ['*'],

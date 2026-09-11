@@ -53,10 +53,16 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 const API = (process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000") + "/api/v1";
 
 function authHeaders(json = true, accept = "application/json"): Record<string, string> {
-  const token =
+  const raw =
     (typeof document !== "undefined"
       ? document.cookie.match(/wtc_consultant_token=([^;]+)/)?.[1]
       : undefined) ?? localStorage.getItem("wtc_consultant_token") ?? "";
+  let token = raw;
+  try {
+    token = raw ? decodeURIComponent(raw) : "";
+  } catch {
+    token = raw;
+  }
   return {
     ...(json ? { "Content-Type": "application/json" } : {}),
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -167,33 +173,48 @@ function effectiveTaxAmount(inv: Invoice): number {
 
 async function downloadInvoicePdf(inv: Invoice) {
   const recordId = inv.payment_record_id ?? (/^\d+$/.test(inv.id) ? Number(inv.id) : null);
-  // Always use our branded invoice API — Stripe PDF URLs fail fetch() with CORS ("Failed to fetch").
-  const url =
-    inv.invoice_download ??
-    (recordId ? `${API}/consultant/billing/payments/${recordId}/invoice` : null);
-
-  if (!url) {
+  if (!recordId) {
     throw new Error("Invoice PDF is not available for this payment.");
   }
 
-  const res = await fetch(url, { headers: authHeaders(false, "application/pdf") });
+  // Always build from NEXT_PUBLIC_API_URL — never trust backend absolute urls()
+  // (wrong APP_URL on the server causes cross-host fetch → browser "Failed to fetch").
+  const url = `${API}/consultant/billing/payments/${recordId}/invoice`;
+
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      headers: {
+        ...authHeaders(false, "application/pdf, application/json"),
+      },
+    });
+  } catch {
+    throw new Error("Could not reach the invoice service. Please refresh and try again.");
+  }
+
   if (!res.ok) {
     let message = "Failed to download invoice.";
-    if ((res.headers.get("Content-Type") ?? "").includes("application/json")) {
+    const contentType = res.headers.get("Content-Type") ?? "";
+    if (contentType.includes("application/json")) {
       const json = await res.json().catch(() => null);
       if (json?.message) message = String(json.message);
+    } else if (res.status === 401 || res.status === 403) {
+      message = "Session expired. Please sign in again and retry the download.";
+    } else if (res.status >= 500) {
+      message = "Invoice PDF could not be generated on the server. Please try again.";
     }
     throw new Error(message);
   }
 
   const blob = await res.blob();
-  if (!blob.size || (blob.type && blob.type.includes("text/html"))) {
+  const type = blob.type || "";
+  if (!blob.size || type.includes("text/html") || type.includes("application/json")) {
     throw new Error("Invoice PDF could not be generated. Please try again.");
   }
 
   const disposition = res.headers.get("Content-Disposition");
   const match = disposition?.match(/filename="?([^";\n]+)"?/);
-  const filename = match?.[1] ?? `invoice-${inv.number ?? recordId ?? "payment"}.pdf`;
+  const filename = match?.[1] ?? `invoice-${inv.number ?? recordId}.pdf`;
   const objectUrl = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = objectUrl;

@@ -645,7 +645,7 @@ class ConsultantBillingService
             'source'           => $record->stripe_invoice_id ? 'stripe' : 'local',
             'payment_type'     => $record->payment_type,
             'can_download'     => true,
-            'invoice_download' => url("/api/v1/consultant/billing/payments/{$record->id}/invoice"),
+            'invoice_download' => "/api/v1/consultant/billing/payments/{$record->id}/invoice",
         ];
     }
 

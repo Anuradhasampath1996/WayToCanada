@@ -1,0 +1,67 @@
+name: Diagnose invoice PDF
+
+on:
+  workflow_dispatch:
+    inputs:
+      payment_id:
+        description: Subscription payment record id (optional)
+        required: false
+        default: ""
+        type: string
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Generate invoice PDF on EC2
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          PAYMENT_ID: ${{ inputs.payment_id }}
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          command_timeout: 5m
+          envs: PAYMENT_ID
+          script: |
+            set -euo pipefail
+            cd /opt/waytocanada
+            echo "=== recent payment records ==="
+            docker compose -f docker-compose.prod.yml exec -T api php -r '
+            require "vendor/autoload.php";
+            $app=require "bootstrap/app.php";
+            $app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+            $rows=App\Models\SubscriptionPaymentRecord::query()
+              ->latest("id")->limit(5)
+              ->get(["id","invoice_number","subtotal","tax_amount","total","invoice_pdf","user_id"]);
+            echo json_encode($rows, JSON_PRETTY_PRINT), PHP_EOL;
+            '
+            echo "=== try PDF generate ==="
+            docker compose -f docker-compose.prod.yml exec -T api php -r '
+            require "vendor/autoload.php";
+            $app=require "bootstrap/app.php";
+            $app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+            $id=getenv("PAYMENT_ID");
+            $record=$id !== "" && $id !== false
+              ? App\Models\SubscriptionPaymentRecord::find((int)$id)
+              : App\Models\SubscriptionPaymentRecord::query()->latest("id")->first();
+            if(!$record){ echo "NO_RECORD\n"; exit(1);} 
+            echo "record_id=".$record->id." invoice=".$record->invoice_number.PHP_EOL;
+            try {
+              $pdf=app(App\Services\SubscriptionInvoicePdfService::class)->generate($record);
+              $out=$pdf->output();
+              echo "ok bytes=".strlen($out)." filename=".app(App\Services\SubscriptionInvoicePdfService::class)->filename($record).PHP_EOL;
+              $logo=is_file(public_path("brand/rcicmaster-logo.png")) ? "yes" : "no";
+              echo "bundled_logo=".$logo.PHP_EOL;
+              $company=app(App\Services\PlatformCompanySettingsService::class)->get();
+              echo "company_logo_url=".($company->logo_url ?: "null").PHP_EOL;
+            } catch (Throwable $e) {
+              echo "PDF_ERROR: ".$e::class." :: ".$e->getMessage().PHP_EOL;
+              echo $e->getFile().":".$e->getLine().PHP_EOL;
+              echo substr($e->getTraceAsString(),0,2500).PHP_EOL;
+            }
+            '
+            echo "=== laravel log tail ==="
+            docker compose -f docker-compose.prod.yml exec -T api sh -lc 'tail -n 80 storage/logs/laravel.log 2>/dev/null || tail -n 80 storage/logs/laravel-$(date +%Y-%m-%d).log 2>/dev/null || ls -la storage/logs | tail'

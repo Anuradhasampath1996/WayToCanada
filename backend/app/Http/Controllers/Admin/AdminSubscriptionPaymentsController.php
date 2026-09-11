@@ -96,8 +96,16 @@ class AdminSubscriptionPaymentsController extends Controller
 
     public function downloadInvoice(SubscriptionPaymentRecord $subscriptionPaymentRecord)
     {
-        return $this->invoicePdf->generate($subscriptionPaymentRecord)
-            ->download($this->invoicePdf->filename($subscriptionPaymentRecord));
+        try {
+            return $this->invoicePdf->generate($subscriptionPaymentRecord)
+                ->download($this->invoicePdf->filename($subscriptionPaymentRecord));
+        } catch (\Throwable $e) {
+            report($e);
+
+            return response()->json([
+                'message' => 'Could not generate invoice PDF. Please try again or contact support.',
+            ], 500);
+        }
     }
 
     private function filteredQuery(Request $request)

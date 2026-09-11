@@ -80,10 +80,19 @@ class ConsultantBillingController extends Controller
             abort(404);
         }
 
-        // Always generate the branded RCICMASTER tax invoice.
-        // Redirecting to Stripe's hosted PDF breaks browser fetch() (CORS → "Failed to fetch").
-        return $this->invoicePdf->generate($subscriptionPaymentRecord)
-            ->download($this->invoicePdf->filename($subscriptionPaymentRecord));
+        try {
+            // Always generate the branded RCICMASTER tax invoice.
+            // Redirecting to Stripe's hosted PDF breaks browser fetch() (CORS → "Failed to fetch").
+            $pdf = $this->invoicePdf->generate($subscriptionPaymentRecord);
+
+            return $pdf->download($this->invoicePdf->filename($subscriptionPaymentRecord));
+        } catch (\Throwable $e) {
+            report($e);
+
+            return response()->json([
+                'message' => 'Could not generate invoice PDF. Please try again or contact support.',
+            ], 500);
+        }
     }
 
     public function cancelMarketingOrder(Request $request, ConsultantMarketingOrder $order): JsonResponse
