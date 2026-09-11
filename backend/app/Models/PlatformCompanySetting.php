@@ -16,6 +16,7 @@ class PlatformCompanySetting extends Model
         'gst_hst_number',
         'qst_number',
         'pst_number',
+        'ontario_corporation_number',
         'address_line1',
         'address_line2',
         'city',

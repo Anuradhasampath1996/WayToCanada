@@ -258,12 +258,18 @@
                 <div class="party-line">
                     {{ trim(implode(', ', array_filter([$company->city, $company->province, $company->postal_code]))) }}
                 </div>
-                <div class="party-line">Canada</div>
-                @if($company->gst_hst_number)
-                    <div class="party-line" style="margin-top:6px;"><strong>GST/HST No.:</strong> {{ $company->gst_hst_number }}</div>
-                @endif
+                <div class="party-line">{{ ($company->country ?? 'CA') === 'CA' ? 'Canada' : strtoupper((string) $company->country) }}</div>
                 @if($company->business_number)
-                    <div class="party-line"><strong>Business No. (BN):</strong> {{ $company->business_number }}</div>
+                    <div class="party-line" style="margin-top:6px;"><strong>Business Number (BN):</strong> {{ $company->business_number }}</div>
+                @endif
+                @if($company->gst_hst_number)
+                    <div class="party-line"><strong>GST/HST Reg No:</strong> {{ $company->gst_hst_number }}</div>
+                @endif
+                @if($company->ontario_corporation_number)
+                    <div class="party-line"><strong>Ontario Corporation Number (OCN):</strong> {{ $company->ontario_corporation_number }}</div>
+                @endif
+                @if($company->support_email)
+                    <div class="party-line"><strong>Support:</strong> {{ $company->support_email }}</div>
                 @endif
             </td>
             <td>
@@ -356,14 +362,22 @@
                     <td><strong>GST/HST Registration No.:</strong> {{ $company->gst_hst_number }}</td>
                 @endif
             </tr>
-            @if($company->qst_number || $company->pst_number)
+            @if($company->ontario_corporation_number || $company->qst_number || $company->pst_number)
                 <tr>
+                    @if($company->ontario_corporation_number)
+                        <td><strong>Ontario Corporation Number (OCN):</strong> {{ $company->ontario_corporation_number }}</td>
+                    @endif
                     @if($company->qst_number)
                         <td><strong>QST No.:</strong> {{ $company->qst_number }}</td>
                     @endif
                     @if($company->pst_number)
                         <td><strong>PST No.:</strong> {{ $company->pst_number }}</td>
                     @endif
+                </tr>
+            @endif
+            @if($company->support_email)
+                <tr>
+                    <td colspan="2"><strong>Support:</strong> {{ $company->support_email }}</td>
                 </tr>
             @endif
         </table>

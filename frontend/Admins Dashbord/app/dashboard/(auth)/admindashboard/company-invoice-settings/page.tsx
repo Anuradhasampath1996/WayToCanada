@@ -32,6 +32,7 @@ type CompanySettings = {
   gst_hst_number: string | null;
   qst_number: string | null;
   pst_number: string | null;
+  ontario_corporation_number: string | null;
   address_line1: string | null;
   address_line2: string | null;
   city: string | null;
@@ -231,10 +232,21 @@ export default function CompanyInvoiceSettingsPage() {
           <CardDescription>Registered business name and CRA tax registration numbers</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4 sm:grid-cols-2">
-          <Field label="Legal name" value={form.legal_name ?? ""} onChange={(v) => setField("legal_name", v)} placeholder="RCICMASTER Inc." />
+          <Field label="Legal name" value={form.legal_name ?? ""} onChange={(v) => setField("legal_name", v)} placeholder="Widget Pixels Inc." />
           <Field label="Trade name (brand)" value={form.trade_name ?? ""} onChange={(v) => setField("trade_name", v)} placeholder="RCICMASTER" />
-          <Field label="Business Number (BN)" value={form.business_number ?? ""} onChange={(v) => setField("business_number", v)} placeholder="123456789 RT0001" />
-          <Field label="GST/HST registration no." value={form.gst_hst_number ?? ""} onChange={(v) => setField("gst_hst_number", v)} placeholder="123456789 RT0001" />
+          <Field label="Business Number (BN)" value={form.business_number ?? ""} onChange={(v) => setField("business_number", v)} placeholder="705701035" />
+          <Field
+            label="GST/HST registration no."
+            value={form.gst_hst_number ?? ""}
+            onChange={(v) => setField("gst_hst_number", v)}
+            placeholder="705701035 RT0001 (Pending RT Activation)"
+          />
+          <Field
+            label="Ontario Corporation Number (OCN)"
+            value={form.ontario_corporation_number ?? ""}
+            onChange={(v) => setField("ontario_corporation_number", v)}
+            placeholder="1001651150"
+          />
           <Field label="QST number (Quebec)" value={form.qst_number ?? ""} onChange={(v) => setField("qst_number", v)} />
           <Field label="PST number (if applicable)" value={form.pst_number ?? ""} onChange={(v) => setField("pst_number", v)} />
           <Field label="Invoice prefix" value={form.invoice_prefix ?? ""} onChange={(v) => setField("invoice_prefix", v)} placeholder="RCM" />

@@ -22,26 +22,27 @@ class PlatformCompanySettingsService
         $s = $setting ?? $this->get();
 
         return [
-            'legal_name'        => $s->legal_name,
-            'trade_name'        => $s->trade_name,
-            'business_number'   => $s->business_number,
-            'gst_hst_number'    => $s->gst_hst_number,
-            'qst_number'        => $s->qst_number,
-            'pst_number'        => $s->pst_number,
-            'address_line1'     => $s->address_line1,
-            'address_line2'     => $s->address_line2,
-            'city'              => $s->city,
-            'province'          => $s->province,
-            'postal_code'       => $s->postal_code,
-            'country'           => $s->country ?? 'CA',
-            'phone'             => $s->phone,
-            'billing_email'     => $s->billing_email,
-            'support_email'     => $s->support_email,
-            'website'           => $s->website,
-            'invoice_footer'    => $s->invoice_footer,
-            'invoice_prefix'    => $s->invoice_prefix ?? 'RCM',
-            'logo_url'          => $s->logo_url,
-            'updated_at'        => $s->updated_at?->toIso8601String(),
+            'legal_name'                   => $s->legal_name,
+            'trade_name'                   => $s->trade_name,
+            'business_number'              => $s->business_number,
+            'gst_hst_number'               => $s->gst_hst_number,
+            'qst_number'                   => $s->qst_number,
+            'pst_number'                   => $s->pst_number,
+            'ontario_corporation_number'   => $s->ontario_corporation_number,
+            'address_line1'                => $s->address_line1,
+            'address_line2'                => $s->address_line2,
+            'city'                         => $s->city,
+            'province'                     => $s->province,
+            'postal_code'                  => $s->postal_code,
+            'country'                      => $s->country ?? 'CA',
+            'phone'                        => $s->phone,
+            'billing_email'                => $s->billing_email,
+            'support_email'                => $s->support_email,
+            'website'                      => $s->website,
+            'invoice_footer'               => $s->invoice_footer,
+            'invoice_prefix'               => $s->invoice_prefix ?? 'RCM',
+            'logo_url'                     => $s->logo_url,
+            'updated_at'                   => $s->updated_at?->toIso8601String(),
         ];
     }
 
@@ -66,6 +67,7 @@ class PlatformCompanySettingsService
 
         $fields = [
             'legal_name', 'trade_name', 'business_number', 'gst_hst_number', 'qst_number', 'pst_number',
+            'ontario_corporation_number',
             'address_line1', 'address_line2', 'city', 'province', 'postal_code', 'country',
             'phone', 'billing_email', 'support_email', 'website', 'invoice_footer', 'invoice_prefix',
         ];
@@ -165,18 +167,21 @@ class PlatformCompanySettingsService
     private function defaults(): array
     {
         return [
-            'legal_name'     => 'RCICMASTER Inc.',
-            'trade_name'     => 'RCICMASTER',
-            'address_line1'  => '100 King Street West',
-            'city'           => 'Toronto',
-            'province'       => 'ON',
-            'postal_code'    => 'M5X 1A9',
-            'country'        => 'CA',
-            'billing_email'  => 'billing@rcicmaster.ca',
-            'support_email'  => 'support@rcicmaster.ca',
-            'website'        => 'https://www.rcicmaster.ca',
-            'invoice_prefix' => 'RCM',
-            'invoice_footer' => 'Thank you for your business. This tax invoice is issued in accordance with CRA requirements for Canadian sales tax.',
+            'legal_name'                   => 'Widget Pixels Inc.',
+            'trade_name'                   => 'RCICMASTER',
+            'business_number'              => '705701035',
+            'gst_hst_number'               => '705701035 RT0001 (Pending RT Activation)',
+            'ontario_corporation_number'   => '1001651150',
+            'address_line1'                => '145 Church Street, Unit 5',
+            'city'                         => 'Toronto',
+            'province'                     => 'ON',
+            'postal_code'                  => 'M5B 1Y4',
+            'country'                      => 'CA',
+            'billing_email'                => 'support@widgetpixels.com',
+            'support_email'                => 'support@widgetpixels.com',
+            'website'                      => 'https://www.rcicmaster.ca',
+            'invoice_prefix'               => 'RCM',
+            'invoice_footer'               => 'Thank you for your business. This tax invoice is issued in accordance with CRA requirements for Canadian sales tax.',
         ];
     }
 
