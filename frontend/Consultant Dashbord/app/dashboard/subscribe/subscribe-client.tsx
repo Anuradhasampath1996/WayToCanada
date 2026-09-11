@@ -1,10 +1,12 @@
 ﻿"use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
+  Check,
   CheckCircle2,
+  ChevronsUpDown,
   ExternalLink,
   Loader2,
   Lock,
@@ -18,6 +20,18 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import { cn } from "@/lib/utils";
+import { countryLabel, getCountryOptions, resolveCountryCode } from "@/lib/countries";
 
 const API = (process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000") + "/api/v1";
 
@@ -38,6 +52,8 @@ const T = {
     selectProvince: "Select province",
     billingAddress: "Billing address",
     country: "Country",
+    searchCountry: "Search country…",
+    noCountry: "No country found.",
     addressLine1: "Street address",
     addressLine2: "Apt / suite (optional)",
     city: "City",
@@ -68,6 +84,8 @@ const T = {
     selectProvince: "Choisir la province",
     billingAddress: "Adresse de facturation",
     country: "Pays",
+    searchCountry: "Rechercher un pays…",
+    noCountry: "Aucun pays trouvé.",
     addressLine1: "Adresse",
     addressLine2: "App. / bureau (optionnel)",
     city: "Ville",
@@ -118,6 +136,9 @@ export function SubscribeClient({ packageId, packageName, price, billingCycle, l
   const [postalCode, setPostalCode] = useState("");
   const [tax, setTax] = useState<TaxBreakdown | null>(null);
   const [taxLoading, setTaxLoading] = useState(false);
+  const [countryOpen, setCountryOpen] = useState(false);
+
+  const countries = useMemo(() => getCountryOptions(lang), [lang]);
 
   const fmt = (amount: number) =>
     new Intl.NumberFormat(lang === "fr" ? "fr-CA" : "en-CA", {
@@ -168,11 +189,7 @@ export function SubscribeClient({ packageId, packageName, price, billingCycle, l
         }
 
         if (profileJson) {
-          setBillingCountry(
-            profileJson.company_country === "Canada" || profileJson.company_country === "CA"
-              ? "CA"
-              : (profileJson.company_country ?? "CA")
-          );
+          setBillingCountry(resolveCountryCode(profileJson.company_country));
           setAddressLine1(profileJson.company_address_line1 ?? "");
           setAddressLine2(profileJson.company_address_line2 ?? "");
           setCity(profileJson.company_city ?? "");
@@ -365,18 +382,51 @@ export function SubscribeClient({ packageId, packageName, price, billingCycle, l
 
             <div className="ck-field">
               <label>{t.country}</label>
-              <Select value={billingCountry} onValueChange={setBillingCountry}>
-                <SelectTrigger className="w-full h-11">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="CA">Canada</SelectItem>
-                  <SelectItem value="US">United States</SelectItem>
-                  <SelectItem value="GB">United Kingdom</SelectItem>
-                  <SelectItem value="IN">India</SelectItem>
-                  <SelectItem value="OTHER">Other</SelectItem>
-                </SelectContent>
-              </Select>
+              <Popover open={countryOpen} onOpenChange={setCountryOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={countryOpen}
+                    className="h-11 w-full justify-between font-normal"
+                  >
+                    <span className="truncate">
+                      {countryLabel(billingCountry, lang)}
+                    </span>
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+                  <Command>
+                    <CommandInput placeholder={t.searchCountry} />
+                    <CommandList>
+                      <CommandEmpty>{t.noCountry}</CommandEmpty>
+                      <CommandGroup>
+                        {countries.map((c) => (
+                          <CommandItem
+                            key={c.code}
+                            value={`${c.name} ${c.code}`}
+                            onSelect={() => {
+                              setBillingCountry(c.code);
+                              setCountryOpen(false);
+                            }}
+                          >
+                            <Check
+                              className={cn(
+                                "mr-2 h-4 w-4",
+                                billingCountry === c.code ? "opacity-100" : "opacity-0"
+                              )}
+                            />
+                            <span className="truncate">{c.name}</span>
+                            <span className="ml-auto text-xs text-muted-foreground">{c.code}</span>
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
               <p className="ck-hint">{isCanada ? t.canadaOnlyTax : t.outsideCanada}</p>
             </div>
 
