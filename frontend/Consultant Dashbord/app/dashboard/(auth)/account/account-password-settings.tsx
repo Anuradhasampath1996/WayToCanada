@@ -67,7 +67,7 @@ export function AccountPasswordSettings() {
       };
       if (user?.has_password) body.current_password = currentPassword;
 
-      const res = await fetch(`${API}/set-password`, {
+      const res = await fetch(`${API}/auth/set-password`, {
         method: "POST",
         headers: authHeaders(),
         body: JSON.stringify(body),

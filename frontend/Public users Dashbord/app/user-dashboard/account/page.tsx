@@ -65,7 +65,7 @@ export default function AccountPage() {
       };
       if (user?.has_password) body.current_password = currentPassword;
 
-      const res = await fetch(`${CLIENT_API}/set-password`, {
+      const res = await fetch(`${CLIENT_API}/auth/set-password`, {
         method: "POST",
         headers: clientAuthHeaders(),
         body: JSON.stringify(body),
