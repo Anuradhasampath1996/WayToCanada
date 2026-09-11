@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\GovernmentFormVersion;
 use App\Services\GovernmentForms\GovernmentFormOfficialSyncService;
+use App\Services\GovernmentForms\GovernmentFormRegistryService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -18,6 +19,25 @@ class AdminOfficialFormsController extends Controller
     public function status(): JsonResponse
     {
         return response()->json($this->sync->status());
+    }
+
+    /** POST /api/v1/admin/official-forms/ensure-templates */
+    public function ensureTemplates(GovernmentFormRegistryService $registry): JsonResponse
+    {
+        set_time_limit(300);
+
+        $result = $registry->ensureAllActiveTemplates();
+
+        return response()->json([
+            'message' => sprintf(
+                'Template ensure finished: %d restored, %d already present, %d failed.',
+                $result['restored'],
+                $result['already_present'],
+                count($result['failed'])
+            ),
+            'result' => $result,
+            'status' => $this->sync->status(),
+        ]);
     }
 
     /** POST /api/v1/admin/official-forms/sync */

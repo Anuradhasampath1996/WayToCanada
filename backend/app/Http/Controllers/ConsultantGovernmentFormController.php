@@ -16,6 +16,7 @@ use App\Services\GovernmentForms\GovernmentFormStoragePathValidator;
 use App\Services\GovernmentForms\FormFillCoverageService;
 use App\Services\GovernmentForms\CaseGovernmentFormCodes;
 use App\Services\GovernmentForms\StaleFormDetector;
+use App\Services\QuestionnaireFieldRemarkService;
 use App\Data\GovernmentForms\FormReadinessResult;
 use App\Models\CaseFile;
 use App\Support\GovernmentForms\CanonicalKeyLabel;
@@ -38,6 +39,7 @@ class ConsultantGovernmentFormController extends Controller
         private CanonicalDataResolver $canonicalResolver,
         private FormFillCoverageService $fillCoverageService,
         private CaseGovernmentFormCodes $formCodes,
+        private QuestionnaireFieldRemarkService $fieldRemarks,
     ) {}
 
     /** GET /consultant/clients/{profile}/government-forms */
@@ -301,8 +303,13 @@ class ConsultantGovernmentFormController extends Controller
             abort(404, 'Official template not available.');
         }
 
+        $ensured = $this->registry->ensureTemplateAbsolutePath($version);
+        if ($ensured['path'] === null) {
+            abort(404, $ensured['error'] ?? 'Official template not found.');
+        }
+
         try {
-            $safeRelativePath = $this->pathValidator->resolveTemplatePath($version->template_storage_path, 'local');
+            $safeRelativePath = $this->pathValidator->resolveTemplatePath($version->fresh()->template_storage_path, 'local');
         } catch (\Illuminate\Auth\Access\AuthorizationException) {
             abort(403, 'Access denied.');
         } catch (\Illuminate\Contracts\Filesystem\FileNotFoundException) {
@@ -483,14 +490,14 @@ class ConsultantGovernmentFormController extends Controller
                 $primaryForm = $formCodesByKey[$qKey][0];
                 $allForms = $formCodesByKey[$qKey];
 
-                $remarks[$qKey] = [
+                $remarks[$qKey] = $this->fieldRemarks->withValueAtRequest($submission, $qKey, [
                     'remark'        => $defaultRemark.' ('.$field['label'].')',
                     'requested_at'  => now()->toIso8601String(),
                     'status'        => 'pending',
                     'form_code'     => $primaryForm,
                     'form_codes'    => $allForms,
                     'canonical_key' => $field['key'],
-                ];
+                ]);
                 unset($verified[$qKey]);
 
                 if ($isNew) {

@@ -393,17 +393,59 @@ class GovernmentFormOfficialSyncService
             throw new \RuntimeException('PDF download failed (HTTP '.$pdfResponse->status().').');
         }
 
-        $bytes = $pdfResponse->body();
+        $downloaded = $this->normalizePdfDownload($pdfResponse->body(), $pdfMeta['url']);
+
+        return [
+            'bytes' => $downloaded['bytes'],
+            'sha256' => $downloaded['sha256'],
+            'pdf_url' => $pdfMeta['url'],
+            'version_label' => $versionLabel,
+            'page_last_updated' => $dateModified,
+        ];
+    }
+
+    /**
+     * Download a direct PDF URL (used when government_form_versions.official_url points at the PDF).
+     *
+     * @return array{bytes: string, sha256: string, pdf_url: string, version_label: null, page_last_updated: null}
+     */
+    public function downloadPdfBytes(string $pdfUrl): array
+    {
+        $pdfResponse = Http::timeout(120)
+            ->withHeaders(['User-Agent' => self::USER_AGENT])
+            ->get($pdfUrl);
+
+        if ($pdfResponse->failed()) {
+            throw new \RuntimeException('PDF download failed (HTTP '.$pdfResponse->status().').');
+        }
+
+        $downloaded = $this->normalizePdfDownload($pdfResponse->body(), $pdfUrl);
+
+        return [
+            'bytes' => $downloaded['bytes'],
+            'sha256' => $downloaded['sha256'],
+            'pdf_url' => $pdfUrl,
+            'version_label' => null,
+            'page_last_updated' => null,
+        ];
+    }
+
+    /**
+     * @return array{bytes: string, sha256: string}
+     */
+    private function normalizePdfDownload(string $bytes, string $url): array
+    {
         if ($bytes === '' || strlen($bytes) < 100) {
-            throw new \RuntimeException('Downloaded PDF appears empty or invalid.');
+            throw new \RuntimeException('Downloaded PDF appears empty or invalid ('.$url.').');
+        }
+
+        if (! str_starts_with($bytes, '%PDF')) {
+            throw new \RuntimeException('Downloaded content is not a PDF ('.$url.').');
         }
 
         return [
             'bytes' => $bytes,
             'sha256' => hash('sha256', $bytes),
-            'pdf_url' => $pdfMeta['url'],
-            'version_label' => $versionLabel,
-            'page_last_updated' => $dateModified,
         ];
     }
 

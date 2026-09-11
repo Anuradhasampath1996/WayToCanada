@@ -156,6 +156,46 @@ class GovernmentFormOfficialSyncServiceTest extends TestCase
         $this->assertSame(GovernmentFormVersionStatus::DEPRECATED, $active->fresh()->status);
     }
 
+    public function test_ensure_template_downloads_direct_pdf_when_missing(): void
+    {
+        $pdfBytes = "%PDF-1.4 restored-from-canada";
+        $sha = hash('sha256', $pdfBytes);
+        $relative = 'government-forms-poc/templates/official/imm5476-missing.pdf';
+
+        $version = GovernmentFormVersion::create([
+            'form_code' => 'IMM5476',
+            'version_label' => '11-2025',
+            'name' => 'Use of a Representative',
+            'government_authority' => 'IRCC',
+            'official_url' => 'https://www.canada.ca/content/dam/ircc/documents/pdf/english/kits/forms/imm5476/01-11-2025/imm5476e.pdf',
+            'template_storage_path' => $relative,
+            'template_sha256' => $sha,
+            'pdf_technology' => GovernmentFormPdfTechnology::ACROFORM_XFA_HYBRID,
+            'submission_mode' => GovernmentFormSubmissionMode::PDF_AUTO_FILL_ADOBE_VALIDATE,
+            'engine_strategy' => 'pdfxfa_append',
+            'mapping_version' => '1.2.1',
+            'mapping_status' => GovernmentFormMappingStatus::VERIFIED,
+            'status' => GovernmentFormVersionStatus::ACTIVE,
+            'compatibility_status' => 'SUPPORTED',
+            'effective_date' => now()->toDateString(),
+            'last_verified_at' => now(),
+        ]);
+
+        $this->assertFalse(Storage::disk('local')->exists($relative));
+
+        Http::fake([
+            'https://www.canada.ca/content/dam/ircc/documents/pdf/english/kits/forms/imm5476/01-11-2025/imm5476e.pdf' => Http::response($pdfBytes, 200),
+        ]);
+
+        $registry = app(\App\Services\GovernmentForms\GovernmentFormRegistryService::class);
+        $result = $registry->ensureTemplateAbsolutePath($version);
+
+        $this->assertNull($result['error']);
+        $this->assertNotNull($result['path']);
+        $this->assertTrue(Storage::disk('local')->exists($relative));
+        $this->assertSame($sha, hash('sha256', Storage::disk('local')->get($relative)));
+    }
+
     private function createActiveVersion(string $formCode, string $label, string $sha): GovernmentFormVersion
     {
         $path = 'government-forms-poc/templates/official/'.strtolower($formCode).'-active.pdf';

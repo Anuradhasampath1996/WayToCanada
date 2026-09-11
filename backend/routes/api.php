@@ -818,6 +818,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::prefix('official-forms')->name('official-forms.')->group(function () {
             Route::get('status', [AdminOfficialFormsController::class, 'status'])->name('status');
             Route::post('sync', [AdminOfficialFormsController::class, 'sync'])->name('sync');
+            Route::post('ensure-templates', [AdminOfficialFormsController::class, 'ensureTemplates'])->name('ensure-templates');
             Route::post('versions/{version}/mark-verified', [AdminOfficialFormsController::class, 'markVerified'])->name('versions.mark-verified');
             Route::post('versions/{version}/activate', [AdminOfficialFormsController::class, 'activate'])->name('versions.activate');
             Route::post('{formCode}/sync', [AdminOfficialFormsController::class, 'syncOne'])->name('sync-one');

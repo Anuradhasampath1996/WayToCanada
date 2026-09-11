@@ -84,9 +84,12 @@ class FormGenerationService
             throw new GovernmentFormGenerationException($message);
         }
 
-        $templatePath = $this->registry->resolveTemplateAbsolutePath($version);
+        $ensured = $this->registry->ensureTemplateAbsolutePath($version);
+        $templatePath = $ensured['path'];
         if ($templatePath === null || ! is_file($templatePath)) {
-            throw new GovernmentFormGenerationException('Official template is not available in private storage.');
+            throw new GovernmentFormGenerationException(
+                $ensured['error'] ?? 'Official template is not available in private storage.'
+            );
         }
 
         $templateHash = hash_file('sha256', $templatePath) ?: $version->template_sha256;

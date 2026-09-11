@@ -132,6 +132,27 @@ export default function OfficialFormsSyncPage() {
     void loadStatus();
   }, [loadStatus]);
 
+  async function ensureTemplates() {
+    setSyncing(true);
+    setMessage("");
+    setError("");
+    try {
+      const res = await fetch(`${API}/admin/official-forms/ensure-templates`, {
+        method: "POST",
+        headers: authHeaders(),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.message ?? "Ensure templates failed.");
+      setMessage(json.message ?? "Templates restored.");
+      if (json.status?.forms) setStatus(json.status);
+      else await loadStatus();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Ensure templates failed.");
+    } finally {
+      setSyncing(false);
+    }
+  }
+
   async function runSync(formCode?: string) {
     if (formCode) setBusyForm(formCode);
     else setSyncing(true);
@@ -213,6 +234,9 @@ export default function OfficialFormsSyncPage() {
           <Button onClick={() => runSync()} disabled={syncing || loading}>
             <CloudDownload className={`mr-2 h-4 w-4 ${syncing ? "animate-pulse" : ""}`} />
             {syncing ? "Checking…" : "Check & download updates"}
+          </Button>
+          <Button variant="secondary" onClick={() => ensureTemplates()} disabled={syncing || loading}>
+            Restore missing templates
           </Button>
           <Button variant="outline" onClick={() => loadStatus()} disabled={loading}>
             <RefreshCw className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} />
