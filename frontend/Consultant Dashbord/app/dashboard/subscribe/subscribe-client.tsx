@@ -5,14 +5,10 @@ import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
   CheckCircle2,
-  CreditCard,
   ExternalLink,
   Loader2,
   Lock,
   MapPin,
-  RefreshCw,
-  ShieldCheck,
-  Zap,
 } from "lucide-react";
 import {
   Select,
@@ -27,76 +23,64 @@ const API = (process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000") + "/api
 
 const T = {
   en: {
-    back:            "Back to Plans",
-    pageTitle:       "Complete Your Subscription",
-    summary:         "Order Summary",
-    billingMonthly:  "Billed monthly — auto-renews every month",
-    billingYearly:   "Billed annually — auto-renews every year",
-    securePayment:   "Secure Payment",
-    cancelAnytime:   "Cancel Anytime",
-    support:         "Dedicated Support",
-    autoRenew:       "Auto-Renewal",
-    autoRenewDesc:   "Your payment method will be charged each cycle. You can cancel any time from your account settings.",
-    preparing:       "Preparing checkout…",
-    redirecting:     "Redirecting to Stripe…",
-    btnStripe:       "Continue to Stripe",
-    total:           "Total",
-    subtotal:        "Subtotal",
-    salesTax:        "Sales tax",
-    province:        "Place of supply (province)",
-    provinceHint:    "Tax rate is based on CRA place-of-supply rules for your province.",
-    selectProvince:  "Select your province",
-    billingAddress:  "Billing address",
-    country:         "Country",
-    addressLine1:    "Street address",
-    addressLine2:    "Apartment, suite (optional)",
-    city:            "City",
-    postalCode:      "Postal / ZIP code",
-    outsideCanada:   "No Canadian sales tax — recipient located outside Canada.",
-    canadaOnlyTax:   "Canadian GST/HST applies based on your province of supply.",
-    perMonth:        "/month",
-    perYear:         "/year",
-    error:           "Something went wrong. Please try again.",
-    successTitle:    "Subscription Activated!",
-    successDesc:     "Your subscription is now active. Redirecting to your dashboard…",
-    cardAccepted:    "We accept Visa, Mastercard, Amex and more",
-    stripePowered:   "Payments secured by Stripe",
+    back: "Back",
+    pageTitle: "Checkout",
+    summary: "Order summary",
+    billingMonthly: "Billed monthly",
+    billingYearly: "Billed yearly",
+    preparing: "Preparing checkout…",
+    redirecting: "Redirecting to Stripe…",
+    btnStripe: "Pay with Stripe",
+    total: "Total",
+    subtotal: "Subtotal",
+    salesTax: "Tax",
+    province: "Province",
+    selectProvince: "Select province",
+    billingAddress: "Billing address",
+    country: "Country",
+    addressLine1: "Street address",
+    addressLine2: "Apt / suite (optional)",
+    city: "City",
+    postalCode: "Postal code",
+    outsideCanada: "No Canadian sales tax outside Canada.",
+    canadaOnlyTax: "GST/HST based on province of supply.",
+    perMonth: "/mo",
+    perYear: "/yr",
+    error: "Something went wrong. Please try again.",
+    successTitle: "Subscription activated",
+    successDesc: "Redirecting to your dashboard…",
+    stripePowered: "Secure payment by Stripe",
+    requiredHint: "Address and city are required.",
   },
   fr: {
-    back:            "Retour aux forfaits",
-    pageTitle:       "Finaliser votre abonnement",
-    summary:         "Résumé de la commande",
-    billingMonthly:  "Facturé mensuellement — renouvellement automatique",
-    billingYearly:   "Facturé annuellement — renouvellement automatique",
-    securePayment:   "Paiement sécurisé",
-    cancelAnytime:   "Annulation à tout moment",
-    support:         "Assistance dédiée",
-    autoRenew:       "Renouvellement automatique",
-    autoRenewDesc:   "Votre moyen de paiement sera débité à chaque cycle. Vous pouvez annuler à tout moment.",
-    preparing:       "Préparation du paiement…",
-    redirecting:     "Redirection vers Stripe…",
-    btnStripe:       "Continuer vers Stripe",
-    total:           "Total",
-    subtotal:        "Sous-total",
-    salesTax:        "Taxe de vente",
-    province:        "Lieu de fourniture (province)",
-    provinceHint:    "Le taux de taxe est basé sur les règles de l'ARC pour votre province.",
-    selectProvince:  "Sélectionnez votre province",
-    billingAddress:  "Adresse de facturation",
-    country:         "Pays",
-    addressLine1:    "Adresse",
-    addressLine2:    "Appartement, bureau (optionnel)",
-    city:            "Ville",
-    postalCode:      "Code postal",
-    outsideCanada:   "Pas de taxe de vente canadienne — destinataire hors Canada.",
-    canadaOnlyTax:   "La TPS/TVH canadienne s'applique selon votre province de fourniture.",
-    perMonth:        "/mois",
-    perYear:         "/an",
-    error:           "Une erreur est survenue. Veuillez réessayer.",
-    successTitle:    "Abonnement activé !",
-    successDesc:     "Votre abonnement est maintenant actif. Redirection vers votre tableau de bord…",
-    cardAccepted:    "Nous acceptons Visa, Mastercard, Amex et plus",
-    stripePowered:   "Paiements sécurisés par Stripe",
+    back: "Retour",
+    pageTitle: "Paiement",
+    summary: "Résumé",
+    billingMonthly: "Facturation mensuelle",
+    billingYearly: "Facturation annuelle",
+    preparing: "Préparation…",
+    redirecting: "Redirection vers Stripe…",
+    btnStripe: "Payer avec Stripe",
+    total: "Total",
+    subtotal: "Sous-total",
+    salesTax: "Taxe",
+    province: "Province",
+    selectProvince: "Choisir la province",
+    billingAddress: "Adresse de facturation",
+    country: "Pays",
+    addressLine1: "Adresse",
+    addressLine2: "App. / bureau (optionnel)",
+    city: "Ville",
+    postalCode: "Code postal",
+    outsideCanada: "Pas de taxe canadienne hors Canada.",
+    canadaOnlyTax: "TPS/TVH selon la province de fourniture.",
+    perMonth: "/mois",
+    perYear: "/an",
+    error: "Une erreur est survenue. Veuillez réessayer.",
+    successTitle: "Abonnement activé",
+    successDesc: "Redirection vers le tableau de bord…",
+    stripePowered: "Paiement sécurisé par Stripe",
+    requiredHint: "Adresse et ville requises.",
   },
 } as const;
 
@@ -112,37 +96,37 @@ type TaxBreakdown = {
 };
 
 interface Props {
-  packageId:    number;
-  packageName:  string;
-  price:        number;
+  packageId: number;
+  packageName: string;
+  price: number;
   billingCycle: "monthly" | "yearly";
-  lang:         "en" | "fr";
+  lang: "en" | "fr";
 }
 
 export function SubscribeClient({ packageId, packageName, price, billingCycle, lang }: Props) {
   const router = useRouter();
   const t = T[lang];
 
-  const [status,      setStatus]      = useState<"idle" | "loading" | "redirecting" | "success" | "error">("idle");
-  const [errorMsg,    setErrorMsg]    = useState("");
-  const [provinces,   setProvinces]   = useState<ProvinceOption[]>([]);
-  const [province,    setProvince]    = useState("");
+  const [status, setStatus] = useState<"idle" | "loading" | "redirecting" | "success" | "error">("idle");
+  const [errorMsg, setErrorMsg] = useState("");
+  const [provinces, setProvinces] = useState<ProvinceOption[]>([]);
+  const [province, setProvince] = useState("");
   const [billingCountry, setBillingCountry] = useState("CA");
   const [addressLine1, setAddressLine1] = useState("");
   const [addressLine2, setAddressLine2] = useState("");
   const [city, setCity] = useState("");
   const [postalCode, setPostalCode] = useState("");
-  const [tax,         setTax]         = useState<TaxBreakdown | null>(null);
-  const [taxLoading,  setTaxLoading]  = useState(false);
+  const [tax, setTax] = useState<TaxBreakdown | null>(null);
+  const [taxLoading, setTaxLoading] = useState(false);
 
   const fmt = (amount: number) =>
     new Intl.NumberFormat(lang === "fr" ? "fr-CA" : "en-CA", {
-      style: "currency", currency: "CAD", minimumFractionDigits: 2,
+      style: "currency",
+      currency: "CAD",
+      minimumFractionDigits: 2,
     }).format(amount);
 
-  const formattedPrice = fmt(price);
-
-  const cycleLabel   = billingCycle === "yearly" ? t.perYear   : t.perMonth;
+  const cycleLabel = billingCycle === "yearly" ? t.perYear : t.perMonth;
   const billingLabel = billingCycle === "yearly" ? t.billingYearly : t.billingMonthly;
 
   const token = () => localStorage.getItem("wtc_consultant_token") ?? "";
@@ -184,34 +168,43 @@ export function SubscribeClient({ packageId, packageName, price, billingCycle, l
         }
 
         if (profileJson) {
-          setBillingCountry(profileJson.company_country === "Canada" || profileJson.company_country === "CA" ? "CA" : (profileJson.company_country ?? "CA"));
+          setBillingCountry(
+            profileJson.company_country === "Canada" || profileJson.company_country === "CA"
+              ? "CA"
+              : (profileJson.company_country ?? "CA")
+          );
           setAddressLine1(profileJson.company_address_line1 ?? "");
           setAddressLine2(profileJson.company_address_line2 ?? "");
           setCity(profileJson.company_city ?? "");
           setPostalCode(profileJson.company_postal_code ?? "");
         }
       } catch {
-        /* province list optional — checkout still works */
+        /* optional */
       }
     }
 
     void loadProvincesAndProfile();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const isCanada = billingCountry === "CA";
 
-  const billingPayload = useCallback(() => ({
-    subscription_package_id: packageId,
-    billing_cycle: billingCycle,
-    billing_country: billingCountry,
-    billing_address_line1: addressLine1.trim(),
-    billing_address_line2: addressLine2.trim() || undefined,
-    billing_city: city.trim(),
-    billing_postal_code: postalCode.trim() || undefined,
-    billing_province: isCanada ? province : undefined,
-    province: isCanada ? province : undefined,
-  }), [packageId, billingCycle, billingCountry, addressLine1, addressLine2, city, postalCode, province, isCanada]);
+  const billingPayload = useCallback(
+    () => ({
+      subscription_package_id: packageId,
+      billing_cycle: billingCycle,
+      billing_country: billingCountry,
+      billing_address_line1: addressLine1.trim(),
+      billing_address_line2: addressLine2.trim() || undefined,
+      billing_city: city.trim(),
+      billing_postal_code: postalCode.trim() || undefined,
+      billing_province: isCanada ? province : undefined,
+      province: isCanada ? province : undefined,
+    }),
+    [packageId, billingCycle, billingCountry, addressLine1, addressLine2, city, postalCode, province, isCanada]
+  );
 
   const fetchTaxQuote = useCallback(async () => {
     if (!packageId || !addressLine1.trim() || !city.trim()) return;
@@ -236,7 +229,7 @@ export function SubscribeClient({ packageId, packageName, price, billingCycle, l
     } finally {
       setTaxLoading(false);
     }
-  }, [billingPayload, packageId, isCanada]);
+  }, [billingPayload, packageId, isCanada, addressLine1, city, province]);
 
   useEffect(() => {
     void fetchTaxQuote();
@@ -269,220 +262,518 @@ export function SubscribeClient({ packageId, packageName, price, billingCycle, l
     }
   }
 
+  const canPay =
+    status !== "loading" &&
+    status !== "redirecting" &&
+    !!addressLine1.trim() &&
+    !!city.trim() &&
+    (!isCanada || !!province) &&
+    !taxLoading;
+
   if (status === "success") {
     return (
-      <div className="min-h-screen bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-zinc-800 via-zinc-950 to-black flex items-center justify-center p-6">
-        <div className="bg-white rounded-2xl shadow-2xl p-10 max-w-md w-full text-center space-y-5 border-t-4 border-[#D01D20]">
-          <div className="flex justify-center">
-            <CheckCircle2 className="h-16 w-16 text-[#D01D20]" />
-          </div>
-          <h2 className="text-2xl font-extrabold text-slate-900">{t.successTitle}</h2>
-          <p className="text-slate-500 text-sm">{t.successDesc}</p>
-          <Loader2 className="h-5 w-5 animate-spin text-primary mx-auto" />
+      <div className="ck-root ck-page">
+        <link
+          rel="stylesheet"
+          href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&display=swap"
+        />
+        <style>{CK_CSS}</style>
+        <div className="ck-success">
+          <CheckCircle2 className="h-14 w-14 text-[#D01D20]" />
+          <h2>{t.successTitle}</h2>
+          <p>{t.successDesc}</p>
+          <Loader2 className="h-5 w-5 animate-spin text-[#D01D20]" />
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-zinc-800 via-zinc-950 to-black flex flex-col">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(208,29,32,0.16),transparent_45%)]" />
-      <header className="relative flex items-center justify-between px-6 py-5 max-w-5xl mx-auto w-full">
-        <div className="rounded-xl bg-white px-3 py-2 shadow-lg ring-1 ring-white/40">
+    <div className="ck-root ck-page">
+      <link
+        rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&display=swap"
+      />
+      <style>{CK_CSS}</style>
+
+      <header className="ck-header">
+        <div className="ck-logo">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/brand/rcicmaster-logo.png" alt="RCICMASTER" className="h-8 w-auto object-contain" />
+          <img src="/brand/rcicmaster-logo.png" alt="RCICMASTER" />
         </div>
-        <button
-          onClick={() => router.back()}
-          className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold text-white/80 bg-white/10 border border-white/15 hover:bg-white/20 hover:text-white transition-all"
-        >
+        <button type="button" className="ck-back" onClick={() => router.back()}>
           <ArrowLeft className="h-4 w-4" />
           {t.back}
         </button>
       </header>
 
-      <main className="flex-1 flex items-start justify-center px-4 py-8">
-        <div className="w-full max-w-4xl">
-          <h1 className="text-3xl font-extrabold text-white text-center mb-8 tracking-tight">
-            {t.pageTitle}
-          </h1>
+      <main className="ck-main">
+        <h1 className="ck-title">{t.pageTitle}</h1>
 
-          <div className="grid grid-cols-1 md:grid-cols-[1fr_1.2fr] gap-6 items-start">
-            <div className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-2xl p-6 text-white space-y-5">
-              <h2 className="text-sm font-semibold uppercase tracking-wider text-red-300">
-                {t.summary}
-              </h2>
+        <div className="ck-grid">
+          {/* Order summary — solid, high contrast */}
+          <aside className="ck-summary">
+            <p className="ck-kicker">{t.summary}</p>
+            <div className="ck-plan">
+              <strong>{packageName}</strong>
+              <span>{billingLabel}</span>
+            </div>
 
-              <div className="flex items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#D01D20]/25 border border-[#D01D20]/40">
-                  <CreditCard className="h-6 w-6 text-red-200" />
+            <div className="ck-lines">
+              <div className="ck-line">
+                <span>{t.subtotal}</span>
+                <span>{fmt(price)}</span>
+              </div>
+              {taxLoading ? (
+                <div className="ck-line ck-line--muted">
+                  <span>{t.salesTax}</span>
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
                 </div>
+              ) : tax ? (
+                <div className="ck-line">
+                  <span>
+                    {t.salesTax}
+                    {tax.tax_label ? ` (${tax.tax_label})` : ""}
+                  </span>
+                  <span>{fmt(tax.total_tax)}</span>
+                </div>
+              ) : null}
+              <div className="ck-total">
+                <span>{t.total}</span>
                 <div>
-                  <p className="font-bold text-lg leading-tight">{packageName}</p>
-                  <p className="text-sm text-white/60">{billingLabel}</p>
-                </div>
-              </div>
-
-              <div className="border-t border-white/15 pt-4 space-y-2">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-white/60">{t.subtotal}</span>
-                  <span className="font-semibold">{formattedPrice}{cycleLabel}</span>
-                </div>
-                {taxLoading ? (
-                  <div className="flex items-center gap-2 text-sm text-white/50">
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    …
-                  </div>
-                ) : tax ? (
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-white/60">
-                      {t.salesTax} ({tax.tax_label})
-                    </span>
-                    <span className="font-semibold">{fmt(tax.total_tax)}</span>
-                  </div>
-                ) : null}
-                <div className="flex items-end justify-between pt-1 border-t border-white/10">
-                  <span className="text-sm text-white/60">{t.total}</span>
-                  <div className="text-right">
-                    <span className="text-3xl font-extrabold">
-                      {fmt(tax?.total ?? price)}
-                    </span>
-                    <span className="text-sm text-white/60 ml-1">{cycleLabel}</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="border-t border-white/15 pt-4 space-y-2.5">
-                {[
-                  { Icon: Lock,        label: t.securePayment },
-                  { Icon: ShieldCheck, label: t.cancelAnytime },
-                  { Icon: Zap,         label: t.support },
-                  { Icon: RefreshCw,   label: t.autoRenew },
-                ].map(({ Icon, label }) => (
-                  <div key={label} className="flex items-center gap-2.5 text-sm text-white/70">
-                    <Icon className="h-4 w-4 text-[#D01D20] shrink-0" />
-                    {label}
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="bg-white rounded-2xl shadow-2xl overflow-hidden">
-              <div className="p-8 space-y-6">
-                <div className="rounded-xl bg-red-50 border border-red-100 px-4 py-3 text-sm text-red-900">
-                  <p className="font-semibold mb-1 flex items-center gap-1.5">
-                    <RefreshCw className="h-4 w-4 text-[#D01D20]" />
-                    {t.autoRenew}
-                  </p>
-                  <p className="text-red-800/80 leading-relaxed">{t.autoRenewDesc}</p>
-                </div>
-
-                {status === "error" && (
-                  <div className="rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
-                    {errorMsg}
-                  </div>
-                )}
-
-                <div className="space-y-4">
-                  <p className="text-sm font-semibold text-slate-700">{t.billingAddress}</p>
-
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-slate-700">{t.country}</label>
-                    <Select value={billingCountry} onValueChange={setBillingCountry}>
-                      <SelectTrigger className="w-full">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="CA">Canada</SelectItem>
-                        <SelectItem value="US">United States</SelectItem>
-                        <SelectItem value="GB">United Kingdom</SelectItem>
-                        <SelectItem value="IN">India</SelectItem>
-                        <SelectItem value="OTHER">Outside Canada (other)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <p className="text-xs text-slate-400">
-                      {isCanada ? t.canadaOnlyTax : t.outsideCanada}
-                    </p>
-                  </div>
-
-                  <Input placeholder={t.addressLine1} value={addressLine1} onChange={(e) => setAddressLine1(e.target.value)} />
-                  <Input placeholder={t.addressLine2} value={addressLine2} onChange={(e) => setAddressLine2(e.target.value)} />
-                  <div className="grid grid-cols-2 gap-3">
-                    <Input placeholder={t.city} value={city} onChange={(e) => setCity(e.target.value)} />
-                    <Input placeholder={t.postalCode} value={postalCode} onChange={(e) => setPostalCode(e.target.value)} />
-                  </div>
-
-                  {isCanada && (
-                    <div className="space-y-2">
-                      <label className="text-sm font-semibold text-slate-700 flex items-center gap-1.5">
-                        <MapPin className="h-4 w-4 text-slate-500" />
-                        {t.province}
-                      </label>
-                      <Select value={province} onValueChange={setProvince} disabled={provinces.length === 0}>
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder={t.selectProvince} />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {provinces.map((p) => (
-                            <SelectItem key={p.code} value={p.code}>
-                              {p.name} — {p.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <p className="text-xs text-slate-400">{t.provinceHint}</p>
-                    </div>
-                  )}
-
-                  <div className="flex items-center gap-2">
-                    <svg viewBox="0 0 38 24" className="h-7 w-11 rounded border border-slate-200 bg-white p-0.5" aria-label="Visa">
-                      <rect width="38" height="24" rx="3" fill="#1A1F71"/>
-                      <text x="7" y="17" fontSize="13" fontWeight="bold" fill="white" fontFamily="Arial">VISA</text>
-                    </svg>
-                    <svg viewBox="0 0 38 24" className="h-7 w-11 rounded border border-slate-200" aria-label="Mastercard">
-                      <rect width="38" height="24" rx="3" fill="white"/>
-                      <circle cx="14" cy="12" r="8" fill="#EB001B"/>
-                      <circle cx="24" cy="12" r="8" fill="#F79E1B"/>
-                      <path d="M19 6.8a8 8 0 0 1 0 10.4A8 8 0 0 1 19 6.8z" fill="#FF5F00"/>
-                    </svg>
-                    <svg viewBox="0 0 38 24" className="h-7 w-11 rounded border border-slate-200 bg-[#2E77BC] p-0.5" aria-label="American Express">
-                      <rect width="38" height="24" rx="3" fill="#2E77BC"/>
-                      <text x="4" y="16" fontSize="9" fontWeight="bold" fill="white" fontFamily="Arial">AMEX</text>
-                    </svg>
-                    <span className="text-xs text-slate-400 ml-1">{t.cardAccepted}</span>
-                  </div>
-
-                  <button
-                    onClick={handleStripeCheckout}
-                    disabled={status === "loading" || status === "redirecting" || !addressLine1.trim() || !city.trim() || (isCanada && !province) || taxLoading}
-                    className="w-full flex items-center justify-center gap-3 h-14 rounded-xl font-bold text-white bg-[#635BFF] hover:bg-[#5851e6] transition-colors disabled:opacity-60 disabled:cursor-not-allowed shadow-md text-lg"
-                  >
-                    {(status === "loading" || status === "redirecting") ? (
-                      <>
-                        <Loader2 className="h-5 w-5 animate-spin" />
-                        {status === "redirecting" ? t.redirecting : t.preparing}
-                      </>
-                    ) : (
-                      <>
-                        <svg viewBox="0 0 60 25" className="h-5 w-auto" aria-hidden="true">
-                          <path fill="white" d="M59.64 14.28h-8.06c0 1.87-1.15 3.2-3.4 3.2-2.17 0-3.53-1.28-3.53-3.36 0-2.24 1.44-3.48 4.12-3.48h2.17v-2.02h-2.25c-3.48 0-5.63 1.84-5.63 5.12 0 3.12 2.05 5.04 5.79 5.04 3.87 0 5.79-2.36 5.79-5.5v-1.0zM6.97 20.3C3.1 20.3.9 17.8.9 14.08c0-3.8 2.3-6.22 6.07-6.22 3.79 0 6.07 2.42 6.07 6.22 0 3.72-2.28 6.22-6.07 6.22zm0-2.02c2.33 0 3.72-1.6 3.72-4.2 0-2.62-1.39-4.2-3.72-4.2-2.31 0-3.72 1.58-3.72 4.2 0 2.6 1.41 4.2 3.72 4.2z"/>
-                        </svg>
-                        {t.btnStripe}
-                        <ExternalLink className="h-4 w-4" />
-                      </>
-                    )}
-                  </button>
-
-                  <p className="text-center text-xs text-slate-400 flex items-center justify-center gap-1.5">
-                    <Lock className="h-3 w-3" />
-                    {t.stripePowered}
-                  </p>
+                  <strong>{fmt(tax?.total ?? price)}</strong>
+                  <em>{cycleLabel}</em>
                 </div>
               </div>
             </div>
-          </div>
+
+            <p className="ck-secure">
+              <Lock className="h-3.5 w-3.5" />
+              {t.stripePowered}
+            </p>
+          </aside>
+
+          {/* Billing form */}
+          <section className="ck-form">
+            {status === "error" && errorMsg ? (
+              <div className="ck-error" role="alert">
+                {errorMsg}
+              </div>
+            ) : null}
+
+            <h2>{t.billingAddress}</h2>
+
+            <div className="ck-field">
+              <label>{t.country}</label>
+              <Select value={billingCountry} onValueChange={setBillingCountry}>
+                <SelectTrigger className="w-full h-11">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="CA">Canada</SelectItem>
+                  <SelectItem value="US">United States</SelectItem>
+                  <SelectItem value="GB">United Kingdom</SelectItem>
+                  <SelectItem value="IN">India</SelectItem>
+                  <SelectItem value="OTHER">Other</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="ck-hint">{isCanada ? t.canadaOnlyTax : t.outsideCanada}</p>
+            </div>
+
+            <Input
+              className="h-11"
+              placeholder={t.addressLine1}
+              value={addressLine1}
+              onChange={(e) => setAddressLine1(e.target.value)}
+            />
+            <Input
+              className="h-11"
+              placeholder={t.addressLine2}
+              value={addressLine2}
+              onChange={(e) => setAddressLine2(e.target.value)}
+            />
+            <div className="ck-row">
+              <Input
+                className="h-11"
+                placeholder={t.city}
+                value={city}
+                onChange={(e) => setCity(e.target.value)}
+              />
+              <Input
+                className="h-11"
+                placeholder={t.postalCode}
+                value={postalCode}
+                onChange={(e) => setPostalCode(e.target.value)}
+              />
+            </div>
+
+            {isCanada ? (
+              <div className="ck-field">
+                <label>
+                  <MapPin className="h-3.5 w-3.5" />
+                  {t.province}
+                </label>
+                <Select value={province} onValueChange={setProvince} disabled={provinces.length === 0}>
+                  <SelectTrigger className="w-full h-11">
+                    <SelectValue placeholder={t.selectProvince} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {provinces.map((p) => (
+                      <SelectItem key={p.code} value={p.code}>
+                        {p.name} — {p.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : null}
+
+            <div className="ck-cards" aria-hidden>
+              <span className="ck-card visa">VISA</span>
+              <span className="ck-card mc">MC</span>
+              <span className="ck-card amex">AMEX</span>
+            </div>
+
+            <button type="button" className="ck-pay" onClick={handleStripeCheckout} disabled={!canPay}>
+              {status === "loading" || status === "redirecting" ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  {status === "redirecting" ? t.redirecting : t.preparing}
+                </>
+              ) : (
+                <>
+                  {t.btnStripe}
+                  <ExternalLink className="h-4 w-4" />
+                </>
+              )}
+            </button>
+
+            {!canPay && status === "idle" ? <p className="ck-hint ck-hint--center">{t.requiredHint}</p> : null}
+          </section>
         </div>
       </main>
     </div>
   );
 }
+
+const CK_CSS = `
+.ck-root {
+  --red: #d01d20;
+  --red-dark: #b0181b;
+  --ink: #111318;
+  --muted: #667085;
+  --line: #e6e8ee;
+  --soft: #f6f7f9;
+  --white: #fff;
+  font-family: Manrope, "Segoe UI", sans-serif;
+  color: var(--ink);
+}
+.ck-root *, .ck-root *::before, .ck-root *::after { box-sizing: border-box; }
+
+.ck-page {
+  min-height: 100vh;
+  background:
+    radial-gradient(ellipse 70% 45% at 50% -15%, rgba(208, 29, 32, 0.07), transparent 55%),
+    linear-gradient(180deg, #fafbfc 0%, #eef1f5 100%);
+}
+
+.ck-header {
+  max-width: 920px;
+  margin: 0 auto;
+  padding: 1.25rem 1.25rem 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.ck-logo {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.55rem 0.75rem;
+  border-radius: 12px;
+  background: var(--white);
+  border: 1px solid var(--line);
+  box-shadow: 0 4px 14px rgba(17, 19, 24, 0.05);
+}
+
+.ck-logo img {
+  height: 32px;
+  width: auto;
+  display: block;
+  object-fit: contain;
+}
+
+.ck-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border: 1px solid var(--line);
+  background: var(--white);
+  color: var(--muted);
+  font: 600 0.8rem/1 Manrope, sans-serif;
+  padding: 0.55rem 0.9rem;
+  border-radius: 999px;
+  cursor: pointer;
+}
+.ck-back:hover { color: var(--ink); }
+
+.ck-main {
+  max-width: 920px;
+  margin: 0 auto;
+  padding: 1.5rem 1.25rem 2.5rem;
+}
+
+.ck-title {
+  margin: 0 0 1.35rem;
+  text-align: center;
+  font-size: 1.55rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
+.ck-grid {
+  display: grid;
+  gap: 1.15rem;
+  grid-template-columns: 1fr;
+  align-items: start;
+}
+
+@media (min-width: 860px) {
+  .ck-grid {
+    grid-template-columns: 0.95fr 1.15fr;
+    gap: 1.25rem;
+  }
+}
+
+.ck-summary {
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 1.35rem 1.35rem 1.2rem;
+  box-shadow: 0 10px 30px rgba(17, 19, 24, 0.05);
+}
+
+.ck-kicker {
+  margin: 0 0 0.85rem;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--red);
+}
+
+.ck-plan {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.ck-plan strong {
+  font-size: 1.2rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.ck-plan span {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.ck-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  padding: 1rem 0;
+}
+
+.ck-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.ck-line span:first-child,
+.ck-line--muted {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.ck-total {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 0.35rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--line);
+}
+
+.ck-total > span {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.ck-total strong {
+  font-size: 1.75rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: var(--ink);
+}
+
+.ck-total em {
+  font-style: normal;
+  margin-left: 0.25rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.ck-secure {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0.25rem 0 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.ck-secure svg { color: var(--red); }
+
+.ck-form {
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 1.35rem 1.35rem 1.45rem;
+  box-shadow: 0 10px 30px rgba(17, 19, 24, 0.05);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.ck-form h2 {
+  margin: 0 0 0.25rem;
+  font-size: 1rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.ck-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.ck-field label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.ck-hint {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.ck-hint--center { text-align: center; }
+
+.ck-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.65rem;
+}
+
+.ck-cards {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding-top: 0.25rem;
+}
+
+.ck-card {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 24px;
+  min-width: 40px;
+  padding: 0 0.4rem;
+  border-radius: 4px;
+  font-size: 0.58rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: #fff;
+}
+
+.ck-card.visa { background: #1a1f71; }
+.ck-card.mc { background: #eb001b; }
+.ck-card.amex { background: #2e77bc; }
+
+.ck-pay {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 100%;
+  min-height: 48px;
+  margin-top: 0.35rem;
+  border: 0;
+  border-radius: 12px;
+  background: var(--red);
+  color: #fff;
+  font: 700 0.95rem/1 Manrope, sans-serif;
+  cursor: pointer;
+  box-shadow: 0 10px 22px rgba(208, 29, 32, 0.25);
+  transition: background 0.15s;
+}
+
+.ck-pay:hover:not(:disabled) { background: var(--red-dark); }
+.ck-pay:disabled { opacity: 0.55; cursor: not-allowed; box-shadow: none; }
+
+.ck-error {
+  padding: 0.75rem 0.9rem;
+  border-radius: 10px;
+  border: 1px solid rgba(208, 29, 32, 0.25);
+  background: rgba(208, 29, 32, 0.06);
+  color: var(--red-dark);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.ck-success {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  text-align: center;
+  padding: 2rem;
+}
+
+.ck-success h2 {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 800;
+}
+
+.ck-success p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+`;
