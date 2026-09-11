@@ -32,7 +32,7 @@ import { clientToConsultantKey, getPendingRemark, remarkLabel } from "@/lib/clie
 import { ClientJourneyPageChrome } from "@/components/client-workspace-ui";
 import { useClientJourneyOptional } from "@/context/client-journey-context";
 
-// â”€â”€ API â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// -- API -----------------------------------------------------------------------
 
 const API = (process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000") + "/api/v1";
 
@@ -117,7 +117,7 @@ async function uploadDocumentFile(file: File): Promise<string> {
   return (json.path as string) ?? file.name;
 }
 
-// â”€â”€ OCR microservice â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// -- OCR microservice ----------------------------------------------------------
 
 
 interface OcrExtracted {
@@ -510,7 +510,7 @@ async function scanDocumentFile(
   }
 }
 
-// â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// -- Types ---------------------------------------------------------------------
 
 interface ScoreSet { listening: string; reading: string; writing: string; speaking: string }
 interface TravelHistoryEntry {
@@ -798,7 +798,7 @@ function accompanyingTabLabel(person: AccompanyingPerson, i: number): string {
   return `(Family) ${i + 1}`;
 }
 
-// â”€â”€ Shared field wrapper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// -- Shared field wrapper ------------------------------------------------------
 
 function Field({
   label, required, error, children, refillRemark,
@@ -829,7 +829,7 @@ function Field({
   );
 }
 
-// â”€â”€ IELTS score inputs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// -- IELTS score inputs ---------------------------------------------------------
 
 function ScoreInputs({
   scores,
@@ -856,7 +856,7 @@ function ScoreInputs({
   );
 }
 
-// â”€â”€ Step indicator â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// -- Step indicator ------------------------------------------------------------
 
 function StepIndicator({ step }: { step: 1 | 2 | 3 }) {
   const steps = [
@@ -942,7 +942,7 @@ function StepIndicator({ step }: { step: 1 | 2 | 3 }) {
   );
 }
 
-// â”€â”€ Step 1 form â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// -- Step 1 form ---------------------------------------------------------------
 
 function Step1Form({
   data, errors, fieldRemarks,
@@ -1139,7 +1139,7 @@ function Step1Form({
   );
 }
 
-// â”€â”€ Tab: Main Applicant â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// -- Tab: Main Applicant -------------------------------------------------------
 
 interface NocSuggestion {
   code: string;
@@ -2230,7 +2230,7 @@ function MainApplicantTab({
   );
 }
 
-// â”€â”€ Tab: Spouse â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// -- Tab: Spouse ---------------------------------------------------------------
 
 function SpouseTab({
   data,
@@ -2623,7 +2623,7 @@ function SpouseTab({
   );
 }
 
-// â”€â”€ Tab: Children â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// -- Tab: Children -------------------------------------------------------------
 
 function ChildrenTab({
   children,
@@ -2804,7 +2804,7 @@ function ChildrenTab({
   );
 }
 
-// â”€â”€ Tab: Accompanying Persons
+// -- Tab: Accompanying Persons
 
 function AccompanyingPersonsTab({
   persons,
@@ -3004,9 +3004,9 @@ function AccompanyingPersonsTab({
   );
 }
 
-// â”€â”€ Document upload card
+// -- Document upload card
 
-// â”€â”€ Two-sided document upload (front + back) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// -- Two-sided document upload (front + back) ---------------------------------
 
 // ─── ChildSingleTab ─────────────────────────────────────────────────────────
 
@@ -3415,7 +3415,7 @@ function TwoSidedDocumentCard({
         </div>
         <div>
           <p className="text-sm font-semibold">{title}</p>
-          <p className="text-xs text-muted-foreground">{description} Â· Upload both sides</p>
+          <p className="text-xs text-muted-foreground">{[description, "Upload both sides"].filter(Boolean).join(" \u00B7 ")}</p>
         </div>
       </div>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -3715,7 +3715,7 @@ function DocumentUploadCard({
               <span>{loadingStored ? "Loading document…" : "Uploading…"}</span>
             </div>
           ) : displayName ? (
-            /* â”€â”€ Uploaded: large thumbnail with eye-icon overlay â”€â”€ */
+            /* -- Uploaded: large thumbnail with eye-icon overlay -- */
             <div className="relative">
               {/* Thumbnail / preview area */}
               <div
@@ -3766,7 +3766,7 @@ function DocumentUploadCard({
                     ? "bg-blue-600/90 text-white"
                     : "bg-yellow-500/90 text-white",
                 )}>
-                  {scanResult.status === "success" ? "ðŸ” Scanned" : "âš  Low quality"}
+                  {scanResult.status === "success" ? "Scanned" : "Low quality"}
                 </div>
               )}
               {/* Scanning animation overlay */}
@@ -4630,7 +4630,7 @@ export function QuestionnaireForm() {
   const searchParams = useSearchParams();
   const { setPersons } = useIAQNav();
 
-  // â”€â”€ Load saved draft on mount â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // -- Load saved draft on mount ------------------------------------------------
   useEffect(() => {
     async function load() {
       const token = getToken();
@@ -4721,7 +4721,7 @@ export function QuestionnaireForm() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  // â”€â”€ Autosave — debounced 1.5 s after any formData change â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // -- Autosave — debounced 1.5 s after any formData change --------------------
   useEffect(() => {
     if (isLoadingRef.current) return;
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
@@ -4980,7 +4980,7 @@ export function QuestionnaireForm() {
         </div>
       )}
 
-      {/* â”€â”€ STEP 1 â”€â”€ */}
+      {/* -- STEP 1 -- */}
       {step === 1 && (
         <Card>
           <CardHeader>
@@ -5002,7 +5002,7 @@ export function QuestionnaireForm() {
         </Card>
       )}
 
-      {/* â”€â”€ STEP 2 â”€â”€ */}
+      {/* -- STEP 2 -- */}
       {step === 2 && (
         <Card>
           <CardHeader>
@@ -5091,7 +5091,7 @@ export function QuestionnaireForm() {
         </Card>
       )}
 
-      {/* â”€â”€ Navigation footer â”€â”€ */}
+      {/* -- Navigation footer -- */}
 
       {/* ── STEP 3 ── */}
       {step === 3 && (
