@@ -10,6 +10,7 @@ use App\Http\Controllers\Admin\AdminCrsController;
 use App\Http\Controllers\Admin\AdminLegislationController;
 use App\Http\Controllers\LegislationController;
 use App\Http\Controllers\Admin\AdminApplicationPackageController;
+use App\Http\Controllers\Admin\AdminOfficialFormsController;
 use App\Http\Controllers\Admin\AdminIrccInteractiveFormController;
 use App\Http\Controllers\Admin\AdminWhatsAppInboxController;
 use App\Http\Controllers\Admin\AdminStatsController;
@@ -811,6 +812,15 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::post('{category}/documents', [AdminApplicationPackageController::class, 'uploadDocument'])->name('documents.store');
             Route::get('{category}/documents/{document}/stream', [AdminApplicationPackageController::class, 'streamDocument'])->name('documents.stream');
             Route::delete('{category}/documents/{document}', [AdminApplicationPackageController::class, 'destroyDocument'])->name('documents.destroy');
+        });
+
+        // Official IRCC PDFs for autofill (government_form_versions) — detect/download, never auto-activate
+        Route::prefix('official-forms')->name('official-forms.')->group(function () {
+            Route::get('status', [AdminOfficialFormsController::class, 'status'])->name('status');
+            Route::post('sync', [AdminOfficialFormsController::class, 'sync'])->name('sync');
+            Route::post('versions/{version}/mark-verified', [AdminOfficialFormsController::class, 'markVerified'])->name('versions.mark-verified');
+            Route::post('versions/{version}/activate', [AdminOfficialFormsController::class, 'activate'])->name('versions.activate');
+            Route::post('{formCode}/sync', [AdminOfficialFormsController::class, 'syncOne'])->name('sync-one');
         });
 
         // IRCC news cache — force refresh

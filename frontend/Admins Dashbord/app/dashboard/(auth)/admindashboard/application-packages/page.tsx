@@ -649,6 +649,11 @@ export default function ApplicationPackagesPage() {
               </a>
               . When IRCC updates a form, click sync to download the latest PDF into each application package.
               Clients receive updated files after the consultant assigns the package.
+              {" "}Need autofill templates?{" "}
+              <a href="/admindashboard/official-forms-sync" className="underline font-medium">
+                Open Official Forms Sync
+              </a>
+              .
             </p>
           {syncStatus && (
             <p className="text-xs text-blue-700 mt-2">

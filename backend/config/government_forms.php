@@ -87,6 +87,21 @@ return [
         ],
     ],
 
+    /*
+    | Official Canada.ca form pages used by Admin Official Forms Sync.
+    | Keys are uppercase form codes matching supported_forms.
+    */
+    'official_page_urls' => [
+        'IMM5476' => 'https://www.canada.ca/en/immigration-refugees-citizenship/services/application/application-forms-guides/imm5476.html',
+        'IMM5406' => 'https://www.canada.ca/en/immigration-refugees-citizenship/services/application/application-forms-guides/imm5406.html',
+        'IMM0008' => 'https://www.canada.ca/en/immigration-refugees-citizenship/services/application/application-forms-guides/imm0008.html',
+        'IMM5562' => 'https://www.canada.ca/en/immigration-refugees-citizenship/services/application/application-forms-guides/imm5562.html',
+        'IMM5669' => 'https://www.canada.ca/en/immigration-refugees-citizenship/services/application/application-forms-guides/imm5669.html',
+        'IMM1294' => 'https://www.canada.ca/en/immigration-refugees-citizenship/services/application/application-forms-guides/imm1294.html',
+        'IMM1295' => 'https://www.canada.ca/en/immigration-refugees-citizenship/services/application/application-forms-guides/imm1295.html',
+        'IMM5707' => 'https://www.canada.ca/en/immigration-refugees-citizenship/services/application/application-forms-guides/imm5707.html',
+    ],
+
     'capacity' => [
         'IMM5406' => [
             'children'  => 3,

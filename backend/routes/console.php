@@ -16,6 +16,12 @@ Schedule::command('ircc:fetch-news')->daily()->timezone('America/Toronto');
 // Sync IRCC forms & guides from canada.ca daily (catalog + package PDFs)
 Schedule::command('ircc:sync-forms')->dailyAt('03:00')->timezone('America/Toronto');
 
+// Detect Canada.ca official autofill PDF hash changes (draft only — no auto-activate)
+Schedule::command('government-forms:check-official')
+    ->weeklyOn(0, '03:30')
+    ->timezone('America/Toronto')
+    ->withoutOverlapping(120);
+
 // Sync CRS scoring rules + Express Entry draw cut-offs daily
 Schedule::command('crs:sync')->dailyAt('04:00')->timezone('America/Toronto');
 

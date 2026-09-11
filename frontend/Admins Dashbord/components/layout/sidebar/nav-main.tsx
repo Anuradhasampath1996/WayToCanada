@@ -20,6 +20,7 @@ import {
   ChevronRight,
   CreditCardIcon,
   FolderDotIcon,
+  FileStackIcon,
   GraduationCapIcon,
   HardDriveIcon,
   Headphones,
@@ -158,6 +159,13 @@ export const navItems: NavGroup[] = [
         href: "/admindashboard/application-packages",
         icon: FolderDotIcon,
         match: (p) => p.startsWith("/admindashboard/application-packages"),
+      },
+      {
+        title: "Official Forms Sync",
+        href: "/admindashboard/official-forms-sync",
+        icon: FileStackIcon,
+        badge: "New",
+        match: (p) => p.startsWith("/admindashboard/official-forms-sync"),
       },
       {
         title: "LMS Management",
