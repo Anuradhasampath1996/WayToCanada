@@ -648,8 +648,7 @@ function DocCard({
             <button
               type="button"
               className="flex h-full w-full flex-col items-center justify-center gap-2 text-amber-700 transition-colors hover:bg-amber-500/[0.06]"
-              onClick={() => !verified && fileRef.current?.click()}
-              disabled={verified}
+              onClick={() => fileRef.current?.click()}
             >
               <Upload className="size-8 opacity-60" />
               <span className="text-xs font-medium">Not uploaded</span>
@@ -664,30 +663,34 @@ function DocCard({
           </div>
         )}
 
-        {!verified && (
-          <div className="flex flex-wrap gap-2 border-t border-border/50 p-3">
-            <Button size="sm" variant="outline" className="h-8 flex-1 gap-1.5 rounded-lg text-xs" onClick={() => fileRef.current?.click()} disabled={uploading}>
-              <Upload className="size-3.5" />
-              {currentPath ? "Replace" : "Upload"}
+        <div className="flex flex-wrap gap-2 border-t border-border/50 p-3">
+          {verified && (
+            <span className="inline-flex h-8 items-center gap-1 rounded-lg bg-emerald-50 px-2.5 text-xs font-semibold text-emerald-700">
+              <CheckCircle2 className="size-3.5" />
+              Verified
+            </span>
+          )}
+          <Button size="sm" variant="outline" className="h-8 flex-1 gap-1.5 rounded-lg text-xs" onClick={() => fileRef.current?.click()} disabled={uploading}>
+            <Upload className="size-3.5" />
+            {currentPath ? "Replace" : "Upload"}
+          </Button>
+          {currentPath && !verified && (
+            <Button size="sm" variant="outline" className="h-8 gap-1.5 rounded-lg border-emerald-200 text-xs text-emerald-700 hover:bg-emerald-50" onClick={() => onVerify(fieldKey)} disabled={verifySaving}>
+              {verifySaving ? <Loader2 className="size-3.5 animate-spin" /> : <ShieldCheck className="size-3.5" />}
+              Verify
             </Button>
-            {currentPath && (
-              <Button size="sm" variant="outline" className="h-8 gap-1.5 rounded-lg border-emerald-200 text-xs text-emerald-700 hover:bg-emerald-50" onClick={() => onVerify(fieldKey)} disabled={verifySaving}>
-                {verifySaving ? <Loader2 className="size-3.5 animate-spin" /> : <ShieldCheck className="size-3.5" />}
-                Verify
-              </Button>
-            )}
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-8 gap-1.5 rounded-lg border-amber-200 text-xs text-amber-800 hover:bg-amber-50"
-              onClick={() => onRequestRefill(fieldKey, label)}
-              disabled={refillSaving}
-            >
-              {refillSaving ? <Loader2 className="size-3.5 animate-spin" /> : <RotateCcw className="size-3.5" />}
-              Request refill
-            </Button>
-          </div>
-        )}
+          )}
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8 gap-1.5 rounded-lg border-amber-200 text-xs text-amber-800 hover:bg-amber-50"
+            onClick={() => onRequestRefill(fieldKey, label)}
+            disabled={refillSaving}
+          >
+            {refillSaving ? <Loader2 className="size-3.5 animate-spin" /> : <RotateCcw className="size-3.5" />}
+            Request refill
+          </Button>
+        </div>
       </div>
 
       <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
@@ -814,40 +817,35 @@ function TextFieldRow({
               )}
             </div>
             <div className="mt-0.5 flex shrink-0 flex-wrap items-center gap-1.5 sm:justify-end">
-              {!verified && (
-                <button
-                  type="button"
-                  onClick={startEdit}
-                  title="Edit this field"
-                  className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
-                >
-                  <Pencil className="size-3.5" />
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={startEdit}
+                title="Edit this field"
+                className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
+              >
+                <Pencil className="size-3.5" />
+              </button>
               {verified ? (
                 <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700">
                   <CheckCircle2 className="size-4" />
                   Verified
                 </span>
-              ) : (
-                <>
-                  {!isEmpty && (
-                    <Button size="sm" variant="outline" className="h-7 rounded-lg px-2.5 text-xs" onClick={() => onVerify(fieldKey)} disabled={verifySaving}>
-                      {verifySaving ? <Loader2 className="size-3 animate-spin" /> : "Verify"}
-                    </Button>
-                  )}
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-7 gap-1 rounded-lg border-amber-200 px-2.5 text-xs text-amber-800 hover:bg-amber-50"
-                    onClick={() => onRequestRefill(fieldKey, label)}
-                    disabled={refillSaving}
-                  >
-                    {refillSaving ? <Loader2 className="size-3 animate-spin" /> : <RotateCcw className="size-3" />}
-                    Refill
-                  </Button>
-                </>
+              ) : null}
+              {!isEmpty && !verified && (
+                <Button size="sm" variant="outline" className="h-7 rounded-lg px-2.5 text-xs" onClick={() => onVerify(fieldKey)} disabled={verifySaving}>
+                  {verifySaving ? <Loader2 className="size-3 animate-spin" /> : "Verify"}
+                </Button>
               )}
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 gap-1 rounded-lg border-amber-200 px-2.5 text-xs text-amber-800 hover:bg-amber-50"
+                onClick={() => onRequestRefill(fieldKey, label)}
+                disabled={refillSaving}
+              >
+                {refillSaving ? <Loader2 className="size-3 animate-spin" /> : <RotateCcw className="size-3" />}
+                Refill
+              </Button>
             </div>
           </div>
           {remark?.status === "pending" && <RemarkBanner remark={remark} />}
@@ -1105,7 +1103,7 @@ export function QuestionnaireReviewClient({ paramsPromise }: { paramsPromise: Pr
       const json = await res.json();
       if (!res.ok) throw new Error(json?.message ?? "Verification failed.");
       setSubmission((prev) => prev ? { ...prev, verified_fields: json.verified_fields } : prev);
-      showToast("Field verified and locked.");
+      showToast("Field verified.");
     } catch (e: unknown) {
       showToast(e instanceof Error ? e.message : "Verification failed.", "error");
     } finally {
@@ -1372,7 +1370,7 @@ export function QuestionnaireReviewClient({ paramsPromise }: { paramsPromise: Pr
         {[
           { tone: "amber", icon: <Pencil className="size-3.5" />, text: "Empty or pending — edit or request refill" },
           { tone: "neutral", icon: <Check className="size-3.5" />, text: "Answered — verify when information is correct" },
-          { tone: "emerald", icon: <ShieldCheck className="size-3.5" />, text: "Verified — locked until you request refill" },
+          { tone: "emerald", icon: <ShieldCheck className="size-3.5" />, text: "Verified — still editable; editing clears verify until you confirm again" },
         ].map(({ tone, icon, text }) => (
           <div
             key={tone}

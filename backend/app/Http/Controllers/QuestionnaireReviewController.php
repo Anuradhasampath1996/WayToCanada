@@ -7,6 +7,7 @@ use App\Models\QuestionnaireSubmission;
 use App\Support\ClientDocumentStorage;
 use App\Support\QuestionnaireDocumentResolver;
 use App\Services\ClientActivity\ClientActivityTriggers;
+use App\Services\QuestionnaireFieldRemarkService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -16,6 +17,7 @@ class QuestionnaireReviewController extends Controller
 {
     public function __construct(
         private ClientActivityTriggers $activity,
+        private QuestionnaireFieldRemarkService $fieldRemarks,
     ) {}
 
     // ── Private helper ─────────────────────────────────────────────────────────
@@ -74,6 +76,78 @@ class QuestionnaireReviewController extends Controller
         ]);
     }
 
+    // ── PATCH /consultant/clients/{profile}/questionnaire/verify-all ───────────
+    // Verify all provided field keys that have values and are not pending refill.
+
+    public function verifyAll(Request $request, ClientProfile $profile): JsonResponse
+    {
+        $this->authorizeConsultant($request, $profile);
+
+        $data = $request->validate([
+            'field_keys'   => 'required|array|max:500',
+            'field_keys.*' => 'string|max:200',
+        ]);
+
+        $submission = QuestionnaireSubmission::where('user_id', $profile->user_id)->firstOrFail();
+        $verifiedFields = $submission->verified_fields ?? [];
+        $remarks = $submission->field_remarks ?? [];
+
+        $verifiedNow = [];
+        $skippedFlagged = [];
+        $skippedEmpty = [];
+        $skippedAlready = [];
+
+        foreach ($data['field_keys'] as $fieldKey) {
+            $fieldKey = trim((string) $fieldKey);
+            if ($fieldKey === '') {
+                continue;
+            }
+
+            if (! empty($verifiedFields[$fieldKey])) {
+                $skippedAlready[] = $fieldKey;
+                continue;
+            }
+
+            $remark = $remarks[$fieldKey] ?? null;
+            if (is_array($remark) && ($remark['status'] ?? '') === 'pending') {
+                $skippedFlagged[] = $fieldKey;
+                continue;
+            }
+
+            if (! $this->questionnaireFieldHasValue($submission, $fieldKey)) {
+                $skippedEmpty[] = $fieldKey;
+                continue;
+            }
+
+            $verifiedFields[$fieldKey] = true;
+            $verifiedNow[] = $fieldKey;
+        }
+
+        if ($verifiedNow !== []) {
+            $submission->update(['verified_fields' => $verifiedFields]);
+            // Single activity entry for the bulk action
+            $this->activity->onFieldVerified(
+                $profile,
+                $request->user(),
+                'bulk:'.count($verifiedNow).'_fields',
+                true,
+                $request
+            );
+        }
+
+        return response()->json([
+            'message' => count($verifiedNow) > 0
+                ? 'Verified '.count($verifiedNow).' field(s). Pending refill requests were left unchanged.'
+                : 'No fields were eligible to verify.',
+            'verified_fields' => $verifiedFields,
+            'verified_count' => count($verifiedNow),
+            'verified_keys' => $verifiedNow,
+            'skipped_flagged' => $skippedFlagged,
+            'skipped_empty' => $skippedEmpty,
+            'skipped_already' => $skippedAlready,
+        ]);
+    }
+
     // ── PATCH /consultant/clients/{profile}/questionnaire/field ───────────────
     // Consultant updates (fills/edits) a specific field on behalf of the client.
     // Body: { path: "main_data.passportNumber", value: "AB1234567" }
@@ -108,13 +182,25 @@ class QuestionnaireReviewController extends Controller
             $arr         = $submission->$section ?? [];
             $arr[$idx]   = $arr[$idx] ?? [];
             $arr[$idx][$field] = $data['value'];
-            $submission->update([$section => array_values($arr)]);
+            $verifiedFields = $submission->verified_fields ?? [];
+            unset($verifiedFields[$data['path']]);
+            $submission->update([
+                $section => array_values($arr),
+                'field_remarks' => $this->fieldRemarks->resolveIfPending($submission, $data['path']),
+                'verified_fields' => $verifiedFields,
+            ]);
         } else {
             // path format: "main_data.passportNumber"
             $field       = implode('.', $parts);
             $sectionData = $submission->$section ?? [];
             $sectionData[$field] = $data['value'];
-            $submission->update([$section => $sectionData]);
+            $verifiedFields = $submission->verified_fields ?? [];
+            unset($verifiedFields[$data['path']]);
+            $submission->update([
+                $section => $sectionData,
+                'field_remarks' => $this->fieldRemarks->resolveIfPending($submission, $data['path']),
+                'verified_fields' => $verifiedFields,
+            ]);
         }
 
         return response()->json([
@@ -164,11 +250,11 @@ class QuestionnaireReviewController extends Controller
         );
 
         $remarks = $submission->field_remarks ?? [];
-        $remarks[$data['field_key']] = [
+        $remarks[$data['field_key']] = $this->fieldRemarks->withValueAtRequest($submission, $data['field_key'], [
             'remark'       => $data['remark'],
             'requested_at' => now()->toIso8601String(),
             'status'       => 'pending',
-        ];
+        ]);
 
         $verifiedFields = $submission->verified_fields ?? [];
         unset($verifiedFields[$data['field_key']]);
@@ -188,6 +274,34 @@ class QuestionnaireReviewController extends Controller
     }
 
     // ── Private helpers ────────────────────────────────────────────────────────
+
+    private function questionnaireFieldHasValue(QuestionnaireSubmission $submission, string $fieldKey): bool
+    {
+        $parts = explode('.', $fieldKey);
+        $section = array_shift($parts);
+        if ($section === null || $section === '' || $parts === []) {
+            return false;
+        }
+
+        $allowed = ['step1_data', 'main_data', 'spouse_data', 'children_data', 'accompanying_data', 'step3_data'];
+        if (! in_array($section, $allowed, true)) {
+            return false;
+        }
+
+        $value = data_get($submission->{$section} ?? null, implode('.', $parts));
+
+        if ($value === null || $value === '') {
+            return false;
+        }
+        if (is_bool($value)) {
+            return true;
+        }
+        if (is_array($value)) {
+            return $value !== [];
+        }
+
+        return trim((string) $value) !== '';
+    }
 
     private function submissionContainsFilePath(QuestionnaireSubmission $submission, string $filePath): bool
     {
