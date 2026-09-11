@@ -284,7 +284,9 @@ Return JSON only with these keys:
 
 Extraction rules:
 - Dates must be YYYY-MM-DD or "".
+- Always extract sex/gender from the passport bio page or MRZ (M/F/X → Male/Female/Other). Never leave gender empty when sex is visible on the document.
 - gender must be Male, Female, Other, or "".
+- Always extract date of birth (DOB) when visible on the document or MRZ.
 - graduationYear must be YYYY or "".
 - Language scores: keep numeric strings as printed (IELTS 0-9, CELPIP 1-12, TEF/TCF as printed).
 - Prefer MRZ on passports when visible.
@@ -344,11 +346,11 @@ PROMPT;
             'fullName'         => $this->cleanStr($parsed['fullName'] ?? ''),
             'passportNumber'   => strtoupper($this->cleanStr($parsed['passportNumber'] ?? '')),
             'idNumber'         => $this->cleanStr($parsed['idNumber'] ?? ''),
-            'dob'              => $this->cleanDate($parsed['dob'] ?? ''),
-            'expiryDate'       => $this->cleanDate($parsed['expiryDate'] ?? ''),
-            'issueDate'        => $this->cleanDate($parsed['issueDate'] ?? ''),
+            'dob'              => $this->cleanDate($parsed['dob'] ?? $parsed['dateOfBirth'] ?? $parsed['birthDate'] ?? ''),
+            'expiryDate'       => $this->cleanDate($parsed['expiryDate'] ?? $parsed['expiry'] ?? ''),
+            'issueDate'        => $this->cleanDate($parsed['issueDate'] ?? $parsed['dateOfIssue'] ?? ''),
             'nationality'      => $this->cleanStr($parsed['nationality'] ?? ''),
-            'gender'           => $this->mapGender($parsed['gender'] ?? ''),
+            'gender'           => $this->mapGender($parsed['gender'] ?? $parsed['sex'] ?? ''),
             'address'          => $this->cleanStr($parsed['address'] ?? ''),
             'birthPlace'       => $this->cleanStr($parsed['birthPlace'] ?? ''),
             'institutionName'  => $this->cleanStr($parsed['institutionName'] ?? ''),
@@ -498,7 +500,15 @@ PROMPT;
         if ($raw === '') {
             return '';
         }
-        if (preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $raw, $m)) {
+
+        $raw = str_replace(["\u{2010}", "\u{2011}", "\u{2012}", "\u{2013}", "\u{2014}", "\u{2015}", "\u{2212}"], '-', $raw);
+        $raw = str_replace('.', '/', $raw);
+
+        if (preg_match('/^(\d{4}-\d{2}-\d{2})[T\s]/', $raw, $timeMatch)) {
+            $raw = $timeMatch[1];
+        }
+
+        if (preg_match('/^(\d{4})-(\d{1,2})-(\d{1,2})$/', $raw, $m)) {
             $y = (int) $m[1];
             $mo = (int) $m[2];
             $d = (int) $m[3];
@@ -508,16 +518,74 @@ PROMPT;
 
             return '';
         }
-        if (preg_match('/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})$/', $raw, $m)) {
+        if (preg_match('/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/', $raw, $m)) {
             $d = (int) $m[1];
             $mo = (int) $m[2];
             $y = (int) $m[3];
+            if ($mo > 12 && $d <= 12) {
+                [$d, $mo] = [$mo, $d];
+            }
+            if (checkdate($mo, $d, $y)) {
+                return sprintf('%04d-%02d-%02d', $y, $mo, $d);
+            }
+        }
+        if (preg_match('/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/', $raw, $m)) {
+            $y = (int) $m[1];
+            $mo = (int) $m[2];
+            $d = (int) $m[3];
+            if (checkdate($mo, $d, $y)) {
+                return sprintf('%04d-%02d-%02d', $y, $mo, $d);
+            }
+        }
+        if (preg_match('/^(\d{1,2})\s+([A-Za-z]{3,9})\s+(\d{4})$/', $raw, $m)) {
+            $mo = $this->monthNameToNumber($m[2]);
+            $d = (int) $m[1];
+            $y = (int) $m[3];
+            if ($mo && checkdate($mo, $d, $y)) {
+                return sprintf('%04d-%02d-%02d', $y, $mo, $d);
+            }
+        }
+        if (preg_match('/^([A-Za-z]{3,9})\s+(\d{1,2}),?\s+(\d{4})$/', $raw, $m)) {
+            $mo = $this->monthNameToNumber($m[1]);
+            $d = (int) $m[2];
+            $y = (int) $m[3];
+            if ($mo && checkdate($mo, $d, $y)) {
+                return sprintf('%04d-%02d-%02d', $y, $mo, $d);
+            }
+        }
+        if (preg_match('/^\d{6}$/', $raw)) {
+            $yy = (int) substr($raw, 0, 2);
+            $mo = (int) substr($raw, 2, 2);
+            $d = (int) substr($raw, 4, 2);
+            $cutoff = ((int) date('Y') + 15) % 100;
+            $y = $yy <= $cutoff ? 2000 + $yy : 1900 + $yy;
             if (checkdate($mo, $d, $y)) {
                 return sprintf('%04d-%02d-%02d', $y, $mo, $d);
             }
         }
 
         return '';
+    }
+
+    private function monthNameToNumber(string $name): ?int
+    {
+        $key = strtoupper(preg_replace('/[^A-Za-z]/', '', $name) ?? '');
+        $map = [
+            'JAN' => 1, 'JANUARY' => 1,
+            'FEB' => 2, 'FEBRUARY' => 2,
+            'MAR' => 3, 'MARCH' => 3,
+            'APR' => 4, 'APRIL' => 4,
+            'MAY' => 5,
+            'JUN' => 6, 'JUNE' => 6,
+            'JUL' => 7, 'JULY' => 7,
+            'AUG' => 8, 'AUGUST' => 8,
+            'SEP' => 9, 'SEPT' => 9, 'SEPTEMBER' => 9,
+            'OCT' => 10, 'OCTOBER' => 10,
+            'NOV' => 11, 'NOVEMBER' => 11,
+            'DEC' => 12, 'DECEMBER' => 12,
+        ];
+
+        return $map[$key] ?? null;
     }
 
     private function cleanYear(mixed $value): string

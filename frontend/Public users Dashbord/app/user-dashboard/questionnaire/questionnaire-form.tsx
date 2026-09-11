@@ -55,7 +55,7 @@ function getToken(): string | null {
   return m ? decodeURIComponent(m[1]) : null;
 }
 
-async function saveToServer(data: FormData): Promise<void> {
+async function saveToServer(data: FormData): Promise<{ field_remarks?: Record<string, FieldRemark> }> {
   const token = getToken();
   const res = await fetch(`${API}/questionnaire`, {
     method: "PUT",
@@ -96,6 +96,10 @@ async function saveToServer(data: FormData): Promise<void> {
     }),
   });
   if (!res.ok) throw new Error("Autosave failed");
+  const json = await res.json().catch(() => ({}));
+  return {
+    field_remarks: json?.data?.field_remarks as Record<string, FieldRemark> | undefined,
+  };
 }
 
 async function uploadDocumentFile(file: File): Promise<string> {
@@ -121,10 +125,13 @@ interface OcrExtracted {
   passportNumber?: string;
   idNumber?: string;
   dob?: string;
+  dateOfBirth?: string;
+  birthDate?: string;
   expiryDate?: string;
   issueDate?: string;
   nationality?: string;
   gender?: string;
+  sex?: string;
   address?: string;
   birthPlace?: string;
   // Education document fields
@@ -191,30 +198,113 @@ type ScanKind = "passport" | "id" | "licence" | "education" | "language" | "stud
 
 function mapPassportGender(g?: string): string {
   if (!g) return "";
-  const u = g.trim().toUpperCase();
-  if (u === "M" || u === "MALE") return "Male";
-  if (u === "F" || u === "FEMALE") return "Female";
-  if (u === "X" || u === "OTHER" || u === "UNSPECIFIED") return "Other";
+  const u = g
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z]/g, "");
+  if (!u) return "";
+  if (u === "M" || u === "MALE" || u === "MAN" || u === "BOY") return "Male";
+  if (u === "F" || u === "FEMALE" || u === "WOMAN" || u === "GIRL") return "Female";
+  if (
+    u === "X" ||
+    u === "U" ||
+    u === "OTHER" ||
+    u === "UNSPECIFIED" ||
+    u === "NONBINARY" ||
+    u === "UNKNOWN"
+  ) {
+    return "Other";
+  }
   return "";
 }
 
-/** Keep only values that <input type="date"> will accept. */
+const MONTH_NAME_TO_NUM: Record<string, string> = {
+  JAN: "01", JANUARY: "01",
+  FEB: "02", FEBRUARY: "02",
+  MAR: "03", MARCH: "03",
+  APR: "04", APRIL: "04",
+  MAY: "05",
+  JUN: "06", JUNE: "06",
+  JUL: "07", JULY: "07",
+  AUG: "08", AUGUST: "08",
+  SEP: "09", SEPT: "09", SEPTEMBER: "09",
+  OCT: "10", OCTOBER: "10",
+  NOV: "11", NOVEMBER: "11",
+  DEC: "12", DECEMBER: "12",
+};
+
+/** Keep only values that <input type="date"> will accept (YYYY-MM-DD). */
 function toInputDate(value?: string): string {
   if (!value) return "";
-  const m = value.trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (!m) return "";
-  const y = Number(m[1]);
-  const mo = Number(m[2]);
-  const d = Number(m[3]);
+  let raw = value.trim();
+  if (!raw) return "";
+
+  // Normalize unicode dashes / dots / spaces commonly returned by OCR/Vision.
+  raw = raw
+    .replace(/[\u2010-\u2015\u2212]/g, "-")
+    .replace(/\./g, "/")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  // Strip time portion if present: 1988-07-17T00:00:00Z
+  const isoTime = raw.match(/^(\d{4}-\d{2}-\d{2})[T\s]/);
+  if (isoTime) raw = isoTime[1];
+
+  let y = 0;
+  let mo = 0;
+  let d = 0;
+
+  let m = raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (m) {
+    y = Number(m[1]);
+    mo = Number(m[2]);
+    d = Number(m[3]);
+  } else if ((m = raw.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/))) {
+    // Prefer DMY (passports / most non-US IDs).
+    d = Number(m[1]);
+    mo = Number(m[2]);
+    y = Number(m[3]);
+    if (mo > 12 && d <= 12) {
+      const tmp = d;
+      d = mo;
+      mo = tmp;
+    }
+  } else if ((m = raw.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/))) {
+    y = Number(m[1]);
+    mo = Number(m[2]);
+    d = Number(m[3]);
+  } else if ((m = raw.match(/^(\d{1,2})\s+([A-Za-z]{3,9})\s+(\d{4})$/))) {
+    const month = MONTH_NAME_TO_NUM[m[2].toUpperCase()];
+    if (!month) return "";
+    d = Number(m[1]);
+    mo = Number(month);
+    y = Number(m[3]);
+  } else if ((m = raw.match(/^([A-Za-z]{3,9})\s+(\d{1,2}),?\s+(\d{4})$/))) {
+    const month = MONTH_NAME_TO_NUM[m[1].toUpperCase()];
+    if (!month) return "";
+    d = Number(m[2]);
+    mo = Number(month);
+    y = Number(m[3]);
+  } else if (/^\d{6}$/.test(raw)) {
+    // MRZ YYMMDD
+    const yy = Number(raw.slice(0, 2));
+    mo = Number(raw.slice(2, 4));
+    d = Number(raw.slice(4, 6));
+    const cutoff = (new Date().getFullYear() + 15) % 100;
+    y = yy <= cutoff ? 2000 + yy : 1900 + yy;
+  } else {
+    return "";
+  }
+
   if (y < 1900 || y > 2100 || mo < 1 || mo > 12 || d < 1 || d > 31) return "";
   const dt = new Date(Date.UTC(y, mo - 1, d));
   if (dt.getUTCFullYear() !== y || dt.getUTCMonth() !== mo - 1 || dt.getUTCDate() !== d) return "";
-  return `${m[1]}-${m[2]}-${m[3]}`;
+  return `${String(y).padStart(4, "0")}-${String(mo).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
 }
 
 function passportOcrPatch(d: OcrExtracted): Record<string, string> {
   const patch: Record<string, string> = {};
-  const dob = toInputDate(d.dob);
+  const dob = toInputDate(d.dob || d.dateOfBirth || d.birthDate);
   const issue = toInputDate(d.issueDate);
   const expiry = toInputDate(d.expiryDate);
   if (dob) patch.dob = dob;
@@ -223,7 +313,7 @@ function passportOcrPatch(d: OcrExtracted): Record<string, string> {
   if (issue) patch.passportIssueDate = issue;
   if (expiry) patch.passportExpiry = expiry;
   if (d.nationality?.trim()) patch.passportNationality = d.nationality.trim();
-  const gender = mapPassportGender(d.gender);
+  const gender = mapPassportGender(d.gender || d.sex);
   if (gender) patch.passportGender = gender;
   return patch;
 }
@@ -1466,7 +1556,11 @@ function MainApplicantTab({
           </Field>
           <Field label="Sex / Gender"
             refillRemark={remarkFor(fieldRemarks, "main", "passportGender")}>
-            <Select value={data.passportGender || undefined} onValueChange={(v) => onChange("passportGender", v)}>
+            <Select
+              key={`main-gender-${data.passportGender || "empty"}`}
+              value={data.passportGender || undefined}
+              onValueChange={(v) => onChange("passportGender", v)}
+            >
               <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="Male">Male</SelectItem>
@@ -3405,8 +3499,13 @@ function DocumentUploadCard({
     }
     setScanResult(result);
     if (useful) {
-      if (scanKind === "passport" && onScanPatch) {
-        applyPassportOcrPatch(result.extracted_data, onScanPatch);
+      if (scanKind === "passport") {
+        // Always apply a single patch so DOB + gender land together (avoids stale field drops).
+        if (onScanPatch) {
+          applyPassportOcrPatch(result.extracted_data, onScanPatch);
+        } else {
+          onScanComplete?.(result);
+        }
       } else {
         onScanComplete?.(result);
       }
@@ -3769,13 +3868,16 @@ function DocumentUploadCard({
 
         {scanResult && (() => {
           const d = scanResult.extracted_data;
+          const genderLabel = mapPassportGender(d.gender || d.sex) || (d.gender || d.sex || undefined);
+          const dobLabel = toInputDate(d.dob || d.dateOfBirth || d.birthDate) || d.dob || d.dateOfBirth || d.birthDate || undefined;
           const fields: Array<[string, string | undefined]> = [
             ["Name",        d.fullName || undefined],
-            ["DOB",         d.dob || undefined],
-            ["Issue",       d.issueDate || undefined],
+            ["DOB",         dobLabel || undefined],
+            ["Issue",       toInputDate(d.issueDate) || d.issueDate || undefined],
             ["ID / No.",    d.passportNumber || d.idNumber || undefined],
-            ["Expiry",      d.expiryDate || undefined],
+            ["Expiry",      toInputDate(d.expiryDate) || d.expiryDate || undefined],
             ["Nationality", d.nationality || undefined],
+            ["Sex / Gender", genderLabel || undefined],
             ["Institution", d.institutionName || undefined],
             ["Program",     d.degreeName || undefined],
             ["Grad year",   d.graduationYear || undefined],
@@ -4607,8 +4709,10 @@ export function QuestionnaireForm() {
     setSaveStatus("saving");
     saveTimerRef.current = setTimeout(async () => {
       try {
-        await saveToServer(formData);
+        const saved = await saveToServer(formData);
+        if (saved.field_remarks) setFieldRemarks(saved.field_remarks);
         setSaveStatus("saved");
+        void journey?.refresh?.();
       } catch {
         setSaveStatus("error");
       }
