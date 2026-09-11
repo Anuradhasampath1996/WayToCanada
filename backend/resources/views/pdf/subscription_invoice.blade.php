@@ -298,7 +298,25 @@
                     @if($packageDesc)
                         <br><span class="muted">{{ $packageDesc }}</span>
                     @endif
-                    <br><span class="muted">{{ $paymentType }} · {{ $billingCycle }} subscription</span>
+                    <br><span class="muted">{{ $paymentType }} payment · {{ $billingCycle }} billing</span>
+                    @if(!empty($listPrice))
+                        <br><span class="muted">Plan rate: ${{ number_format((float) $listPrice, 2) }} CAD / {{ strtolower($billingCycle) === 'annual' ? 'year' : 'month' }}</span>
+                    @endif
+                    @if(!empty($periodLabel))
+                        <br><span class="muted"><strong>Coverage:</strong> {{ $periodLabel }}</span>
+                    @endif
+                    @if(!empty($periodEnd))
+                        <br><span class="muted"><strong>Expires:</strong> {{ $periodEnd }}</span>
+                    @endif
+                    @if(!empty($subscriptionStatus))
+                        <br><span class="muted">Subscription status: {{ ucfirst(str_replace('_', ' ', $subscriptionStatus)) }}</span>
+                    @endif
+                    @if(!empty($packageFeatures))
+                        <br><span class="muted" style="display:block;margin-top:4px;"><strong>Includes:</strong></span>
+                        @foreach($packageFeatures as $feature)
+                            <span class="muted" style="display:block;padding-left:8px;">• {{ $feature }}</span>
+                        @endforeach
+                    @endif
                 </td>
                 <td class="center">1</td>
                 <td class="right">${{ number_format((float) $record->subtotal, 2) }}</td>
