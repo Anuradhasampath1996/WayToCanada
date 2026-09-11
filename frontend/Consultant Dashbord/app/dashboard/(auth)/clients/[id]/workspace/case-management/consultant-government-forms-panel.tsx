@@ -769,9 +769,19 @@ export function ConsultantGovernmentFormsPanel({
       <div className="space-y-4">
         <p className="text-sm font-semibold">Official forms (autofill)</p>
         {data.forms.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            No autofill-mapped forms are active for this pathway yet.
-          </p>
+          <div className="rounded-xl border border-amber-200/80 bg-amber-50/60 px-4 py-3 text-sm text-amber-950 space-y-1">
+            <p className="font-medium">No active autofill forms available yet</p>
+            <p className="text-xs text-amber-900/90">
+              {Array.isArray(data.pathway_forms) && data.pathway_forms.length > 0
+                ? "This pathway’s official form templates are not loaded yet. They should appear after the next deploy — refresh this page once the update finishes."
+                : "This pathway does not have autofill-mapped official forms configured yet. You can still use Application Forms / interactive packages."}
+            </p>
+            {Array.isArray(data.pathway_forms) && data.pathway_forms.length > 0 && (
+              <p className="text-[11px] text-muted-foreground pt-1">
+                Mapped codes: {data.pathway_forms.map((f) => f.code).join(", ")}
+              </p>
+            )}
+          </div>
         ) : (
           data.forms.map((form) => (
             <GovernmentFormCard

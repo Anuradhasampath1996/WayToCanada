@@ -15,6 +15,7 @@ if [ -f .env ]; then
   php artisan storage:link --ansi || true
   php artisan migrate --force --no-ansi || true
   php artisan db:seed --class=PathwayCatalogSeeder --force --no-ansi || true
+  php artisan db:seed --class=GovernmentFormVersionSeeder --force --no-ansi || true
 
   # Long jobs (CICC sync, legislation) need dedicated workers inside the API container.
   # Minimal images may lack pkill/kill — stop workers via /proc + posix_kill.

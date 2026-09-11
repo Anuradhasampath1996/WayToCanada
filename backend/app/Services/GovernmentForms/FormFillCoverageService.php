@@ -158,8 +158,8 @@ class FormFillCoverageService
             'applicant.education.level' => 'main_data.educationLevels',
             'applicant.work.job_title' => 'main_data.currentJobTitle',
             'applicant.work.intended_occupation' => 'main_data.intendedNocTitle',
-            'applicant.family.spouse.family_name' => 'spouse_data.fullName',
-            'applicant.family.spouse.given_names' => 'spouse_data.fullName',
+            'applicant.family.spouse.family_name' => 'spouse_data.passportFullName',
+            'applicant.family.spouse.given_names' => 'spouse_data.passportFullName',
             'applicant.family.spouse.date_of_birth' => 'spouse_data.dob',
             'applicant.family.spouse.country_of_birth' => 'spouse_data.nicBirthPlace',
             'applicant.family.spouse.address.full' => 'spouse_data.nicAddress',
@@ -205,7 +205,7 @@ class FormFillCoverageService
     {
         return match ($suffix) {
             'date_of_birth' => 'dob',
-            'family_name', 'given_names', 'full_name' => 'fullName',
+            'family_name', 'given_names', 'full_name' => 'passportFullName',
             'country_of_birth' => 'nicBirthPlace',
             'address.full' => 'nicAddress',
             'marital_status' => 'maritalStatus',

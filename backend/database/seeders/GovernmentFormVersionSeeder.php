@@ -97,13 +97,13 @@ class GovernmentFormVersionSeeder extends Seeder
                 'pdf_technology'        => GovernmentFormPdfTechnology::XFA_DYNAMIC,
                 'submission_mode'       => GovernmentFormSubmissionMode::PDF_AUTO_FILL_ADOBE_VALIDATE,
                 'engine_strategy'       => 'pdfxfa_append',
-                'mapping_version'       => '0.3.0-c3',
+                'mapping_version'       => '0.4.0-c4',
                 'mapping_status'        => GovernmentFormMappingStatus::VERIFIED,
                 'status'                => GovernmentFormVersionStatus::ACTIVE,
                 'compatibility_status'  => 'SUPPORTED',
                 'last_verified_at'      => now(),
                 'effective_date'        => '2026-05-01',
-                'notes'                 => 'Phase C3 — C2 + native/communicate languages.',
+                'notes'                 => 'Phase C4 — C3 + sex, citizenship, COR country, passport dates, corr/interview lang, apt, depPrime birth/relationship.',
             ]
         );
 
@@ -149,13 +149,13 @@ class GovernmentFormVersionSeeder extends Seeder
                 'pdf_technology'        => GovernmentFormPdfTechnology::XFA_DYNAMIC,
                 'submission_mode'       => GovernmentFormSubmissionMode::PDF_AUTO_FILL_ADOBE_VALIDATE,
                 'engine_strategy'       => 'pdfxfa_append',
-                'mapping_version'       => '0.1.0-c1',
+                'mapping_version'       => '0.2.0-c2',
                 'mapping_status'        => GovernmentFormMappingStatus::VERIFIED,
                 'status'                => GovernmentFormVersionStatus::ACTIVE,
                 'compatibility_status'  => 'SUPPORTED',
                 'last_verified_at'      => now(),
                 'effective_date'        => '2021-05-01',
-                'notes'                 => 'C1 — name/DOB/parents. Engine injects missing datasets packet before fill (Designer 6.2).',
+                'notes'                 => 'C2 — C1 + nameOfApplicant + country of birth. Engine injects missing datasets packet before fill.',
             ]
         );
 

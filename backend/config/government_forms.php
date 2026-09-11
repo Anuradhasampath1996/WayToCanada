@@ -309,6 +309,30 @@ return [
                 'redirect_hint' => '/questionnaire/main',
                 'conditional' => false,
             ],
+            [
+                'key' => 'applicant.personal.gender',
+                'label' => 'Applicant sex / gender',
+                'source_section' => 'questionnaire_main',
+                'responsible_party' => 'client',
+                'redirect_hint' => '/questionnaire/main',
+                'conditional' => false,
+            ],
+            [
+                'key' => 'applicant.personal.citizenship',
+                'label' => 'Applicant citizenship',
+                'source_section' => 'questionnaire_main',
+                'responsible_party' => 'client',
+                'redirect_hint' => '/questionnaire/main',
+                'conditional' => false,
+            ],
+            [
+                'key' => 'applicant.passport.expiry_date',
+                'label' => 'Passport expiry date',
+                'source_section' => 'questionnaire_main',
+                'responsible_party' => 'client',
+                'redirect_hint' => '/questionnaire/main',
+                'conditional' => false,
+            ],
         ],
         'IMM5562' => [
             [

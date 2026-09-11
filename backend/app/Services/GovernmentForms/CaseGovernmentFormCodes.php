@@ -39,6 +39,32 @@ class CaseGovernmentFormCodes
             'IMM 1295',
             'IMM 5707',
         ],
+        'Community Pilot' => [
+            'IMM 0008',
+            'IMM 5669',
+            'IMM 5406',
+        ],
+        'Quebec' => [
+            'IMM 0008',
+            'IMM 5669',
+            'IMM 5406',
+        ],
+        'Business Immigration' => [
+            'IMM 0008',
+            'IMM 5669',
+            'IMM 5406',
+        ],
+        'Visitor' => [
+            'IMM 5257',
+            'IMM 5707',
+        ],
+        'Citizenship' => [
+            'CIT 0002',
+        ],
+        'PR Card' => [
+            'IMM 5444',
+            'IMM 5455',
+        ],
     ];
 
     /**
@@ -132,16 +158,31 @@ class CaseGovernmentFormCodes
             }
         }
 
-        if ($codes !== []) {
-            return $codes;
+        $family = $this->resolvePathwayFamily($caseFile);
+        $pathwayCodes = ($family && isset(self::PATHWAY_FORM_CODES[$family]))
+            ? self::PATHWAY_FORM_CODES[$family]
+            : [];
+
+        // Merge package + pathway lists so Express Entry always gets IMM 0008 / 5669 / etc.
+        // Package-only early return used to hide fillable forms when the IRCC leaf listed
+        // only non-mapped / online placeholders.
+        $merged = array_values(array_unique(array_merge($codes, $pathwayCodes)));
+
+        return $merged;
+    }
+
+    private function resolvePathwayFamily(CaseFile $caseFile): ?string
+    {
+        try {
+            $fromCatalog = app(\App\Services\PathwayCatalogService::class)->hubFamilyForCase($caseFile);
+            if (is_string($fromCatalog) && $fromCatalog !== '') {
+                return $fromCatalog;
+            }
+        } catch (\Throwable) {
+            // Fall through to label-based family.
         }
 
-        $family = CaseManagementHubService::pathwayFamily($caseFile->immigration_pathway);
-        if ($family && isset(self::PATHWAY_FORM_CODES[$family])) {
-            return self::PATHWAY_FORM_CODES[$family];
-        }
-
-        return [];
+        return CaseManagementHubService::pathwayFamily($caseFile->immigration_pathway);
     }
 
     public function normalize(string $code): string

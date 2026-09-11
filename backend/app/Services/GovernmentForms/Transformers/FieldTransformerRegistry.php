@@ -17,6 +17,7 @@ class FieldTransformerRegistry
             'date_dd' => new DateDayTransformer(),
             'name' => new NameTransformer(),
             'uci' => new UciTransformer(),
+            'sex' => new SexTransformer(),
         ];
     }
 

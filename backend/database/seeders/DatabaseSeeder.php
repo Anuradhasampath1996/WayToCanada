@@ -21,6 +21,7 @@ class DatabaseSeeder extends Seeder
             IrccCategorySeeder::class,
             IrccInteractiveFormSeeder::class,
             PathwayCatalogSeeder::class,
+            GovernmentFormVersionSeeder::class,
         ]);
     }
 }
