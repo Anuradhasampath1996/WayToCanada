@@ -619,6 +619,8 @@ class ConsultantBillingService
     /** @return array<string, mixed> */
     private function formatPaymentInvoice(SubscriptionPaymentRecord $record): array
     {
+        app(SubscriptionPaymentRecorder::class)->repairInconsistentTax($record);
+
         return [
             'id'               => (string) $record->id,
             'category'         => 'subscription',
@@ -637,7 +639,8 @@ class ConsultantBillingService
             'provincial_tax'   => $record->provincial_tax !== null ? (float) $record->provincial_tax : null,
             'paid_at'          => $record->paid_at?->toIso8601String(),
             'created_at'       => ($record->paid_at ?? $record->created_at)?->toIso8601String(),
-            'invoice_pdf'      => $record->invoice_pdf,
+            // Keep Stripe PDF as reference only — downloads use branded invoice_download.
+            'invoice_pdf'      => null,
             'hosted_url'       => $record->hosted_invoice_url,
             'source'           => $record->stripe_invoice_id ? 'stripe' : 'local',
             'payment_type'     => $record->payment_type,

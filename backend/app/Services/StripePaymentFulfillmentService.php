@@ -658,11 +658,35 @@ class StripePaymentFulfillmentService
     private function sessionTax(object $session, ?object $invoice): ?float
     {
         if ($invoice) {
-            return round(($invoice->tax ?? 0) / 100, 2);
+            // Legacy field — often 0/null when Stripe Tax is enabled on newer API versions.
+            $legacyTax = isset($invoice->tax) ? (int) $invoice->tax : null;
+            if ($legacyTax !== null && $legacyTax > 0) {
+                return round($legacyTax / 100, 2);
+            }
+
+            $taxAmounts = $invoice->total_tax_amounts ?? $invoice->total_taxes ?? null;
+            if (is_array($taxAmounts) || $taxAmounts instanceof \Traversable) {
+                $sum = 0;
+                foreach ($taxAmounts as $row) {
+                    $sum += (int) (is_object($row) ? ($row->amount ?? 0) : ($row['amount'] ?? 0));
+                }
+                if ($sum > 0) {
+                    return round($sum / 100, 2);
+                }
+            }
+
+            $subCents = $invoice->subtotal_excluding_tax ?? $invoice->subtotal ?? null;
+            $paidCents = $invoice->amount_paid ?? $invoice->total ?? null;
+            if ($subCents !== null && $paidCents !== null && (int) $paidCents > (int) $subCents) {
+                return round(((int) $paidCents - (int) $subCents) / 100, 2);
+            }
         }
 
         if (isset($session->amount_total, $session->amount_subtotal)) {
-            return round(($session->amount_total - $session->amount_subtotal) / 100, 2);
+            $diff = (int) $session->amount_total - (int) $session->amount_subtotal;
+            if ($diff > 0) {
+                return round($diff / 100, 2);
+            }
         }
 
         return null;

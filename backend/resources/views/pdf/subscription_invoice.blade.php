@@ -9,26 +9,34 @@
             font-family: DejaVu Sans, sans-serif;
             font-size: 9.5px;
             line-height: 1.45;
-            color: #111827;
+            color: {{ $brandInk ?? '#000103' }};
             margin: 0;
         }
         .muted { color: #6b7280; }
         .header {
-            border-bottom: 2px solid #1e3a5f;
+            border-bottom: 3px solid {{ $brandPrimary ?? '#D01D20' }};
             padding-bottom: 14px;
             margin-bottom: 16px;
         }
         .header-table { width: 100%; border-collapse: collapse; }
         .header-table td { vertical-align: top; padding: 0; }
-        .logo { max-height: 54px; max-width: 150px; margin-bottom: 6px; }
-        .company-name { font-size: 14px; font-weight: bold; color: #1e3a5f; margin: 0 0 2px; }
+        .logo { max-height: 52px; max-width: 180px; margin-bottom: 8px; }
+        .company-name { font-size: 14px; font-weight: bold; color: {{ $brandInk ?? '#000103' }}; margin: 0 0 2px; }
         .company-trade { font-size: 10px; color: #374151; margin: 0 0 6px; }
+        .brand-mark {
+            font-size: 15px;
+            font-weight: bold;
+            letter-spacing: 0.4px;
+            margin: 0 0 4px;
+        }
+        .brand-mark .ink { color: {{ $brandInk ?? '#000103' }}; }
+        .brand-mark .accent { color: {{ $brandPrimary ?? '#D01D20' }}; }
         .doc-title {
             font-size: 16px;
             font-weight: bold;
             text-transform: uppercase;
             letter-spacing: 0.6px;
-            color: #1e3a5f;
+            color: {{ $brandPrimary ?? '#D01D20' }};
             margin: 0 0 2px;
             text-align: right;
         }
@@ -49,7 +57,7 @@
             width: 100%;
             border-collapse: collapse;
             margin-bottom: 14px;
-            background: #f8fafc;
+            background: #fafafa;
             border: 1px solid #e5e7eb;
         }
         .meta-box td {
@@ -66,14 +74,14 @@
             color: #6b7280;
             margin-bottom: 3px;
         }
-        .meta-value { font-size: 10px; font-weight: bold; color: #111827; }
+        .meta-value { font-size: 10px; font-weight: bold; color: {{ $brandInk ?? '#000103' }}; }
         .parties {
             width: 100%;
             border-collapse: collapse;
             margin-bottom: 14px;
         }
         .parties th {
-            background: #1e3a5f;
+            background: {{ $brandPrimary ?? '#D01D20' }};
             color: #fff;
             font-size: 8.5px;
             text-transform: uppercase;
@@ -94,7 +102,7 @@
             font-weight: bold;
             text-transform: uppercase;
             letter-spacing: 0.35px;
-            color: #1e3a5f;
+            color: {{ $brandPrimaryDark ?? '#B0181B' }};
             margin: 0 0 6px;
         }
         table.items {
@@ -130,11 +138,11 @@
         }
         table.totals tr.subtotal td { border-top: 1px solid #d1d5db; padding-top: 8px; }
         table.totals tr.total td {
-            border-top: 2px solid #1e3a5f;
+            border-top: 2px solid {{ $brandPrimary ?? '#D01D20' }};
             font-weight: bold;
             font-size: 11px;
             padding-top: 8px;
-            color: #1e3a5f;
+            color: {{ $brandPrimaryDark ?? '#B0181B' }};
         }
         .tax-note {
             margin-top: 12px;
@@ -161,16 +169,27 @@
         }
         .reg-table { width: 100%; margin-top: 6px; border-collapse: collapse; }
         .reg-table td { padding: 2px 8px 2px 0; vertical-align: top; width: 50%; }
+        .accent-bar {
+            height: 4px;
+            background: {{ $brandPrimary ?? '#D01D20' }};
+            margin: 0 0 14px 0;
+        }
     </style>
 </head>
 <body>
+    <div class="accent-bar"></div>
+
     {{-- Header --}}
     <div class="header">
         <table class="header-table">
             <tr>
                 <td style="width: 58%;">
                     @if($companyLogo)
-                        <img src="{{ $companyLogo }}" alt="Logo" class="logo">
+                        <img src="{{ $companyLogo }}" alt="RCICMASTER" class="logo">
+                    @else
+                        <div class="brand-mark">
+                            <span class="ink">RCIC</span><span class="accent">MASTER</span>
+                        </div>
                     @endif
                     <div class="company-name">{{ $company->legal_name ?: ($company->trade_name ?: 'RCICMASTER') }}</div>
                     @if($company->trade_name && $company->legal_name && $company->trade_name !== $company->legal_name)
@@ -249,7 +268,7 @@
             </td>
             <td>
                 @foreach($billToLines as $line)
-                    <div class="party-line">{{ $loop->first ? '' : '' }}{{ $loop->first ? '' : '' }}@if($loop->first)<strong>{{ $line }}</strong>@else{{ $line }}@endif</div>
+                    <div class="party-line">@if($loop->first)<strong>{{ $line }}</strong>@else{{ $line }}@endif</div>
                 @endforeach
             </td>
         </tr>

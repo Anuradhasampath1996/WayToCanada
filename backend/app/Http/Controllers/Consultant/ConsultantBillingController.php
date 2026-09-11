@@ -80,10 +80,8 @@ class ConsultantBillingController extends Controller
             abort(404);
         }
 
-        if ($subscriptionPaymentRecord->invoice_pdf && str_starts_with($subscriptionPaymentRecord->invoice_pdf, 'http')) {
-            return redirect()->away($subscriptionPaymentRecord->invoice_pdf);
-        }
-
+        // Always generate the branded RCICMASTER tax invoice.
+        // Redirecting to Stripe's hosted PDF breaks browser fetch() (CORS → "Failed to fetch").
         return $this->invoicePdf->generate($subscriptionPaymentRecord)
             ->download($this->invoicePdf->filename($subscriptionPaymentRecord));
     }

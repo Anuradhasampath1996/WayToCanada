@@ -36,6 +36,15 @@ final class PdfImageEmbedder
             return self::fileToDataUri($logo);
         }
 
+        // Absolute public URLs like /brand/rcicmaster-logo.png
+        $path = parse_url($logo, PHP_URL_PATH);
+        if (is_string($path) && $path !== '') {
+            $publicCandidate = public_path(ltrim($path, '/'));
+            if (is_file($publicCandidate)) {
+                return self::fileToDataUri($publicCandidate);
+            }
+        }
+
         return null;
     }
 

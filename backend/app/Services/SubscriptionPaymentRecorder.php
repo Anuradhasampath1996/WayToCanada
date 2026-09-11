@@ -36,9 +36,12 @@ class SubscriptionPaymentRecorder
         }
 
         $package  = $subscription->package;
-        $subtotal = $stripeSubtotal ?? (float) ($taxBreakdown['subtotal'] ?? 0);
-        $tax      = $stripeTax ?? (float) ($taxBreakdown['total_tax'] ?? 0);
-        $total    = $stripeTotal ?? (float) ($taxBreakdown['total'] ?? ($subtotal + $tax));
+        [$subtotal, $tax, $total] = $this->resolveCheckoutAmounts(
+            $stripeSubtotal,
+            $stripeTax,
+            $stripeTotal,
+            $taxBreakdown,
+        );
 
         return SubscriptionPaymentRecord::create([
             'user_id'                     => $user->id,
@@ -62,7 +65,7 @@ class SubscriptionPaymentRecorder
             'gst_amount'                  => $taxBreakdown['gst_amount'] ?? null,
             'provincial_tax'              => $taxBreakdown['provincial_tax'] ?? null,
             'total_rate_pct'              => $taxBreakdown['total_rate_pct'] ?? null,
-            'tax_applicable'              => (bool) ($taxBreakdown['tax_applicable'] ?? ($tax > 0)),
+            'tax_applicable'              => (bool) ($taxBreakdown['tax_applicable'] ?? false) || $tax > 0,
             'billing_address'             => $billingAddress,
             'invoice_pdf'                 => $invoicePdf,
             'hosted_invoice_url'          => $hostedUrl,
@@ -434,10 +437,65 @@ class SubscriptionPaymentRecorder
         ]);
     }
 
+    /**
+     * Repair rows where Stripe stored tax as $0 but total still includes tax
+     * (common when invoice.tax is empty under Stripe Tax).
+     */
+    public function repairInconsistentTax(SubscriptionPaymentRecord $record, bool $persist = true): SubscriptionPaymentRecord
+    {
+        $subtotal = (float) $record->subtotal;
+        $tax      = (float) $record->tax_amount;
+        $total    = (float) $record->total;
+
+        if ($tax > 0.009 || $total <= $subtotal + 0.009) {
+            return $record;
+        }
+
+        $derived = round($total - $subtotal, 2);
+        $record->tax_amount = $derived;
+        $record->tax_applicable = true;
+
+        if ($persist && $record->exists) {
+            $record->save();
+        }
+
+        return $record;
+    }
+
+    /**
+     * @param  array<string, mixed>  $taxBreakdown
+     * @return array{0: float, 1: float, 2: float}
+     */
+    private function resolveCheckoutAmounts(
+        ?float $stripeSubtotal,
+        ?float $stripeTax,
+        ?float $stripeTotal,
+        array $taxBreakdown,
+    ): array {
+        $quotedSubtotal = (float) ($taxBreakdown['subtotal'] ?? 0);
+        $quotedTax      = (float) ($taxBreakdown['total_tax'] ?? 0);
+        $quotedTotal    = (float) ($taxBreakdown['total'] ?? ($quotedSubtotal + $quotedTax));
+
+        $subtotal = $stripeSubtotal ?? $quotedSubtotal;
+        $total    = $stripeTotal ?? $quotedTotal;
+        $tax      = ($stripeTax !== null && $stripeTax > 0) ? $stripeTax : $quotedTax;
+
+        if ($tax <= 0 && $total > $subtotal) {
+            $tax = round($total - $subtotal, 2);
+        }
+
+        if ($total <= 0) {
+            $total = round($subtotal + $tax, 2);
+        }
+
+        return [round($subtotal, 2), round($tax, 2), round($total, 2)];
+    }
+
     /** @return array<string, mixed> */
     public function formatRecord(SubscriptionPaymentRecord $record, string $audience = 'admin'): array
     {
         $record->loadMissing('user:id,name,email', 'package:id,name', 'subscription:id,billing_cycle,status');
+        $this->repairInconsistentTax($record);
 
         $category = $record->payment_category ?? SubscriptionPaymentRecord::CATEGORY_SUBSCRIPTION;
         $invoiceDownload = $audience === 'consultant'

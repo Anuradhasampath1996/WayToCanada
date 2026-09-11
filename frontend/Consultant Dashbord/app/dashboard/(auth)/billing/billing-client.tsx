@@ -154,18 +154,26 @@ function formatBillingAddress(addr: Record<string, string> | null | undefined): 
   ].filter(Boolean) as string[];
 }
 
+/** Derive tax when API stored $0 but total still includes tax. */
+function effectiveTaxAmount(inv: Invoice): number {
+  const subtotal = Number(inv.subtotal ?? 0);
+  const tax = Number(inv.tax_amount ?? 0);
+  const total = Number(inv.total ?? inv.amount ?? 0);
+  if (tax <= 0.009 && total > subtotal + 0.009) {
+    return Math.round((total - subtotal) * 100) / 100;
+  }
+  return tax;
+}
+
 async function downloadInvoicePdf(inv: Invoice) {
   const recordId = inv.payment_record_id ?? (/^\d+$/.test(inv.id) ? Number(inv.id) : null);
+  // Always use our branded invoice API — Stripe PDF URLs fail fetch() with CORS ("Failed to fetch").
   const url =
-    inv.invoice_pdf ??
     inv.invoice_download ??
     (recordId ? `${API}/consultant/billing/payments/${recordId}/invoice` : null);
 
-  if (!url) return;
-
-  if (inv.invoice_pdf && inv.invoice_pdf.startsWith("http") && inv.source === "stripe") {
-    window.open(inv.invoice_pdf, "_blank", "noopener,noreferrer");
-    return;
+  if (!url) {
+    throw new Error("Invoice PDF is not available for this payment.");
   }
 
   const res = await fetch(url, { headers: authHeaders(false, "application/pdf") });
@@ -179,6 +187,10 @@ async function downloadInvoicePdf(inv: Invoice) {
   }
 
   const blob = await res.blob();
+  if (!blob.size || (blob.type && blob.type.includes("text/html"))) {
+    throw new Error("Invoice PDF could not be generated. Please try again.");
+  }
+
   const disposition = res.headers.get("Content-Disposition");
   const match = disposition?.match(/filename="?([^";\n]+)"?/);
   const filename = match?.[1] ?? `invoice-${inv.number ?? recordId ?? "payment"}.pdf`;
@@ -409,6 +421,17 @@ export function BillingClient() {
       if (!res.ok) throw new Error(json.message ?? "Could not load payment details");
 
       const data = json.data;
+      const repairedTax =
+        Number(data.tax_amount ?? 0) > 0.009
+          ? Number(data.tax_amount)
+          : effectiveTaxAmount({
+              ...inv,
+              subtotal: data.subtotal ?? inv.subtotal,
+              tax_amount: data.tax_amount ?? inv.tax_amount,
+              amount: data.total ?? inv.amount,
+              total: data.total ?? inv.amount,
+            } as Invoice);
+
       setSelectedInvoice({
         ...inv,
         ...data,
@@ -416,9 +439,18 @@ export function BillingClient() {
         payment_record_id: data.id ?? recordId,
         number: data.invoice_number ?? inv.number,
         subtotal: data.subtotal ?? inv.subtotal,
-        tax_amount: data.tax_amount ?? inv.tax_amount,
+        tax_amount: repairedTax,
+        tax_applicable: data.tax_applicable ?? (repairedTax > 0 ? true : inv.tax_applicable),
         amount: data.total ?? inv.amount,
+        total: data.total ?? inv.amount,
         hosted_url: data.hosted_invoice_url ?? inv.hosted_url,
+        invoice_download:
+          data.invoice_download ??
+          inv.invoice_download ??
+          `${API}/consultant/billing/payments/${data.id ?? recordId}/invoice`,
+        // Prefer branded PDF download; keep Stripe PDF out of the primary download path.
+        invoice_pdf: null,
+        can_download: data.can_download ?? true,
       });
     } catch (e: unknown) {
       setDialogError(e instanceof Error ? e.message : "Could not load payment details.");
@@ -511,7 +543,7 @@ export function BillingClient() {
     const subscriptionPaid = paid.filter((i) => (i.category ?? "subscription") === "subscription");
     const marketingPaid = paid.filter((i) => i.category === "marketing");
     const totalPaid = paid.reduce((sum, i) => sum + (i.amount ?? 0), 0);
-    const totalTax = paid.reduce((sum, i) => sum + (i.tax_amount ?? 0), 0);
+    const totalTax = paid.reduce((sum, i) => sum + effectiveTaxAmount(i), 0);
     return {
       count: paid.length,
       subscriptionCount: subscriptionPaid.length,
@@ -1027,7 +1059,9 @@ export function BillingClient() {
                         <div>
                           <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Tax</p>
                           <p className="font-medium tabular-nums">
-                            {inv.tax_applicable === false ? "—" : fmtMoney(inv.tax_amount ?? 0, inv.currency)}
+                            {inv.tax_applicable === false && effectiveTaxAmount(inv) <= 0
+                              ? "—"
+                              : fmtMoney(effectiveTaxAmount(inv), inv.currency)}
                           </p>
                         </div>
                         <div className="col-span-2 border-t border-border/60 pt-2">
@@ -1080,11 +1114,11 @@ export function BillingClient() {
                           {fmtMoney(inv.subtotal ?? inv.amount, inv.currency)}
                         </TableCell>
                         <TableCell className="text-right text-sm">
-                          {inv.tax_applicable === false ? (
+                          {inv.tax_applicable === false && effectiveTaxAmount(inv) <= 0 ? (
                             <span className="text-muted-foreground">—</span>
                           ) : (
                             <div className="tabular-nums">
-                              <span>{fmtMoney(inv.tax_amount ?? 0, inv.currency)}</span>
+                              <span>{fmtMoney(effectiveTaxAmount(inv), inv.currency)}</span>
                               {inv.tax_label && (
                                 <span className="block text-[10px] text-muted-foreground">{inv.tax_label}</span>
                               )}
@@ -1212,9 +1246,9 @@ export function BillingClient() {
                     Tax{selectedInvoice.tax_label ? ` · ${selectedInvoice.tax_label}` : ""}
                   </span>
                   <span className="tabular-nums">
-                    {selectedInvoice.tax_applicable === false
+                    {selectedInvoice.tax_applicable === false && effectiveTaxAmount(selectedInvoice) <= 0
                       ? "No tax"
-                      : fmtMoney(selectedInvoice.tax_amount ?? 0, selectedInvoice.currency)}
+                      : fmtMoney(effectiveTaxAmount(selectedInvoice), selectedInvoice.currency)}
                   </span>
                 </div>
                 {(selectedInvoice.gst_amount ?? 0) > 0 && (

@@ -96,10 +96,6 @@ class AdminSubscriptionPaymentsController extends Controller
 
     public function downloadInvoice(SubscriptionPaymentRecord $subscriptionPaymentRecord)
     {
-        if ($subscriptionPaymentRecord->invoice_pdf && str_starts_with($subscriptionPaymentRecord->invoice_pdf, 'http')) {
-            return redirect()->away($subscriptionPaymentRecord->invoice_pdf);
-        }
-
         return $this->invoicePdf->generate($subscriptionPaymentRecord)
             ->download($this->invoicePdf->filename($subscriptionPaymentRecord));
     }

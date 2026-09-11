@@ -11,6 +11,7 @@ class SubscriptionInvoicePdfService
     public function __construct(
         private PlatformCompanySettingsService $companySettings,
         private GstHstRatesService $gstRates,
+        private SubscriptionPaymentRecorder $recorder,
     ) {}
 
     public function generate(SubscriptionPaymentRecord $record): \Barryvdh\DomPDF\PDF
@@ -19,6 +20,8 @@ class SubscriptionInvoicePdfService
             'user:id,name,email,rcic_number,company_name,company_phone,company_address_line1,company_address_line2,company_city,company_province,company_postal_code,company_country',
             'package:id,name,description',
         );
+
+        $this->recorder->repairInconsistentTax($record);
 
         $company   = $this->companySettings->get();
         $billing   = $record->billing_address ?? [];
@@ -45,11 +48,13 @@ class SubscriptionInvoicePdfService
             : ($record->tax_applicable ? 'Canada' : 'Outside Canada');
 
         $paidAt = $record->paid_at?->timezone('America/Toronto');
+        $companyLogo = PdfImageEmbedder::logoDataUri($company->logo_url)
+            ?? PdfImageEmbedder::logoDataUri(public_path('brand/rcicmaster-logo.png'));
 
         return Pdf::loadView('pdf.subscription_invoice', [
             'record'          => $record,
             'company'         => $company,
-            'companyLogo'     => PdfImageEmbedder::logoDataUri($company->logo_url),
+            'companyLogo'     => $companyLogo,
             'companyLines'    => $this->companySettings->formattedAddressLines($company),
             'invoiceNumber'   => $invoiceNumber,
             'billToLines'     => $billToLines,
@@ -61,6 +66,9 @@ class SubscriptionInvoicePdfService
             'billingCycle'    => $record->billing_cycle === 'yearly' ? 'Annual' : 'Monthly',
             'placeOfSupply'   => $placeOfSupply,
             'currency'        => strtoupper($record->currency ?? 'CAD'),
+            'brandPrimary'    => '#D01D20',
+            'brandPrimaryDark'=> '#B0181B',
+            'brandInk'        => '#000103',
         ])->setPaper('letter', 'portrait');
     }
 
