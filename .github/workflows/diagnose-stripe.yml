@@ -1,0 +1,104 @@
+name: Diagnose Stripe verify
+
+on:
+  workflow_dispatch:
+    inputs:
+      session_id:
+        description: Stripe checkout session id
+        required: true
+        type: string
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Pull logs and diagnose on EC2
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          SESSION_ID: ${{ inputs.session_id }}
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          command_timeout: 5m
+          envs: SESSION_ID
+          script: |
+            set -euo pipefail
+            cd /opt/waytocanada
+            echo "=== containers ==="
+            docker ps --format 'table {{.Names}}\t{{.Status}}' | head -30
+            echo "=== stripe gateway row (masked) ==="
+            docker compose -f docker-compose.prod.yml exec -T api php -r '
+            require "vendor/autoload.php";
+            $app=require "bootstrap/app.php";
+            $app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+            $row=App\Models\PaymentGatewaySetting::where("gateway","stripe")->first();
+            if(!$row){echo "NO_STRIPE_ROW\n"; exit;}
+            $pk=App\Models\PaymentGatewaySetting::decryptKey($row->publishable_key);
+            $sk=App\Models\PaymentGatewaySetting::decryptKey($row->secret_key);
+            $wh=App\Models\PaymentGatewaySetting::decryptKey($row->webhook_id) ?? $row->webhook_id;
+            echo json_encode([
+              "is_active"=>(bool)$row->is_active,
+              "mode"=>$row->mode,
+              "use_test_clock"=>(bool)($row->use_test_clock ?? false),
+              "has_pk"=> (bool)$pk,
+              "pk_prefix"=> $pk ? substr($pk,0,12) : null,
+              "has_sk"=> (bool)$sk,
+              "sk_prefix"=> $sk ? substr($sk,0,12) : null,
+              "has_wh"=> (bool)$wh,
+            ], JSON_PRETTY_PRINT), PHP_EOL;
+            '
+            echo "=== practice package stripe ids ==="
+            docker compose -f docker-compose.prod.yml exec -T api php -r '
+            require "vendor/autoload.php";
+            $app=require "bootstrap/app.php";
+            $app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+            $p=App\Models\SubscriptionPackage::find(2);
+            echo json_encode($p?->only(["id","name","stripe_product_id","stripe_monthly_price_id","stripe_yearly_price_id"]), JSON_PRETTY_PRINT), PHP_EOL;
+            '
+            echo "=== retrieve session ==="
+            docker compose -f docker-compose.prod.yml exec -T api php -r '
+            require "vendor/autoload.php";
+            $app=require "bootstrap/app.php";
+            $app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+            $sid=getenv("SESSION_ID") ?: "'"$SESSION_ID"'";
+            try {
+              new App\Services\StripeSubscriptionService();
+              $s=Stripe\Checkout\Session::retrieve(["id"=>$sid,"expand"=>["subscription","invoice"]]);
+              $meta=$s->metadata ? $s->metadata->toArray() : [];
+              echo json_encode([
+                "id"=>$s->id,
+                "status"=>$s->status,
+                "payment_status"=>$s->payment_status,
+                "mode"=>$s->mode,
+                "client_reference_id"=>$s->client_reference_id,
+                "metadata"=>$meta,
+                "customer"=> is_object($s->customer ?? null) ? ($s->customer->id ?? null) : ($s->customer ?? null),
+                "subscription"=> is_object($s->subscription ?? null) ? ($s->subscription->id ?? null) : ($s->subscription ?? null),
+                "invoice"=> is_object($s->invoice ?? null) ? ($s->invoice->id ?? null) : ($s->invoice ?? null),
+              ], JSON_PRETTY_PRINT), PHP_EOL;
+            } catch (Throwable $e) {
+              echo "RETRIEVE_ERROR: ".$e->getMessage().PHP_EOL;
+            }
+            '
+            echo "=== try fulfill ==="
+            docker compose -f docker-compose.prod.yml exec -T api php -r '
+            require "vendor/autoload.php";
+            $app=require "bootstrap/app.php";
+            $app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+            $sid="'"$SESSION_ID"'";
+            try {
+              new App\Services\StripeSubscriptionService();
+              $s=Stripe\Checkout\Session::retrieve(["id"=>$sid,"expand"=>["subscription","invoice"]]);
+              $svc=app(App\Services\StripePaymentFulfillmentService::class);
+              $result=$svc->fulfillPlatformSubscriptionCheckout($s);
+              echo json_encode(["ok"=>true,"already"=>$result["already"] ?? false,"sub_id"=>$result["subscription"]->id ?? null], JSON_PRETTY_PRINT), PHP_EOL;
+            } catch (Throwable $e) {
+              echo "FULFILL_ERROR: ".$e::class." :: ".$e->getMessage().PHP_EOL;
+              echo $e->getFile().":".$e->getLine().PHP_EOL;
+            }
+            '
+            echo "=== recent laravel log ==="
+            docker compose -f docker-compose.prod.yml exec -T api sh -lc 'tail -n 120 storage/logs/laravel.log 2>/dev/null || tail -n 120 storage/logs/laravel-$(date +%Y-%m-%d).log 2>/dev/null || ls -la storage/logs | tail'
