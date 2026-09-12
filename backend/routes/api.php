@@ -68,6 +68,7 @@ use App\Http\Controllers\CrsController;
 use App\Http\Controllers\DocumentOcrController;
 use App\Http\Controllers\NocLookupController;
 use App\Http\Controllers\DocumentSubmissionController;
+use App\Http\Controllers\ConsultantDocumentWorkshopController;
 use App\Http\Controllers\FileUploadController;
 use App\Http\Controllers\PackageDocumentSubmissionController;
 use App\Http\Controllers\IrccFormController;
@@ -483,6 +484,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('{profile}/documents/{submission}/stream',               [SecurePdfController::class, 'consultantSubmission'])->name('documents.stream');
         Route::patch('{profile}/documents/{submission}/review',             [DocumentSubmissionController::class, 'review'])->name('documents.review');
         Route::patch('{profile}/case-pipeline',                             [DocumentSubmissionController::class, 'updatePipelineStatus'])->name('case-pipeline.update');
+
+        // ── Document Workshop (merge client docs → PDF) ───────────────────────
+        Route::get('{profile}/document-workshop/sources', [ConsultantDocumentWorkshopController::class, 'sources'])->name('document-workshop.sources');
+        Route::post('{profile}/document-workshop/save', [ConsultantDocumentWorkshopController::class, 'save'])->name('document-workshop.save');
 
         // ── Messaging (per-client) ─────────────────────────────────────────────
         Route::get('{profile}/messages',                                    [CaseMessagingController::class, 'consultantIndex'])->name('messages.index');

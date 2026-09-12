@@ -761,6 +761,20 @@ export function CaseManagementClient({ paramsPromise }: { paramsPromise: Promise
             title="Documents"
             description="Review each upload, approve when correct, or request a re-upload. The client sees your note in their portal."
           />
+          <div className="flex flex-col gap-3 rounded-xl border bg-muted/20 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <p className="text-sm font-semibold">Document Workshop</p>
+              <p className="text-xs text-muted-foreground">
+                Merge case PDFs and images into one package — arrange, rotate, download, or save to the case.
+              </p>
+            </div>
+            <Button asChild className="shrink-0">
+              <Link href={`/dashboard/clients/${id}/workspace/document-workshop`}>
+                <FileText className="mr-2 h-4 w-4" />
+                Open Document Workshop
+              </Link>
+            </Button>
+          </div>
           <div>
             <p className="mb-3 text-sm font-semibold">Document Requirements</p>
             <DocumentRequirementsGrid
