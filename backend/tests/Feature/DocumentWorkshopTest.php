@@ -151,6 +151,34 @@ class DocumentWorkshopTest extends TestCase
             ->assertJsonPath('documents.0.source_kind', 'case_document');
     }
 
+    public function test_sources_includes_questionnaire_intake_uploads(): void
+    {
+        Storage::fake('public');
+        Storage::fake('local');
+
+        ['consultant' => $consultant, 'profile' => $profile, 'clientUser' => $clientUser] = $this->createConsultantWithClient();
+
+        $path = 'client-document/2026/09/passport-main.pdf';
+        Storage::disk('local')->put($path, $this->minimalPdfBytes());
+
+        \App\Models\QuestionnaireSubmission::where('user_id', $clientUser->id)->update([
+            'main_data' => [
+                'passportFullName' => 'Synthetic Client',
+                'passportName' => $path,
+            ],
+        ]);
+
+        $this->actingAsConsultant($consultant);
+
+        $this->getJson("/api/v1/consultant/clients/{$profile->id}/document-workshop/sources")
+            ->assertOk()
+            ->assertJsonFragment([
+                'source_kind' => 'questionnaire',
+                'document_label' => 'Main applicant — Passport',
+                'original_filename' => 'passport-main.pdf',
+            ]);
+    }
+
     private function minimalPdfBytes(): string
     {
         return "%PDF-1.4\n"

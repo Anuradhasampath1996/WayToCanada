@@ -582,7 +582,7 @@ export function DocumentWorkshopClient({ profileId }: { profileId: string }) {
                 <FileStack className="size-10 text-muted-foreground/40" />
                 <p className="text-sm text-muted-foreground">No PDF or image documents uploaded for this client yet.</p>
                 <p className="text-xs text-muted-foreground">
-                  Case checklist uploads and submitted package PDFs from the client portal appear here.
+                  Intake &amp; pathway questionnaire uploads, case checklist files, and submitted package PDFs appear here.
                 </p>
                 <Button variant="outline" asChild>
                   <Link href={caseHubHref}>Open Case Hub documents</Link>
@@ -601,7 +601,11 @@ export function DocumentWorkshopClient({ profileId }: { profileId: string }) {
                           <p className="truncate text-sm font-medium">{doc.document_label || doc.original_filename}</p>
                           <p className="truncate text-xs text-muted-foreground">
                             {doc.original_filename} · {doc.is_pdf ? "PDF" : "Image"}
-                            {doc.source_kind === "package_submission" ? " · Package form" : ""} · {formatBytes(doc.file_size)}
+                            {doc.source_kind === "questionnaire"
+                              ? " · Intake"
+                              : doc.source_kind === "package_submission"
+                                ? " · Package form"
+                                : " · Case upload"} · {formatBytes(doc.file_size)}
                           </p>
                         </div>
                       </label>

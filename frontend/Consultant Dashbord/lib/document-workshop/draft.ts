@@ -2,7 +2,7 @@ export type WorkshopDraftPageMeta = {
   id: string;
   sourceKey: string;
   sourceId: number;
-  sourceKind: "case_document" | "package_submission";
+  sourceKind: "case_document" | "package_submission" | "questionnaire";
   sourceLabel: string;
   sourcePageIndex: number;
   rotation: 0 | 90 | 180 | 270;

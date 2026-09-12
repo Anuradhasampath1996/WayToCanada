@@ -6,7 +6,9 @@ use App\Models\CaseFile;
 use App\Models\ClientProfile;
 use App\Models\DocumentSubmission;
 use App\Models\IrccPackageDocumentSubmission;
+use App\Models\QuestionnaireSubmission;
 use App\Services\CaseFileLifecycleService;
+use App\Support\QuestionnaireDocumentResolver;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -35,83 +37,134 @@ class ConsultantDocumentWorkshopController extends Controller
         $caseFile = $this->resolveCaseFile($profile, (int) $request->user()->id);
         $caseIds = CaseFile::where('client_profile_id', $profile->id)->pluck('id');
 
-        if ($caseIds->isEmpty()) {
-            return response()->json([
-                'client' => $this->clientMeta($profile),
-                'case_file_id' => null,
-                'documents' => [],
-            ]);
+        $caseDocs = collect();
+        if ($caseIds->isNotEmpty()) {
+            $caseDocs = DocumentSubmission::query()
+                ->whereIn('case_file_id', $caseIds)
+                ->orderByDesc('created_at')
+                ->get()
+                ->filter(fn (DocumentSubmission $d) => $this->isUsableUpload(
+                    $d->mime_type,
+                    $d->original_filename
+                ))
+                ->values()
+                ->map(fn (DocumentSubmission $d) => [
+                    'id' => $d->id,
+                    'source_kind' => 'case_document',
+                    'document_type' => $d->document_type,
+                    'document_label' => $d->document_label ?: $d->original_filename,
+                    'original_filename' => $d->original_filename,
+                    'mime_type' => $d->mime_type,
+                    'file_size' => $d->file_size,
+                    'status' => $d->status,
+                    'uploaded_at' => $d->created_at?->toIso8601String(),
+                    'case_file_id' => $d->case_file_id,
+                    'storage_path' => null,
+                    'stream_url' => url(sprintf(
+                        '/api/v1/consultant/clients/%d/documents/%d/stream',
+                        $profile->id,
+                        $d->id
+                    )),
+                    'is_image' => $this->isImage($d->mime_type, $d->original_filename),
+                    'is_pdf' => $this->isPdf($d->mime_type, $d->original_filename),
+                ]);
         }
 
-        $caseDocs = DocumentSubmission::query()
-            ->whereIn('case_file_id', $caseIds)
-            ->orderByDesc('created_at')
-            ->get()
-            ->filter(fn (DocumentSubmission $d) => $this->isUsableUpload(
-                $d->mime_type,
-                $d->original_filename
-            ))
-            ->values()
-            ->map(fn (DocumentSubmission $d) => [
-                'id' => $d->id,
-                'source_kind' => 'case_document',
-                'document_type' => $d->document_type,
-                'document_label' => $d->document_label ?: $d->original_filename,
-                'original_filename' => $d->original_filename,
-                'mime_type' => $d->mime_type,
-                'file_size' => $d->file_size,
-                'status' => $d->status,
-                'uploaded_at' => $d->created_at?->toIso8601String(),
-                'case_file_id' => $d->case_file_id,
-                'stream_url' => url(sprintf(
-                    '/api/v1/consultant/clients/%d/documents/%d/stream',
-                    $profile->id,
-                    $d->id
-                )),
-                'is_image' => $this->isImage($d->mime_type, $d->original_filename),
-                'is_pdf' => $this->isPdf($d->mime_type, $d->original_filename),
-            ]);
+        $packageDocs = collect();
+        if ($caseIds->isNotEmpty()) {
+            $packageDocs = IrccPackageDocumentSubmission::query()
+                ->whereIn('case_file_id', $caseIds)
+                ->whereNotNull('file_path')
+                ->whereNotNull('ircc_category_document_id')
+                ->where(function ($q) {
+                    $q->whereNotNull('submitted_at')
+                        ->orWhere('file_path', 'like', 'package-submissions/%');
+                })
+                ->with(['document:id,label'])
+                ->orderByDesc('created_at')
+                ->get()
+                ->filter(fn (IrccPackageDocumentSubmission $d) => $this->isUsableUpload(
+                    $d->mime_type,
+                    $d->original_filename ?: ($d->document?->label.'.pdf')
+                ))
+                ->values()
+                ->map(fn (IrccPackageDocumentSubmission $d) => [
+                    'id' => $d->id,
+                    'source_kind' => 'package_submission',
+                    'document_type' => 'package_form',
+                    'document_label' => $d->document?->label
+                        ?: ($d->original_filename ?: 'Package form'),
+                    'original_filename' => $d->original_filename ?: 'form.pdf',
+                    'mime_type' => $d->mime_type ?: 'application/pdf',
+                    'file_size' => $d->file_size,
+                    'status' => $d->status,
+                    'uploaded_at' => ($d->submitted_at ?? $d->created_at)?->toIso8601String(),
+                    'case_file_id' => $d->case_file_id,
+                    'storage_path' => null,
+                    'stream_url' => url(sprintf(
+                        '/api/v1/consultant/clients/%d/package-document-submissions/%d/stream',
+                        $profile->id,
+                        $d->id
+                    )),
+                    'is_image' => false,
+                    'is_pdf' => true,
+                ]);
+        }
 
-        $packageDocs = IrccPackageDocumentSubmission::query()
-            ->whereIn('case_file_id', $caseIds)
-            ->whereNotNull('file_path')
-            ->whereNotNull('ircc_category_document_id')
-            ->where(function ($q) {
-                $q->whereNotNull('submitted_at')
-                    ->orWhere('file_path', 'like', 'package-submissions/%');
-            })
-            ->with(['document:id,label'])
-            ->orderByDesc('created_at')
-            ->get()
-            ->filter(fn (IrccPackageDocumentSubmission $d) => $this->isUsableUpload(
-                $d->mime_type,
-                $d->original_filename ?: ($d->document?->label.'.pdf')
-            ))
-            ->values()
-            ->map(fn (IrccPackageDocumentSubmission $d) => [
-                'id' => $d->id,
-                'source_kind' => 'package_submission',
-                'document_type' => 'package_form',
-                'document_label' => $d->document?->label
-                    ?: ($d->original_filename ?: 'Package form'),
-                'original_filename' => $d->original_filename ?: 'form.pdf',
-                'mime_type' => $d->mime_type ?: 'application/pdf',
-                'file_size' => $d->file_size,
-                'status' => $d->status,
-                'uploaded_at' => ($d->submitted_at ?? $d->created_at)?->toIso8601String(),
-                'case_file_id' => $d->case_file_id,
-                'stream_url' => url(sprintf(
-                    '/api/v1/consultant/clients/%d/package-document-submissions/%d/stream',
-                    $profile->id,
-                    $d->id
-                )),
-                'is_image' => false,
-                'is_pdf' => true,
-            ]);
+        $intakeDocs = collect();
+        $questionnaire = QuestionnaireSubmission::where('user_id', $profile->user_id)->first();
+        if ($questionnaire) {
+            $intakeDocs = collect(QuestionnaireDocumentResolver::listUploadedDocuments($questionnaire))
+                ->map(function (array $doc) use ($profile, $questionnaire) {
+                    $resolved = QuestionnaireDocumentResolver::resolveStoragePath(
+                        $questionnaire,
+                        $doc['path']
+                    );
 
-        $documents = $caseDocs
+                    if ($resolved) {
+                        $doc['path'] = $resolved;
+                        $doc['original_filename'] = basename($resolved);
+                    } elseif (! str_starts_with($doc['path'], 'client-document/')) {
+                        // Bare filename that cannot be resolved — skip
+                        return null;
+                    }
+
+                    if (! $this->isUsableUpload(null, $doc['original_filename'])) {
+                        return null;
+                    }
+
+                    $id = crc32($doc['path']) & 0x7fffffff;
+                    $label = trim($doc['person'].' — '.$doc['label']);
+
+                    return [
+                        'id' => $id > 0 ? $id : 1,
+                        'source_kind' => 'questionnaire',
+                        'document_type' => $doc['field_key'],
+                        'document_label' => $label,
+                        'original_filename' => $doc['original_filename'],
+                        'mime_type' => $this->mimeFromFilename($doc['original_filename']),
+                        'file_size' => null,
+                        'status' => 'intake_upload',
+                        'uploaded_at' => null,
+                        'case_file_id' => null,
+                        'storage_path' => $doc['path'],
+                        'stream_url' => url(sprintf(
+                            '/api/v1/consultant/clients/%d/questionnaire/document/stream?path=%s',
+                            $profile->id,
+                            rawurlencode($doc['path'])
+                        )),
+                        'is_image' => $this->isImage(null, $doc['original_filename']),
+                        'is_pdf' => $this->isPdf(null, $doc['original_filename']),
+                    ];
+                })
+                ->filter()
+                ->values();
+        }
+
+        $documents = $intakeDocs
+            ->concat($caseDocs)
             ->concat($packageDocs)
-            ->sortByDesc(fn (array $d) => $d['uploaded_at'] ?? '')
+            ->sortBy(fn (array $d) => ($d['source_kind'] === 'questionnaire' ? '0-' : '1-').mb_strtolower((string) ($d['document_label'] ?? '')))
             ->values()
             ->all();
 
@@ -200,6 +253,17 @@ class ConsultantDocumentWorkshopController extends Controller
 
         // Match Case Hub fallback: any case for this client.
         return CaseFile::where('client_profile_id', $profile->id)->orderBy('id')->first();
+    }
+
+    private function mimeFromFilename(string $filename): string
+    {
+        return match (strtolower(pathinfo($filename, PATHINFO_EXTENSION))) {
+            'pdf' => 'application/pdf',
+            'png' => 'image/png',
+            'webp' => 'image/webp',
+            'jpg', 'jpeg' => 'image/jpeg',
+            default => 'application/octet-stream',
+        };
     }
 
     private function isUsableUpload(?string $mime, ?string $filename): bool

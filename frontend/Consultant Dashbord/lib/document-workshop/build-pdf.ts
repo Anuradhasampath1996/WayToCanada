@@ -2,7 +2,7 @@ import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
 
 export type WorkshopSourceDoc = {
   id: number;
-  source_kind?: "case_document" | "package_submission";
+  source_kind?: "case_document" | "package_submission" | "questionnaire";
   document_type: string;
   document_label: string;
   original_filename: string;
@@ -11,6 +11,7 @@ export type WorkshopSourceDoc = {
   status: string;
   uploaded_at: string | null;
   stream_url: string;
+  storage_path?: string | null;
   is_image: boolean;
   is_pdf: boolean;
   case_file_id?: number | null;
@@ -20,7 +21,7 @@ export type WorkshopPage = {
   id: string;
   sourceKey: string;
   sourceId: number;
-  sourceKind: "case_document" | "package_submission";
+  sourceKind: "case_document" | "package_submission" | "questionnaire";
   sourceLabel: string;
   sourcePageIndex: number;
   /** Degrees clockwise: 0 | 90 | 180 | 270 */

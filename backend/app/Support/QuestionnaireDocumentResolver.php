@@ -111,6 +111,106 @@ class QuestionnaireDocumentResolver
         return false;
     }
 
+    /**
+     * Collect intake/questionnaire uploaded files for Document Workshop sources.
+     *
+     * @return list<array{
+     *   path: string,
+     *   field_key: string,
+     *   label: string,
+     *   person: string,
+     *   original_filename: string
+     * }>
+     */
+    public static function listUploadedDocuments(QuestionnaireSubmission $submission): array
+    {
+        $labels = [
+            'passportName' => 'Passport',
+            'governmentIdName' => 'Government ID (front)',
+            'governmentIdBackName' => 'Government ID (back)',
+            'drivingLicenseName' => 'Driving licence (front)',
+            'drivingLicenseBackName' => 'Driving licence (back)',
+            'canadaStudyDocName' => 'Canadian study proof',
+            'languageTestDocName' => 'Language test certificate',
+            'documentName' => 'Education certificate',
+        ];
+
+        $found = [];
+        $seen = [];
+
+        $walk = function (mixed $data, string $person, string $fieldKey = '') use (&$walk, &$found, &$seen, $labels): void {
+            if (! is_array($data)) {
+                return;
+            }
+
+            foreach ($data as $key => $value) {
+                if (is_string($value) && self::looksLikeClientDocumentPath($value)) {
+                    if (isset($seen[$value])) {
+                        continue;
+                    }
+                    $seen[$value] = true;
+                    $labelKey = is_string($key) ? $key : $fieldKey;
+                    $label = $labels[$labelKey] ?? self::humanizeFieldKey($labelKey);
+                    $found[] = [
+                        'path' => $value,
+                        'field_key' => $labelKey !== '' ? $labelKey : 'document',
+                        'label' => $label,
+                        'person' => $person,
+                        'original_filename' => basename($value),
+                    ];
+                    continue;
+                }
+
+                if (is_array($value)) {
+                    if ($key === 'educationQuals') {
+                        foreach (array_values($value) as $qual) {
+                            $walk($qual, $person, 'documentName');
+                        }
+                        continue;
+                    }
+                    $walk($value, $person, is_string($key) ? $key : $fieldKey);
+                }
+            }
+        };
+
+        $walk($submission->main_data, 'Main applicant');
+        $walk($submission->step1_data, 'Main applicant');
+        $walk($submission->spouse_data, 'Spouse');
+
+        foreach (array_values($submission->children_data ?? []) as $i => $child) {
+            $walk($child, 'Child '.($i + 1));
+        }
+        foreach (array_values($submission->accompanying_data ?? []) as $i => $person) {
+            $name = is_array($person) ? trim((string) ($person['fullName'] ?? '')) : '';
+            $walk($person, $name !== '' ? $name : ('Family member '.($i + 1)));
+        }
+
+        return $found;
+    }
+
+    private static function looksLikeClientDocumentPath(string $value): bool
+    {
+        if (preg_match('#^client-document/\d{4}/\d{2}/#', $value)) {
+            return true;
+        }
+
+        // Bare filenames sometimes stored before full path rewrite
+        $ext = strtolower(pathinfo($value, PATHINFO_EXTENSION));
+
+        return $ext !== ''
+            && ! str_contains($value, '/')
+            && in_array($ext, ['pdf', 'jpg', 'jpeg', 'png', 'webp'], true)
+            && strlen($value) < 260;
+    }
+
+    private static function humanizeFieldKey(string $key): string
+    {
+        $key = preg_replace('/Name$/', '', $key) ?: $key;
+        $key = str_replace('_', ' ', $key);
+
+        return ucwords(trim(preg_replace('/([a-z])([A-Z])/', '$1 $2', $key) ?? $key)) ?: 'Document';
+    }
+
     private static function allSubmissionSections(QuestionnaireSubmission $submission): array
     {
         return [

@@ -34,8 +34,21 @@ export function resolveStreamUrl(
   streamUrl: string,
   profileId: string | number,
   submissionId: number,
-  sourceKind: "case_document" | "package_submission" = "case_document",
+  sourceKind: "case_document" | "package_submission" | "questionnaire" = "case_document",
+  storagePath?: string | null,
 ): string {
+  if (sourceKind === "questionnaire") {
+    const path = storagePath
+      ?? (() => {
+        try {
+          return new URL(streamUrl, "http://local").searchParams.get("path") ?? "";
+        } catch {
+          return "";
+        }
+      })();
+    return `${API}/consultant/clients/${profileId}/questionnaire/document/stream?path=${encodeURIComponent(path)}`;
+  }
+
   const path =
     sourceKind === "package_submission"
       ? `${API}/consultant/clients/${profileId}/package-document-submissions/${submissionId}/stream`
@@ -61,16 +74,20 @@ export async function fetchWorkshopSources(profileId: string | number): Promise<
     throw new Error(body.message ?? `Failed to load workshop sources (${res.status})`);
   }
   const data = (await res.json()) as WorkshopSourcesResponse;
-  data.documents = (data.documents ?? []).map((d) => ({
-    ...d,
-    source_kind: d.source_kind ?? "case_document",
-    stream_url: resolveStreamUrl(
-      d.stream_url,
-      profileId,
-      d.id,
-      d.source_kind === "package_submission" ? "package_submission" : "case_document",
-    ),
-  }));
+  data.documents = (data.documents ?? []).map((d) => {
+    const kind = d.source_kind ?? "case_document";
+    return {
+      ...d,
+      source_kind: kind,
+      stream_url: resolveStreamUrl(
+        d.stream_url,
+        profileId,
+        d.id,
+        kind,
+        d.storage_path,
+      ),
+    };
+  });
   return data;
 }
 
