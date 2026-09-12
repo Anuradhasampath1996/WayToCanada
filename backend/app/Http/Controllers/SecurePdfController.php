@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\ClientProfile;
+use App\Models\CaseFile;
 use App\Models\DocumentSubmission;
 use App\Models\IrccCategoryDocument;
 use App\Models\IrccPackageDocumentSubmission;
@@ -110,7 +111,11 @@ class SecurePdfController extends Controller
             abort(403, 'Access denied.');
         }
 
-        if ($submission->case_file_id !== $profile->caseFile?->id) {
+        $ownsCase = CaseFile::where('client_profile_id', $profile->id)
+            ->where('id', $submission->case_file_id)
+            ->exists();
+
+        if (! $ownsCase) {
             abort(403, 'Access denied.');
         }
 
@@ -119,6 +124,45 @@ class SecurePdfController extends Controller
             $submission->original_filename,
             $request->boolean('download'),
         );
+    }
+
+    /** GET /api/v1/consultant/clients/{profile}/package-document-submissions/{submission}/stream */
+    public function consultantPackageSubmission(
+        Request $request,
+        ClientProfile $profile,
+        IrccPackageDocumentSubmission $submission,
+    ): StreamedResponse {
+        if ($profile->consultant_id !== $request->user()->id) {
+            abort(403, 'Access denied.');
+        }
+
+        $ownsCase = CaseFile::where('client_profile_id', $profile->id)
+            ->where('id', $submission->case_file_id)
+            ->exists();
+
+        if (! $ownsCase) {
+            abort(403, 'Access denied.');
+        }
+
+        $disk = $submission->isPrivateStorage() ? 'local' : 'public';
+        if (! Storage::disk($disk)->exists($submission->file_path)) {
+            // Fall back — older package uploads live on public.
+            $disk = 'public';
+            if (! Storage::disk($disk)->exists($submission->file_path)) {
+                abort(404, 'File not found.');
+            }
+        }
+
+        $filename = $submission->original_filename ?: 'document.pdf';
+        $mime = Storage::disk($disk)->mimeType($submission->file_path) ?: 'application/pdf';
+        $disposition = ($request->boolean('download') ? 'attachment' : 'inline')
+            .'; filename="'.addslashes($filename).'"';
+
+        return Storage::disk($disk)->response($submission->file_path, $filename, [
+            'Content-Type'        => $mime,
+            'Content-Disposition' => $disposition,
+            'Cache-Control'       => 'private, max-age=3600',
+        ]);
     }
 
     private function streamPublicDiskFile(string $filePath, string $filename, bool $download): StreamedResponse

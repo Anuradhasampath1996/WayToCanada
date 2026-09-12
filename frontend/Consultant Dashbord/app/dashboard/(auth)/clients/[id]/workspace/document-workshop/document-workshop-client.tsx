@@ -54,6 +54,7 @@ import {
   saveWorkshopDraft,
   saveWorkshopPdf,
   workshopAuthHeaders,
+  workshopSourceKey,
   type WorkshopPage,
   type WorkshopSourceDoc,
 } from "@/lib/document-workshop";
@@ -144,7 +145,7 @@ export function DocumentWorkshopClient({ profileId }: { profileId: string }) {
   const [description, setDescription] = useState("");
   const [clientName, setClientName] = useState<string | null>(null);
   const [sources, setSources] = useState<WorkshopSourceDoc[]>([]);
-  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [pages, setPages] = useState<WorkshopPage[]>([]);
   const [pageNumbers, setPageNumbers] = useState(false);
   const [search, setSearch] = useState("");
@@ -156,7 +157,7 @@ export function DocumentWorkshopClient({ profileId }: { profileId: string }) {
   const [pdfBytes, setPdfBytes] = useState<Uint8Array | null>(null);
   const [savedLabel, setSavedLabel] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const bytesCache = useRef<Map<number, Uint8Array>>(new Map());
+  const bytesCache = useRef<Map<string, Uint8Array>>(new Map());
   const draftRestored = useRef(false);
   const pagesRef = useRef<WorkshopPage[]>([]);
   pagesRef.current = pages;
@@ -210,7 +211,9 @@ export function DocumentWorkshopClient({ profileId }: { profileId: string }) {
       selectedSourceIds: Array.from(selectedIds),
       pages: pages.map((p) => ({
         id: p.id,
+        sourceKey: p.sourceKey,
         sourceId: p.sourceId,
+        sourceKind: p.sourceKind,
         sourceLabel: p.sourceLabel,
         sourcePageIndex: p.sourcePageIndex,
         rotation: p.rotation,
@@ -238,21 +241,22 @@ export function DocumentWorkshopClient({ profileId }: { profileId: string }) {
     );
   }, [sources, search]);
 
-  const toggleSource = (id: number) => {
+  const toggleSource = (key: string) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
       return next;
     });
   };
 
   const ensureBytes = useCallback(
     async (source: WorkshopSourceDoc) => {
-      const cached = bytesCache.current.get(source.id);
+      const key = workshopSourceKey(source);
+      const cached = bytesCache.current.get(key);
       if (cached) return cached;
       const bytes = await fetchSourceBytes(source.stream_url, workshopAuthHeaders);
-      bytesCache.current.set(source.id, bytes);
+      bytesCache.current.set(key, bytes);
       return bytes;
     },
     [],
@@ -262,18 +266,18 @@ export function DocumentWorkshopClient({ profileId }: { profileId: string }) {
     setExpanding(true);
     setError(null);
     try {
-      const chosen = sources.filter((s) => selectedIds.has(s.id));
+      const chosen = sources.filter((s) => selectedIds.has(workshopSourceKey(s)));
       if (chosen.length === 0) {
         setPages([]);
         return;
       }
 
       const currentPages = pagesRef.current;
-      const existingBySource = new Map<number, WorkshopPage[]>();
+      const existingBySource = new Map<string, WorkshopPage[]>();
       for (const p of currentPages) {
-        const list = existingBySource.get(p.sourceId) ?? [];
+        const list = existingBySource.get(p.sourceKey) ?? [];
         list.push(p);
-        existingBySource.set(p.sourceId, list);
+        existingBySource.set(p.sourceKey, list);
       }
 
       const draft = currentPages.length === 0 ? loadWorkshopDraft(profileId) : null;
@@ -283,7 +287,8 @@ export function DocumentWorkshopClient({ profileId }: { profileId: string }) {
       for (const source of chosen) {
         const bytes = await ensureBytes(source);
         const expanded = await expandSourceToPages(source, bytes);
-        const existing = existingBySource.get(source.id);
+        const sourceKey = workshopSourceKey(source);
+        const existing = existingBySource.get(sourceKey);
         if (existing && existing.length > 0) {
           for (const prev of existing) {
             const match = expanded.find((p) => p.sourcePageIndex === prev.sourcePageIndex);
@@ -298,7 +303,7 @@ export function DocumentWorkshopClient({ profileId }: { profileId: string }) {
           continue;
         }
 
-        const metaForSource = draftPages.filter((p) => p.sourceId === source.id);
+        const metaForSource = draftPages.filter((p) => (p.sourceKey ?? `case_document:${p.sourceId}`) === sourceKey);
         if (metaForSource.length > 0) {
           for (const meta of metaForSource) {
             const match = expanded.find((p) => p.sourcePageIndex === meta.sourcePageIndex) ?? expanded[0];
@@ -559,7 +564,7 @@ export function DocumentWorkshopClient({ profileId }: { profileId: string }) {
               <div>
                 <h2 className="text-lg font-semibold">Add documents</h2>
                 <p className="text-sm text-muted-foreground">
-                  Choose PDF or image uploads from this client&apos;s active case ({selectedIds.size} selected).
+                  Choose PDF or image uploads from this client&apos;s cases ({selectedIds.size} selected).
                 </p>
               </div>
               <div className="relative w-full sm:w-64">
@@ -575,7 +580,10 @@ export function DocumentWorkshopClient({ profileId }: { profileId: string }) {
             ) : filteredSources.length === 0 ? (
               <div className="flex flex-col items-center gap-2 py-16 text-center">
                 <FileStack className="size-10 text-muted-foreground/40" />
-                <p className="text-sm text-muted-foreground">No PDF or image documents on the active case yet.</p>
+                <p className="text-sm text-muted-foreground">No PDF or image documents uploaded for this client yet.</p>
+                <p className="text-xs text-muted-foreground">
+                  Case checklist uploads and submitted package PDFs from the client portal appear here.
+                </p>
                 <Button variant="outline" asChild>
                   <Link href={caseHubHref}>Open Case Hub documents</Link>
                 </Button>
@@ -583,15 +591,17 @@ export function DocumentWorkshopClient({ profileId }: { profileId: string }) {
             ) : (
               <ul className="divide-y rounded-xl border">
                 {filteredSources.map((doc) => {
-                  const checked = selectedIds.has(doc.id);
+                  const key = workshopSourceKey(doc);
+                  const checked = selectedIds.has(key);
                   return (
-                    <li key={doc.id}>
+                    <li key={key}>
                       <label className="flex cursor-pointer items-start gap-3 px-3 py-3 hover:bg-muted/40 sm:items-center">
-                        <Checkbox checked={checked} onCheckedChange={() => toggleSource(doc.id)} className="mt-0.5" />
+                        <Checkbox checked={checked} onCheckedChange={() => toggleSource(key)} className="mt-0.5" />
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-sm font-medium">{doc.document_label || doc.original_filename}</p>
                           <p className="truncate text-xs text-muted-foreground">
-                            {doc.original_filename} · {doc.is_pdf ? "PDF" : "Image"} · {formatBytes(doc.file_size)}
+                            {doc.original_filename} · {doc.is_pdf ? "PDF" : "Image"}
+                            {doc.source_kind === "package_submission" ? " · Package form" : ""} · {formatBytes(doc.file_size)}
                           </p>
                         </div>
                       </label>

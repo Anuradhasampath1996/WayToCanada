@@ -454,6 +454,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::patch('{profile}/case-file/switch',                [CaseFileController::class, 'switchActiveCase'])->name('case-file.switch');
         Route::get('{profile}/case-management-hub',               [CaseManagementHubController::class, 'consultantShow'])->name('case-management-hub');
         Route::get('{profile}/package-documents/{document}/stream', [SecurePdfController::class, 'consultantPackageDocument'])->name('package-documents.stream');
+        Route::get('{profile}/package-document-submissions/{submission}/stream', [SecurePdfController::class, 'consultantPackageSubmission'])->name('package-document-submissions.stream');
         Route::patch('{profile}/case-file/select-pathway',         [CaseFileController::class, 'selectPathway'])->name('case-file.select-pathway');
         Route::get('{profile}/pathways/suggested',               [\App\Http\Controllers\PathwayCatalogController::class, 'suggested'])->name('pathways.suggested');
         Route::patch('{profile}/case-file/pathway-assessment',   [CaseFileController::class, 'savePathwayAssessment'])->name('case-file.pathway-assessment');

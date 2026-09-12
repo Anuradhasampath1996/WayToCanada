@@ -23,7 +23,9 @@ class CaseManagementHubController extends Controller
             abort(403, 'Access denied.');
         }
 
-        $caseFile = CaseFile::where('client_profile_id', $profile->id)->first();
+        $caseFile = app(\App\Services\CaseFileLifecycleService::class)
+            ->resolveActiveCaseFile($profile, (int) $request->user()->id, createIfMissing: false)
+            ?? CaseFile::where('client_profile_id', $profile->id)->orderBy('id')->first();
 
         if (! $caseFile) {
             return response()->json(['message' => 'No case file found.'], 404);

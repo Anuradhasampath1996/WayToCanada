@@ -2,6 +2,7 @@ import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
 
 export type WorkshopSourceDoc = {
   id: number;
+  source_kind?: "case_document" | "package_submission";
   document_type: string;
   document_label: string;
   original_filename: string;
@@ -12,11 +13,14 @@ export type WorkshopSourceDoc = {
   stream_url: string;
   is_image: boolean;
   is_pdf: boolean;
+  case_file_id?: number | null;
 };
 
 export type WorkshopPage = {
   id: string;
+  sourceKey: string;
   sourceId: number;
+  sourceKind: "case_document" | "package_submission";
   sourceLabel: string;
   sourcePageIndex: number;
   /** Degrees clockwise: 0 | 90 | 180 | 270 */
@@ -66,8 +70,12 @@ export async function fetchSourceBytes(
   return new Uint8Array(buf);
 }
 
-function pageId(sourceId: number, pageIndex: number): string {
-  return `${sourceId}-p${pageIndex}-${Math.random().toString(36).slice(2, 8)}`;
+function pageId(sourceKey: string, pageIndex: number): string {
+  return `${sourceKey}-p${pageIndex}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+export function workshopSourceKey(source: Pick<WorkshopSourceDoc, "id" | "source_kind">): string {
+  return `${source.source_kind ?? "case_document"}:${source.id}`;
 }
 
 /** Expand a PDF or image source into workshop pages (one per PDF page / one for image). */
@@ -76,12 +84,16 @@ export async function expandSourceToPages(
   bytes: Uint8Array,
 ): Promise<WorkshopPage[]> {
   const label = source.document_label || source.original_filename;
+  const sourceKey = workshopSourceKey(source);
+  const sourceKind = source.source_kind ?? "case_document";
 
   if (source.is_image || (source.mime_type ?? "").startsWith("image/")) {
     return [
       {
-        id: pageId(source.id, 0),
+        id: pageId(sourceKey, 0),
+        sourceKey,
         sourceId: source.id,
+        sourceKind,
         sourceLabel: label,
         sourcePageIndex: 0,
         rotation: 0,
@@ -103,8 +115,10 @@ export async function expandSourceToPages(
   const pages: WorkshopPage[] = [];
   for (let i = 0; i < pdf.numPages; i++) {
     pages.push({
-      id: pageId(source.id, i),
+      id: pageId(sourceKey, i),
+      sourceKey,
       sourceId: source.id,
+      sourceKind,
       sourceLabel: label,
       sourcePageIndex: i,
       rotation: 0,

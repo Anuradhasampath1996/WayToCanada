@@ -30,16 +30,26 @@ export type WorkshopSavedDocument = {
 };
 
 /** Rewrite absolute backend stream URLs to use NEXT_PUBLIC_API_URL when needed. */
-export function resolveStreamUrl(streamUrl: string, profileId: string | number, submissionId: number): string {
+export function resolveStreamUrl(
+  streamUrl: string,
+  profileId: string | number,
+  submissionId: number,
+  sourceKind: "case_document" | "package_submission" = "case_document",
+): string {
+  const path =
+    sourceKind === "package_submission"
+      ? `${API}/consultant/clients/${profileId}/package-document-submissions/${submissionId}/stream`
+      : `${API}/consultant/clients/${profileId}/documents/${submissionId}/stream`;
+
   if (streamUrl.startsWith("http")) {
     try {
       const u = new URL(streamUrl);
-      return `${API}/consultant/clients/${profileId}/documents/${submissionId}/stream${u.search}`;
+      return `${path}${u.search}`;
     } catch {
       /* fall through */
     }
   }
-  return `${API}/consultant/clients/${profileId}/documents/${submissionId}/stream`;
+  return path;
 }
 
 export async function fetchWorkshopSources(profileId: string | number): Promise<WorkshopSourcesResponse> {
@@ -53,7 +63,13 @@ export async function fetchWorkshopSources(profileId: string | number): Promise<
   const data = (await res.json()) as WorkshopSourcesResponse;
   data.documents = (data.documents ?? []).map((d) => ({
     ...d,
-    stream_url: resolveStreamUrl(d.stream_url, profileId, d.id),
+    source_kind: d.source_kind ?? "case_document",
+    stream_url: resolveStreamUrl(
+      d.stream_url,
+      profileId,
+      d.id,
+      d.source_kind === "package_submission" ? "package_submission" : "case_document",
+    ),
   }));
   return data;
 }

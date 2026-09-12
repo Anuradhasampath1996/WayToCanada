@@ -1,6 +1,8 @@
 export type WorkshopDraftPageMeta = {
   id: string;
+  sourceKey: string;
   sourceId: number;
+  sourceKind: "case_document" | "package_submission";
   sourceLabel: string;
   sourcePageIndex: number;
   rotation: 0 | 90 | 180 | 270;
@@ -11,8 +13,9 @@ export type WorkshopDraft = {
   step: number;
   name: string;
   description: string;
-  selectedSourceIds: number[];
-  /** Page order + rotation without binary payloads (re-hydrated from sources on load). */
+  /** Composite keys: `${source_kind}:${id}` */
+  selectedSourceIds: string[];
+  /** Page order + rotate without binary payloads (re-hydrated from sources on load). */
   pages: WorkshopDraftPageMeta[];
   pageNumbers: boolean;
   updatedAt: string;
@@ -25,7 +28,19 @@ export function loadWorkshopDraft(profileId: string | number): WorkshopDraft | n
   try {
     const raw = localStorage.getItem(key(profileId));
     if (!raw) return null;
-    return JSON.parse(raw) as WorkshopDraft;
+    const draft = JSON.parse(raw) as WorkshopDraft;
+    // Migrate legacy numeric selectedSourceIds → case_document keys
+    draft.selectedSourceIds = (draft.selectedSourceIds ?? []).map((id) =>
+      typeof id === "number" || /^\d+$/.test(String(id))
+        ? `case_document:${id}`
+        : String(id),
+    );
+    draft.pages = (draft.pages ?? []).map((p) => ({
+      ...p,
+      sourceKind: p.sourceKind ?? "case_document",
+      sourceKey: p.sourceKey ?? `case_document:${p.sourceId}`,
+    }));
+    return draft;
   } catch {
     return null;
   }

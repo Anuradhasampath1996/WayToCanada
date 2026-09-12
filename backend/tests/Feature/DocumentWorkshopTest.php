@@ -111,6 +111,46 @@ class DocumentWorkshopTest extends TestCase
         Storage::disk('public')->assertExists($submission->file_path);
     }
 
+    public function test_sources_lists_documents_from_all_client_cases_when_active_differs(): void
+    {
+        Storage::fake('public');
+
+        ['consultant' => $consultant, 'profile' => $profile, 'caseFile' => $activeCase] = $this->createConsultantWithClient();
+
+        $otherCase = \App\Models\CaseFile::create([
+            'client_profile_id' => $profile->id,
+            'consultant_id' => $consultant->id,
+            'case_number' => 2,
+            'name' => 'Older case',
+            'status' => 'active',
+            'lifecycle_status' => 'closed',
+        ]);
+
+        $pdfPath = 'case-documents/older-passport.pdf';
+        Storage::disk('public')->put($pdfPath, $this->minimalPdfBytes());
+
+        DocumentSubmission::create([
+            'case_file_id' => $otherCase->id,
+            'uploaded_by' => $consultant->id,
+            'document_type' => 'passport',
+            'document_label' => 'Passport from closed case',
+            'file_path' => $pdfPath,
+            'original_filename' => 'passport.pdf',
+            'mime_type' => 'application/pdf',
+            'file_size' => 120,
+            'status' => 'pending_review',
+        ]);
+
+        $this->assertSame($activeCase->id, $profile->fresh()->active_case_file_id);
+        $this->actingAsConsultant($consultant);
+
+        $this->getJson("/api/v1/consultant/clients/{$profile->id}/document-workshop/sources")
+            ->assertOk()
+            ->assertJsonCount(1, 'documents')
+            ->assertJsonPath('documents.0.document_label', 'Passport from closed case')
+            ->assertJsonPath('documents.0.source_kind', 'case_document');
+    }
+
     private function minimalPdfBytes(): string
     {
         return "%PDF-1.4\n"

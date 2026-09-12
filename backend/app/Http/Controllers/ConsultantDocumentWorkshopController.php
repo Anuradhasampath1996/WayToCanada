@@ -2,8 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\CaseFile;
 use App\Models\ClientProfile;
 use App\Models\DocumentSubmission;
+use App\Models\IrccPackageDocumentSubmission;
+use App\Services\CaseFileLifecycleService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -12,11 +15,15 @@ class ConsultantDocumentWorkshopController extends Controller
 {
     private const USABLE_MIMES = [
         'application/pdf',
+        'application/x-pdf',
+        'application/octet-stream',
         'image/jpeg',
         'image/jpg',
         'image/png',
         'image/webp',
     ];
+
+    private const USABLE_EXTENSIONS = ['pdf', 'jpg', 'jpeg', 'png', 'webp'];
 
     /**
      * GET /api/v1/consultant/clients/{profile}/document-workshop/sources
@@ -25,8 +32,10 @@ class ConsultantDocumentWorkshopController extends Controller
     {
         $this->authorizeConsultant($request, $profile);
 
-        $caseFile = $profile->caseFile;
-        if (! $caseFile) {
+        $caseFile = $this->resolveCaseFile($profile, (int) $request->user()->id);
+        $caseIds = CaseFile::where('client_profile_id', $profile->id)->pluck('id');
+
+        if ($caseIds->isEmpty()) {
             return response()->json([
                 'client' => $this->clientMeta($profile),
                 'case_file_id' => null,
@@ -34,42 +43,81 @@ class ConsultantDocumentWorkshopController extends Controller
             ]);
         }
 
-        $documents = $caseFile->documentSubmissions()
+        $caseDocs = DocumentSubmission::query()
+            ->whereIn('case_file_id', $caseIds)
             ->orderByDesc('created_at')
             ->get()
-            ->filter(function (DocumentSubmission $d) {
-                $mime = strtolower((string) $d->mime_type);
-
-                return in_array($mime, self::USABLE_MIMES, true)
-                    || str_ends_with(strtolower((string) $d->original_filename), '.pdf')
-                    || str_ends_with(strtolower((string) $d->original_filename), '.jpg')
-                    || str_ends_with(strtolower((string) $d->original_filename), '.jpeg')
-                    || str_ends_with(strtolower((string) $d->original_filename), '.png')
-                    || str_ends_with(strtolower((string) $d->original_filename), '.webp');
-            })
+            ->filter(fn (DocumentSubmission $d) => $this->isUsableUpload(
+                $d->mime_type,
+                $d->original_filename
+            ))
             ->values()
             ->map(fn (DocumentSubmission $d) => [
                 'id' => $d->id,
+                'source_kind' => 'case_document',
                 'document_type' => $d->document_type,
-                'document_label' => $d->document_label,
+                'document_label' => $d->document_label ?: $d->original_filename,
                 'original_filename' => $d->original_filename,
                 'mime_type' => $d->mime_type,
                 'file_size' => $d->file_size,
                 'status' => $d->status,
                 'uploaded_at' => $d->created_at?->toIso8601String(),
+                'case_file_id' => $d->case_file_id,
                 'stream_url' => url(sprintf(
                     '/api/v1/consultant/clients/%d/documents/%d/stream',
                     $profile->id,
                     $d->id
                 )),
-                'is_image' => str_starts_with(strtolower((string) $d->mime_type), 'image/'),
-                'is_pdf' => strtolower((string) $d->mime_type) === 'application/pdf'
-                    || str_ends_with(strtolower((string) $d->original_filename), '.pdf'),
+                'is_image' => $this->isImage($d->mime_type, $d->original_filename),
+                'is_pdf' => $this->isPdf($d->mime_type, $d->original_filename),
             ]);
+
+        $packageDocs = IrccPackageDocumentSubmission::query()
+            ->whereIn('case_file_id', $caseIds)
+            ->whereNotNull('file_path')
+            ->whereNotNull('ircc_category_document_id')
+            ->where(function ($q) {
+                $q->whereNotNull('submitted_at')
+                    ->orWhere('file_path', 'like', 'package-submissions/%');
+            })
+            ->with(['document:id,label'])
+            ->orderByDesc('created_at')
+            ->get()
+            ->filter(fn (IrccPackageDocumentSubmission $d) => $this->isUsableUpload(
+                $d->mime_type,
+                $d->original_filename ?: ($d->document?->label.'.pdf')
+            ))
+            ->values()
+            ->map(fn (IrccPackageDocumentSubmission $d) => [
+                'id' => $d->id,
+                'source_kind' => 'package_submission',
+                'document_type' => 'package_form',
+                'document_label' => $d->document?->label
+                    ?: ($d->original_filename ?: 'Package form'),
+                'original_filename' => $d->original_filename ?: 'form.pdf',
+                'mime_type' => $d->mime_type ?: 'application/pdf',
+                'file_size' => $d->file_size,
+                'status' => $d->status,
+                'uploaded_at' => ($d->submitted_at ?? $d->created_at)?->toIso8601String(),
+                'case_file_id' => $d->case_file_id,
+                'stream_url' => url(sprintf(
+                    '/api/v1/consultant/clients/%d/package-document-submissions/%d/stream',
+                    $profile->id,
+                    $d->id
+                )),
+                'is_image' => false,
+                'is_pdf' => true,
+            ]);
+
+        $documents = $caseDocs
+            ->concat($packageDocs)
+            ->sortByDesc(fn (array $d) => $d['uploaded_at'] ?? '')
+            ->values()
+            ->all();
 
         return response()->json([
             'client' => $this->clientMeta($profile),
-            'case_file_id' => $caseFile->id,
+            'case_file_id' => $caseFile?->id,
             'documents' => $documents,
         ]);
     }
@@ -88,7 +136,7 @@ class ConsultantDocumentWorkshopController extends Controller
             'description' => 'nullable|string|max:2000',
         ]);
 
-        $caseFile = $profile->caseFile;
+        $caseFile = $this->resolveCaseFile($profile, (int) $request->user()->id);
         if (! $caseFile) {
             return response()->json(['message' => 'No active case file found.'], 404);
         }
@@ -139,6 +187,52 @@ class ConsultantDocumentWorkshopController extends Controller
                 )),
             ],
         ], 201);
+    }
+
+    private function resolveCaseFile(ClientProfile $profile, int $consultantId): ?CaseFile
+    {
+        $resolved = app(CaseFileLifecycleService::class)
+            ->resolveActiveCaseFile($profile, $consultantId, createIfMissing: false);
+
+        if ($resolved) {
+            return $resolved;
+        }
+
+        // Match Case Hub fallback: any case for this client.
+        return CaseFile::where('client_profile_id', $profile->id)->orderBy('id')->first();
+    }
+
+    private function isUsableUpload(?string $mime, ?string $filename): bool
+    {
+        $mime = strtolower(trim((string) $mime));
+        $ext = strtolower(pathinfo((string) $filename, PATHINFO_EXTENSION));
+
+        if ($ext !== '' && in_array($ext, self::USABLE_EXTENSIONS, true)) {
+            return true;
+        }
+
+        return in_array($mime, self::USABLE_MIMES, true);
+    }
+
+    private function isImage(?string $mime, ?string $filename): bool
+    {
+        $mime = strtolower((string) $mime);
+        if (str_starts_with($mime, 'image/')) {
+            return true;
+        }
+        $ext = strtolower(pathinfo((string) $filename, PATHINFO_EXTENSION));
+
+        return in_array($ext, ['jpg', 'jpeg', 'png', 'webp'], true);
+    }
+
+    private function isPdf(?string $mime, ?string $filename): bool
+    {
+        $mime = strtolower((string) $mime);
+        if (in_array($mime, ['application/pdf', 'application/x-pdf'], true)) {
+            return true;
+        }
+
+        return str_ends_with(strtolower((string) $filename), '.pdf');
     }
 
     private function authorizeConsultant(Request $request, ClientProfile $profile): void

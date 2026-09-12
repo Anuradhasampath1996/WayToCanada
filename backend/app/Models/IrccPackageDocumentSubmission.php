@@ -53,6 +53,11 @@ class IrccPackageDocumentSubmission extends Model
         return $this->belongsTo(CaseFile::class);
     }
 
+    public function document(): BelongsTo
+    {
+        return $this->belongsTo(IrccCategoryDocument::class, 'ircc_category_document_id');
+    }
+
     public function uploader(): BelongsTo
     {
         return $this->belongsTo(User::class, 'uploaded_by');
