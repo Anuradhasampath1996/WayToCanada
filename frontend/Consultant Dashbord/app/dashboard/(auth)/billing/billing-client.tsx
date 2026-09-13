@@ -861,7 +861,7 @@ export function BillingClient() {
                 <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
                 <p>
                   {sub.in_grace
-                    ? `Renewal failed. You still have workspace access until ${fmtDate(sub.grace_ends_at)}. Update your payment method to avoid interruption.`
+                    ? `Renewal failed. You still have workspace access until ${fmtDate(sub.grace_ends_at ?? null)}. Update your payment method to avoid interruption.`
                     : "Grace period has ended. Update your payment method so Stripe can recover this subscription. Your workspace is paused until payment succeeds."}
                 </p>
               </div>
