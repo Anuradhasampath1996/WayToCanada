@@ -167,7 +167,7 @@ export function FinalReviewPanel({ profileId }: { profileId: string }) {
 
       <div className="rounded-xl border bg-card p-4 space-y-3">
         <p className="text-sm font-semibold">Consultant final review checklist</p>
-        {Object.values(review.checklist ?? {}).map((item) => (
+        {Object.values((review.checklist ?? {}) as Record<string, ChecklistItem>).map((item) => (
           <label key={item.key} className="flex items-start gap-2 text-sm">
             <input
               type="checkbox"

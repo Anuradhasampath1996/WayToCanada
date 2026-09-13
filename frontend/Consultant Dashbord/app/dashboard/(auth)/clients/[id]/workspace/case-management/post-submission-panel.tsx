@@ -58,7 +58,8 @@ export function PostSubmissionPanel({ profileId }: { profileId: string }) {
     if (!res.ok) throw new Error(json.message ?? "Failed to load post-submission.");
     setData(json);
     const next: Record<string, boolean> = {};
-    for (const item of Object.values(json.closure?.checklist ?? {})) {
+    const checklist = (json.closure?.checklist ?? {}) as Record<string, { key: string; checked: boolean }>;
+    for (const item of Object.values(checklist)) {
       next[item.key] = item.checked;
     }
     setItems(next);
