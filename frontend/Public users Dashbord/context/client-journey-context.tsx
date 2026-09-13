@@ -12,8 +12,10 @@ import {
   type ClientJourneyMeta,
   type ClientNextAction,
   type ClientActivityEvent,
+  type ClientAssignmentSummary,
   type JourneyStep,
   type JourneyStepId,
+  type ClientDisplayStage,
 } from "@/lib/client-journey";
 import {
   buildClientQuestionnaireStats,
@@ -78,8 +80,10 @@ type ClientJourneyContextValue = {
   pendingRequest: PendingConsultantRequest | null;
   client: ClientInfo | null;
   applicationPackage: ApplicationPackage | null;
+  assignment: ClientAssignmentSummary;
   qStats: ClientQuestionnaireStats;
   steps: JourneyStep[];
+  displayStages: ClientDisplayStage[];
   currentStepId: JourneyStepId;
   progressPercent: number;
   meta: ClientJourneyMeta;
@@ -101,6 +105,7 @@ export function ClientJourneyProvider({ children }: { children: React.ReactNode 
   const [pendingRequest, setPendingRequest] = React.useState<PendingConsultantRequest | null>(null);
   const [client, setClient] = React.useState<ClientInfo | null>(null);
   const [applicationPackage, setApplicationPackage] = React.useState<ApplicationPackage | null>(null);
+  const [assignment, setAssignment] = React.useState<ClientAssignmentSummary>(null);
   const [qStats, setQStats] = React.useState<ClientQuestionnaireStats>(buildClientQuestionnaireStats(null));
 
   const refresh = React.useCallback(async () => {
@@ -112,9 +117,10 @@ export function ClientJourneyProvider({ children }: { children: React.ReactNode 
         if (cookieMatch) localStorage.setItem("wtc_token", decodeURIComponent(cookieMatch[1]));
       }
 
-      const [dashRes, qRes] = await Promise.all([
+      const [dashRes, qRes, assignRes] = await Promise.all([
         fetch(`${API}/client/dashboard`, { headers: authHeaders() }),
         fetch(`${API}/questionnaire`, { headers: authHeaders() }),
+        fetch(`${API}/client/case-assignment`, { headers: authHeaders() }),
       ]);
 
       const json = await dashRes.json();
@@ -126,6 +132,12 @@ export function ClientJourneyProvider({ children }: { children: React.ReactNode 
       setPendingRequest(json.pending_request ?? null);
       setClient(json.client ?? null);
       setApplicationPackage(json.application_package ?? null);
+      if (assignRes.ok) {
+        const assignJson = await assignRes.json();
+        setAssignment(assignJson.assignment ?? null);
+      } else {
+        setAssignment(null);
+      }
 
       if (qRes.ok) {
         const qJson = await qRes.json();
@@ -143,13 +155,14 @@ export function ClientJourneyProvider({ children }: { children: React.ReactNode 
   }, [refresh]);
 
   const hasForms = (applicationPackage?.interactive_forms?.length ?? 0) > 0;
-  const { steps, currentStepId, progressPercent, meta } = buildClientJourney(
+  const { steps, displayStages, currentStepId, progressPercent, meta } = buildClientJourney(
     caseFile,
     verification,
     hasForms,
     qStats,
+    assignment,
   );
-  const nextAction = resolveClientNextAction(caseFile, verification, qStats, hasForms, meta);
+  const nextAction = resolveClientNextAction(caseFile, verification, qStats, hasForms, meta, assignment);
   const activityEvents = buildClientActivity(caseFile, verification, qStats);
 
   const canAccess = React.useCallback(
@@ -168,8 +181,10 @@ export function ClientJourneyProvider({ children }: { children: React.ReactNode 
     pendingRequest,
     client,
     applicationPackage,
+    assignment,
     qStats,
     steps,
+    displayStages,
     currentStepId,
     progressPercent,
     meta,

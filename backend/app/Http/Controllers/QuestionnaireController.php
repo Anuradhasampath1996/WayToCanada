@@ -9,6 +9,7 @@ use App\Support\QuestionnaireDocumentResolver;
 use App\Support\QuestionnaireStep3Data;
 use App\Services\ClientActivity\ClientActivityTriggers;
 use App\Services\Notifications\WorkspaceNotificationTriggers;
+use App\Services\QuestionnaireFieldRemarkService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -19,6 +20,7 @@ class QuestionnaireController extends Controller
     public function __construct(
         private WorkspaceNotificationTriggers $notify,
         private ClientActivityTriggers $activity,
+        private QuestionnaireFieldRemarkService $fieldRemarks,
     ) {}
     // ── GET /questionnaire ─────────────────────────────────────────────────────
     // Load the authenticated user's saved draft (or null if none yet).
@@ -51,6 +53,15 @@ class QuestionnaireController extends Controller
             $data['step3_data'] = QuestionnaireStep3Data::normalizeForStorage($data['step3_data']);
         }
 
+        $existing = QuestionnaireSubmission::where('user_id', $request->user()->id)->first();
+        [$remarks] = $existing
+            ? $this->fieldRemarks->resolveChangedRemarks($existing, $data)
+            : [[], []];
+
+        if ($existing && $remarks !== ($existing->field_remarks ?? [])) {
+            $data['field_remarks'] = $remarks;
+        }
+
         $submission = QuestionnaireSubmission::updateOrCreate(
             ['user_id' => $request->user()->id],
             $data
@@ -58,7 +69,7 @@ class QuestionnaireController extends Controller
 
         return response()->json([
             'message' => 'Saved.',
-            'data'    => $submission,
+            'data'    => $submission->fresh(),
         ]);
     }
 

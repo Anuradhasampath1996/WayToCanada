@@ -1,0 +1,8 @@
+{
+  "name": "phase1-verification",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "playwright": "^1.49.0"
+  }
+}

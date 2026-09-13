@@ -27,9 +27,20 @@ type PipelineEntry = {
   client_email: string;
   client_avatar?: string | null;
   status: string;
+  workflow_status?: string;
+  workflow_label?: string;
+  group?: string;
   immigration_pathway: string | null;
   agreement_signed_at: string | null;
   pending_docs: number;
+  open_government_requests?: number;
+  next_government_due_at?: string | null;
+  pending_action?: string | null;
+  pending_actor?: "consultant" | "client" | "government" | null;
+  journey_label?: string;
+  needs_attention?: boolean;
+  overdue?: boolean;
+  is_closed?: boolean;
 };
 
 function authHeaders() {
@@ -63,6 +74,7 @@ export function ConsultantDashboard() {
   const [consultantName, setConsultantName] = useState("Consultant");
   const [identity, setIdentity] = useState<ConsultantIdentity | null>(null);
   const [pipeline, setPipeline] = useState<PipelineEntry[]>([]);
+  const [counts, setCounts] = useState({ in_preparation: 0, needs_attention: 0, government_processing: 0 });
   const [clientsTotal, setClientsTotal] = useState(0);
 
   const load = useCallback(async () => {
@@ -84,6 +96,11 @@ export function ConsultantDashboard() {
       if (!profileRes.ok) throw new Error(profileJson.message ?? "Failed to load profile.");
 
       setPipeline(pipelineJson.pipeline ?? []);
+      setCounts({
+        in_preparation: pipelineJson.counts?.in_preparation ?? 0,
+        needs_attention: pipelineJson.counts?.needs_attention ?? 0,
+        government_processing: pipelineJson.counts?.government_processing ?? 0,
+      });
       setClientsTotal(clientsJson.total ?? clientsJson.data?.length ?? 0);
       setIdentity({
         name: profileJson.name ?? "Consultant",
@@ -114,10 +131,15 @@ export function ConsultantDashboard() {
 
   const stats = useMemo(() => {
     const pendingDocs = pipeline.reduce((sum, p) => sum + (p.pending_docs ?? 0), 0);
-    const activeCases = pipeline.length;
-    const ready = pipeline.filter((p) => p.status === "READY_FOR_SUBMISSION").length;
-    return { pendingDocs, activeCases, ready };
-  }, [pipeline]);
+    const openGov = pipeline.reduce((sum, p) => sum + (p.open_government_requests ?? 0), 0);
+    return {
+      pendingDocs,
+      openGov,
+      inPrep: counts.in_preparation,
+      government: counts.government_processing,
+      needsAttention: counts.needs_attention,
+    };
+  }, [pipeline, counts]);
 
   const retainerSignings = useMemo(
     () =>
@@ -179,30 +201,30 @@ export function ConsultantDashboard() {
       imagePos: "object-[72%_40%]",
     },
     {
-      label: "Active Cases",
-      value: stats.activeCases,
-      hint: "In pipeline",
-      href: "/dashboard/case-pipeline",
+      label: "In preparation",
+      value: stats.inPrep,
+      hint: "Active case group",
+      href: "/dashboard/case-pipeline?view=in_preparation",
       icon: FileText,
       tone: "bg-primary/10 text-primary",
       image: "/kpi-cases.png",
       imagePos: "object-[70%_50%]",
     },
     {
-      label: "Pending Documents",
-      value: stats.pendingDocs,
-      hint: "Awaiting review",
-      href: "/dashboard/case-pipeline",
+      label: "Needs attention",
+      value: stats.needsAttention,
+      hint: `${stats.pendingDocs} docs · ${stats.openGov} gov requests`,
+      href: "/dashboard/case-pipeline?view=needs_attention",
       icon: Clock3,
       tone: "bg-primary/10 text-primary",
       image: "/kpi-documents.png",
       imagePos: "object-[62%_48%]",
     },
     {
-      label: "Ready to Submit",
-      value: stats.ready,
-      hint: "Package ready",
-      href: "/dashboard/case-pipeline",
+      label: "Government processing",
+      value: stats.government,
+      hint: "Submitted cases still in process",
+      href: "/dashboard/case-pipeline?view=government_processing",
       icon: CheckCircle2,
       tone: "bg-primary/10 text-primary",
       image: "/kpi-submit.png",
@@ -325,6 +347,49 @@ export function ConsultantDashboard() {
             </Card>
           </Link>
         ))}
+      </section>
+
+      <section className="rounded-2xl border bg-card p-4 shadow-sm">
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <p className="text-sm font-semibold">Pending actions</p>
+          <Button variant="ghost" size="sm" asChild>
+            <Link href="/dashboard/case-pipeline?view=needs_attention">Open filtered board</Link>
+          </Button>
+        </div>
+        {pipeline.filter((p) => p.needs_attention).length === 0 ? (
+          <p className="rounded-xl border border-dashed px-3 py-6 text-center text-sm text-muted-foreground">
+            No cases need attention. Active work without a required action stays off this list.
+          </p>
+        ) : (
+          <ul className="divide-y">
+            {pipeline
+              .filter((p) => p.needs_attention)
+              .slice(0, 8)
+              .map((p) => (
+                <li key={p.profile_id} className="flex flex-col gap-1 py-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0">
+                    <Link
+                      href={`/dashboard/clients/${p.profile_id}/workspace/case-management`}
+                      className="block truncate font-medium hover:underline"
+                    >
+                      {p.client_name}
+                    </Link>
+                    <p className="truncate text-xs text-muted-foreground">{p.pending_action}</p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2 text-[11px]">
+                    <span className="rounded-full border px-2 py-0.5 capitalize">{p.pending_actor ?? "consultant"}</span>
+                    <span className="text-muted-foreground">{p.journey_label ?? p.workflow_label}</span>
+                    {p.next_government_due_at && (
+                      <span className={p.overdue ? "font-semibold text-red-700" : "text-muted-foreground"}>
+                        {p.overdue ? "Overdue " : "Due "}
+                        {new Date(p.next_government_due_at).toLocaleDateString()}
+                      </span>
+                    )}
+                  </div>
+                </li>
+              ))}
+          </ul>
+        )}
       </section>
 
       <ConsultantCalendarPanel retainerSignings={retainerSignings} />

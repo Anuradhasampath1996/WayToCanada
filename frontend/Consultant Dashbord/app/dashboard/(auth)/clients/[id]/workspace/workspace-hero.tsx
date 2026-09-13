@@ -7,13 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { CASE_WORKFLOW_STEPS } from "./workspace-flow-ui";
-
-const STATUS_LABELS: Record<string, string> = {
-  PENDING_ASSESSMENT: "Pending Assessment",
-  PATHWAY_SELECTED: "Pathway Selected",
-  AGREEMENT_SENT: "Agreement Sent",
-  AGREEMENT_SIGNED: "Agreement Signed",
-};
+import { workflowLabel } from "@/lib/case-workflow-labels";
 
 export function WorkspaceHero({
   profileId,
@@ -73,7 +67,7 @@ export function WorkspaceHero({
 
           <div className="mt-5 flex flex-wrap items-center gap-2">
             <Badge variant="outline" className={cn("h-7 rounded-lg px-2.5 text-xs font-medium", toneStyles[statusTone])}>
-              {STATUS_LABELS[status] ?? status}
+              {workflowLabel(status)}
             </Badge>
             {pathway && (
               <Badge variant="outline" className="h-7 rounded-lg px-2.5 text-xs font-medium">

@@ -244,23 +244,56 @@ export function ConsultantInteractiveFormsPanel({
     category_id: null,
     forms: [],
   });
+  const [bulkReviewing, setBulkReviewing] = React.useState(false);
+  const [bulkMessage, setBulkMessage] = React.useState<string | null>(null);
 
-  React.useEffect(() => {
-    fetch(`${API}/consultant/clients/${profileId}/interactive-forms`, { headers: authHeaders() })
-      .then((r) => r.json())
-      .then((json: InteractiveFormsIndex) => {
-        setIndex({
-          category_id: json.category_id ?? null,
-          package_label: json.package_label ?? null,
-          form_mode: json.form_mode ?? (json.forms?.length ? "interactive" : "none"),
-          reference_forms: json.reference_forms ?? [],
-          forms: json.forms ?? [],
-        });
-      })
-      .finally(() => setLoading(false));
+  const reloadIndex = React.useCallback(async () => {
+    const res = await fetch(`${API}/consultant/clients/${profileId}/interactive-forms`, {
+      headers: authHeaders(),
+    });
+    const json: InteractiveFormsIndex = await res.json();
+    setIndex({
+      category_id: json.category_id ?? null,
+      package_label: json.package_label ?? null,
+      form_mode: json.form_mode ?? (json.forms?.length ? "interactive" : "none"),
+      reference_forms: json.reference_forms ?? [],
+      forms: json.forms ?? [],
+    });
   }, [profileId]);
 
+  React.useEffect(() => {
+    setLoading(true);
+    void reloadIndex().finally(() => setLoading(false));
+  }, [reloadIndex]);
+
   const { category_id: categoryId, forms, package_label: packageLabel, form_mode: formMode, reference_forms: referenceForms = [] } = index;
+
+  const submittedCount = forms.filter((f) => f.response?.status === "submitted").length;
+  const reviewedCount = forms.filter((f) => Boolean(f.response?.reviewed_at)).length;
+  const pendingReviewCount = forms.filter(
+    (f) => f.response?.status === "submitted" && !f.response?.reviewed_at,
+  ).length;
+
+  const handleReviewAllSubmitted = async () => {
+    if (pendingReviewCount === 0 || bulkReviewing) return;
+    setBulkReviewing(true);
+    setBulkMessage(null);
+    try {
+      const res = await fetch(
+        `${API}/consultant/clients/${profileId}/interactive-forms/review-all-submitted`,
+        { method: "PATCH", headers: authHeaders(true), body: JSON.stringify({}) },
+      );
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.message ?? "Bulk review failed.");
+      setBulkMessage(json.message ?? `Reviewed ${json.reviewed_count ?? 0} form(s).`);
+      await reloadIndex();
+      onVerificationChange?.();
+    } catch (e: unknown) {
+      setBulkMessage(e instanceof Error ? e.message : "Bulk review failed.");
+    } finally {
+      setBulkReviewing(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -354,22 +387,34 @@ export function ConsultantInteractiveFormsPanel({
     );
   }
 
-  const submittedCount = forms.filter((f) => f.response?.status === "submitted").length;
-  const reviewedCount = forms.filter((f) => Boolean(f.response?.reviewed_at)).length;
-
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <p className="text-sm text-muted-foreground">
           {submittedCount}/{forms.length} submitted · {reviewedCount}/{forms.length} reviewed
         </p>
-        <Badge variant="outline" className="gap-1">
-          <Clock className="h-3 w-3" /> Verify submitted answers below
-        </Badge>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button
+            size="sm"
+            variant="outline"
+            className="gap-1.5"
+            disabled={pendingReviewCount === 0 || bulkReviewing}
+            onClick={() => void handleReviewAllSubmitted()}
+          >
+            {bulkReviewing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ShieldCheck className="h-3.5 w-3.5" />}
+            Review all submitted{pendingReviewCount > 0 ? ` (${pendingReviewCount})` : ""}
+          </Button>
+          <Badge variant="outline" className="gap-1">
+            <Clock className="h-3 w-3" /> Verify submitted answers below
+          </Badge>
+        </div>
       </div>
+      {bulkMessage && (
+        <p className="text-xs text-muted-foreground">{bulkMessage}</p>
+      )}
       {forms.map((form) => (
         <FormReviewCard
-          key={form.id}
+          key={`${form.id}-${form.response?.reviewed_at ?? "pending"}`}
           profileId={profileId}
           formId={form.id}
           title={form.title}

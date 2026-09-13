@@ -2,6 +2,7 @@
 
 namespace App\Services\Meetings;
 
+use App\Models\CaseGovernmentRequest;
 use App\Models\ClientMeeting;
 use App\Models\ConsultantMeetingAccount;
 use App\Models\User;
@@ -82,6 +83,47 @@ class ConsultantCalendarService
                 'duration_minutes'  => (int) $meeting->duration_minutes,
                 'meeting_url'       => $meeting->meeting_url,
                 'provider'          => $meeting->provider,
+            ];
+        }
+
+        $govRequests = CaseGovernmentRequest::query()
+            ->whereHas('caseFile', fn ($q) => $q->where('consultant_id', $consultant->id))
+            ->whereNotNull('due_at')
+            ->where('status', '!=', 'answered')
+            ->whereDate('due_at', '>=', $from->copy()->timezone($timezone)->subDay()->toDateString())
+            ->whereDate('due_at', '<=', $to->copy()->timezone($timezone)->addDay()->toDateString())
+            ->with('caseFile.clientProfile.user')
+            ->get();
+
+        foreach ($govRequests as $gov) {
+            // Due dates are calendar days, not UTC instants — keep the stored date in the consultant timezone.
+            $dueDate = Carbon::parse($gov->due_at->format('Y-m-d'), $timezone);
+            $fromDate = $from->copy()->timezone($timezone)->toDateString();
+            $toDate = $to->copy()->timezone($timezone)->toDateString();
+            if ($dueDate->toDateString() < $fromDate || $dueDate->toDateString() > $toDate) {
+                continue;
+            }
+            $start = $dueDate->copy()->startOfDay();
+            $end = $dueDate->copy()->endOfDay();
+            $profileId = $gov->client_profile_id ?: $gov->caseFile?->client_profile_id;
+            $clientUser = $gov->caseFile?->clientProfile?->user;
+            $events[] = [
+                'id'                => 'gov-request-'.$gov->id,
+                'title'             => 'Gov request: '.$gov->label().' · '.($clientUser?->name ?? 'Client'),
+                'start'             => $start->toIso8601String(),
+                'end'               => $end->toIso8601String(),
+                'all_day'           => true,
+                'source'            => 'government_request',
+                'client_profile_id' => $profileId,
+                'client_name'       => $clientUser?->name,
+                'client_avatar'     => filled($clientUser?->avatar) ? (string) $clientUser->avatar : null,
+                'description'       => $gov->notes,
+                'duration_minutes'  => null,
+                'meeting_url'       => null,
+                'provider'          => null,
+                'href'              => $profileId
+                    ? '/dashboard/clients/'.$profileId.'/workspace/case-management?tab=post-submission'
+                    : null,
             ];
         }
 

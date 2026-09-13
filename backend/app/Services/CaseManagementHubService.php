@@ -42,6 +42,13 @@ class CaseManagementHubService
             ['id' => 'relationship_proof', 'label' => 'Proof of genuine relationship', 'category' => 'relationship'],
             ['id' => 'birth_certs', 'label' => 'Birth certificates (dependents)', 'category' => 'identity'],
         ],
+        'Family Sponsorship – PGP' => [
+            ['id' => 'sponsor_status', 'label' => "Sponsor's PR card / citizenship certificate", 'category' => 'sponsor'],
+            ['id' => 'sponsor_income', 'label' => "Sponsor's proof of income (NOA / MNI)", 'category' => 'financial'],
+            ['id' => 'birth_certs', 'label' => 'Birth certificates (parents / grandparents)', 'category' => 'identity'],
+            ['id' => 'relationship_proof', 'label' => 'Proof of parent/grandparent relationship', 'category' => 'relationship'],
+            ['id' => 'undertaking', 'label' => 'Sponsorship undertaking documents', 'category' => 'sponsor'],
+        ],
         'Study Permit' => [
             ['id' => 'acceptance_letter', 'label' => 'Letter of acceptance from DLI', 'category' => 'study'],
             ['id' => 'ielts_results', 'label' => 'Language test results', 'category' => 'eligibility'],
@@ -55,6 +62,50 @@ class CaseManagementHubService
             ['id' => 'ielts_results', 'label' => 'Language test results (if required)', 'category' => 'eligibility'],
             ['id' => 'qualifications', 'label' => 'Educational / professional qualifications', 'category' => 'work'],
             ['id' => 'resume', 'label' => 'Current resume / CV', 'category' => 'work'],
+        ],
+        'Community Pilot' => [
+            ['id' => 'job_offer', 'label' => 'Job offer from designated employer', 'category' => 'work'],
+            ['id' => 'community_recommendation', 'label' => 'Community recommendation letter', 'category' => 'application'],
+            ['id' => 'ielts_results', 'label' => 'Language test results', 'category' => 'eligibility'],
+            ['id' => 'employment_refs', 'label' => 'Work experience letters', 'category' => 'work'],
+            ['id' => 'proof_funds', 'label' => 'Settlement funds', 'category' => 'financial'],
+            ['id' => 'settlement_plan', 'label' => 'Settlement plan (if required)', 'category' => 'application'],
+        ],
+        'Quebec' => [
+            ['id' => 'french_test', 'label' => 'French language test results (TEF / TCF)', 'category' => 'eligibility'],
+            ['id' => 'eca', 'label' => 'Educational Credential Assessment / Quebec diploma', 'category' => 'eligibility'],
+            ['id' => 'employment_refs', 'label' => 'Work experience letters', 'category' => 'work'],
+            ['id' => 'proof_funds', 'label' => 'Proof of financial self-sufficiency', 'category' => 'financial'],
+            ['id' => 'csq', 'label' => 'Certificat de sélection du Québec (CSQ)', 'category' => 'application'],
+            ['id' => 'arrima', 'label' => 'Arrima expression of interest / invitation (if applicable)', 'category' => 'application'],
+        ],
+        'Business Immigration' => [
+            ['id' => 'business_plan', 'label' => 'Business plan / venture details', 'category' => 'application'],
+            ['id' => 'proof_funds', 'label' => 'Proof of investment / settlement funds', 'category' => 'financial'],
+            ['id' => 'experience_letters', 'label' => 'Business / self-employment experience evidence', 'category' => 'work'],
+            ['id' => 'language_tests', 'label' => 'Language test results', 'category' => 'eligibility'],
+            ['id' => 'letter_of_support', 'label' => 'Designated organization letter of support (Start-up Visa)', 'category' => 'application'],
+            ['id' => 'police_cert_extra', 'label' => 'Police certificates (all countries lived 6+ months)', 'category' => 'background'],
+        ],
+        'Visitor' => [
+            ['id' => 'invitation_letter', 'label' => 'Invitation letter (if applicable)', 'category' => 'application'],
+            ['id' => 'proof_funds', 'label' => 'Proof of funds / ties to home country', 'category' => 'financial'],
+            ['id' => 'travel_history', 'label' => 'Travel history / itinerary', 'category' => 'application'],
+            ['id' => 'employment_letter', 'label' => 'Employment letter from home country', 'category' => 'work'],
+            ['id' => 'insurance', 'label' => 'Medical insurance (required for Super Visa)', 'category' => 'medical'],
+        ],
+        'Citizenship' => [
+            ['id' => 'pr_card', 'label' => 'PR card / confirmation of PR', 'category' => 'identity'],
+            ['id' => 'language_proof', 'label' => 'Language proof (IELTS / CELPIP / TEF)', 'category' => 'eligibility'],
+            ['id' => 'tax_filings', 'label' => 'Tax filings / physical presence evidence', 'category' => 'eligibility'],
+            ['id' => 'knowledge_test', 'label' => 'Citizenship knowledge study materials', 'category' => 'application'],
+            ['id' => 'photos', 'label' => 'Citizenship application photos', 'category' => 'identity'],
+        ],
+        'PR Card' => [
+            ['id' => 'current_pr_card', 'label' => 'Current / expired PR card', 'category' => 'identity'],
+            ['id' => 'travel_history', 'label' => 'Travel history outside Canada', 'category' => 'application'],
+            ['id' => 'photos', 'label' => 'PR card photos', 'category' => 'identity'],
+            ['id' => 'proof_address', 'label' => 'Proof of address in Canada', 'category' => 'identity'],
         ],
     ];
 
@@ -85,6 +136,32 @@ class CaseManagementHubService
         'Work Permit' => [
             ['code' => 'IMM 1295', 'name' => 'Application for Work Permit', 'type' => 'pdf'],
             ['code' => 'IMM 5707', 'name' => 'Family Information', 'type' => 'pdf'],
+        ],
+        'Community Pilot' => [
+            ['code' => 'IMM 0008', 'name' => 'Generic Application Form for Canada', 'type' => 'pdf'],
+            ['code' => 'IMM 5669', 'name' => 'Schedule A — Background/Declaration', 'type' => 'pdf'],
+            ['code' => 'IMM 5406', 'name' => 'Additional Family Information', 'type' => 'pdf'],
+        ],
+        'Quebec' => [
+            ['code' => 'IMM 0008', 'name' => 'Generic Application Form for Canada', 'type' => 'pdf'],
+            ['code' => 'IMM 5669', 'name' => 'Schedule A — Background/Declaration', 'type' => 'pdf'],
+            ['code' => 'IMM 5406', 'name' => 'Additional Family Information', 'type' => 'pdf'],
+        ],
+        'Business Immigration' => [
+            ['code' => 'IMM 0008', 'name' => 'Generic Application Form for Canada', 'type' => 'pdf'],
+            ['code' => 'IMM 5669', 'name' => 'Schedule A — Background/Declaration', 'type' => 'pdf'],
+            ['code' => 'IMM 5406', 'name' => 'Additional Family Information', 'type' => 'pdf'],
+        ],
+        'Visitor' => [
+            ['code' => 'IMM 5257', 'name' => 'Application for Temporary Resident Visa', 'type' => 'pdf'],
+            ['code' => 'IMM 5707', 'name' => 'Family Information', 'type' => 'pdf'],
+        ],
+        'Citizenship' => [
+            ['code' => 'CIT 0002', 'name' => 'Application for Canadian Citizenship — Adults', 'type' => 'pdf'],
+        ],
+        'PR Card' => [
+            ['code' => 'IMM 5444', 'name' => 'Application for a Permanent Resident Card', 'type' => 'pdf'],
+            ['code' => 'IMM 5455', 'name' => 'Document Checklist — PR Card', 'type' => 'pdf'],
         ],
     ];
 
@@ -121,8 +198,9 @@ class CaseManagementHubService
             'case_file'              => $caseFile,
             'application_package'    => $package,
             'verification'           => $verification,
-            'case_management_unlocked' => (bool) ($verification['case_management_unlocked'] ?? false),
-            'pathway_family'         => $this->pathwayFamily($caseFile->immigration_pathway),
+            'case_management_unlocked' => (bool) ($verification['case_management_unlocked'] ?? false)
+                || ($caseFile->isAgreementSigned() && (bool) $caseFile->current_requirement_plan_id),
+            'pathway_family'         => app(PathwayCatalogService::class)->hubFamilyForCase($caseFile),
             'document_requirements'  => $requirements,
             'ircc_forms'             => $irccForms,
             'documents'              => $submissions->map(fn ($s) => $this->formatSubmission($s))->values(),
@@ -146,34 +224,75 @@ class CaseManagementHubService
             return null;
         }
 
-        if (str_contains($pathway, 'Express Entry')) {
-            return 'Express Entry';
-        }
-        if (str_contains($pathway, 'PNP') || str_contains($pathway, 'Provincial Nominee')) {
+        $lower = mb_strtolower($pathway);
+
+        // PNP before Express Entry — labels like "PNP - Non-Express Entry" contain both phrases.
+        if (\App\Support\ImmigrationPathwayLabels::mentionsPnp($pathway)) {
             return 'PNP';
         }
-        if (str_contains($pathway, 'Family Sponsorship') || str_contains($pathway, 'Sponsorship')) {
+        if (\App\Support\ImmigrationPathwayLabels::mentionsExpressEntry($pathway)) {
+            return 'Express Entry';
+        }
+        if (str_contains($lower, 'family sponsorship') || str_contains($lower, 'sponsor your')) {
             return 'Family Sponsorship';
         }
-        if (str_contains($pathway, 'Study Permit') || str_contains($pathway, 'Study')) {
+        if (str_contains($lower, 'study permit')) {
             return 'Study Permit';
         }
-        if (str_contains($pathway, 'Work Permit') || str_contains($pathway, 'Work')) {
+        if (str_contains($lower, 'work permit')) {
             return 'Work Permit';
         }
+        if (str_contains($lower, 'rcip') || str_contains($lower, 'fcip') || str_contains($lower, 'atlantic immigration') || str_contains($lower, 'rural community') || str_contains($lower, 'francophone community')) {
+            return 'Community Pilot';
+        }
+        if (str_contains($lower, 'quebec') || str_contains($lower, 'pstq') || str_contains($lower, 'arrima') || str_contains($lower, 'peq') || str_contains($lower, 'csq')) {
+            return 'Quebec';
+        }
+        if (str_contains($lower, 'start-up') || str_contains($lower, 'startup') || str_contains($lower, 'self-employed') || str_contains($lower, 'self employed') || str_contains($lower, 'caregiver') || str_contains($lower, 'business immigration')) {
+            return 'Business Immigration';
+        }
+        if (str_contains($lower, 'super visa') || str_contains($lower, 'visitor visa') || str_contains($lower, 'temporary resident visa') || preg_match('/\btrv\b/', $lower)) {
+            return 'Visitor';
+        }
+        if (str_contains($lower, 'citizenship')) {
+            return 'Citizenship';
+        }
+        if (str_contains($lower, 'pr card') || str_contains($lower, 'permanent resident card')) {
+            return 'PR Card';
+        }
+        // Exact known pathway labels only — do not match bare "Work"/"Study"/"Sponsorship".
+        $known = [
+            'Study Permit' => 'Study Permit',
+            'Work Permit' => 'Work Permit',
+            'Family Sponsorship' => 'Family Sponsorship',
+            'Provincial Nominee Program' => 'PNP',
+            'Atlantic Immigration Program' => 'Community Pilot',
+            'Rural Community Immigration Pilot (RCIP)' => 'Community Pilot',
+            'Francophone Community Immigration Pilot (FCIP)' => 'Community Pilot',
+            'Start-up Visa' => 'Business Immigration',
+            'Self-employed Persons' => 'Business Immigration',
+            'Visitor Visa (TRV)' => 'Visitor',
+            'Super Visa (Parents and Grandparents)' => 'Visitor',
+            'Canadian Citizenship (Grant)' => 'Citizenship',
+            'Proof of Citizenship Certificate' => 'Citizenship',
+            'PR Card Renew / Replace' => 'PR Card',
+        ];
+        foreach ($known as $label => $family) {
+            if (strcasecmp(trim($pathway), $label) === 0) {
+                return $family;
+            }
+        }
 
-        return $pathway;
+        return null;
     }
 
     /** @return list<array<string, mixed>> */
     private function buildRequirements(CaseFile $caseFile, ?array $package, $submissionsByType): array
     {
-        $family = $this->pathwayFamily($caseFile->immigration_pathway);
-        $pathwayReqs = $family && isset(self::PATHWAY_REQUIREMENTS[$family])
-            ? self::PATHWAY_REQUIREMENTS[$family]
-            : [];
-
-        $all = array_merge(self::BASE_REQUIREMENTS, $pathwayReqs);
+        $planDocs = $this->planDocuments($caseFile);
+        $all = $planDocs !== []
+            ? $planDocs
+            : $this->legacyRequirements($caseFile);
         $checklist = $caseFile->checklist_data ?? [];
 
         return array_map(function (array $req) use ($submissionsByType, $checklist) {
@@ -187,13 +306,58 @@ class CaseManagementHubService
                 'status'   => $status,
                 'checked'  => (bool) ($checklist[$req['id']] ?? false),
                 'submission' => $submission,
+                'reuse_candidate' => $req['reuse_candidate'] ?? null,
             ];
         }, $all);
+    }
+
+    /** @return list<array{id: string, label: string, category: string, reuse_candidate?: mixed}> */
+    private function planDocuments(CaseFile $caseFile): array
+    {
+        $plan = app(CaseRequirementPlanService::class)->currentPlan($caseFile);
+        if (! $plan) {
+            return [];
+        }
+
+        $out = [];
+        foreach ($plan->snapshot['documents'] ?? [] as $doc) {
+            $status = $doc['status'] ?? 'requested';
+            if ($status === 'obsolete' || ($doc['requirement_state'] ?? null) === 'not_required') {
+                continue;
+            }
+            $out[] = [
+                'id' => (string) ($doc['id'] ?? ''),
+                'label' => (string) ($doc['label'] ?? $doc['id'] ?? 'Document'),
+                'category' => (string) ($doc['category'] ?? 'other'),
+                'reuse_candidate' => $doc['reuse_candidate'] ?? null,
+            ];
+        }
+
+        return array_values(array_filter($out, fn (array $doc) => $doc['id'] !== ''));
+    }
+
+    /** @return list<array{id: string, label: string, category: string}> */
+    private function legacyRequirements(CaseFile $caseFile): array
+    {
+        $family = app(PathwayCatalogService::class)->hubFamilyForCase($caseFile);
+        if (($caseFile->pathway_code ?? '') === 'family.pgp') {
+            $family = 'Family Sponsorship – PGP';
+        }
+        $pathwayReqs = $family && isset(self::PATHWAY_REQUIREMENTS[$family])
+            ? self::PATHWAY_REQUIREMENTS[$family]
+            : [];
+
+        return array_merge(self::BASE_REQUIREMENTS, $pathwayReqs);
     }
 
     /** @return list<array<string, mixed>> */
     private function buildIrccForms(CaseFile $caseFile, ?array $package): array
     {
+        $planForms = $this->planForms($caseFile);
+        if ($planForms !== []) {
+            return $planForms;
+        }
+
         $forms = [];
 
         if ($package && ! empty($package['interactive_forms'])) {
@@ -231,12 +395,38 @@ class CaseManagementHubService
             return $forms;
         }
 
-        $family = $this->pathwayFamily($caseFile->immigration_pathway);
+        $family = app(PathwayCatalogService::class)->hubFamilyForCase($caseFile);
         if ($family && isset(self::PATHWAY_IRCC_FORMS[$family])) {
             return self::PATHWAY_IRCC_FORMS[$family];
         }
 
         return [];
+    }
+
+    /** @return list<array<string, mixed>> */
+    private function planForms(CaseFile $caseFile): array
+    {
+        $plan = app(CaseRequirementPlanService::class)->currentPlan($caseFile);
+        if (! $plan) {
+            return [];
+        }
+
+        $out = [];
+        foreach ($plan->snapshot['forms'] ?? [] as $form) {
+            $status = $form['status'] ?? 'pending';
+            if ($status === 'obsolete') {
+                continue;
+            }
+            $out[] = [
+                'code' => $form['code'] ?? '',
+                'name' => $form['name'] ?? ($form['code'] ?? 'Form'),
+                'type' => $form['kind'] ?? 'official',
+                'form_id' => $form['form_id'] ?? null,
+                'status' => $status,
+            ];
+        }
+
+        return array_values(array_filter($out, fn (array $form) => ($form['code'] ?? '') !== ''));
     }
 
     private function formNameForCode(string $code): string
@@ -279,10 +469,11 @@ class CaseManagementHubService
             return 'missing';
         }
 
-        return match ($submission['status']) {
-            'consultant_approved', 'ai_verified' => 'approved',
-            'consultant_rejected' => 'rejected',
-            'pending_review', 'under_ai_review', 'ai_flagged' => 'pending',
+        return match (\App\Support\DocumentWorkflowStatus::canonicalize($submission['status'] ?? null)) {
+            \App\Support\DocumentWorkflowStatus::VERIFIED => 'approved',
+            \App\Support\DocumentWorkflowStatus::CORRECTION_REQUIRED,
+            \App\Support\DocumentWorkflowStatus::RESUBMISSION_REQUESTED => 'rejected',
+            \App\Support\DocumentWorkflowStatus::UNDER_REVIEW => 'pending',
             default => 'uploaded',
         };
     }
@@ -391,7 +582,13 @@ class CaseManagementHubService
             ->isNotEmpty();
 
         if ($total > 0 && $approved === $total && $pending === 0 && ! $hasPendingSubmissions) {
-            $caseFile->update(['status' => 'READY_FOR_SUBMISSION']);
+            if (
+                in_array($caseFile->status, ['AGREEMENT_SIGNED', 'DOCUMENTS_UPLOADING', 'UNDER_REVIEW'], true)
+                && ! $caseFile->ready_to_submit_at
+                && ! $caseFile->submitted_at
+            ) {
+                $caseFile->update(['status' => 'UNDER_REVIEW']);
+            }
 
             return;
         }

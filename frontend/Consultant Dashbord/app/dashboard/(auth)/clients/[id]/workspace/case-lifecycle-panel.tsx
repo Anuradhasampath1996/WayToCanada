@@ -13,6 +13,7 @@ import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import { workflowLabel } from "@/lib/case-workflow-labels";
 
 export interface CaseFileSummary {
   id: number;
@@ -45,17 +46,6 @@ export interface CaseLifecycleMeta {
   case_count: number;
 }
 
-const WORKFLOW_STATUS_LABELS: Record<string, string> = {
-  PENDING_ASSESSMENT: "Pending assessment",
-  PATHWAY_SELECTED: "Pathway selected",
-  AGREEMENT_SENT: "Agreement sent",
-  AGREEMENT_SIGNED: "Agreement signed",
-  DOCUMENTS_UPLOADING: "Documents uploading",
-  UNDER_REVIEW: "Under review",
-  READY_FOR_SUBMISSION: "Ready for submission",
-  APPLICATION_SUBMITTED: "Application submitted",
-};
-
 type LifecycleAction = "hold" | "resume" | "close" | "complete";
 
 function formatDateTime(value?: string | null) {
@@ -69,10 +59,6 @@ function formatDateTime(value?: string | null) {
     hour: "2-digit",
     minute: "2-digit",
   });
-}
-
-function workflowLabel(status: string) {
-  return WORKFLOW_STATUS_LABELS[status] ?? status.replaceAll("_", " ");
 }
 
 function lifecycleEventLabel(status: string) {

@@ -165,12 +165,16 @@ class DocumentSubmissionController extends Controller
         }
 
         $request->validate([
-            'action'             => 'required|in:approve,reject',
+            'action'             => 'required|in:approve,reject,verify,request_correction,request_resubmission',
             'rejection_comment'  => 'nullable|string|max:1000',
         ]);
 
         $action = $request->input('action');
-        $status = $action === 'approve' ? 'consultant_approved' : 'consultant_rejected';
+        $status = match ($action) {
+            'approve', 'verify' => 'consultant_approved',
+            'reject', 'request_correction' => 'consultant_rejected',
+            'request_resubmission' => 'resubmission_requested',
+        };
 
         $submission->update([
             'status'             => $status,
@@ -195,12 +199,18 @@ class DocumentSubmissionController extends Controller
             $this->hubService->syncPipelineStatus($caseFile->fresh());
         }
 
-        $this->notify->onDocumentReviewed($submission->fresh(), $profile, $action);
-        $this->activity->onDocumentReviewed($profile, $submission->fresh(), $request->user(), $action, $request);
+        $reviewedAction = in_array($action, ['approve', 'verify'], true) ? 'approve' : 'reject';
+        $this->notify->onDocumentReviewed($submission->fresh(), $profile, $reviewedAction);
+        $this->activity->onDocumentReviewed($profile, $submission->fresh(), $request->user(), $reviewedAction, $request);
 
         return response()->json([
-            'message'  => $action === 'approve' ? 'Document approved.' : 'Document rejected.',
+            'message'  => match ($action) {
+                'approve', 'verify' => 'Document verified.',
+                'request_resubmission' => 'Resubmission requested.',
+                default => 'Correction required.',
+            },
             'document' => $this->formatDoc($submission->fresh()),
+            'workflow_status' => \App\Support\DocumentWorkflowStatus::canonicalize($submission->fresh()->status),
             'case_file' => $caseFile ? ['status' => $caseFile->fresh()->status] : null,
         ]);
     }
@@ -248,38 +258,79 @@ class DocumentSubmissionController extends Controller
         $profiles = ClientProfile::where('consultant_id', $consultant->id)
             ->with([
                 'user:id,name,email,avatar',
-                'caseFile:id,client_profile_id,status,immigration_pathway,agreement_signed_at',
+                'caseFile.documentSubmissions',
+                'caseFile.governmentRequests',
             ])
             ->get();
 
         $kanban = [];
+        $groups = [
+            \App\Support\CaseWorkflowStatus::GROUP_PRE_ENGAGEMENT => [
+                'id' => \App\Support\CaseWorkflowStatus::GROUP_PRE_ENGAGEMENT,
+                'label' => 'Pre-Engagement / Assessment',
+                'cases' => [],
+            ],
+            \App\Support\CaseWorkflowStatus::GROUP_ACTIVE_CASE => [
+                'id' => \App\Support\CaseWorkflowStatus::GROUP_ACTIVE_CASE,
+                'label' => 'Active Case / Application Preparation',
+                'cases' => [],
+            ],
+            \App\Support\CaseWorkflowStatus::GROUP_POST_SUBMISSION => [
+                'id' => \App\Support\CaseWorkflowStatus::GROUP_POST_SUBMISSION,
+                'label' => 'Submission / Post-Submission',
+                'cases' => [],
+            ],
+        ];
 
         foreach ($profiles as $profile) {
             $cf = $profile->caseFile;
             if (! $cf) continue;
 
-            // Only show clients who have signed the agreement
-            $order = CaseFile::statusOrder();
-            if (($order[$cf->status] ?? 0) < 3) continue;
-
-            $pendingDocs = $cf->documentSubmissions()
-                ->whereIn('status', ['pending_review', 'under_ai_review', 'ai_flagged'])
-                ->count();
-
-            $kanban[] = [
+            $visibility = \App\Support\CaseOperationalVisibility::describe($cf);
+            $entry = [
                 'profile_id'         => $profile->id,
                 'client_name'        => $profile->user->name ?? 'Unknown',
                 'client_email'       => $profile->user->email ?? '',
                 'client_avatar'      => $profile->user->avatar ?: null,
                 'status'             => $cf->status,
+                'workflow_status'    => $visibility['workflow_status'],
+                'workflow_label'     => $visibility['workflow_label'],
+                'group'              => $visibility['group'],
+                'journey_group'      => $visibility['journey_group'],
+                'journey_label'      => $visibility['journey_label'],
+                'client_stage_label' => $visibility['client_stage_label'],
                 'immigration_pathway'=> $cf->immigration_pathway,
                 'agreement_signed_at'=> $cf->agreement_signed_at?->toDateTimeString(),
-                'pending_docs'       => $pendingDocs,
+                'case_activated_at'  => $cf->case_activated_at?->toDateTimeString(),
+                'pending_docs'       => $visibility['pending_docs'],
+                'open_government_requests' => $visibility['open_government_requests'],
+                'next_government_due_at' => $visibility['due_at'],
+                'pending_action'     => $visibility['pending_action'],
+                'pending_actor'      => $visibility['pending_actor'],
+                'pending_reason'     => $visibility['pending_reason'],
+                'needs_attention'    => $visibility['needs_attention'],
+                'overdue'            => $visibility['overdue'],
+                'is_closed'          => $visibility['is_closed'],
                 'case_file_id'       => $cf->id,
             ];
+
+            $kanban[] = $entry;
+            $groups[$visibility['group']]['cases'][] = $entry;
         }
 
-        return response()->json(['pipeline' => $kanban]);
+        return response()->json([
+            'pipeline' => $kanban,
+            'groups' => array_values($groups),
+            'filterable_statuses' => array_keys(\App\Support\CaseWorkflowStatus::ORDER),
+            'counts' => [
+                'in_preparation' => collect($kanban)->where('group', \App\Support\CaseWorkflowStatus::GROUP_ACTIVE_CASE)->count(),
+                'needs_attention' => collect($kanban)->where('needs_attention', true)->count(),
+                'government_processing' => collect($kanban)
+                    ->where('group', \App\Support\CaseWorkflowStatus::GROUP_POST_SUBMISSION)
+                    ->where('is_closed', false)
+                    ->count(),
+            ],
+        ]);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -304,6 +355,8 @@ class DocumentSubmissionController extends Controller
             'mime_type'         => $d->mime_type,
             'file_size'         => $d->file_size,
             'status'            => $d->status,
+            'workflow_status'   => \App\Support\DocumentWorkflowStatus::canonicalize($d->status),
+            'workflow_label'    => \App\Support\DocumentWorkflowStatus::label($d->status),
             'ai_confidence'     => $d->ai_confidence,
             'ai_match_result'   => $d->ai_match_result,
             'rejection_comment' => $d->rejection_comment,

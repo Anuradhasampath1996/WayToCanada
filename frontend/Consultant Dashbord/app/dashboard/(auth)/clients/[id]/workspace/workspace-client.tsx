@@ -13,6 +13,7 @@ import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import { workflowLabel } from "@/lib/case-workflow-labels";
 import { ConsultantInteractiveFormsPanel } from "./case-management/consultant-interactive-forms-panel";
 import { WorkspaceHero } from "./workspace-hero";
 import {
@@ -60,6 +61,9 @@ interface CaseFile {
   pathway_assessment_ircc_crs_score?: number | null;
   pathway_assessment_at?: string | null;
   pathway_assessment_rules_version?: string | null;
+  submitted_at?: string | null;
+  ready_for_client_review_at?: string | null;
+  workflow_status?: string | null;
 }
 
 interface FormsVerification {
@@ -216,7 +220,8 @@ function ViewSignedAgreementButton({
 // ── Step helpers ───────────────────────────────────────────────────────────────
 
 function getUnlockedStepIndex(caseFile: CaseFile, caseManagementUnlocked: boolean): number {
-  if (caseManagementUnlocked) return 3;
+  if (caseFile.submitted_at || caseFile.status === "APPLICATION_SUBMITTED" || caseFile.workflow_status === "SUBMITTED") return 4;
+  if (caseManagementUnlocked || caseFile.ready_for_client_review_at) return 3;
   if (caseFile.agreement_signed_at) return 2;
   if (caseFile.immigration_pathway) return 1;
   return 0;
@@ -250,7 +255,11 @@ function CurrentStepPanel({
   return (
     <Card className="border-border/70 shadow-sm">
       <CardHeader className="border-b border-border/50 pb-3">
-        <CardTitle className="text-base">What to do now</CardTitle>
+        <CardTitle className="text-base">Where this case is now</CardTitle>
+          <CardDescription>
+            {workflowLabel(caseFile.workflow_status ?? caseFile.status)}
+            {caseFile.submitted_at ? " · Government processing can start after submission is recorded." : ""}
+          </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4 pt-5">
         {viewStep < unlockedStep && (
@@ -345,13 +354,29 @@ function CurrentStepPanel({
               </p>
             )}
             <p className="text-sm text-muted-foreground">
-              Documents, IRCC forms, pipeline, and client communication — all in one place.
+              Documents, IRCC forms, final review, and client communication — all in one place.
             </p>
             <div className="flex flex-col gap-2 sm:flex-row">
               <Button className="h-10 rounded-xl" asChild>
                 <Link href={`/dashboard/clients/${profileId}/workspace/case-management`}>
                   <Briefcase className="mr-2 size-4" />
                   Open case hub
+                  <ChevronRight className="ml-1 size-4" />
+                </Link>
+              </Button>
+            </div>
+          </>
+        )}
+
+        {viewStep === 4 && (
+          <>
+            <p className="text-sm text-muted-foreground">
+              Record government requests and due dates, attach the decision letter, then close the case with the closure checklist.
+            </p>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Button className="h-10 rounded-xl" asChild>
+                <Link href={`/dashboard/clients/${profileId}/workspace/case-management`}>
+                  Open post-submission
                   <ChevronRight className="ml-1 size-4" />
                 </Link>
               </Button>
@@ -433,7 +458,7 @@ export function WorkspacePageClient({ paramsPromise }: { paramsPromise: Promise<
       setCaseFile(json.case_file);
       setClient(json.client);
       setVerification(json.application_forms_verification ?? null);
-      await loadQuestionnaireStats();
+      void loadQuestionnaireStats();
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Failed to load workspace.");
     } finally {
@@ -547,6 +572,7 @@ export function WorkspacePageClient({ paramsPromise }: { paramsPromise: Promise<
           unlockedStep={unlockedStep}
           viewStep={viewStep}
           onViewStep={setViewStep}
+          currentStatusLabel={workflowLabel(caseFile.workflow_status ?? caseFile.status)}
         />
       </div>
 

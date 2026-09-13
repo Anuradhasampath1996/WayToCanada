@@ -5,18 +5,18 @@ import Link from "next/link";
 import type { ComponentType } from "react";
 import {
   ArrowRight,
-  BadgeCheck,
   CheckCircle2,
   ClipboardList,
   Clock,
   CloudUpload,
   FilePenLine,
+  FileText,
   Lock,
   ShieldCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import type { JourneyStep, JourneyStepId } from "@/lib/client-journey";
+import type { ClientDisplayStage, JourneyStep, JourneyStepId } from "@/lib/client-journey";
 
 const STEP_ILLUSTRATIONS: Record<JourneyStepId, { src: string; alt: string }> = {
   questionnaire: {
@@ -29,11 +29,23 @@ const STEP_ILLUSTRATIONS: Record<JourneyStepId, { src: string; alt: string }> = 
   },
   forms: {
     src: "/images/journey/step-3-forms.webp",
-    alt: "Documents and messages illustration",
+    alt: "Application forms illustration",
+  },
+  extra_details: {
+    src: "/images/journey/step-3-forms.webp",
+    alt: "Extra pathway details illustration",
   },
   documents: {
     src: "/images/journey/step-4-documents.webp",
-    alt: "Case review illustration",
+    alt: "Upload documents illustration",
+  },
+  final_review: {
+    src: "/images/journey/step-4-documents.webp",
+    alt: "Final package review illustration",
+  },
+  government_requests: {
+    src: "/images/journey/step-4-documents.webp",
+    alt: "Government requests illustration",
   },
 };
 
@@ -44,23 +56,28 @@ const HOW_IT_WORKS: Array<{
 }> = [
   {
     icon: ClipboardList,
-    title: "Complete your profile",
-    description: "Share your personal and case details.",
+    title: "Profile & Assessment",
+    description: "Share your details so your consultant can assess your case.",
   },
   {
     icon: FilePenLine,
-    title: "Sign agreement",
-    description: "Review and e-sign your consultant agreement.",
+    title: "Agreement & Case Setup",
+    description: "Sign your agreement and add any extra pathway details.",
   },
   {
     icon: CloudUpload,
-    title: "Upload documents",
-    description: "Securely upload your supporting documents and messages.",
+    title: "Documents & Application",
+    description: "Complete forms and upload the files your consultant asked for.",
   },
   {
-    icon: BadgeCheck,
-    title: "Case review & next steps",
-    description: "We review your file and provide clear next steps.",
+    icon: FileText,
+    title: "Final Review & Submission",
+    description: "Acknowledge the assembled package. Your consultant submits it.",
+  },
+  {
+    icon: ShieldCheck,
+    title: "Government Processing",
+    description: "Watch for government requests and due dates after submission.",
   },
 ];
 
@@ -72,7 +89,7 @@ function JourneyStepperStrip({
   highlightId?: string;
 }) {
   return (
-    <ol className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
+    <ol className="grid grid-cols-2 gap-3 sm:grid-cols-5 sm:gap-4">
       {steps.map((step, i) => {
         const highlighted = highlightId === step.id || step.status === "active";
         const art = STEP_ILLUSTRATIONS[step.id];
@@ -233,7 +250,7 @@ function HowItWorksSection() {
   return (
     <div className="space-y-4">
       <h3 className="text-base font-bold tracking-tight sm:text-lg">How it works</h3>
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         {HOW_IT_WORKS.map((item, i) => {
           const Icon = item.icon;
           return (
@@ -279,10 +296,12 @@ function SecurityFooter() {
  */
 export function ClientJourneyOverviewPanel({
   steps,
+  displayStages,
   currentStep,
   highlightId,
 }: {
   steps: JourneyStep[];
+  displayStages?: ClientDisplayStage[];
   currentStep: JourneyStep | undefined;
   highlightId?: string;
 }) {
@@ -291,9 +310,28 @@ export function ClientJourneyOverviewPanel({
       <div className="space-y-6 p-5 sm:space-y-8 sm:p-7">
         <div className="space-y-6">
           <h2 className="text-base font-bold tracking-tight text-foreground sm:text-lg">
-            Your 4-Step Journey
+            Your journey
           </h2>
-          <JourneyStepperStrip steps={steps} highlightId={highlightId} />
+          {displayStages && displayStages.length > 0 ? (
+            <ol className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+              {displayStages.map((stage, i) => (
+                <li key={stage.id} className={cn(
+                  "rounded-xl border px-3 py-2 text-left",
+                  stage.status === "active" && "border-primary/40 bg-primary/5",
+                  stage.status === "done" && "border-emerald-200/80 bg-emerald-50/40",
+                  stage.status === "locked" && "opacity-60",
+                )}>
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Stage {i + 1}</p>
+                  <p className="text-sm font-semibold leading-snug">{stage.title}</p>
+                  <p className="text-[11px] text-muted-foreground">
+                    {stage.status === "done" ? "Complete" : stage.status === "active" ? "Current" : stage.status === "waiting" ? "Waiting on consultant" : "Up next"}
+                  </p>
+                </li>
+              ))}
+            </ol>
+          ) : (
+            <JourneyStepperStrip steps={steps} highlightId={highlightId} />
+          )}
         </div>
 
         <ClientCurrentStepHero step={currentStep} />

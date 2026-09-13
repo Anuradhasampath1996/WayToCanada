@@ -14,7 +14,14 @@ use App\Services\AgreementReminderService;
 use App\Services\CaseFileLifecycleService;
 use App\Services\GstHstRatesService;
 use App\Services\IrccInteractiveFormVerificationService;
+use App\Services\CaseAssessmentGateService;
+use App\Services\CaseRequirementPlanService;
+use App\Services\CaseClientAssignmentService;
+use App\Services\CaseRepresentativeAuthorizationService;
+use App\Services\CaseActivationService;
 use App\Services\IrccPackageSuggestionService;
+use App\Support\CaseWorkflowStatus;
+use App\Support\RequirementPlanDiff;
 use App\Services\ClientActivity\ClientActivityTriggers;
 use App\Services\Notifications\WorkspaceNotificationTriggers;
 use App\Services\RetainerAgreementPdfService;
@@ -41,6 +48,11 @@ class CaseFileController extends Controller
         private CaseFileLifecycleService $lifecycle,
         private IrccPackageSuggestionService $packageSuggestion,
         private \App\Services\PathwayCatalogService $pathwayCatalog,
+        private CaseRequirementPlanService $requirementPlans,
+        private CaseAssessmentGateService $assessmentGates,
+        private CaseClientAssignmentService $assignment,
+        private CaseRepresentativeAuthorizationService $representative,
+        private CaseActivationService $activation,
     ) {}
 
     // ── Private helper ─────────────────────────────────────────────────────────
@@ -117,6 +129,14 @@ class CaseFileController extends Controller
                 $caseFile?->id
             ),
             'package_auto_healed' => $healed,
+            'requirement_plan' => $this->requirementPlans->serializePlan(
+                $caseFile ? $this->requirementPlans->currentPlan($caseFile) : null
+            ),
+            'workflow' => $caseFile
+                ? CaseWorkflowStatus::serialize($caseFile->workflow_status, $caseFile->status)
+                : null,
+            'assessment' => $caseFile ? $this->assessmentGates->serialize($caseFile) : null,
+            'calculator' => $caseFile ? \App\Support\EligibilityAssessmentRouter::for($caseFile) : null,
         ]);
     }
 
@@ -129,6 +149,12 @@ class CaseFileController extends Controller
         $data = $request->validate([
             'immigration_pathway' => 'nullable|string|max:255',
             'pathway_code'        => 'nullable|string|max:64',
+            'change_note'         => 'nullable|string|max:2000',
+            'selection_reason'    => 'nullable|string|max:2000',
+            'alternatives'        => 'nullable|array|max:12',
+            'alternatives.*'      => 'string|max:255',
+            'risks'               => 'nullable|array|max:12',
+            'risks.*'             => 'string|max:500',
         ]);
 
         $caseFile = $this->requireActiveCaseFile($profile, $request);
@@ -147,12 +173,20 @@ class CaseFileController extends Controller
                 ], 422);
             }
 
+            $this->requirementPlans->releaseCurrentPlan(
+                $caseFile,
+                $request->user(),
+                'Pathway selection cleared.',
+            );
+
             $caseFile->update([
                 'immigration_pathway'         => null,
                 'pathway_code'                => null,
                 'assigned_ircc_category_id'   => null,
                 'application_package_assigned_at' => null,
+                'confirmed_submission_portal' => null,
                 'status'                      => 'PENDING_ASSESSMENT',
+                'workflow_status'             => CaseWorkflowStatus::ELIGIBILITY_ASSESSMENT,
             ]);
 
             $profile->update([
@@ -162,7 +196,8 @@ class CaseFileController extends Controller
 
             return response()->json([
                 'case_file' => $caseFile->fresh(),
-                'message'   => 'Pathway selection cleared.',
+                'requirement_plan' => null,
+                'message'   => 'Pathway selection cleared. Previous requirement plans remain in case history.',
             ]);
         }
 
@@ -174,9 +209,28 @@ class CaseFileController extends Controller
             return response()->json(['message' => 'Unknown pathway.'], 422);
         }
 
+        try {
+            $this->assessmentGates->assertCanSelectPathway($caseFile);
+        } catch (\RuntimeException $e) {
+            return response()->json([
+                'message' => $e->getMessage(),
+                'assessment' => $this->assessmentGates->serialize($caseFile),
+            ], 422);
+        }
+
+        $reason = trim((string) ($data['selection_reason'] ?? $data['change_note'] ?? ''));
+        if (mb_strlen($reason) < 8) {
+            return response()->json([
+                'message' => 'Record why this pathway was selected, including alternatives or risks as needed.',
+            ], 422);
+        }
+
         $updates = [
             'immigration_pathway' => $pathway,
             'pathway_code' => $pathwayCode,
+            'pathway_selection_reason' => $reason,
+            'pathway_alternatives' => $data['alternatives'] ?? $caseFile->pathway_alternatives,
+            'pathway_risks' => $data['risks'] ?? $caseFile->pathway_risks,
         ];
 
         // Advance workflow only — never downgrade after agreement sent/signed.
@@ -198,6 +252,18 @@ class CaseFileController extends Controller
         $auto = $this->packageSuggestion->autoAssignForPathway($caseFile->fresh(), $pathway);
         $fresh = $caseFile->fresh();
 
+        $previousPlan = $this->requirementPlans->currentPlan($fresh);
+        $reason = $previousPlan ? 'pathway_change' : 'assign';
+        $plan = $this->requirementPlans->snapshotForPathway(
+            $fresh,
+            $request->user(),
+            $reason,
+            $pathwayCode,
+            $pathway,
+            $data['change_note'] ?? null,
+        );
+        $fresh = $caseFile->fresh();
+
         $node = $resolved['node'] ?? null;
 
         return response()->json([
@@ -216,6 +282,16 @@ class CaseFileController extends Controller
                 'retainer_fee' => $node->retainer_fee,
                 'retainer_description' => $node->retainer_description,
             ] : null,
+            'requirement_plan' => $this->requirementPlans->serializePlan($plan),
+            'requirement_plan_diff' => $previousPlan
+                ? RequirementPlanDiff::compare($previousPlan->snapshot ?? [], $plan->snapshot ?? [])
+                : null,
+            'assignment' => $this->assignment->serialize($fresh),
+            'representative' => $this->representative->serialize(
+                $initialized = $this->representative->initializeFromPlan($fresh, $request->user())
+            ),
+            'activation' => $this->activation->serialize($initialized),
+            'workflow' => CaseWorkflowStatus::serialize($initialized->workflow_status, $initialized->status),
         ]);
     }
 
@@ -667,7 +743,12 @@ class CaseFileController extends Controller
             $this->notifyConsultantAgreementSigned($caseFile->fresh(), 'digital_signature', $request);
         }
 
-        return response()->json(['message' => 'Agreement signed successfully. Your consultant has been notified.']);
+        $activated = $this->activation->refresh($caseFile->fresh());
+
+        return response()->json([
+            'message' => 'Agreement signed successfully. Your consultant has been notified.',
+            'activation' => $this->activation->serialize($activated),
+        ]);
     }
 
     // ── Public: POST /case-file/agreement/{token}/upload-doc ──────────────────
@@ -700,9 +781,12 @@ class CaseFileController extends Controller
             $this->notifyConsultantAgreementSigned($caseFile->fresh(), 'uploaded_pdf', $request);
         }
 
+        $activated = $this->activation->refresh($caseFile->fresh());
+
         return response()->json([
             'message'             => 'Signed document uploaded successfully.',
             'signed_document_url' => $url,
+            'activation' => $this->activation->serialize($activated),
         ]);
     }
 

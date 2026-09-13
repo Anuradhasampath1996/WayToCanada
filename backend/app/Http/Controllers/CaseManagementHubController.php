@@ -55,8 +55,9 @@ class CaseManagementHubController extends Controller
         $caseFile = $caseFile->fresh();
 
         $verification = $this->verificationService->getVerificationStatus($caseFile);
+        $parallelUnlocked = $caseFile->isAgreementSigned() && (bool) $caseFile->current_requirement_plan_id;
 
-        if (! ($verification['case_management_unlocked'] ?? false)) {
+        if (! ($verification['case_management_unlocked'] ?? false) && ! $parallelUnlocked) {
             return response()->json([
                 'case_management_unlocked' => false,
                 'verification'           => $verification,
@@ -64,7 +65,7 @@ class CaseManagementHubController extends Controller
                     'id', 'status', 'immigration_pathway',
                     'agreement_signed_at', 'application_forms_verified_at',
                 ]),
-                'message'                => 'Complete and have your application forms reviewed before uploading documents.',
+                'message'                => 'Documents unlock after your retainer is signed, in parallel with forms.',
             ], 403);
         }
 

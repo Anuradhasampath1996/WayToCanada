@@ -1,4 +1,5 @@
 import type { ClientQuestionnaireStats } from "@/lib/client-questionnaire-stats";
+import { workflowLabel } from "@/lib/case-workflow-labels";
 
 export interface ClientCaseFile {
   id: number;
@@ -8,6 +9,12 @@ export interface ClientCaseFile {
   agreement_sent_at: string | null;
   agreement_signed_at: string | null;
   application_forms_verified_at: string | null;
+  ready_for_client_review_at?: string | null;
+  client_acknowledged_at?: string | null;
+  client_declaration_signed_at?: string | null;
+  ready_to_submit_at?: string | null;
+  submitted_at?: string | null;
+  decision_status?: string | null;
   pathway_assessment_at?: string | null;
   pathway_assessment_notes?: string | null;
   pathway_assessment_crs_score?: number | null;
@@ -30,7 +37,22 @@ export interface ClientFormsVerification {
   case_management_unlocked: boolean;
 }
 
-export type JourneyStepId = "questionnaire" | "retainer" | "forms" | "documents";
+export type JourneyStepId = "questionnaire" | "retainer" | "extra_details" | "forms" | "documents" | "final_review" | "government_requests";
+
+export type ClientAssignmentSummary = {
+  extra_fields?: {
+    ask?: { key: string; label: string; status?: string }[];
+    reused?: { key: string; label?: string; value?: string | null }[];
+  };
+  forms?: { code: string; name?: string; kind?: string }[];
+  documents?: { id: string; label: string; reuse_candidate?: unknown }[];
+  tracks?: {
+    extra_data?: { unlocked?: boolean; parallel?: boolean };
+    forms?: { unlocked?: boolean; parallel?: boolean };
+    documents?: { unlocked?: boolean; parallel?: boolean };
+  };
+  pathway?: string | null;
+} | null;
 
 export type JourneyStepStatus = "done" | "active" | "waiting" | "locked";
 
@@ -83,8 +105,10 @@ export function buildClientJourney(
   verification: ClientFormsVerification | null,
   hasForms: boolean,
   qStats: ClientQuestionnaireStats,
+  assignment?: ClientAssignmentSummary,
 ): {
   steps: JourneyStep[];
+  displayStages: ClientDisplayStage[];
   currentStepId: JourneyStepId;
   progressPercent: number;
   meta: ClientJourneyMeta;
@@ -92,7 +116,11 @@ export function buildClientJourney(
   const pathwaySet = Boolean(caseFile?.immigration_pathway);
   const agreementSigned = Boolean(caseFile?.agreement_signed_at);
   const agreementSent = Boolean(caseFile?.agreement_sent_at);
-  const docsUnlocked = caseManagementUnlocked(caseFile, verification);
+  const docsUnlocked =
+    caseManagementUnlocked(caseFile, verification)
+    || Boolean(assignment?.tracks?.documents?.unlocked);
+  const extraUnlocked = Boolean(assignment?.tracks?.extra_data?.unlocked) || pathwaySet;
+  const missingExtra = assignment?.extra_fields?.ask?.length ?? 0;
   const allFormsSubmitted = verification?.all_submitted ?? false;
   const formsReviewed = verification?.all_reviewed ?? false;
   const pendingRefills = qStats.pendingRefills;
@@ -112,14 +140,31 @@ export function buildClientJourney(
   else if (pathwaySet) retainerStatus = "waiting";
   else if (assessmentWaiting) retainerStatus = "locked";
 
+  let extraStatus: JourneyStepStatus = "locked";
+  if (!pathwaySet) extraStatus = "locked";
+  else if (missingExtra === 0 && extraUnlocked) extraStatus = "done";
+  else if (extraUnlocked) extraStatus = "active";
+  else extraStatus = "waiting";
+
   let formsStatus: JourneyStepStatus = "locked";
   if (!agreementSigned) formsStatus = "locked";
   else if (docsUnlocked || formsReviewed || !hasForms) formsStatus = "done";
   else if (hasForms) formsStatus = allFormsSubmitted ? "waiting" : "active";
 
   let documentsStatus: JourneyStepStatus = "locked";
-  if (docsUnlocked) documentsStatus = "active";
-  else if (agreementSigned && allFormsSubmitted) documentsStatus = "waiting";
+  if (caseFile?.ready_for_client_review_at || caseFile?.submitted_at) documentsStatus = "done";
+  else if (docsUnlocked) documentsStatus = "active";
+  else if (agreementSigned) documentsStatus = "waiting";
+
+  let finalReviewStatus: JourneyStepStatus = "locked";
+  if (caseFile?.submitted_at || caseFile?.client_acknowledged_at) finalReviewStatus = "done";
+  else if (caseFile?.ready_for_client_review_at) finalReviewStatus = "active";
+  else if (docsUnlocked || agreementSigned) finalReviewStatus = "waiting";
+
+  let governmentRequestsStatus: JourneyStepStatus = "locked";
+  if (caseFile?.decision_status) governmentRequestsStatus = "done";
+  else if (caseFile?.submitted_at) governmentRequestsStatus = "active";
+  else if (caseFile?.ready_for_client_review_at || caseFile?.client_acknowledged_at) governmentRequestsStatus = "waiting";
 
   const steps: JourneyStep[] = [
     {
@@ -152,36 +197,84 @@ export function buildClientJourney(
           : "Submit your questionnaire first.",
     },
     {
-      id: "forms",
+      id: "extra_details",
       number: 3,
-      title: "Documents & messages",
-      navLabel: "Documents & messages",
-      shortBlurb: "Upload documents and communicate.",
+      title: "Extra details for your pathway",
+      navLabel: "Extra details",
+      shortBlurb: "Answer only the missing pathway questions.",
+      description: missingExtra > 0
+        ? `${missingExtra} extra question${missingExtra === 1 ? "" : "s"} for your pathway. Known profile answers are already reused.`
+        : "Your consultant assigned pathway-specific questions. Known profile answers are reused automatically.",
+      href: "/user-dashboard/extra-details",
+      status: extraStatus,
+      actionLabel: missingExtra > 0 ? "Add extra details" : "View extra details",
+      lockedReason: pathwaySet
+        ? undefined
+        : "Available after your consultant selects a pathway.",
+    },
+    {
+      id: "forms",
+      number: 4,
+      title: "Application forms",
+      navLabel: "Application forms",
+      shortBlurb: "Complete your IRCC forms.",
       description: hasForms
-        ? "Securely upload supporting documents, complete assigned forms, and message your consultant."
-        : "Securely upload your supporting documents and messages.",
-      href: hasForms ? "/user-dashboard/application-forms" : "/user-dashboard/case-management",
+        ? "Fill and submit the IRCC forms assigned by your consultant. Questionnaire answers pre-fill fields when possible."
+        : "No interactive forms for your package yet — continue to documents when unlocked.",
+      href: "/user-dashboard/application-forms",
       status: formsStatus,
       actionLabel: hasForms
         ? (allFormsSubmitted ? "View forms" : "Continue forms")
-        : "Open documents",
+        : "View forms",
       lockedReason: agreementSigned ? undefined : "Unlocks after you sign the retainer agreement.",
     },
     {
       id: "documents",
-      number: 4,
-      title: "Case review & next steps",
-      navLabel: "Case review & next steps",
-      shortBlurb: "We review and guide your next steps.",
-      description: "We review your file and provide clear next steps for your application.",
+      number: 5,
+      title: "Documents",
+      navLabel: "Documents",
+      shortBlurb: "Upload supporting documents.",
+      description: "Upload the documents your consultant needs, then we review your file and share clear next steps.",
       href: "/user-dashboard/case-management",
       status: documentsStatus,
-      actionLabel: "Open case hub",
+      actionLabel: "Open documents",
       lockedReason: docsUnlocked
         ? undefined
         : agreementSigned
-          ? "Unlocks after your consultant verifies your application forms."
-          : "Complete the earlier steps first.",
+          ? "Your document checklist is ready and can progress in parallel with forms."
+          : "Unlocks after you sign the retainer agreement, in parallel with forms.",
+    },
+    {
+      id: "final_review",
+      number: 6,
+      title: "Final package review",
+      navLabel: "Final review",
+      shortBlurb: "Acknowledge the assembled application.",
+      description: caseFile?.ready_for_client_review_at
+        ? "Review the read-only package. Your acknowledgement is required before submission. Sign only if this application requires a declaration."
+        : "Your consultant will send the assembled package here for your acknowledgement.",
+      href: "/user-dashboard/final-review",
+      status: finalReviewStatus,
+      actionLabel: caseFile?.client_acknowledged_at ? "View acknowledgement" : "Review package",
+      lockedReason: caseFile?.ready_for_client_review_at
+        ? undefined
+        : "Unlocks after your consultant marks the package ready for client review.",
+    },
+    {
+      id: "government_requests",
+      number: 7,
+      title: "Government requests",
+      navLabel: "Government requests",
+      shortBlurb: "See due dates after submission.",
+      description: caseFile?.submitted_at
+        ? "Your consultant records government requests and due dates here. This is not an IRCC portal."
+        : "After the application is submitted, government requests and due dates appear here.",
+      href: "/user-dashboard/government-requests",
+      status: governmentRequestsStatus,
+      actionLabel: "View requests",
+      lockedReason: caseFile?.submitted_at
+        ? undefined
+        : "Unlocks after your consultant records the government submission.",
     },
   ];
 
@@ -196,6 +289,7 @@ export function buildClientJourney(
 
   return {
     steps,
+    displayStages: buildClientDisplayStages(steps),
     currentStepId,
     progressPercent,
     meta: {
@@ -205,6 +299,34 @@ export function buildClientJourney(
       pathwayAssigned: caseFile?.immigration_pathway ?? null,
     },
   };
+}
+
+export type ClientDisplayStage = {
+  id: string;
+  title: string;
+  status: JourneyStepStatus;
+  href: string;
+};
+
+export function buildClientDisplayStages(steps: JourneyStep[]): ClientDisplayStage[] {
+  const byId = Object.fromEntries(steps.map((step) => [step.id, step]));
+  const rollup = (ids: JourneyStepId[], title: string, href: string): ClientDisplayStage => {
+    const subset = ids.map((id) => byId[id]).filter(Boolean);
+    let status: JourneyStepStatus = "locked";
+    if (subset.some((step) => step.status === "active")) status = "active";
+    else if (subset.length > 0 && subset.every((step) => step.status === "done")) status = "done";
+    else if (subset.some((step) => step.status === "waiting")) status = "waiting";
+    const open = subset.find((step) => step.status === "active") ?? subset.find((step) => step.status !== "locked");
+    return { id: ids[0], title, status, href: open?.href ?? href };
+  };
+
+  return [
+    rollup(["questionnaire"], "Profile & Assessment", "/user-dashboard/questionnaire"),
+    rollup(["retainer", "extra_details"], "Agreement & Case Setup", "/user-dashboard/retainer-agreement"),
+    rollup(["forms", "documents"], "Documents & Application", "/user-dashboard/case-management"),
+    rollup(["final_review"], "Final Review & Submission", "/user-dashboard/final-review"),
+    rollup(["government_requests"], "Government Processing / Decision", "/user-dashboard/government-requests"),
+  ];
 }
 
 export function canAccessNavStep(
@@ -218,10 +340,16 @@ export function canAccessNavStep(
   switch (stepId) {
     case "retainer":
       return Boolean(caseFile.immigration_pathway) || Boolean(caseFile.agreement_sent_at);
+    case "extra_details":
+      return Boolean(caseFile.immigration_pathway);
     case "forms":
       return Boolean(caseFile.agreement_signed_at);
     case "documents":
-      return caseManagementUnlocked(caseFile, verification);
+      return caseManagementUnlocked(caseFile, verification) || Boolean(caseFile.agreement_signed_at);
+    case "final_review":
+      return Boolean(caseFile.ready_for_client_review_at);
+    case "government_requests":
+      return Boolean(caseFile.submitted_at);
     default:
       return false;
   }
@@ -246,6 +374,7 @@ export function resolveClientNextAction(
   qStats: ClientQuestionnaireStats,
   hasForms: boolean,
   meta: ClientJourneyMeta,
+  assignment?: ClientAssignmentSummary,
 ): ClientNextAction {
   if (qStats.pendingRefills > 0) {
     return {
@@ -283,6 +412,17 @@ export function resolveClientNextAction(
     };
   }
 
+  const missingExtraCount = assignment?.extra_fields?.ask?.length ?? 0;
+  if (caseFile.immigration_pathway && missingExtraCount > 0 && !caseFile.agreement_signed_at) {
+    return {
+      tone: "primary",
+      title: "Add extra details for your pathway",
+      description: "Your consultant only needs the missing pathway questions. Profile answers already on file are reused.",
+      href: "/user-dashboard/extra-details",
+      buttonLabel: "Add extra details",
+    };
+  }
+
   if (!caseFile.agreement_signed_at) {
     if (!caseFile.agreement_sent_at) {
       return {
@@ -310,13 +450,45 @@ export function resolveClientNextAction(
     };
   }
 
+  if (caseFile.agreement_signed_at && missingExtraCount > 0) {
+    return {
+      tone: "primary",
+      title: "Add extra details for your pathway",
+      description: "Forms and documents can progress in parallel. Finish the missing pathway questions when you can.",
+      href: "/user-dashboard/extra-details",
+      buttonLabel: "Add extra details",
+    };
+  }
+
   if (hasForms && verification && verification.all_submitted && !verification.all_reviewed) {
     return {
       tone: "info",
       title: "Forms under consultant review",
-      description: "All forms are submitted. Your consultant is reviewing them — case documents will unlock when verified.",
+      description: "All forms are submitted. Documents can continue in parallel while your consultant reviews forms.",
       href: "/user-dashboard/application-forms",
       buttonLabel: "View forms",
+    };
+  }
+
+  if (caseFile.ready_for_client_review_at && !caseFile.client_acknowledged_at && !caseFile.submitted_at) {
+    return {
+      tone: "primary",
+      title: "Review your final package",
+      description: "Your consultant assembled the application. Acknowledge it here. They cannot sign for you.",
+      href: "/user-dashboard/final-review",
+      buttonLabel: "Review package",
+    };
+  }
+
+  if (caseFile.submitted_at) {
+    return {
+      tone: caseFile.decision_status ? "success" : "info",
+      title: caseFile.decision_status ? "A decision is on file" : "Watch for government requests",
+      description: caseFile.decision_status
+        ? "Your consultant recorded a decision. Open this page for request history and next-step notes."
+        : "Your application is submitted. Your consultant will record government requests and due dates here.",
+      href: "/user-dashboard/government-requests",
+      buttonLabel: "View government requests",
     };
   }
 
@@ -324,9 +496,9 @@ export function resolveClientNextAction(
     return {
       tone: "success",
       title: "Upload your case documents",
-      description: "Your case hub is open. Upload required documents and message your consultant.",
+      description: "Your document checklist is open. Upload the files your consultant requested.",
       href: "/user-dashboard/case-management",
-      buttonLabel: "Open case documents",
+      buttonLabel: "Open documents",
     };
   }
 
@@ -395,17 +567,29 @@ export const CLIENT_STATUS_LABELS: Record<string, string> = {
   UNDER_REVIEW: "Under consultant review",
   READY_FOR_SUBMISSION: "Ready for submission",
   APPLICATION_SUBMITTED: "Application submitted",
+  READY_TO_SUBMIT: "Ready to submit",
+  SUBMITTED: "Submitted",
+  CLIENT_REVIEW: "Client final review",
+  CONSULTANT_FINAL_REVIEW: "Consultant final review",
+  GOVERNMENT_PROCESSING: "Government processing",
+  GOVERNMENT_REQUEST_RECEIVED: "Government request received",
+  RESPONSE_IN_PROGRESS: "Response in progress",
+  DECISION_RECEIVED: "Decision received",
+  CASE_CLOSED: "Case closed",
 };
 
 export function clientStatusLabel(status: string): string {
-  return CLIENT_STATUS_LABELS[status] ?? status.replace(/_/g, " ").toLowerCase();
+  return CLIENT_STATUS_LABELS[status] ?? workflowLabel(status);
 }
 
 export const JOURNEY_STEP_PAGES: Record<JourneyStepId, { step: number; label: string; title: string }> = {
   questionnaire: { step: 1, label: "Your profile", title: "Complete your profile" },
   retainer: { step: 2, label: "Sign agreement", title: "Sign agreement" },
-  forms: { step: 3, label: "Documents & messages", title: "Documents & messages" },
-  documents: { step: 4, label: "Case review & next steps", title: "Case review & next steps" },
+  extra_details: { step: 3, label: "Extra details", title: "Extra details for your pathway" },
+  forms: { step: 4, label: "Application forms", title: "Application forms" },
+  documents: { step: 5, label: "Documents", title: "Documents" },
+  final_review: { step: 6, label: "Final review", title: "Final package review" },
+  government_requests: { step: 7, label: "Government requests", title: "Government requests" },
 };
 
 export function journeyStepBadge(status: JourneyStepStatus): {

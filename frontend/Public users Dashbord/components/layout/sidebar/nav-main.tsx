@@ -25,7 +25,6 @@ import {
   MessageSquareIcon,
   RouteIcon,
   PhoneIcon,
-  SearchIcon,
 } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { useClientJourneyOptional } from "@/context/client-journey-context";
@@ -48,8 +47,8 @@ export const navItems = [
       { title: "Overview", href: "/user-dashboard", icon: LayoutDashboardIcon },
       { title: "Your profile", href: "/user-dashboard/questionnaire", icon: ClipboardListIcon },
       { title: "Sign agreement", href: "/user-dashboard/retainer-agreement", icon: FileTextIcon },
-      { title: "Documents & messages", href: "/user-dashboard/application-forms", icon: FolderUpIcon },
-      { title: "Case review & next steps", href: "/user-dashboard/case-management", icon: SearchIcon },
+      { title: "Application forms", href: "/user-dashboard/application-forms", icon: FileTextIcon },
+      { title: "Documents", href: "/user-dashboard/case-management", icon: FolderUpIcon },
       { title: "Learning courses", href: "/user-dashboard/learning", icon: BookOpenIcon },
       { title: "Find a consultant", href: "/user-dashboard/choose-consultant", icon: UserSearchIcon },
       { title: "My pathway", href: "/user-dashboard/my-pathway", icon: RouteIcon },
@@ -63,8 +62,11 @@ export const navItems = [
 const STEP_ICONS: Record<JourneyStepId, React.ComponentType<{ className?: string }>> = {
   questionnaire: ClipboardListIcon,
   retainer: FileTextIcon,
-  forms: FolderUpIcon,
-  documents: SearchIcon,
+  extra_details: ClipboardListIcon,
+  forms: FileTextIcon,
+  documents: FolderUpIcon,
+  final_review: CheckCircle2Icon,
+  government_requests: MailIcon,
 };
 
 /** Light hover/active — avoids dark sidebar-accent hiding nested status colors. */
@@ -190,6 +192,32 @@ export function NavMain() {
 
   const isOverviewActive = pathname === "/user-dashboard";
 
+  const isJourneyStepActive = (step: JourneyStep) => {
+    // Match by canonical route for each step so shared/legacy hrefs cannot light up two tabs.
+    if (step.id === "questionnaire") {
+      return pathname.startsWith("/user-dashboard/questionnaire");
+    }
+    if (step.id === "retainer") {
+      return pathname.startsWith("/user-dashboard/retainer-agreement");
+    }
+    if (step.id === "extra_details") {
+      return pathname.startsWith("/user-dashboard/extra-details");
+    }
+    if (step.id === "forms") {
+      return pathname.startsWith("/user-dashboard/application-forms");
+    }
+    if (step.id === "documents") {
+      return pathname.startsWith("/user-dashboard/case-management");
+    }
+    if (step.id === "final_review") {
+      return pathname.startsWith("/user-dashboard/final-review");
+    }
+    if (step.id === "government_requests") {
+      return pathname.startsWith("/user-dashboard/government-requests");
+    }
+    return pathname === step.href || pathname.startsWith(`${step.href}/`);
+  };
+
   return (
     <SidebarGroup className="px-2">
       <SidebarGroupLabel className="mb-1 px-2 text-[10px] font-semibold uppercase tracking-wider">
@@ -219,8 +247,8 @@ export function NavMain() {
               key={step.id}
               step={step}
               canAccess={canAccess(step.id)}
-              isActive={pathname.startsWith(step.href)}
-              badgeCount={step.id === "documents" ? unreadMessages : undefined}
+              isActive={isJourneyStepActive(step)}
+              badgeCount={undefined}
             />
           ))}
 

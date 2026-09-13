@@ -291,7 +291,7 @@ class CaseFileLifecycleService
 
     private function close(CaseFile $case, ?string $note): CaseFile
     {
-        if (! in_array($case->lifecycle_status, [self::LIFECYCLE_ACTIVE, self::LIFECYCLE_ON_HOLD], true)) {
+        if (! in_array($case->lifecycle_status, [self::LIFECYCLE_ACTIVE, self::LIFECYCLE_ON_HOLD, 'in_progress'], true)) {
             throw ValidationException::withMessages(['case' => 'This case cannot be closed.']);
         }
 
@@ -306,7 +306,7 @@ class CaseFileLifecycleService
 
     private function complete(CaseFile $case, ?string $note): CaseFile
     {
-        if (! in_array($case->lifecycle_status, [self::LIFECYCLE_ACTIVE, self::LIFECYCLE_ON_HOLD], true)) {
+        if (! in_array($case->lifecycle_status, [self::LIFECYCLE_ACTIVE, self::LIFECYCLE_ON_HOLD, 'in_progress'], true)) {
             throw ValidationException::withMessages(['case' => 'This case cannot be marked complete.']);
         }
 

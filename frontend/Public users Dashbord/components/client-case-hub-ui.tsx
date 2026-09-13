@@ -23,6 +23,7 @@ export interface HubRequirement {
   status: "missing" | "pending" | "approved" | "rejected" | "uploaded";
   checked?: boolean;
   submission?: { id: number; file_url: string; status: string } | null;
+  reuse_candidate?: { label?: string; original_filename?: string; source?: string } | null;
 }
 
 export interface HubIrccForm {
@@ -132,7 +133,14 @@ export function ClientRequirementsStatusGrid({ requirements }: { requirements: H
                   ) : (
                     <FileText className="h-4 w-4 text-primary shrink-0" />
                   )}
-                  <span className="text-sm font-medium flex-1 min-w-0">{req.label}</span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-medium">{req.label}</span>
+                    {req.reuse_candidate && (
+                      <span className="block text-[11px] text-emerald-700">
+                        Intake file on file{req.reuse_candidate.original_filename ? `: ${req.reuse_candidate.original_filename}` : ""}
+                      </span>
+                    )}
+                  </span>
                   <Badge variant="outline" className={cn("text-[10px] shrink-0", st.className)}>{st.label}</Badge>
                 </div>
               );
@@ -245,7 +253,7 @@ export function CaseManagementLockedPanel({
         </p>
       )}
       <Button asChild>
-        <Link href="/user-dashboard/application-forms">Go to Application Forms</Link>
+        <Link href="/user-dashboard/application-forms">Go to Application forms</Link>
       </Button>
     </div>
   );

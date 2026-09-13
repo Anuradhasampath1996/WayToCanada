@@ -17,6 +17,7 @@ import {
 import { cn } from "@/lib/utils";
 import { CLIENT_API, clientAuthHeaders, clientUploadHeaders } from "@/lib/client-api";
 import { useClientJourneyOptional } from "@/context/client-journey-context";
+import Link from "next/link";
 
 type FormField = {
   type: string;
@@ -44,6 +45,14 @@ type FormSummary = {
   description?: string | null;
   field_count?: number;
   response?: FormResponse | null;
+};
+
+type ReferenceForm = { code: string; name: string };
+
+type FormsIndexMeta = {
+  package_label: string | null;
+  form_mode: "interactive" | "pdf_only" | "none";
+  reference_forms: ReferenceForm[];
 };
 
 type FormDetail = {
@@ -506,9 +515,19 @@ function FormEditor({
 
 export function InteractiveApplicationForms({ compact = false }: { compact?: boolean }) {
   const journey = useClientJourneyOptional();
+  const docsUnlocked = Boolean(
+    journey &&
+      (journey.verification?.case_management_unlocked
+        ?? journey.caseFile?.application_forms_verified_at),
+  );
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState("");
   const [forms, setForms] = React.useState<FormSummary[]>([]);
+  const [meta, setMeta] = React.useState<FormsIndexMeta>({
+    package_label: null,
+    form_mode: "none",
+    reference_forms: [],
+  });
   const [activeFormId, setActiveFormId] = React.useState<number | null>(null);
 
   const loadForms = React.useCallback(async () => {
@@ -519,6 +538,11 @@ export function InteractiveApplicationForms({ compact = false }: { compact?: boo
       const json = await res.json();
       if (!res.ok) throw new Error(json.message ?? "Failed to load forms.");
       setForms(json.forms ?? []);
+      setMeta({
+        package_label: json.package_label ?? null,
+        form_mode: json.form_mode ?? ((json.forms?.length ?? 0) > 0 ? "interactive" : "none"),
+        reference_forms: json.reference_forms ?? [],
+      });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load forms.");
       setForms([]);
@@ -566,10 +590,85 @@ export function InteractiveApplicationForms({ compact = false }: { compact?: boo
   }
 
   if (forms.length === 0) {
+    if (meta.form_mode === "pdf_only") {
+      return (
+        <div className="rounded-xl border bg-muted/20 px-4 py-6 space-y-4">
+          <div>
+            <p className="text-sm font-semibold text-foreground">Official PDF forms for this package</p>
+            <p className="mt-1 text-xs text-muted-foreground max-w-lg">
+              {meta.package_label ? (
+                <>
+                  <span className="font-medium text-foreground">{meta.package_label}</span> uses IRCC PDF
+                  forms. You do not fill interactive web forms in this portal for this package —
+                  your consultant prepares the official PDFs (including auto-fill where available).
+                </>
+              ) : (
+                <>
+                  This package uses IRCC PDF forms. Your consultant prepares the official PDFs —
+                  there are no interactive web forms for you to fill here.
+                </>
+              )}
+            </p>
+          </div>
+
+          {meta.reference_forms.length > 0 && (
+            <div className="rounded-lg border bg-background px-3 py-3 text-left">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                Forms in this package
+              </p>
+              <ul className="mt-2 space-y-1.5">
+                {meta.reference_forms.map((form) => (
+                  <li key={form.code} className="text-xs">
+                    <span className="font-mono font-semibold text-primary">{form.code}</span>
+                    <span className="text-muted-foreground"> — {form.name}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          <div className="rounded-lg border border-blue-200 bg-blue-50/60 px-3 py-2.5 text-xs text-blue-950">
+            <p className="font-medium">What you should do</p>
+            <p className="mt-0.5 text-blue-900/90">
+              {docsUnlocked
+                ? <>Continue to <span className="font-medium">Documents</span> to upload supporting files. Your consultant prepares the government PDFs.</>
+                : <>Keep your profile up to date. Documents unlock after your consultant finishes reviewing this stage — they prepare the government PDFs.</>}
+            </p>
+          </div>
+
+          {docsUnlocked ? (
+            <Button asChild size="sm" variant="outline">
+              <Link href="/user-dashboard/case-management">Go to Documents</Link>
+            </Button>
+          ) : (
+            <Button asChild size="sm" variant="outline">
+              <Link href="/user-dashboard">Back to Overview</Link>
+            </Button>
+          )}
+        </div>
+      );
+    }
+
     return (
-      <p className="text-sm text-muted-foreground py-2">
-        No fillable forms for your assigned package yet.
-      </p>
+      <div className="rounded-xl border border-dashed bg-muted/20 px-4 py-8 text-center">
+        <p className="text-sm font-medium text-foreground">No online forms for this package</p>
+        <p className="mt-1 text-xs text-muted-foreground max-w-md mx-auto">
+          {meta.package_label ? (
+            <>
+              <span className="font-medium text-foreground">{meta.package_label}</span> does not include
+              fillable web forms yet. Continue with Documents — your consultant handles official forms.
+            </>
+          ) : (
+            <>
+              Your consultant assigned an application package, but it does not include fillable web forms yet.
+              Continue with Documents — official forms are handled by your consultant.
+            </>
+          )}
+        </p>
+        <Button asChild size="sm" variant="outline" className="mt-4">
+          <Link href="/user-dashboard/case-management">Go to Documents</Link>
+        </Button>
+      </div>
     );
   }
 

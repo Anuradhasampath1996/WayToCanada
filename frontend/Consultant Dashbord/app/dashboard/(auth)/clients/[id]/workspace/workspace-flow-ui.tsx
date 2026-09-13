@@ -4,7 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import {
   ArrowRight, Briefcase, Calculator, CheckCircle2, ChevronRight,
-  ClipboardList, Clock, FileText, FormInput, MessageSquare, RotateCcw, UserCheck,
+  ClipboardList, Clock, FileText, FormInput, Landmark, MessageSquare, RotateCcw, UserCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -16,36 +16,44 @@ import type { QuestionnaireWorkspaceStats } from "@/lib/questionnaire-workspace-
 
 export const CASE_WORKFLOW_STEPS = [
   {
-    label: "Intake & pathway",
-    fullLabel: "Client intake & pathway assignment",
-    description: "Review the client profile, verify their questionnaire, and assign the right immigration pathway.",
+    label: "Assessment",
+    fullLabel: "Assessment",
+    description: "Consult, review the profile, and select a pathway with your reason.",
     icon: Briefcase,
     illustration: "/images/workspace/step-1-intake-pathway.png",
     illustrationAlt: "Consultant team reviewing client intake checklist and pathway options",
   },
   {
-    label: "Retainer",
-    fullLabel: "Retainer agreement",
-    description: "Create and send the retainer agreement for the client to review and sign.",
+    label: "Engagement",
+    fullLabel: "Engagement & Setup",
+    description: "Send the retainer and complete representative authorization when required.",
     icon: FileText,
     illustration: "/images/workspace/step-2-retainer-agreement.png",
     illustrationAlt: "Consultant and client signing a retainer agreement",
   },
   {
-    label: "Forms",
-    fullLabel: "Verify application forms",
-    description: "Review client-submitted forms before opening the full case hub.",
+    label: "Preparation",
+    fullLabel: "Application Preparation",
+    description: "Collect extra details, forms, and documents for the selected pathway.",
     icon: FormInput,
     illustration: "/images/workspace/step-3-verify-forms.png",
     illustrationAlt: "Consultant verifying client application forms",
   },
   {
-    label: "Case hub",
-    fullLabel: "Full case management",
-    description: "Manage documents, IRCC forms, pipeline updates, and client communication.",
+    label: "Submission",
+    fullLabel: "Submission",
+    description: "Complete consultant final review, client acknowledgement, and submission confirmation.",
     icon: UserCheck,
     illustration: "/images/workspace/step-4-case-hub.png",
     illustrationAlt: "Case management hub with documents and progress tracking",
+  },
+  {
+    label: "Post-submission",
+    fullLabel: "Post-Submission",
+    description: "Track government requests and due dates, record the decision, then close the case.",
+    icon: Landmark,
+    illustration: "/images/workspace/step-4-case-hub.png",
+    illustrationAlt: "Post-submission government requests and case closure",
   },
 ] as const;
 
@@ -72,8 +80,8 @@ export const INTAKE_WORKSPACE_TASKS = [
   },
   {
     id: "pathway-calculator",
-    title: "Assign pathway",
-    description: "Score CRS, compare routes, and assign the best immigration pathway.",
+    title: "Eligibility assessment",
+    description: "Consult, review the profile, run the family calculator, then select a pathway with your reason.",
     href: (profileId: string) => `/dashboard/clients/${profileId}/workspace/pathway-calculator`,
     illustration: "/images/workspace/step-1-pathway-calculator.png",
     illustrationAlt: "Pathway calculator and CRS scoring",
@@ -88,10 +96,12 @@ export function WorkspaceStepRail({
   unlockedStep,
   viewStep,
   onViewStep,
+  currentStatusLabel,
 }: {
   unlockedStep: number;
   viewStep: number;
   onViewStep: (step: number) => void;
+  currentStatusLabel?: string | null;
 }) {
   const steps = CASE_WORKFLOW_STEPS;
   const lastIndex = steps.length - 1;
@@ -114,7 +124,7 @@ export function WorkspaceStepRail({
           }}
         />
 
-        <ol className="relative grid grid-cols-4 items-start">
+        <ol className="relative grid items-start" style={{ gridTemplateColumns: `repeat(${steps.length}, minmax(0, 1fr))` }}>
           {steps.map((step, i) => {
             const done = i < unlockedStep;
             const viewing = i === viewStep;
@@ -160,6 +170,11 @@ export function WorkspaceStepRail({
                   >
                     {step.label}
                   </span>
+                  {viewing && currentStatusLabel && (
+                    <span className="mt-0.5 max-w-[7rem] text-center text-[10px] leading-tight text-muted-foreground sm:max-w-[9rem]">
+                      {currentStatusLabel}
+                    </span>
+                  )}
                 </button>
               </li>
             );

@@ -115,7 +115,12 @@ class CaseMessagingController extends Controller
             return response()->json(['message' => 'No case file found.'], 404);
         }
 
-        $this->verificationService->assertCaseManagementUnlocked($caseFile);
+        // Allow messaging after retainer is signed; document hub unlock stays separate.
+        if (! $caseFile->agreement_signed_at) {
+            return response()->json([
+                'message' => 'You can message your consultant after signing the retainer agreement.',
+            ], 403);
+        }
 
         $msg = CaseMessage::create([
             'case_file_id' => $caseFile->id,

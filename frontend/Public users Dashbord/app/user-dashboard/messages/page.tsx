@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { CLIENT_API, clientAuthHeaders } from "@/lib/client-api";
 import { useClientJourney } from "@/context/client-journey-context";
-import { canAccessClientMessages, caseManagementUnlocked } from "@/lib/client-journey";
+import { canAccessClientMessages } from "@/lib/client-journey";
 import { ClientJourneyBreadcrumb } from "@/components/client-workspace-ui";
 
 type CaseMessage = {
@@ -30,7 +30,7 @@ export default function ClientMessagesPage() {
   const endRef = useRef<HTMLDivElement>(null);
 
   const canRead = canAccessClientMessages(caseFile);
-  const canSend = caseManagementUnlocked(caseFile, verification);
+  const canSend = canAccessClientMessages(caseFile);
 
   const load = useCallback(async () => {
     if (!canRead) {
@@ -172,7 +172,7 @@ export default function ClientMessagesPage() {
             </form>
           ) : (
             <p className="text-xs text-muted-foreground text-center py-2">
-              You can read messages now. Replying unlocks after your case documents hub opens.
+              You can message your consultant after signing the retainer agreement.
             </p>
           )}
         </div>

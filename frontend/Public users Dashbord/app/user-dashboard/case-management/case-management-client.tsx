@@ -1,29 +1,30 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useState, useCallback } from "react";
 import {
-  Loader2, AlertCircle, Check, FileText, Upload, MessageSquare,
-  Send, CheckCircle2, XCircle, Clock, Bot, ShieldCheck, ShieldAlert,
-  ShieldQuestion, Eye, RefreshCw,
+  Loader2, AlertCircle, Check, FileText, MessageSquare,
+  CheckCircle2, XCircle, Clock, Eye, RefreshCw, ShieldQuestion,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { PdfViewerDialog } from "@/components/pdf-viewer-dialog";
 import { PackagePdfFormDialog } from "@/components/package-pdf-form-dialog";
 import { cn } from "@/lib/utils";
 import { ClientJourneyPageChrome } from "@/components/client-workspace-ui";
 import { useClientJourneyOptional } from "@/context/client-journey-context";
+import { useClientUnreadMessages } from "@/hooks/use-client-unread-messages";
 import Link from "next/link";
 import { CLIENT_API, clientAuthHeaders, clientUploadHeaders, clientStreamHeaders } from "@/lib/client-api";
 import {
   CaseHubProgressHeader,
   CaseManagementLockedPanel,
+  ClientHubNextActions,
   type HubProgress,
   type HubRequirement,
 } from "@/components/client-case-hub-ui";
 import { CaseDocumentUploadCard } from "./case-document-upload-card";
 import { PackageDocumentCard } from "./package-document-card";
 import { packageDocumentStreamUrl } from "@/lib/package-document-urls";
+import { documentWhyHint } from "@/lib/document-why-hint";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -46,16 +47,6 @@ interface DocumentSubmission {
   ai_match_result: { matched: boolean; reason: string } | null;
   rejection_comment: string | null;
   uploaded_at: string | null;
-}
-
-interface CaseMessage {
-  id: number;
-  sender_name: string;
-  sender_type: "consultant" | "client";
-  message: string;
-  document_submission_id: number | null;
-  read_at: string | null;
-  created_at: string;
 }
 
 interface ApplicationPackage {
@@ -81,18 +72,6 @@ interface FormsVerification {
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
-
-function fmtDate(iso: string | null) {
-  if (!iso) return "";
-  return new Date(iso).toLocaleString("en-CA", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
-}
-
-function fmtSize(bytes: number | null) {
-  if (!bytes) return "";
-  if (bytes < 1024) return bytes + " B";
-  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
-  return (bytes / (1024 * 1024)).toFixed(1) + " MB";
-}
 
 function isPdfFile(submission: { mime_type: string | null; original_filename: string }) {
   if (submission.mime_type === "application/pdf") return true;
@@ -125,12 +104,12 @@ function validateUploadFile(file: File): string | null {
 // ── Status badge ───────────────────────────────────────────────────────────────
 
 const DOC_STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
-  pending_review:       { label: "Pending Review",   color: "bg-amber-50 text-amber-700 border-amber-200",    icon: <Clock className="h-3 w-3" /> },
-  under_ai_review:      { label: "AI Scanning…",     color: "bg-blue-50 text-blue-700 border-blue-200",       icon: <Bot className="h-3 w-3 animate-pulse" /> },
-  ai_verified:          { label: "AI Verified ✓",    color: "bg-green-50 text-green-700 border-green-200",    icon: <ShieldCheck className="h-3 w-3" /> },
-  ai_flagged:           { label: "Needs Review",     color: "bg-orange-50 text-orange-700 border-orange-200", icon: <ShieldAlert className="h-3 w-3" /> },
-  consultant_approved:  { label: "Approved ✓",       color: "bg-green-50 text-green-700 border-green-200",    icon: <CheckCircle2 className="h-3 w-3" /> },
-  consultant_rejected:  { label: "Rejected — Reupload", color: "bg-red-50 text-red-700 border-red-200",       icon: <XCircle className="h-3 w-3" /> },
+  pending_review:       { label: "Waiting on consultant", color: "bg-amber-50 text-amber-700 border-amber-200",    icon: <Clock className="h-3 w-3" /> },
+  under_ai_review:      { label: "Checking…",             color: "bg-blue-50 text-blue-700 border-blue-200",       icon: <Clock className="h-3 w-3 animate-pulse" /> },
+  ai_verified:          { label: "Passed initial check",  color: "bg-green-50 text-green-700 border-green-200",    icon: <CheckCircle2 className="h-3 w-3" /> },
+  ai_flagged:           { label: "Needs consultant review", color: "bg-orange-50 text-orange-700 border-orange-200", icon: <AlertCircle className="h-3 w-3" /> },
+  consultant_approved:  { label: "Approved",              color: "bg-green-50 text-green-700 border-green-200",    icon: <CheckCircle2 className="h-3 w-3" /> },
+  consultant_rejected:  { label: "Re-upload needed",      color: "bg-red-50 text-red-700 border-red-200",       icon: <XCircle className="h-3 w-3" /> },
 };
 
 function DocStatusBadge({ status }: { status: string }) {
@@ -229,10 +208,6 @@ export function CaseManagementClient() {
   const [hubProgress, setHubProgress] = useState<HubProgress | null>(null);
   const [documents, setDocuments] = useState<DocumentSubmission[]>([]);
   const [applicationPackage, setApplicationPackage] = useState<ApplicationPackage | null>(null);
-  const [messages, setMessages]   = useState<CaseMessage[]>([]);
-  const [activeTab, setActiveTab] = useState<"documents" | "messages">("documents");
-  const [msgInput, setMsgInput]   = useState("");
-  const [sending, setSending]     = useState(false);
   const [toast, setToast]         = useState<{ msg: string; type: "success" | "error" } | null>(null);
   const [pdfViewer, setPdfViewer] = useState<{ title: string; streamUrl: string } | null>(null);
   const [imagePreview, setImagePreview] = useState<{ title: string; streamUrl: string } | null>(null);
@@ -242,10 +217,10 @@ export function CaseManagementClient() {
     streamUrl: string;
     alreadySubmitted: boolean;
   } | null>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
   const pdfAuthHeaders = useCallback(() => clientStreamHeaders(), []);
   const journey = useClientJourneyOptional();
   const pendingFormRequests = journey?.qStats.pendingRefills ?? 0;
+  const { count: unreadMessages } = useClientUnreadMessages(true);
 
   const submissionStreamUrl = (submissionId: number) =>
     `${CLIENT_API}/client/documents/${submissionId}/stream`;
@@ -279,44 +254,13 @@ export function CaseManagementClient() {
       });
   }, []);
 
-  const loadMessages = useCallback(async () => {
-    try {
-      const res = await fetch(`${CLIENT_API}/client/messages`, { headers: clientAuthHeaders() });
-      if (!res.ok) return;
-      const json = await res.json();
-      setMessages(json.messages ?? []);
-    } catch {
-      // silent poll failure
-    }
-  }, []);
-
-  const markMessagesRead = useCallback(async () => {
-    try {
-      await fetch(`${CLIENT_API}/client/messages/mark-read`, {
-        method: "PATCH",
-        headers: clientAuthHeaders(),
-      });
-      const now = new Date().toISOString();
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.sender_type === "consultant" && !m.read_at ? { ...m, read_at: now } : m,
-        ),
-      );
-    } catch {
-      // ignore
-    }
-  }, []);
-
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
     else setRefreshing(true);
     setError("");
     setLocked(false);
     try {
-      const [hubRes, msgsRes] = await Promise.all([
-        fetch(`${CLIENT_API}/client/case-management-hub`, { headers: clientAuthHeaders() }),
-        fetch(`${CLIENT_API}/client/messages`, { headers: clientAuthHeaders() }),
-      ]);
+      const hubRes = await fetch(`${CLIENT_API}/client/case-management-hub`, { headers: clientAuthHeaders() });
       const hubJson = await hubRes.json();
 
       if (hubRes.status === 403) {
@@ -331,15 +275,12 @@ export function CaseManagementClient() {
         throw new Error(hubJson.message ?? "Failed to load.");
       }
 
-      const msgsJson = msgsRes.ok ? await msgsRes.json() : { messages: [] };
-
       const cf = hubJson.case_file;
       setPathway(cf?.immigration_pathway ?? null);
       setApplicationPackage(hubJson.application_package ?? null);
       setHubProgress(hubJson.progress ?? null);
       setHubRequirements(hubJson.document_requirements ?? []);
       setDocuments(hubJson.documents ?? []);
-      setMessages(msgsJson.messages ?? []);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Failed to load.");
     } finally {
@@ -349,19 +290,6 @@ export function CaseManagementClient() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
-
-  useEffect(() => {
-    if (activeTab === "messages") {
-      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    }
-  }, [messages, activeTab]);
-
-  useEffect(() => {
-    if (locked || activeTab !== "messages") return;
-    void markMessagesRead();
-    const interval = setInterval(loadMessages, 30000);
-    return () => clearInterval(interval);
-  }, [locked, activeTab, loadMessages, markMessagesRead]);
 
   const uploadDocument = async (
     docType: string,
@@ -409,26 +337,6 @@ export function CaseManagementClient() {
     }
   };
 
-  const sendMessage = async () => {
-    if (!msgInput.trim()) return;
-    setSending(true);
-    try {
-      const res = await fetch(`${CLIENT_API}/client/messages`, {
-        method: "POST",
-        headers: clientAuthHeaders(true),
-        body: JSON.stringify({ message: msgInput.trim() }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.message ?? "Failed to send.");
-      setMessages(prev => [...prev, json.message]);
-      setMsgInput("");
-    } catch (e: unknown) {
-      showToast(e instanceof Error ? e.message : "Failed to send.", "error");
-    } finally {
-      setSending(false);
-    }
-  };
-
   if (loading) {
     return (
       <div className="flex items-center justify-center py-40">
@@ -470,13 +378,72 @@ export function CaseManagementClient() {
   const approvedCount = documents.filter(d => ["consultant_approved", "ai_verified"].includes(d.status)).length;
   const rejectedCount = documents.filter(d => d.status === "consultant_rejected").length;
   const pendingCount  = documents.filter(d => ["pending_review", "under_ai_review", "ai_flagged"].includes(d.status)).length;
-  const unreadCount   = messages.filter(m => m.sender_type === "consultant" && !m.read_at).length;
   const missingDocs   = hubRequirements.filter((r) => r.status === "missing" || r.status === "rejected").length;
+  const allRequiredApproved =
+    requiredDocs.length > 0 &&
+    requiredDocs.every((doc) => {
+      const existing = submissionsByType[doc.id] ?? [];
+      return existing.some((s) => ["consultant_approved", "ai_verified"].includes(s.status));
+    });
+
+  const nextActions: { label: string; tab: string; urgent?: boolean }[] = [];
+  if (pendingFormRequests > 0) {
+    nextActions.push({
+      label: `Update ${pendingFormRequests} questionnaire correction${pendingFormRequests === 1 ? "" : "s"}`,
+      tab: "profile",
+      urgent: true,
+    });
+  }
+  if (rejectedCount > 0) {
+    nextActions.push({
+      label: `Re-upload ${rejectedCount} rejected document${rejectedCount === 1 ? "" : "s"}`,
+      tab: "documents",
+      urgent: true,
+    });
+  }
+  if (missingDocs > 0) {
+    nextActions.push({
+      label: `Upload ${missingDocs} missing document${missingDocs === 1 ? "" : "s"}`,
+      tab: "documents",
+      urgent: true,
+    });
+  }
+  if (pendingCount > 0 && rejectedCount === 0 && missingDocs === 0) {
+    nextActions.push({
+      label: `${pendingCount} document${pendingCount === 1 ? "" : "s"} waiting on consultant review`,
+      tab: "documents",
+    });
+  }
+  if (allRequiredApproved) {
+    nextActions.push({
+      label: "Documents look complete — your consultant will share filing next steps",
+      tab: "documents",
+    });
+  }
+  if (unreadMessages > 0) {
+    nextActions.push({
+      label: `Read ${unreadMessages} new message${unreadMessages === 1 ? "" : "s"} from your consultant`,
+      tab: "messages",
+      urgent: true,
+    });
+  }
+
+  const onNextAction = (tab: string) => {
+    if (tab === "profile") {
+      window.location.href = "/user-dashboard/questionnaire";
+      return;
+    }
+    if (tab === "messages") {
+      window.location.href = "/user-dashboard/messages";
+      return;
+    }
+    document.getElementById("document-checklist")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
 
   return (
     <ClientJourneyPageChrome
       stepId="documents"
-      description={`Upload required documents and message your consultant for your ${pathway ?? "immigration"} application.`}
+      description={`Upload the documents needed for your ${pathway ?? "immigration"} application. Your consultant reviews them and shares next steps.`}
       extra={
         <div className="flex w-full flex-wrap items-center gap-2">
           {hubProgress && (
@@ -510,10 +477,14 @@ export function CaseManagementClient() {
         />
       )}
 
+      <div className="mb-6">
+        <ClientHubNextActions actions={nextActions} onActionClick={onNextAction} />
+      </div>
+
       {pendingFormRequests > 0 && (
         <div className="mb-6 flex flex-col gap-2 rounded-xl border border-amber-200 bg-amber-50/80 px-4 py-3 text-sm text-amber-950 sm:flex-row sm:items-center sm:justify-between">
           <p>
-            Form data requested — your consultant needs answers for official forms. Open{" "}
+            Your consultant needs answers for official forms. Open{" "}
             <span className="font-medium">Your profile</span> to update highlighted fields.
           </p>
           <Button asChild size="sm" variant="outline" className="shrink-0 border-amber-300 bg-white">
@@ -522,47 +493,46 @@ export function CaseManagementClient() {
         </div>
       )}
 
-      <div className="flex items-start gap-3 rounded-xl border bg-blue-50 border-blue-200 p-4 mb-6 text-sm text-blue-800">
-        <Bot className="h-5 w-5 shrink-0 mt-0.5 text-blue-600" />
-        <div>
-          <p className="font-medium">AI-Powered Document Verification</p>
-          <p className="text-xs mt-0.5 text-blue-700">
-            After uploading, our AI system automatically scans and verifies your documents.
-            Image files are auto-scanned against your questionnaire data. PDF uploads are reviewed manually by your consultant.
+      <p className="mb-4 text-xs text-muted-foreground">
+        After you upload: <span className="font-medium text-foreground">Uploaded</span>
+        {" → "}
+        <span className="font-medium text-foreground">Consultant review</span>
+        {" → "}
+        <span className="font-medium text-foreground">Ready for filing</span>
+      </p>
+
+      <div className="mb-6 flex flex-col gap-3 rounded-xl border bg-card p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-start gap-3">
+          <MessageSquare className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+          <div>
+            <p className="text-sm font-semibold">Message your consultant</p>
+            <p className="text-xs text-muted-foreground">
+              Questions about a document? Use Messages — separate from this upload checklist.
+            </p>
+          </div>
+        </div>
+        <Button asChild size="sm" variant="outline" className="shrink-0">
+          <Link href="/user-dashboard/messages">
+            Open Messages
+            {unreadMessages > 0 && (
+              <span className="ml-1.5 inline-flex min-w-[1.1rem] items-center justify-center rounded-full bg-primary px-1.5 py-px text-[10px] font-bold text-primary-foreground">
+                {unreadMessages > 9 ? "9+" : unreadMessages}
+              </span>
+            )}
+          </Link>
+        </Button>
+      </div>
+
+      {allRequiredApproved && (
+        <div className="mb-6 rounded-xl border border-emerald-200 bg-emerald-50/70 px-4 py-3 text-sm text-emerald-950">
+          <p className="font-semibold">Document checklist complete</p>
+          <p className="mt-0.5 text-xs text-emerald-800">
+            Required uploads are approved. Your consultant will confirm when the file is ready to submit to IRCC.
           </p>
         </div>
-      </div>
+      )}
 
-      <div className="-mx-3 mb-6 flex border-b overflow-x-auto px-3 sm:mx-0 sm:px-0">
-        <button
-          onClick={() => setActiveTab("documents")}
-          className={cn(
-            "px-3 py-2 text-sm font-medium border-b-2 transition-colors shrink-0 sm:px-4",
-            activeTab === "documents" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
-          )}
-        >
-          <Upload className="inline h-4 w-4 mr-1.5" />
-          Documents ({approvedCount} / {requiredDocs.length})
-        </button>
-        <button
-          onClick={() => setActiveTab("messages")}
-          className={cn(
-            "px-3 py-2 text-sm font-medium border-b-2 transition-colors shrink-0 sm:px-4",
-            activeTab === "messages" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
-          )}
-        >
-          <MessageSquare className="inline h-4 w-4 mr-1.5" />
-          Messages
-          {unreadCount > 0 && (
-            <span className="ml-1.5 inline-flex h-4 w-4 items-center justify-center rounded-full bg-blue-500 text-[10px] font-bold text-white">
-              {unreadCount}
-            </span>
-          )}
-        </button>
-      </div>
-
-      {activeTab === "documents" && (
-        <div className="space-y-3">
+      <div id="document-checklist" className="space-y-3">
           <div className="mb-4 grid gap-3 sm:grid-cols-3">
             <div className="rounded-xl border bg-card p-3">
               <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Approved</p>
@@ -586,31 +556,35 @@ export function CaseManagementClient() {
             </div>
           )}
           {applicationPackage && (
-            <div className="rounded-xl border-2 border-primary/20 bg-primary/5 p-4 space-y-3 mb-4">
+            <div className="mb-4 space-y-3 rounded-xl border border-border bg-muted/20 p-4">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-primary">Assigned Application Package</p>
-                <p className="text-lg font-bold mt-1">{applicationPackage.label}</p>
-                <p className="text-xs text-muted-foreground">{applicationPackage.breadcrumb.join(" › ")}</p>
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Your application package</p>
+                <p className="mt-1 text-lg font-bold">{applicationPackage.label}</p>
               </div>
               {applicationPackage.result && (
-                <div className="grid gap-2 sm:grid-cols-3 text-sm">
-                  <div className="rounded-lg border bg-white p-3">
-                    <p className="text-[10px] uppercase text-muted-foreground">Guide</p>
-                    <p className="font-medium">{applicationPackage.result.guide}</p>
+                <details className="rounded-lg border bg-background px-3 py-2 text-sm">
+                  <summary className="cursor-pointer font-medium text-muted-foreground">
+                    IRCC guide / checklist references
+                  </summary>
+                  <div className="mt-2 grid gap-2 sm:grid-cols-3">
+                    <div>
+                      <p className="text-[10px] uppercase text-muted-foreground">Guide</p>
+                      <p className="font-medium">{applicationPackage.result.guide}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase text-muted-foreground">Checklist</p>
+                      <p className="font-medium">{applicationPackage.result.checklist}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase text-muted-foreground">Forms</p>
+                      <p className="font-medium">{applicationPackage.result.forms.join(", ")}</p>
+                    </div>
                   </div>
-                  <div className="rounded-lg border bg-white p-3">
-                    <p className="text-[10px] uppercase text-muted-foreground">Checklist</p>
-                    <p className="font-medium">{applicationPackage.result.checklist}</p>
-                  </div>
-                  <div className="rounded-lg border bg-white p-3">
-                    <p className="text-[10px] uppercase text-muted-foreground">Forms</p>
-                    <p className="font-medium">{applicationPackage.result.forms.join(", ")}</p>
-                  </div>
-                </div>
+                </details>
               )}
               {applicationPackage.documents.length > 0 && (
                 <div className="space-y-3">
-                  <p className="text-sm font-medium">Documents from your consultant</p>
+                  <p className="text-sm font-medium">Files from your consultant</p>
                   <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
                     {applicationPackage.documents.map((doc) => {
                       const isSubmitted = Boolean(doc.submission?.submitted_at);
@@ -638,9 +612,15 @@ export function CaseManagementClient() {
           )}
 
           {requiredDocs.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-8 text-center">
-              No document requirements from your consultant yet.
-            </p>
+            <div className="rounded-xl border border-dashed px-4 py-10 text-center">
+              <p className="text-sm font-medium">No document checklist yet</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Your consultant will assign required documents for your pathway. Check Messages if you are waiting on instructions.
+              </p>
+              <Button asChild size="sm" variant="outline" className="mt-4">
+                <Link href="/user-dashboard/messages">Open Messages</Link>
+              </Button>
+            </div>
           ) : (
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
               {requiredDocs.map((doc) => {
@@ -652,6 +632,7 @@ export function CaseManagementClient() {
                     docId={doc.id}
                     label={doc.label}
                     category={doc.category}
+                    description={documentWhyHint(doc.id, doc.category, doc.label)}
                     submissions={existing}
                     statusBadge={latest ? <DocStatusBadge status={latest.status} /> : undefined}
                     onUpload={uploadDocument}
@@ -666,8 +647,8 @@ export function CaseManagementClient() {
           {documents.filter(d => !requiredDocs.find(r => r.id === d.document_type)).map(doc => (
             <div key={doc.id} className="rounded-xl border p-4">
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
-                <FileText className="h-5 w-5 text-muted-foreground shrink-0" />
-                <div className="flex-1 min-w-0">
+                <FileText className="h-5 w-5 shrink-0 text-muted-foreground" />
+                <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium">{doc.document_label}</p>
                   <p className="text-xs text-muted-foreground">{doc.original_filename}</p>
                 </div>
@@ -688,55 +669,7 @@ export function CaseManagementClient() {
               </Button>
             </div>
           ))}
-        </div>
-      )}
-
-      {activeTab === "messages" && (
-        <div className="flex flex-col gap-4">
-          <div className="flex min-h-[50vh] max-h-[60vh] flex-col gap-3 overflow-y-auto rounded-xl border bg-muted/10 p-4 sm:h-[400px] sm:max-h-none">
-            {messages.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-full gap-3 text-center">
-                <MessageSquare className="h-10 w-10 text-muted-foreground/40" />
-                <p className="text-sm text-muted-foreground">No messages yet.</p>
-                <p className="text-xs text-muted-foreground/70">Your consultant will send you updates and instructions here.</p>
-              </div>
-            ) : (
-              messages.map(msg => (
-                <div key={msg.id} className={cn("flex", msg.sender_type === "client" ? "justify-end" : "justify-start")}>
-                  <div className={cn(
-                    "max-w-[75%] rounded-2xl px-4 py-2.5 text-sm",
-                    msg.sender_type === "client"
-                      ? "bg-primary text-primary-foreground rounded-br-sm"
-                      : "bg-background border rounded-bl-sm"
-                  )}>
-                    {msg.sender_type === "consultant" && (
-                      <p className="text-xs font-medium mb-0.5 text-muted-foreground">{msg.sender_name}</p>
-                    )}
-                    <p className="whitespace-pre-wrap">{msg.message}</p>
-                    <p className={cn("text-[10px] mt-1 text-right", msg.sender_type === "client" ? "text-primary-foreground/60" : "text-muted-foreground")}>
-                      {fmtDate(msg.created_at)}
-                    </p>
-                  </div>
-                </div>
-              ))
-            )}
-            <div ref={messagesEndRef} />
-          </div>
-
-          <div className="flex gap-2">
-            <textarea
-              value={msgInput}
-              onChange={e => setMsgInput(e.target.value)}
-              onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
-              placeholder="Type a message to your consultant… (Enter to send)"
-              className="flex-1 rounded-xl border bg-background px-4 py-2.5 text-sm resize-none h-12 focus:outline-none focus:ring-2 focus:ring-primary/50"
-            />
-            <Button onClick={sendMessage} disabled={sending || !msgInput.trim()} className="shrink-0">
-              {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-            </Button>
-          </div>
-        </div>
-      )}
+      </div>
 
       {packageForm && (
         <PackagePdfFormDialog
@@ -749,7 +682,7 @@ export function CaseManagementClient() {
           getAuthHeaders={pdfAuthHeaders}
           onSubmitted={() => {
             showToast("Form submitted to your consultant.");
-            load(true);
+            void load(true);
           }}
         />
       )}

@@ -1,0 +1,16 @@
+{
+    "consultant_email": "phase4.smoke@example.test",
+    "password": "SmokeTest123!",
+    "sig_profile_id": 46,
+    "sig_case_id": 45,
+    "sig_client_email": "phase4.smoke.sig@example.test",
+    "nosig_profile_id": 47,
+    "nosig_case_id": 46,
+    "nosig_client_email": "phase4.smoke.nosig@example.test",
+    "docs_profile_id": 48,
+    "docs_case_id": 47,
+    "legacy_ready_profile_id": 49,
+    "legacy_ready_case_id": 48,
+    "legacy_submitted_profile_id": 50,
+    "legacy_submitted_case_id": 49
+}

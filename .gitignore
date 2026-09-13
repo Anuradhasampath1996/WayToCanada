@@ -46,3 +46,7 @@ backend/public/hot
 volume/cache/*.pem
 volume/cache/*.pem.crt
 volume/cache/*.pem.key
+
+# Phase verification local installs and live smoke credentials
+docs/plans/**/node_modules/
+docs/plans/final-journey-verification/stages.json

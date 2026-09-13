@@ -238,7 +238,8 @@ class IrccInteractiveFormSyncService
     {
         $label = strtolower($package->label);
 
-        if (str_contains($label, 'express entry')) {
+        // Never treat "PNP - Non-Express Entry" as Express Entry online forms.
+        if (\App\Support\ImmigrationPathwayLabels::mentionsExpressEntry($package->label)) {
             return self::expressEntryTemplates();
         }
 

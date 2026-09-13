@@ -7,9 +7,9 @@ use App\Models\IrccCategory;
 use App\Models\IrccInteractiveForm;
 use App\Models\IrccInteractiveFormResponse;
 use App\Services\ClientActivity\ClientActivityTriggers;
-use App\Services\IrccInteractiveFormSyncService;
 use App\Services\IrccInteractiveFormVerificationService;
 use App\Support\IrccInteractiveFormSchema;
+use App\Support\IrccPackageFormMode;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -39,7 +39,7 @@ class ConsultantIrccInteractiveFormController extends Controller
             ->get();
 
         $category = IrccCategory::find($caseFile->assigned_ircc_category_id);
-        $referenceForms = $this->referenceFormsForCategory($category);
+        $mode = IrccPackageFormMode::describe($category, $forms);
 
         $responses = IrccInteractiveFormResponse::where('case_file_id', $caseFile->id)
             ->get()
@@ -48,11 +48,9 @@ class ConsultantIrccInteractiveFormController extends Controller
         return response()->json([
             'category_id'       => $caseFile->assigned_ircc_category_id,
             'case_file_id'      => $caseFile->id,
-            'package_label'     => $category?->label,
-            'form_mode'         => $forms->isEmpty()
-                ? ($referenceForms !== [] ? 'pdf_only' : 'none')
-                : 'interactive',
-            'reference_forms'   => $referenceForms,
+            'package_label'     => $mode['package_label'],
+            'form_mode'         => $mode['form_mode'],
+            'reference_forms'   => $mode['reference_forms'],
             'forms'             => $forms->map(function (IrccInteractiveForm $form) use ($responses) {
                 $response = $responses->get($form->id);
 
@@ -135,6 +133,96 @@ class ConsultantIrccInteractiveFormController extends Controller
         ]);
     }
 
+    /** PATCH /api/v1/consultant/clients/{profile}/interactive-forms/review-all-submitted */
+    public function reviewAllSubmitted(Request $request, ClientProfile $profile): JsonResponse
+    {
+        $this->authorizeConsultant($request, $profile);
+
+        $caseFile = $profile->caseFile;
+        if (! $caseFile?->assigned_ircc_category_id) {
+            return response()->json([
+                'message' => 'No application package assigned.',
+                'reviewed_count' => 0,
+                'reviewed_ids' => [],
+                'skipped' => [],
+                'verification' => $caseFile
+                    ? $this->verificationService->getVerificationStatus($caseFile)
+                    : [
+                        'agreement_signed' => false,
+                        'total_forms' => 0,
+                        'submitted_count' => 0,
+                        'reviewed_count' => 0,
+                        'all_submitted' => false,
+                        'all_reviewed' => false,
+                        'verified_at' => null,
+                        'case_management_unlocked' => false,
+                    ],
+            ], 422);
+        }
+
+        $data = $request->validate([
+            'consultant_notes' => 'nullable|string|max:10000',
+        ]);
+
+        $forms = IrccInteractiveForm::where('ircc_category_id', $caseFile->assigned_ircc_category_id)
+            ->where('is_active', true)
+            ->orderBy('sort_order')
+            ->get();
+
+        $responses = IrccInteractiveFormResponse::where('case_file_id', $caseFile->id)
+            ->get()
+            ->keyBy('ircc_interactive_form_id');
+
+        $reviewedIds = [];
+        $skipped = [];
+
+        foreach ($forms as $form) {
+            $response = $responses->get($form->id);
+            if (! $response) {
+                $skipped[] = ['form_id' => $form->id, 'title' => $form->title, 'reason' => 'not_started'];
+                continue;
+            }
+            if ($response->status !== IrccInteractiveFormResponse::STATUS_SUBMITTED) {
+                $skipped[] = ['form_id' => $form->id, 'title' => $form->title, 'reason' => 'not_submitted'];
+                continue;
+            }
+            if ($response->reviewed_at) {
+                $skipped[] = ['form_id' => $form->id, 'title' => $form->title, 'reason' => 'already_reviewed'];
+                continue;
+            }
+
+            $updates = [
+                'reviewed_at' => now(),
+                'reviewed_by' => $request->user()->id,
+            ];
+            if (array_key_exists('consultant_notes', $data) && $data['consultant_notes'] !== null) {
+                $updates['consultant_notes'] = $data['consultant_notes'];
+            }
+            $response->update($updates);
+            $reviewedIds[] = $form->id;
+            $this->activity->onIrccFormReviewed($profile, $form->title, $request->user(), $request);
+        }
+
+        $wasVerified = (bool) $caseFile->application_forms_verified_at;
+        $this->verificationService->syncVerificationComplete($caseFile->fresh());
+        $caseFile = $caseFile->fresh();
+        $nowVerified = (bool) $caseFile->application_forms_verified_at;
+
+        if (! $wasVerified && $nowVerified) {
+            $this->activity->onFormsVerified($profile, $caseFile, $request->user(), $request);
+        }
+
+        return response()->json([
+            'message' => count($reviewedIds) > 0
+                ? 'Marked '.count($reviewedIds).' submitted form(s) as reviewed.'
+                : 'No submitted forms were waiting for review.',
+            'reviewed_ids' => $reviewedIds,
+            'reviewed_count' => count($reviewedIds),
+            'skipped' => $skipped,
+            'verification' => $this->verificationService->getVerificationStatus($caseFile),
+        ]);
+    }
+
     /** GET /api/v1/consultant/clients/{profile}/interactive-forms/verification-status */
     public function verificationStatus(Request $request, ClientProfile $profile): JsonResponse
     {
@@ -206,50 +294,5 @@ class ConsultantIrccInteractiveFormController extends Controller
         if ($profile->consultant_id !== $request->user()->id) {
             abort(403, 'Access denied.');
         }
-    }
-
-    /** @return list<array{code: string, name: string}> */
-    private function referenceFormsForCategory(?IrccCategory $category): array
-    {
-        if (! $category || empty($category->result['forms'])) {
-            return [];
-        }
-
-        $refs = [];
-
-        foreach ($category->result['forms'] as $code) {
-            if (! is_string($code) || $code === '') {
-                continue;
-            }
-
-            if (in_array(strtolower(trim($code)), ['none', 'n/a'], true)) {
-                continue;
-            }
-
-            if (IrccInteractiveFormSyncService::isOnlineOnlyReference($code)) {
-                continue;
-            }
-
-            $refs[] = [
-                'code' => $code,
-                'name' => $this->referenceFormName($code),
-            ];
-        }
-
-        return $refs;
-    }
-
-    private function referenceFormName(string $code): string
-    {
-        return match ($code) {
-            'IMM 5710' => 'Application to Change Conditions, Extend Stay or Remain in Canada as a Worker',
-            'IMM 0008' => 'Generic Application Form for Canada',
-            'IMM 5669' => 'Schedule A — Background/Declaration',
-            'IMM 5406' => 'Additional Family Information',
-            'IMM 1295' => 'Application for Work Permit Made Outside Canada',
-            'IMM 1294' => 'Application for Study Permit Made Outside Canada',
-            'IMM 5707' => 'Family Information',
-            default    => 'IRCC form '.$code,
-        };
     }
 }

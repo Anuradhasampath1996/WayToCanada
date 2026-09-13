@@ -3,16 +3,18 @@
 import * as React from "react";
 import {
   Briefcase,
+  ClipboardCheck,
   FileCheck,
   FileText,
   FormInput,
+  Landmark,
   MessageSquare,
   ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 
-export type CaseHubTab = "overview" | "documents" | "forms" | "government-forms" | "messages";
+export type CaseHubTab = "overview" | "documents" | "forms" | "government-forms" | "final-review" | "post-submission" | "messages";
 
 const JOURNEY_PHASES = [
   { id: "documents", label: "Documents", step: 1 },
@@ -128,6 +130,8 @@ export function CaseHubNav({
     { id: "documents", label: "Documents", description: "Uploads & review", icon: FileText },
     { id: "forms", label: "Application Forms", description: "Interactive IRCC forms", icon: FormInput },
     { id: "government-forms", label: "Government Forms", description: "IMM 5476 · IMM 5406 auto-fill", icon: FileCheck, accent: true },
+    { id: "final-review", label: "Final review", description: "Client review + submission confirmation", icon: ClipboardCheck },
+    { id: "post-submission", label: "Post-submission", description: "Government requests, decision, closure", icon: Landmark },
     { id: "messages", label: "Messages", description: "Client communication", icon: MessageSquare },
   ];
 

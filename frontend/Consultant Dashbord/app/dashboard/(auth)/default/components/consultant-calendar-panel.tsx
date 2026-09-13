@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
@@ -34,7 +35,7 @@ type CalendarEvent = {
   start: string;
   end: string;
   all_day: boolean;
-  source: "client_meeting" | "google_calendar" | "retainer_signed";
+  source: "client_meeting" | "google_calendar" | "retainer_signed" | "government_request";
   client_profile_id: number | null;
   client_name?: string | null;
   client_avatar?: string | null;
@@ -42,6 +43,7 @@ type CalendarEvent = {
   duration_minutes?: number | null;
   meeting_url: string | null;
   provider: string | null;
+  href?: string | null;
 };
 
 type RetainerItem = {
@@ -85,6 +87,7 @@ function isSameLocalDay(a: Date, b: Date) {
 function sourceLabel(source: CalendarEvent["source"]) {
   if (source === "client_meeting") return "Client meeting";
   if (source === "google_calendar") return "Google Calendar";
+  if (source === "government_request") return "Government request";
   return "Retainer signed";
 }
 
@@ -199,6 +202,7 @@ export function ConsultantCalendarPanel({
   retainerSignings?: RetainerItem[];
 }) {
   const isMobile = useIsMobile();
+  const router = useRouter();
   const calendarRef = useRef<FullCalendar>(null);
   const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "America/Toronto";
   const today = useMemo(() => new Date(), []);
@@ -280,7 +284,9 @@ export function ConsultantCalendarPanel({
           ? "fc-event-client-meeting"
           : e.source === "google_calendar"
             ? "fc-event-google"
-            : "fc-event-retainer",
+            : e.source === "government_request"
+              ? "fc-event-client-meeting"
+              : "fc-event-retainer",
       ],
       extendedProps: e,
     }));
@@ -317,6 +323,18 @@ export function ConsultantCalendarPanel({
 
   function handleEventClick(arg: EventClickArg) {
     arg.jsEvent.preventDefault();
+    const href = (arg.event.extendedProps as CalendarEvent).href;
+    if (href) {
+      router.push(href);
+      return;
+    }
+    if ((arg.event.extendedProps as CalendarEvent).source === "government_request") {
+      const profileId = (arg.event.extendedProps as CalendarEvent).client_profile_id;
+      if (profileId) {
+        router.push(`/dashboard/clients/${profileId}/workspace/case-management?tab=post-submission`);
+        return;
+      }
+    }
     setSelectedDate(startOfLocalDay(arg.event.start ?? selectedDate));
   }
 
@@ -331,7 +349,7 @@ export function ConsultantCalendarPanel({
             <div className="min-w-0">
               <h2 className="text-lg font-bold tracking-tight sm:text-xl">Your Schedule</h2>
               <p className="mt-0.5 text-xs text-muted-foreground sm:text-sm">
-                Pick a date to see meetings, Google events, and retainer milestones.
+                Pick a date to see meetings, government-request deadlines, and retainer milestones.
               </p>
             </div>
           </div>
@@ -612,10 +630,17 @@ function AgendaItem({ event }: { event: CalendarEvent }) {
             ) : null}
 
             <div className="mt-3 flex flex-wrap gap-1.5">
-              {event.client_profile_id && (
+              {(event.href || event.client_profile_id) && (
                 <Button asChild size="sm" variant="outline" className="h-7 rounded-lg text-xs">
-                  <Link href={`/dashboard/clients/${event.client_profile_id}/workspace`}>
-                    Workspace
+                  <Link
+                    href={
+                      event.href
+                      || (event.source === "government_request"
+                        ? `/dashboard/clients/${event.client_profile_id}/workspace/case-management?tab=post-submission`
+                        : `/dashboard/clients/${event.client_profile_id}/workspace`)
+                    }
+                  >
+                    {event.source === "government_request" ? "Open request" : "Workspace"}
                   </Link>
                 </Button>
               )}

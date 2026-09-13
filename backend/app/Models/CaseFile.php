@@ -27,6 +27,19 @@ class CaseFile extends Model
         'pathway_assessment_snapshot',
         'pathway_assessment_rules_version',
         'pathway_assessment_at',
+        'current_requirement_plan_id',
+        'workflow_status',
+        'confirmed_submission_portal',
+        'consultation_completed_at',
+        'consultation_skipped_at',
+        'consultation_skip_reason',
+        'profile_reviewed_at',
+        'consultation_notes',
+        'pathway_selection_reason',
+        'pathway_alternatives',
+        'pathway_risks',
+        'maple_recommendation',
+        'maple_recommended_at',
         'assigned_ircc_category_id',
         'application_package_assigned_at',
         'agreement_token',
@@ -50,6 +63,38 @@ class CaseFile extends Model
         'agreement_signed_ip',
         'agreement_signed_user_agent',
         'signed_document_path',
+        'representative_state',
+        'representative_sent_at',
+        'representative_signed_at',
+        'representative_reviewed_at',
+        'representative_completed_at',
+        'case_activated_at',
+        'final_review_checklist',
+        'final_review_notes',
+        'ready_for_client_review_at',
+        'ready_for_client_review_by',
+        'client_acknowledged_at',
+        'client_acknowledgement_ip',
+        'client_acknowledgement_user_agent',
+        'client_declaration_signed_at',
+        'client_declaration_signature',
+        'ready_to_submit_at',
+        'submitted_at',
+        'submission_date',
+        'application_number',
+        'confirmation_number',
+        'government_fees',
+        'payment_confirmation',
+        'receipt_path',
+        'submitted_documents_snapshot',
+        'decision_status',
+        'decision_at',
+        'decision_letter_path',
+        'decision_note',
+        'next_step_note',
+        'closure_checklist',
+        'closure_reviewed_at',
+        'closure_reviewed_by',
     ];
 
     protected function casts(): array
@@ -65,6 +110,30 @@ class CaseFile extends Model
             'application_package_assigned_at' => 'datetime',
             'pathway_assessment_snapshot'     => 'array',
             'pathway_assessment_at'           => 'datetime',
+            'consultation_completed_at'       => 'datetime',
+            'consultation_skipped_at'         => 'datetime',
+            'profile_reviewed_at'             => 'datetime',
+            'maple_recommended_at'            => 'datetime',
+            'representative_sent_at'          => 'datetime',
+            'representative_signed_at'        => 'datetime',
+            'representative_reviewed_at'      => 'datetime',
+            'representative_completed_at'     => 'datetime',
+            'case_activated_at'               => 'datetime',
+            'final_review_checklist'          => 'array',
+            'ready_for_client_review_at'      => 'datetime',
+            'client_acknowledged_at'          => 'datetime',
+            'client_declaration_signed_at'    => 'datetime',
+            'ready_to_submit_at'              => 'datetime',
+            'submitted_at'                    => 'datetime',
+            'submission_date'                 => 'date',
+            'government_fees'                 => 'decimal:2',
+            'submitted_documents_snapshot'    => 'array',
+            'decision_at'                     => 'datetime',
+            'closure_checklist'               => 'array',
+            'closure_reviewed_at'             => 'datetime',
+            'pathway_alternatives'            => 'array',
+            'pathway_risks'                   => 'array',
+            'maple_recommendation'            => 'array',
             'lifecycle_changed_at'            => 'datetime',
             'checklist_data'                  => 'array',
             'agreement_fee'                   => 'decimal:2',
@@ -103,6 +172,36 @@ class CaseFile extends Model
     public function interactiveFormResponses(): HasMany
     {
         return $this->hasMany(IrccInteractiveFormResponse::class);
+    }
+
+    public function currentRequirementPlan(): BelongsTo
+    {
+        return $this->belongsTo(CaseRequirementPlan::class, 'current_requirement_plan_id');
+    }
+
+    public function requirementPlans(): HasMany
+    {
+        return $this->hasMany(CaseRequirementPlan::class);
+    }
+
+    public function historyEvents(): HasMany
+    {
+        return $this->hasMany(CaseHistoryEvent::class);
+    }
+
+    public function governmentRequests(): HasMany
+    {
+        return $this->hasMany(CaseGovernmentRequest::class);
+    }
+
+    public function resolvedWorkflowStatus(): string
+    {
+        return \App\Support\CaseWorkflowStatus::resolveForCase($this->workflow_status, $this->status);
+    }
+
+    public function workflowGroup(): string
+    {
+        return \App\Support\CaseWorkflowStatus::group($this->resolvedWorkflowStatus());
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────────

@@ -72,7 +72,7 @@ export function ClientDashboard() {
   const showSubmittedBanner = searchParams.get("questionnaire") === "submitted";
 
   const {
-    loading, error, refresh, consultant, pendingRequest, client, steps, currentStepId,
+    loading, error, refresh, consultant, pendingRequest, client, steps, displayStages, currentStepId,
   } = useClientJourney();
 
   const firstName = (client?.name ?? "there").split(" ")[0];
@@ -144,6 +144,7 @@ export function ClientDashboard() {
         <div className="space-y-6">
           <ClientJourneyOverviewPanel
             steps={steps}
+            displayStages={displayStages}
             currentStep={currentStep}
             highlightId={currentStepId}
           />

@@ -66,6 +66,7 @@ function fmtMeetingWhen(iso: string, timezone: string) {
 const JOURNEY_DUPLICATE_IDS = new Set([
   "questionnaire",
   "agreement",
+  "extra_details",
   "forms",
   "documents",
   "assessment-wait",
@@ -78,7 +79,7 @@ export function ClientActionCenter({
   hideJourneyDuplicates?: boolean;
 } = {}) {
   const {
-    caseFile, verification, qStats, meta, applicationPackage,
+    caseFile, verification, qStats, meta, applicationPackage, assignment,
   } = useClientJourney();
 
   const [dynamicItems, setDynamicItems] = useState<ActionItem[]>([]);
@@ -112,6 +113,42 @@ export function ClientActionCenter({
       });
     }
 
+    if (caseFile?.ready_for_client_review_at && !caseFile.client_acknowledged_at && !caseFile.submitted_at) {
+      items.push({
+        id: "final_review",
+        tone: "primary",
+        title: "Review your final package",
+        description: "Acknowledge the assembled application. Your consultant cannot sign for you.",
+        href: "/user-dashboard/final-review",
+        buttonLabel: "Review package",
+        icon: FileText,
+      });
+    }
+
+    if (caseFile?.submitted_at && !caseFile.decision_status) {
+      items.push({
+        id: "government_requests",
+        tone: "info",
+        title: "Watch for government requests",
+        description: "Your consultant records due dates here. This is not an IRCC portal.",
+        href: "/user-dashboard/government-requests",
+        buttonLabel: "View requests",
+        icon: Landmark,
+      });
+    }
+
+    if ((assignment?.extra_fields?.ask?.length ?? 0) > 0 && caseFile?.immigration_pathway) {
+      items.push({
+        id: "extra_details",
+        tone: "primary",
+        title: "Add extra details for your pathway",
+        description: "Only missing pathway questions — known profile answers stay reused.",
+        href: "/user-dashboard/extra-details",
+        buttonLabel: "Add extra details",
+        icon: ClipboardList,
+      });
+    }
+
     if (caseFile?.agreement_sent_at && !caseFile.agreement_signed_at) {
       items.push({
         id: "agreement",
@@ -141,9 +178,9 @@ export function ClientActionCenter({
         id: "documents",
         tone: "primary",
         title: "Upload case documents",
-        description: "Your case hub is open — upload required documents and message your consultant.",
+        description: "Your document checklist is open — upload required files for your case.",
         href: "/user-dashboard/case-management",
-        buttonLabel: "Open case hub",
+        buttonLabel: "Open documents",
         icon: FolderUp,
       });
     }
@@ -241,7 +278,7 @@ export function ClientActionCenter({
             id: "unread-messages",
             tone: "warning",
             title: `${count} new message${count === 1 ? "" : "s"} from your consultant`,
-            description: "Read and reply when your case hub allows sending.",
+            description: "Read and reply in Messages.",
             href: "/user-dashboard/messages",
             buttonLabel: "Open messages",
             icon: MessageSquare,

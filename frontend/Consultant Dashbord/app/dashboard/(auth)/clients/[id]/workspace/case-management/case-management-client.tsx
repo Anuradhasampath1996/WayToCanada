@@ -1,6 +1,7 @@
 "use client";
 
 import { use, useEffect, useState, useRef, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
   ArrowLeft, Loader2, AlertCircle, Check, CheckCircle2, XCircle,
@@ -15,6 +16,8 @@ import { CASE_WORKFLOW_STEPS } from "../workspace-flow-ui";
 import { WorkspaceSubpageHero } from "../workspace-subpage-hero";
 import { ConsultantInteractiveFormsPanel } from "./consultant-interactive-forms-panel";
 import { ConsultantGovernmentFormsPanel } from "./consultant-government-forms-panel";
+import { FinalReviewPanel } from "./final-review-panel";
+import { PostSubmissionPanel } from "./post-submission-panel";
 import {
   CaseHubProgressHeader, CaseHubOverview, CaseHubLocked,
   DocumentRequirementsGrid,
@@ -119,6 +122,12 @@ const DOC_STATUS_CONFIG: Record<string, { label: string; color: string; icon: Re
   ai_flagged:           { label: "AI Flagged ⚠",     color: "bg-orange-50 text-orange-700 border-orange-200", icon: <ShieldAlert className="h-3 w-3" /> },
   consultant_approved:  { label: "Approved ✓",       color: "bg-green-50 text-green-700 border-green-200",  icon: <CheckCircle2 className="h-3 w-3" /> },
   consultant_rejected:  { label: "Re-upload requested", color: "bg-red-50 text-red-700 border-red-200",        icon: <XCircle className="h-3 w-3" /> },
+  requested:            { label: "Requested",        color: "bg-slate-50 text-slate-700 border-slate-200",  icon: <Clock className="h-3 w-3" /> },
+  uploaded:             { label: "Uploaded",         color: "bg-blue-50 text-blue-700 border-blue-200",     icon: <FileText className="h-3 w-3" /> },
+  under_review:         { label: "Under review",     color: "bg-violet-50 text-violet-700 border-violet-200", icon: <Clock className="h-3 w-3" /> },
+  correction_required:  { label: "Correction required", color: "bg-red-50 text-red-700 border-red-200",     icon: <XCircle className="h-3 w-3" /> },
+  resubmission_requested: { label: "Resubmission requested", color: "bg-orange-50 text-orange-700 border-orange-200", icon: <RotateCcw className="h-3 w-3" /> },
+  verified:             { label: "Verified",         color: "bg-green-50 text-green-700 border-green-200",  icon: <CheckCircle2 className="h-3 w-3" /> },
 };
 
 function DocStatusBadge({ status }: { status: string }) {
@@ -360,7 +369,13 @@ export function CaseManagementClient({ paramsPromise }: { paramsPromise: Promise
   const [hubPackage, setHubPackage] = useState<HubPackage | null>(null);
   const [documents, setDocuments]   = useState<DocumentSubmission[]>([]);
   const [messages, setMessages]     = useState<CaseMessage[]>([]);
-  const [activeTab, setActiveTab]   = useState<CaseHubTab>("overview");
+  const searchParams = useSearchParams();
+  const tabParam = searchParams.get("tab");
+  const [activeTab, setActiveTab]   = useState<CaseHubTab>(
+    tabParam === "post-submission" || tabParam === "final-review" || tabParam === "documents" || tabParam === "forms"
+      ? tabParam
+      : "overview",
+  );
   const [govFormsSummary, setGovFormsSummary] = useState<{
     percent: number;
     formCount: number;
@@ -870,6 +885,26 @@ export function CaseManagementClient({ paramsPromise }: { paramsPromise: Promise
             onToast={showToast}
             onDataChange={() => void loadGovFormsSummary()}
           />
+        </>
+      )}
+
+      {activeTab === "final-review" && (
+        <>
+          <CaseHubTabHeader
+            title="Final review & submission"
+            description="Complete the consultant checklist, send the package for client acknowledgement, confirm the portal, then record the government submission. RCICMaster never submits to IRCC."
+          />
+          <FinalReviewPanel profileId={id} />
+        </>
+      )}
+
+      {activeTab === "post-submission" && (
+        <>
+          <CaseHubTabHeader
+            title="Post-submission"
+            description="Record government requests and due dates, attach the decision letter, then close the case with the closure checklist. History is preserved."
+          />
+          <PostSubmissionPanel profileId={id} />
         </>
       )}
 

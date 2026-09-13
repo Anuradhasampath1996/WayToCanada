@@ -68,7 +68,7 @@ export function ClientJourneyPageChrome({
       <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
         <div className="min-w-0 space-y-1">
           <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Step {meta.step} of 4
+            Step {meta.step} of {Object.keys(JOURNEY_STEP_PAGES).length}
           </p>
           <h1 className="text-xl font-bold tracking-tight sm:text-2xl">{title ?? meta.title}</h1>
           {description && <p className="max-w-2xl text-sm text-muted-foreground">{description}</p>}
@@ -224,7 +224,7 @@ export function ClientLockedPage({ step }: { step: JourneyStep | undefined }) {
       </div>
       {step && (
         <p className="text-xs font-semibold uppercase tracking-wider text-primary">
-          Step {step.number} of 4
+          Step {step.number} of {Object.keys(JOURNEY_STEP_PAGES).length}
         </p>
       )}
       <h2 className="text-xl font-bold">{step?.title ?? "Not available yet"}</h2>

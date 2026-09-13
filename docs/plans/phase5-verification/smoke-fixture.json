@@ -1,0 +1,18 @@
+{
+    "consultant_email": "phase5.smoke@example.test",
+    "password": "SmokeTest123!",
+    "presub_profile_id": 51,
+    "presub_case_id": 50,
+    "presub_client_email": "phase5.smoke.presub@example.test",
+    "main_profile_id": 52,
+    "main_case_id": 51,
+    "main_client_email": "phase5.smoke.main@example.test",
+    "close_profile_id": 53,
+    "close_case_id": 52,
+    "close_client_email": "phase5.smoke.close@example.test",
+    "refused_profile_id": 54,
+    "withdrawn_profile_id": 55,
+    "other_profile_id": 56,
+    "legacy_profile_id": 57,
+    "legacy_case_id": 56
+}

@@ -69,6 +69,29 @@ trait CreatesGovernmentFormFixtures
         return compact('consultant', 'clientUser', 'profile', 'caseFile');
     }
 
+    protected function completeSelectPathwayGates(User $consultant, ClientProfile $profile): void
+    {
+        $submission = QuestionnaireSubmission::where('user_id', $profile->user_id)->first();
+        $main = is_array($submission?->main_data) ? $submission->main_data : [];
+        QuestionnaireSubmission::where('user_id', $profile->user_id)->update([
+            'main_data' => array_merge($main, [
+                'passportFullName' => $main['passportFullName'] ?? 'Synthetic Client',
+                'dob' => $main['dob'] ?? '1990-01-15',
+                'passportNumber' => 'N1234567',
+                'educationLevels' => ['bachelors'],
+                'languageTest' => 'yes',
+                'workExperience' => '3_or_more',
+            ]),
+        ]);
+
+        $this->actingAsConsultant($consultant);
+        $this->postJson("/api/v1/consultant/clients/{$profile->id}/case-file/consultation/complete", [
+            'notes' => 'Consult completed for Phase 0/1 verification.',
+        ])->assertOk();
+        $this->postJson("/api/v1/consultant/clients/{$profile->id}/case-file/profile-review")
+            ->assertOk();
+    }
+
     protected function actingAsConsultant(User $consultant): User
     {
         Sanctum::actingAs($consultant);

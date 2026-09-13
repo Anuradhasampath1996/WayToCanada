@@ -19,6 +19,10 @@ import { INTAKE_WORKSPACE_TASKS } from "../workspace-flow-ui";
 import { IrccFormExplorer } from "./ircc-form-explorer";
 import { PossiblePathwaysCard } from "./possible-pathways-card";
 import { ConsultantPathwayCatalogPicker } from "./pathway-catalog-picker";
+import { AssessmentGatesPanel } from "./assessment-gates-panel";
+import { AssignmentPlanPanel } from "./assignment-plan-panel";
+import { RepresentativePanel } from "./representative-panel";
+import type { CalculatorRouting } from "@/lib/case-assessment-api";
 import {
   HowItWorksCard,
   SimulationStatusBanner,
@@ -1390,6 +1394,11 @@ export function PathwayCalculatorClient({ paramsPromise }: { paramsPromise: Prom
   const [irccCrsScore,    setIrccCrsScore]    = useState<string>("");
   const [savingNotes,     setSavingNotes]     = useState(false);
   const [saveMessage,     setSaveMessage]     = useState<string | null>(null);
+  const [selectionReason, setSelectionReason] = useState("");
+  const [selectionAlts, setSelectionAlts] = useState("");
+  const [selectionRisks, setSelectionRisks] = useState("");
+  const [canSelectPathway, setCanSelectPathway] = useState(false);
+  const [calculatorRouting, setCalculatorRouting] = useState<CalculatorRouting | null>(null);
 
   function authHeaders(): Record<string, string> {
     const token =
@@ -1411,6 +1420,10 @@ export function PathwayCalculatorClient({ paramsPromise }: { paramsPromise: Prom
         setAssignedPackageId(data.case_file?.assigned_ircc_category_id ?? null);
         setAgreementSentAt(data.case_file?.agreement_sent_at ?? null);
         setAssessmentNotes(data.case_file?.pathway_assessment_notes ?? "");
+        setSelectionReason(data.case_file?.pathway_selection_reason ?? "");
+        setSelectionAlts(Array.isArray(data.case_file?.pathway_alternatives) ? data.case_file.pathway_alternatives.join("\n") : "");
+        setSelectionRisks(Array.isArray(data.case_file?.pathway_risks) ? data.case_file.pathway_risks.join("\n") : "");
+        if (data.assessment?.can_select_pathway) setCanSelectPathway(true);
         if (data.case_file?.pathway_assessment_ircc_crs_score != null) {
           setIrccCrsScore(String(data.case_file.pathway_assessment_ircc_crs_score));
         }
@@ -1589,6 +1602,14 @@ export function PathwayCalculatorClient({ paramsPromise }: { paramsPromise: Prom
   }
 
   async function assignPathway(backendValue: string, displayName: string, pathwayCode?: string | null) {
+    if (!canSelectPathway) {
+      setSaveMessage("Complete consultation (or skip with reason) and profile review before selecting a pathway.");
+      return;
+    }
+    if (selectionReason.trim().length < 8) {
+      setSaveMessage("Record why this pathway was selected before confirming.");
+      return;
+    }
     setAssigning(pathwayCode || backendValue);
     try {
       const res = await fetch(
@@ -1599,11 +1620,14 @@ export function PathwayCalculatorClient({ paramsPromise }: { paramsPromise: Prom
           body: JSON.stringify({
             immigration_pathway: displayName || backendValue,
             pathway_code: pathwayCode ?? undefined,
+            selection_reason: selectionReason.trim(),
+            alternatives: selectionAlts.split("\n").map((s) => s.trim()).filter(Boolean),
+            risks: selectionRisks.split("\n").map((s) => s.trim()).filter(Boolean),
           }),
         }
       );
+      const json = await res.json().catch(() => ({}));
       if (res.ok) {
-        const json = await res.json().catch(() => ({}));
         setAssignedPathway(json?.case_file?.immigration_pathway ?? displayName ?? backendValue);
         setAssignedPathwayCode(json?.case_file?.pathway_code ?? pathwayCode ?? null);
         const autoId = json?.case_file?.assigned_ircc_category_id
@@ -1611,6 +1635,8 @@ export function PathwayCalculatorClient({ paramsPromise }: { paramsPromise: Prom
           ?? null;
         if (autoId) setAssignedPackageId(Number(autoId));
         setTimeout(() => setStep(3), 800);
+      } else {
+        setSaveMessage(typeof json.message === "string" ? json.message : "Could not select pathway.");
       }
     } finally {
       setAssigning(null);
@@ -1668,8 +1694,8 @@ export function PathwayCalculatorClient({ paramsPromise }: { paramsPromise: Prom
       <WorkspaceSubpageHero
         profileId={id}
         stepLabel="Step 1 · Intake & pathway"
-        title="Pathway calculator"
-        description="Load your client's details, calculate their CRS score, and choose the right Canadian immigration pathway — all in three guided steps."
+        title="Eligibility assessment"
+        description="Complete consultation and profile review, run the right calculator for the pathway family, then select a pathway with your reason. Maple can recommend — it cannot decide."
         illustration={INTAKE_WORKSPACE_TASKS[1].illustration}
         illustrationAlt={INTAKE_WORKSPACE_TASKS[1].illustrationAlt}
       >
@@ -1689,6 +1715,24 @@ export function PathwayCalculatorClient({ paramsPromise }: { paramsPromise: Prom
       <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
         {/* ── Main workflow column ─────────────────────────────────────── */}
         <div className="min-w-0 space-y-5">
+          <AssessmentGatesPanel
+            profileId={id}
+            selectionReason={selectionReason}
+            onSelectionReason={setSelectionReason}
+            alternatives={selectionAlts}
+            onAlternatives={setSelectionAlts}
+            risks={selectionRisks}
+            onRisks={setSelectionRisks}
+            onCanSelectChange={setCanSelectPathway}
+            onRoutingChange={setCalculatorRouting}
+          />
+          <AssignmentPlanPanel profileId={id} assignedPathway={assignedPathway} />
+          <RepresentativePanel profileId={id} assignedPathway={assignedPathway} />
+          {calculatorRouting?.mode === "checklist" && (
+            <p className="rounded-xl border border-amber-200/70 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+              This family uses a checklist assessment. CRS tools below are optional reference, not the primary calculator.
+            </p>
+          )}
           <WorkflowGuideCard
             step={step}
             onStep={setStep}

@@ -53,7 +53,7 @@ export function PathwayAssessmentEntry({
         <div className="min-w-0 space-y-2">
           <p className="flex items-center gap-2 text-sm font-semibold">
             <Sparkles className="size-4 shrink-0 text-primary" />
-            Pathway calculator
+            Eligibility assessment
           </p>
           <p className="max-w-xl text-sm text-muted-foreground">
             {caseFile.immigration_pathway

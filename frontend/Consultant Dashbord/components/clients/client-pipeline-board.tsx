@@ -71,10 +71,27 @@ export interface PipelineEntry {
   client_name: string;
   client_email: string;
   status: string;
+  workflow_status?: string;
+  workflow_label?: string;
+  group?: string;
   immigration_pathway: string | null;
   agreement_signed_at: string | null;
+  case_activated_at?: string | null;
   pending_docs: number;
+  open_government_requests?: number;
+  next_government_due_at?: string | null;
+  pending_action?: string | null;
+  pending_actor?: "consultant" | "client" | "government" | null;
+  needs_attention?: boolean;
+  overdue?: boolean;
+  is_closed?: boolean;
   case_file_id: number;
+}
+
+export interface PipelineGroup {
+  id: string;
+  label: string;
+  cases: PipelineEntry[];
 }
 
 type StatusTheme = {
@@ -169,7 +186,12 @@ function ClientCard({
     <div
       draggable
       onDragStart={(e) => onDragStart(e, entry)}
-      className="group cursor-grab select-none rounded-xl border border-border/60 bg-background p-3 shadow-sm transition-all hover:border-primary/25 hover:shadow-md active:cursor-grabbing active:scale-[0.98]"
+      className={cn(
+        "group cursor-grab select-none rounded-xl border bg-background p-3 shadow-sm transition-all hover:border-primary/25 hover:shadow-md active:cursor-grabbing active:scale-[0.98]",
+        entry.is_closed
+          ? "border-slate-300/80 bg-slate-50/80 opacity-80"
+          : "border-border/60",
+      )}
     >
       <div className="flex items-start gap-2.5">
         <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-xs font-semibold text-primary">
@@ -204,6 +226,28 @@ function ClientCard({
           </Link>
         </Button>
       </div>
+      <p className="mt-1.5 truncate text-[10px] text-muted-foreground">
+        {entry.workflow_label ?? "In progress"}
+      </p>
+      {entry.pending_action ? (
+        <p className="mt-1 line-clamp-2 text-[10px] font-medium text-amber-800">
+          {entry.pending_action}
+          {entry.pending_actor ? ` · ${entry.pending_actor}` : ""}
+        </p>
+      ) : (
+        !entry.is_closed && <p className="mt-1 text-[10px] text-muted-foreground">No pending action</p>
+      )}
+      {entry.next_government_due_at && (
+        <p className={cn("mt-1 text-[10px]", entry.overdue ? "font-semibold text-red-700" : "text-muted-foreground")}>
+          {entry.overdue ? "Overdue" : "Due"} {fmtDate(entry.next_government_due_at)}
+        </p>
+      )}
+      {(entry.open_government_requests ?? 0) > 0 && (
+        <p className="mt-1 text-[10px] font-medium text-violet-800">{entry.open_government_requests} government request{entry.open_government_requests === 1 ? "" : "s"}</p>
+      )}
+      {entry.is_closed && (
+        <p className="mt-1 text-[10px] font-semibold text-slate-600">Closed</p>
+      )}
       {entry.agreement_signed_at && (
         <p className="mt-1.5 text-[10px] text-muted-foreground">Signed {fmtDate(entry.agreement_signed_at)}</p>
       )}
@@ -391,16 +435,20 @@ export function ClientPipelineBoard({
   embedded = false,
   showToolbar = true,
   showStats = true,
+  view = "all",
 }: {
   searchQuery?: string;
   embedded?: boolean;
   showToolbar?: boolean;
   showStats?: boolean;
+  view?: "all" | "in_preparation" | "needs_attention" | "government_processing";
 }) {
   const isMobile = useIsMobile();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [pipeline, setPipeline] = useState<PipelineEntry[]>([]);
+  const [groups, setGroups] = useState<PipelineGroup[]>([]);
+  const [statusFilter, setStatusFilter] = useState<string>("all");
   const [dragging, setDragging] = useState<PipelineEntry | null>(null);
   const [dropTarget, setDropTarget] = useState<string | null>(null);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
@@ -430,6 +478,7 @@ export function ClientPipelineBoard({
       const json = await res.json();
       if (!res.ok) throw new Error(json.message ?? "Failed to load pipeline.");
       setPipeline(json.pipeline ?? []);
+      setGroups(json.groups ?? []);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Failed to load.");
     } finally {
@@ -443,20 +492,25 @@ export function ClientPipelineBoard({
 
   const filteredPipeline = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
-    if (!q) return pipeline;
-    return pipeline.filter(
-      (p) =>
+    return pipeline.filter((p) => {
+      if (view === "in_preparation" && p.group !== "active_case") return false;
+      if (view === "needs_attention" && !p.needs_attention) return false;
+      if (view === "government_processing" && (p.group !== "post_submission" || p.is_closed)) return false;
+      if (statusFilter !== "all" && (p.workflow_status ?? p.status) !== statusFilter) return false;
+      if (!q) return true;
+      return (
         p.client_name.toLowerCase().includes(q) ||
         p.client_email.toLowerCase().includes(q) ||
-        (p.immigration_pathway ?? "").toLowerCase().includes(q),
-    );
-  }, [pipeline, searchQuery]);
+        (p.immigration_pathway ?? "").toLowerCase().includes(q)
+      );
+    });
+  }, [pipeline, searchQuery, statusFilter, view]);
 
   const stats = useMemo(() => {
     const pendingDocs = pipeline.reduce((sum, p) => sum + p.pending_docs, 0);
-    const ready = pipeline.filter((p) => p.status === "READY_FOR_SUBMISSION").length;
-    const submitted = pipeline.filter((p) => p.status === "APPLICATION_SUBMITTED").length;
-    return { total: pipeline.length, pendingDocs, ready, submitted };
+    const ready = pipeline.filter((p) => p.status === "READY_FOR_SUBMISSION" || p.workflow_status === "READY_TO_SUBMIT").length;
+    const government = pipeline.filter((p) => p.group === "post_submission" && p.workflow_status !== "CASE_CLOSED").length;
+    return { total: pipeline.length, pendingDocs, ready, government };
   }, [pipeline]);
 
   const onDragStart = (e: React.DragEvent, entry: PipelineEntry) => {
@@ -556,6 +610,44 @@ export function ClientPipelineBoard({
             <RefreshCw className="mr-1.5 size-3.5" />
             Refresh board
           </Button>
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="h-9 w-full sm:w-[220px] text-xs">
+              <SelectValue placeholder="Filter any status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All workflow statuses</SelectItem>
+              {Array.from(new Set(pipeline.map((p) => p.workflow_status ?? p.status))).map((status) => (
+                <SelectItem key={status} value={status}>{status.replaceAll("_", " ")}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+
+      {view !== "all" && filteredPipeline.length === 0 && !loading && (
+        <p className="rounded-xl border border-dashed px-3 py-8 text-center text-sm text-muted-foreground">
+          No cases match this dashboard filter.
+        </p>
+      )}
+
+      {groups.length > 0 && (
+        <div className="grid gap-3 md:grid-cols-3">
+          {groups.map((group) => {
+            const count = filteredPipeline.filter((p) => p.group === group.id).length;
+            return (
+              <div key={group.id} className="rounded-xl border border-border/70 bg-background/80 p-3">
+                <p className="text-xs font-semibold">{group.label}</p>
+                <p className="mt-1 text-2xl font-bold tabular-nums">{count}</p>
+                <ul className="mt-2 space-y-1">
+                  {filteredPipeline.filter((p) => p.group === group.id).slice(0, 4).map((entry) => (
+                    <li key={entry.case_file_id} className="truncate text-[11px] text-muted-foreground">
+                      {entry.client_name} · {entry.workflow_label ?? (entry.workflow_status ?? entry.status).replaceAll("_", " ")}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            );
+          })}
         </div>
       )}
 
@@ -565,7 +657,7 @@ export function ClientPipelineBoard({
             { label: "On board", value: stats.total, icon: Users },
             { label: "Pending docs", value: stats.pendingDocs, icon: Clock },
             { label: "Ready to submit", value: stats.ready, icon: CheckCircle2 },
-            { label: "Submitted", value: stats.submitted, icon: Send },
+            { label: "Government processing", value: stats.government, icon: Send },
           ].map((s) => (
             <div key={s.label} className="flex min-w-0 items-center gap-2 rounded-xl border border-border/60 bg-background/80 px-2.5 py-2.5 sm:gap-2.5 sm:px-3">
               <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground sm:size-8">

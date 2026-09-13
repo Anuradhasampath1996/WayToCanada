@@ -3,11 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Models\CaseFile;
+use App\Models\IrccCategory;
 use App\Models\IrccInteractiveForm;
 use App\Models\IrccInteractiveFormResponse;
 use App\Services\ClientActivity\ClientActivityTriggers;
 use App\Services\QuestionnaireFormPrefillService;
 use App\Support\IrccInteractiveFormSchema;
+use App\Support\IrccPackageFormMode;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -27,14 +29,20 @@ class ClientIrccInteractiveFormController extends Controller
             ->orderBy('sort_order')
             ->get();
 
+        $category = IrccCategory::find($caseFile->assigned_ircc_category_id);
+        $mode = IrccPackageFormMode::describe($category, $forms);
+
         $responses = IrccInteractiveFormResponse::where('case_file_id', $caseFile->id)
             ->get()
             ->keyBy('ircc_interactive_form_id');
 
         return response()->json([
-            'case_file_id' => $caseFile->id,
-            'category_id'  => $caseFile->assigned_ircc_category_id,
-            'forms'        => $forms->map(
+            'case_file_id'      => $caseFile->id,
+            'category_id'       => $caseFile->assigned_ircc_category_id,
+            'package_label'     => $mode['package_label'],
+            'form_mode'         => $mode['form_mode'],
+            'reference_forms'   => $mode['reference_forms'],
+            'forms'             => $forms->map(
                 fn (IrccInteractiveForm $form) => IrccInteractiveFormSchema::formatFormSummary(
                     $form,
                     $responses->get($form->id)

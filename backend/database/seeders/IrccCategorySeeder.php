@@ -46,6 +46,8 @@ class IrccCategorySeeder extends Seeder
                         'children' => [
                             ['label' => 'Express Entry (FSW, CEC, FST)',                    'result' => ['guide' => 'Express Entry Guide', 'checklist' => 'Dynamic e-APR',  'forms' => ['Online Web Forms']]],
                             ['label' => 'Provincial Nominee Program (PNP - Non-Express Entry)', 'result' => ['guide' => 'Guide 5609',        'checklist' => 'IMM 5610',      'forms' => ['IMM 0008', 'IMM 5669']]],
+                            ['label' => 'Family Sponsorship — Spouse or Partner', 'result' => ['guide' => 'Guide 3999', 'checklist' => 'IMM 5533', 'forms' => ['IMM 0008', 'IMM 5669', 'IMM 1344', 'IMM 5481']]],
+                            ['label' => 'Family Sponsorship — Parents and Grandparents', 'result' => ['guide' => 'Guide 5772', 'checklist' => 'IMM 5771', 'forms' => ['IMM 0008', 'IMM 5669', 'IMM 1344']]],
                         ],
                     ],
                 ],

@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { NextActionCard, resolveNextAction, CASE_WORKFLOW_STEPS } from "./workspace/workspace-flow-ui";
+import { workflowLabel } from "@/lib/case-workflow-labels";
 import type { QuestionnaireWorkspaceStats } from "@/lib/questionnaire-workspace-stats";
 
 const API = (process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000") + "/api/v1";
@@ -208,7 +209,7 @@ export function ClientCommandCenter({
   const statusLabel =
     data.pipeline?.status_label ??
     data.case_summary.case_status_label ??
-    (data.case_file ? STATUS_LABELS[data.case_file.status] : "Not started");
+    (data.case_file ? (STATUS_LABELS[data.case_file.status] ?? workflowLabel(data.case_file.status)) : "Not started");
 
   return (
     <Card className="border-border/70 shadow-sm">
