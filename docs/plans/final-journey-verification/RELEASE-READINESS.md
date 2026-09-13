@@ -25,10 +25,14 @@
 
 | Item | Value |
 |------|--------|
-| HEAD | `1ac33bc2a5f6b450a3e2012bf521ef07ebb3c3c0` |
-| HEAD message | `Include Intake and pathway questionnaire uploads in Document Workshop sources.` |
-| Branch | `main` (tracks `origin/main`) |
-| Working tree | **Dirty.** Phase 0–6 case-handling work is present locally and is **not yet committed**. RC status applies to this working tree, not to `origin/main` alone. |
+| Phase 0–6 implementation | `df1439b1d16bafbd2f316afcce3e5c30f1d0a209` |
+| Implementation message | `Ship the Phase 0-6 RCIC case-handling journey.` |
+| Pre-existing HEAD (do not use as RC) | `1ac33bc2a5f6b450a3e2012bf521ef07ebb3c3c0` |
+| RC branch | `release-candidate/case-handling-phase-0-6` |
+| RC tag | `rc-case-handling-phase-0-6` (created on the commit that records this hash) |
+| Production (`main` / `origin/main`) | Still `1ac33bc2`. **Not** updated. Production deploy is **not** started. |
+
+The release candidate is the Phase 0–6 commit `df1439b1d16bafbd2f316afcce3e5c30f1d0a209` plus this recording commit on `release-candidate/case-handling-phase-0-6`. Do not treat `1ac33bc` as the RC.
 
 ---
 
@@ -137,9 +141,60 @@ Checked at major stages (pathway select, activation, submitted, closed):
 
 ---
 
+## Commit review (what was excluded)
+
+Intentionally **not** committed with this RC:
+
+- `frontend/Consultant Dashbord/.env.local` and `frontend/Public users Dashbord/.env.local`
+- `docs/plans/final-journey-verification/stages.json` (live smoke credentials)
+- `docs/plans/**/node_modules/` (Playwright installs)
+- `ai-service/**/__pycache__/*.pyc`, `*.tsbuildinfo`
+- `volume/cache/server.test.pem*`
+- `backend/scripts/seed-qa-pathway-clients-live.php` (live password / personal email)
+- Unrelated working-tree edits: RCIC register sync, admin RCIC import page, `deploy/emergency-disk-cleanup.sh`, form-processor fixture, email-domain / Maple / integration helper scripts, empty `frontend/_brand/`
+
+---
+
+## Staging and production
+
+| Step | Status |
+|------|--------|
+| Deploy exact RC commit to staging | **Blocked.** This repo has no staging host, no staging workflow, and no `staging.rcicmaster.ca` (or equivalent) target. Production deploy (`.github/workflows/deploy.yml`) runs only on **push to `main`**. |
+| Staging migrations | **Not run.** No staging database is configured. |
+| Reduced staging smoke (invite → closure) | **Not run.** Blocked on the missing staging environment. |
+| Dashboard / board / calendar / notifications / client journey sync on staging | **Not verified** on staging. Local + PHPUnit + live isolated journey evidence remains as recorded below. |
+| Production deploy | **Not started.** Do not push this RC to `main` and do not deploy to production until a staging smoke on this exact commit passes. |
+
+To unblock staging: provide a staging host (or a non-production deploy target that is **not** `main` / production EC2), then checkout `rc-case-handling-phase-0-6`, migrate forward only (`php artisan migrate`, never `migrate:fresh` on product data), and run the reduced smoke listed in the next section.
+
+---
+
+## Reduced staging smoke (required before production)
+
+Run against the **exact RC commit** after staging migrations. Cover:
+
+1. Invite
+2. Profile
+3. Assessment
+4. Pathway selection
+5. Retainer
+6. Representative authorization
+7. Documents
+8. Final review
+9. Submission
+10. Government request
+11. Decision
+12. Closure
+
+Then confirm dashboard, progress board, calendar, notifications, and client journey stay synchronized.
+
+**Status:** not executed — no staging environment.
+
+---
+
 ## Known limitations
 
-1. **Uncommitted working tree.** Release-candidate status is for the local Phase 0–6 tree, not a tagged commit on `origin/main`.
+1. **No staging environment in this repo.** RC is committed and tagged; staging deploy/migrate/smoke cannot run until a target is provided.
 2. **Notification email warning** (pre-existing): `Call to undefined relationship [consultant] on model [App\Models\User]`. In-app notifications still write and link correctly. Mailer in tests is `array`.
 3. **`PUBLIC_DASHBOARD_URL`** in local env may point at port `3002` while the client portal in this session is on `3001`. The path `/user-dashboard/government-requests` is correct.
 4. **No client-portal Vitest suite.** Client coverage is API + Playwright.
@@ -151,7 +206,8 @@ Checked at major stages (pathway select, activation, submitted, closed):
 ## Deferred items
 
 - Phase 7 (not started)
-- Commit / PR of the Phase 0–6 working tree
+- Staging host + migrate + reduced smoke on `df1439b1d16bafbd2f316afcce3e5c30f1d0a209` / tag `rc-case-handling-phase-0-6`
+- Production deploy (blocked until staging smoke passes)
 - Fix `User::consultant` notification email relationship
 - Align `PUBLIC_DASHBOARD_URL` with the running client port
 - Optional: client-portal unit tests
@@ -170,15 +226,30 @@ Checked at major stages (pathway select, activation, submitted, closed):
 
 ## Rollback notes
 
-- Do not wipe `db_cws`.
-- To roll back only the Phase 0–6 schema on a clone/staging DB, roll back these migrations in reverse order:
-  - `2026_09_13_110000_create_phase5_post_submission_tables`
-  - `2026_09_13_100000_add_phase4_final_review_columns_to_case_files`
-  - `2026_09_13_090000_add_phase3_activation_columns_to_case_files`
-  - `2026_09_13_080000_add_phase1_assessment_columns_to_case_files`
-  - `2026_09_13_070000_create_case_requirement_foundation_tables`
-- Rolling back those tables/columns will drop requirement-plan snapshots, government requests, and related history. Export first if the data must be kept.
-- Application rollback is a code revert of the uncommitted Phase 0–6 tree plus the five migrations above. Existing pre-Phase-0 cases continue to resolve through legacy status mapping (`CaseWorkflowStatus::fromLegacy`).
+Use the **exact Phase 0–6 implementation commit**, not `1ac33bc`:
+
+- **RC implementation:** `df1439b1d16bafbd2f316afcce3e5c30f1d0a209`
+- **RC tag:** `rc-case-handling-phase-0-6`
+- **Safe previous production commit:** `1ac33bc2a5f6b450a3e2012bf521ef07ebb3c3c0`
+
+Do not wipe `db_cws`.
+
+### Application rollback (after this RC is deployed somewhere)
+
+1. Deploy `1ac33bc2a5f6b450a3e2012bf521ef07ebb3c3c0` (or `git checkout 1ac33bc2a5f6b450a3e2012bf521ef07ebb3c3c0`).
+2. Do **not** run `migrate:fresh`.
+3. On a clone/staging DB only, roll back Phase 0–6 schema in reverse order if the new columns/tables must be removed:
+   - `2026_09_13_110000_create_phase5_post_submission_tables`
+   - `2026_09_13_100000_add_phase4_final_review_columns_to_case_files`
+   - `2026_09_13_090000_add_phase3_activation_columns_to_case_files`
+   - `2026_09_13_080000_add_phase1_assessment_columns_to_case_files`
+   - `2026_09_13_070000_create_case_requirement_foundation_tables`
+4. Rolling back those tables/columns will drop requirement-plan snapshots, government requests, and related history. Export first if the data must be kept.
+5. Existing pre-Phase-0 cases continue to resolve through legacy status mapping (`CaseWorkflowStatus::fromLegacy`).
+
+### If this RC has not been deployed
+
+No production rollback is required. `origin/main` remains `1ac33bc2`. Delete or ignore branch `release-candidate/case-handling-phase-0-6` and tag `rc-case-handling-phase-0-6` if the RC is abandoned.
 
 ---
 
