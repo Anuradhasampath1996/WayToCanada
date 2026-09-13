@@ -1,6 +1,6 @@
 # Non-production staging deployment plan
 
-**Status:** Plan ready. Staging host is **not provisioned**. Production is **untouched**.  
+**Status:** Isolated local staging (API `:8010`, Postgres `:5434`) is up and smoke **PASS 29/29**. Remote public staging host is still **not provisioned**. Production is **untouched**.  
 **Date:** 2026-09-13  
 **Scope:** Release engineering only. Do not change Phase 0–6 workflow logic. Do not start Phase 7.
 
@@ -17,6 +17,11 @@ This plan stands up a **separate** staging environment and deploys the frozen re
 | Tag | `rc-case-handling-phase-0-6` |
 | Branch | `release-candidate/case-handling-phase-0-6` |
 | Previous production / `main` baseline | `1ac33bc2a5f6b450a3e2012bf521ef07ebb3c3c0` |
+
+**Production data must not go missing.** Existing clients, cases, documents, retainers, and history on production `db_cws` stay in place. Phase 0–6 migrations only **add** nullable columns and new tables. They do not delete rows. On any database that already has data (local product, staging after first seed, or production):
+
+- Allowed: `php artisan migrate` / `migrate --force`
+- Forbidden: `migrate:fresh`, `migrate:fresh --seed`, `db:wipe`, dropping the Postgres volume, restoring an empty dump over production
 
 **Code snapshot to deploy and test:** tag `rc-case-handling-phase-0-6` at `ec670b0b833ff249e7d1474c2f1e04bf6b78ab8b` (implementation `df1439b1`). Later commits on `release-candidate/case-handling-phase-0-6` may add documentation only. Those later commits are **not** the frozen application snapshot. Do not deploy `HEAD` of the branch if it has moved past the tag. Do not move or recreate the tag.
 
@@ -47,7 +52,18 @@ There is no staging host, staging workflow, or staging database in this repo tod
 | Object storage | Production S3 bucket | Separate bucket, e.g. `wtc-staging-uploads` |
 | CI | `Production deployment` on `main` | Manual `workflow_dispatch` only, **or** SSH deploy from a laptop. No auto-deploy on `main`. |
 
-If a second EC2 is not available yet, **stop here**. Do not install this RC on the production instance “in another directory.” Shared Docker, shared Postgres, or a copied `.env` is not staging.
+If a second EC2 is not available yet, use the **isolated local** stand-in — never the product DB:
+
+```bash
+docker compose -f docker-compose.staging.yml up -d
+# backend/.env.staging must use DB_*_PORT=5434 and db_*_staging names
+php artisan --env=staging migrate --force
+php artisan --env=staging db:seed --force   # empty staging DBs only, first time
+php artisan --env=staging serve --host=127.0.0.1 --port=8010
+node docs/plans/staging-verification/smoke-staging-journey.mjs
+```
+
+Do not install this RC on the production instance “in another directory.” Do not point staging env at `:5432` / `db_cws`.
 
 ---
 

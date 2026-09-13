@@ -1,0 +1,29 @@
+# Isolated non-production staging Postgres.
+# Does NOT use Windows/product db_cws on :5432 or production AWS.
+#
+# Start:  docker compose -f docker-compose.staging.yml up -d
+# Stop:   docker compose -f docker-compose.staging.yml down
+# Wipe this staging volume only (never product):
+#         docker compose -f docker-compose.staging.yml down -v
+
+services:
+  postgres-staging:
+    image: postgres:16
+    container_name: wtc_postgres_staging
+    ports:
+      - "127.0.0.1:5434:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: secret
+      POSTGRES_DB: db_cws_staging
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - wtc_pg_staging_data:/var/lib/postgresql/data
+      - ./scripts/init-staging-databases.sql:/docker-entrypoint-initdb.d/init-staging-databases.sql:ro
+
+volumes:
+  wtc_pg_staging_data:
