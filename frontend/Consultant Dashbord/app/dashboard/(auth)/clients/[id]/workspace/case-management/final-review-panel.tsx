@@ -72,7 +72,8 @@ export function FinalReviewPanel({ profileId }: { profileId: string }) {
     setReview(json.final_review);
     setSubmission(json.submission);
     const next: Record<string, boolean> = {};
-    for (const item of Object.values(json.final_review?.checklist ?? {})) {
+    const checklist = (json.final_review?.checklist ?? {}) as Record<string, ChecklistItem>;
+    for (const item of Object.values(checklist)) {
       next[item.key] = item.checked;
     }
     setItems(next);
