@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Contracts\StripePlatformClient;
 use App\Models\ConsultantMarketingOrder;
 use App\Models\ConsultantStorageAddon;
 use App\Models\ConsultantSubscription;
@@ -65,8 +66,7 @@ class StripePaymentFulfillmentService
         }
 
         try {
-            new StripeService();
-            $stripeSub = StripeSubscription::retrieve($stripeSubId);
+            $stripeSub = app(StripePlatformClient::class)->retrieveSubscription($stripeSubId);
         } catch (\Throwable $e) {
             Log::warning('[Fulfillment] Could not retrieve subscription for invoice', [
                 'subscription_id' => $stripeSubId,
@@ -112,8 +112,7 @@ class StripePaymentFulfillmentService
         }
 
         try {
-            new StripeService();
-            $stripeSub = StripeSubscription::retrieve($stripeSubId);
+            $stripeSub = app(StripePlatformClient::class)->retrieveSubscription($stripeSubId);
         } catch (\Throwable) {
             return;
         }
@@ -138,8 +137,13 @@ class StripePaymentFulfillmentService
             return;
         }
 
-        ConsultantSubscription::where('stripe_subscription_id', $stripeSubId)
-            ->update(['status' => 'past_due']);
+        $sub = ConsultantSubscription::where('stripe_subscription_id', $stripeSubId)->first();
+        if ($sub) {
+            $sub->update([
+                'status' => 'past_due',
+                'past_due_started_at' => $sub->past_due_started_at ?? now(),
+            ]);
+        }
 
         $this->billingNotifications->notifyStripeRenewalFailed($invoice, $stripeSub);
     }
@@ -423,28 +427,42 @@ class StripePaymentFulfillmentService
 
     private function handlePlatformSubscriptionInvoicePaid(object $invoice, object $stripeSub): void
     {
+        $sub = ConsultantSubscription::where('stripe_subscription_id', $stripeSub->id)->first();
+        if (! $sub) {
+            return;
+        }
+
+        $wasPastDue = $sub->status === 'past_due';
+        $hadPayment = $sub->paymentRecords()->exists();
+        $billingReason = (string) ($invoice->billing_reason ?? '');
+
         $updates = [
-            'status'          => 'active',
-            'last_payment_at' => now(),
+            'status'              => 'active',
+            'last_payment_at'     => now(),
+            'past_due_started_at' => null,
         ];
 
         if ($stripeSub->current_period_end) {
             $updates['ends_at'] = Carbon::createFromTimestamp($stripeSub->current_period_end);
         }
 
-        ConsultantSubscription::where('stripe_subscription_id', $stripeSub->id)->update($updates);
+        $sub->update($updates);
 
-        $sub = ConsultantSubscription::where('stripe_subscription_id', $stripeSub->id)->first();
-        if ($sub) {
-            $payment = $this->recorder->recordFromStripeInvoice($invoice, $sub);
-            $sub->loadMissing('user', 'package:id,name');
-            if ($payment && $sub->user) {
-                $this->billingNotifications->onPaymentSucceeded(
-                    $sub->user,
-                    $payment,
-                    $sub->package?->name ?? 'Platform subscription',
-                );
-            }
+        $paymentType = match (true) {
+            $wasPastDue => SubscriptionPaymentRecord::TYPE_RECOVERY,
+            $billingReason === 'subscription_create' || ! $hadPayment => SubscriptionPaymentRecord::TYPE_INITIAL,
+            default => SubscriptionPaymentRecord::TYPE_RENEWAL,
+        };
+
+        $payment = $this->recorder->recordFromStripeInvoice($invoice, $sub->fresh(), $paymentType);
+        $sub->loadMissing('user', 'package:id,name');
+        if ($payment && $sub->user) {
+            $this->billingNotifications->notifyInvoicePaid(
+                $sub->user,
+                $payment,
+                $sub->package?->name ?? 'Platform subscription',
+                $wasPastDue,
+            );
         }
     }
 
@@ -508,24 +526,35 @@ class StripePaymentFulfillmentService
             return;
         }
 
-        $status = $subscription->status ?? '';
-        if (in_array($status, ['canceled', 'unpaid', 'incomplete_expired'], true)) {
-            $sub->update(['status' => 'cancelled', 'cancelled_at' => now()]);
+        $mapper = app(StripeSubscriptionStatusMapper::class);
+        $local = $mapper->toLocal($subscription->status ?? '', $sub->status);
+        $updates = ['status' => $local];
 
-            return;
+        if ($local === 'cancelled' && ! $sub->cancelled_at) {
+            $updates['cancelled_at'] = now();
         }
 
-        if (in_array($status, ['past_due', 'incomplete'], true)) {
-            $sub->update(['status' => 'past_due']);
-
-            return;
+        if ($local === 'past_due' && ! $sub->past_due_started_at) {
+            $updates['past_due_started_at'] = now();
         }
 
-        if ($status === 'active' && isset($subscription->current_period_end)) {
-            $sub->update([
-                'status'  => 'active',
-                'ends_at' => Carbon::createFromTimestamp($subscription->current_period_end),
-            ]);
+        if ($local === 'active') {
+            $updates['past_due_started_at'] = null;
+            if (isset($subscription->current_period_end)) {
+                $updates['ends_at'] = Carbon::createFromTimestamp($subscription->current_period_end);
+            }
+        }
+
+        $wasActive = $sub->status === 'active';
+        $sub->update($updates);
+
+        if ($local === 'cancelled' && $wasActive && $sub->user) {
+            $this->billingNotifications->onCancelled(
+                $sub->user,
+                $sub->package?->name ?? 'Platform subscription',
+                $sub,
+                'billing_cancelled:'.$sub->id.':'.($subscription->id ?? 'sub'),
+            );
         }
     }
 
@@ -724,7 +753,7 @@ class StripePaymentFulfillmentService
 
         $out = [];
         foreach (['subscription_package_id', 'billing_cycle', 'user_id', 'province', 'billing_country', 'type'] as $key) {
-            $val = is_array($raw) ? ($raw[$key] ?? null) : ($raw[$key] ?? ($raw->$key ?? null));
+            $val = is_array($raw) ? ($raw[$key] ?? null) : ($raw->$key ?? null);
             if ($val !== null && $val !== '') {
                 $out[$key] = (string) $val;
             }

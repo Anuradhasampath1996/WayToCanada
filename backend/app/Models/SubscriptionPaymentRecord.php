@@ -9,6 +9,7 @@ class SubscriptionPaymentRecord extends Model
 {
     public const TYPE_INITIAL = 'initial';
     public const TYPE_RENEWAL = 'renewal';
+    public const TYPE_RECOVERY = 'recovery';
 
     public const CATEGORY_SUBSCRIPTION = 'subscription';
     public const CATEGORY_MARKETING    = 'marketing';

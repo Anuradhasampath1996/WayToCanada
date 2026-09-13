@@ -60,6 +60,14 @@ const strings = {
         title: "Your subscription is inactive",
         sub: "Reactivate a plan to continue managing cases and client communications.",
       },
+      past_due: {
+        title: "Payment failed — access paused",
+        sub: "Update your payment method in Billing so Stripe can retry. Your subscription is still recoverable.",
+      },
+      grace: {
+        title: "Renewal failed — you still have access",
+        sub: "Update your payment method in Billing before the grace period ends.",
+      },
     },
   },
   fr: {
@@ -105,6 +113,14 @@ const strings = {
         title: "Votre abonnement est inactif",
         sub: "Réactivez un forfait pour continuer la gestion des dossiers.",
       },
+      past_due: {
+        title: "Échec du paiement — accès suspendu",
+        sub: "Mettez à jour votre moyen de paiement dans Facturation pour que Stripe puisse réessayer.",
+      },
+      grace: {
+        title: "Le renouvellement a échoué — vous avez encore accès",
+        sub: "Mettez à jour votre moyen de paiement avant la fin de la période de grâce.",
+      },
     },
   },
 } as const;
@@ -128,7 +144,7 @@ type SubscriptionPackage = {
 
 type SubscriptionRecord = {
   id: number;
-  status: "trial" | "active" | "expired" | "payment_declined" | "cancelled";
+  status: "trial" | "active" | "expired" | "payment_declined" | "cancelled" | "past_due";
   is_trial: boolean;
   trial_ends_at: string | null;
   ends_at: string | null;
@@ -139,16 +155,20 @@ type SubscriptionRecord = {
 type StatusResponse = {
   is_active: boolean;
   trial_used: boolean;
+  in_grace?: boolean;
+  grace_ends_at?: string | null;
   subscription: SubscriptionRecord | null;
 };
 
 type GuardStatus =
   | "loading"
   | "active"
+  | "grace"
   | "none"
   | "trial_expired"
   | "expired"
   | "payment_declined"
+  | "past_due"
   | "cancelled";
 
 function fmtPrice(n: number | null, lang: Lang) {
@@ -288,6 +308,10 @@ export function SubscriptionGuard() {
 
   function applyStatus(data: StatusResponse) {
     setTrialUsed(data.trial_used);
+    if (data.is_active && data.in_grace) {
+      setGuardStatus("grace");
+      return;
+    }
     if (data.is_active) {
       setGuardStatus("active");
       return;
@@ -298,6 +322,7 @@ export function SubscriptionGuard() {
       return;
     }
     if (sub.status === "payment_declined") setGuardStatus("payment_declined");
+    else if (sub.status === "past_due") setGuardStatus("past_due");
     else if (sub.is_trial && (sub.status === "expired" || sub.status === "trial"))
       setGuardStatus("trial_expired");
     else if (sub.status === "expired") setGuardStatus("expired");
@@ -409,6 +434,25 @@ export function SubscriptionGuard() {
   }
 
   if (guardStatus === "loading" || guardStatus === "active" || dismissed) return null;
+
+  if (guardStatus === "grace") {
+    return (
+      <div className="sticky top-0 z-40 border-b border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+        <div className="mx-auto flex max-w-5xl flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <p>
+            <strong>{t.banners.grace.title}.</strong> {t.banners.grace.sub}
+          </p>
+          <button
+            type="button"
+            className="shrink-0 rounded-md bg-[#d01d20] px-3 py-1.5 text-xs font-semibold text-white"
+            onClick={() => router.push("/dashboard/billing")}
+          >
+            Billing
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const banner = t.banners[guardStatus];
   const popularIdx = packages.length > 1 ? Math.floor((packages.length - 1) / 2) : 0;

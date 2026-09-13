@@ -35,7 +35,11 @@ enum NotificationType: string
     case CLIENT_CONSULTANT_REQUEST_ACCEPTED = 'client_consultant_request_accepted';
     case CLIENT_CONSULTANT_REQUEST_DECLINED = 'client_consultant_request_declined';
     case SUBSCRIPTION_PAYMENT_SUCCEEDED = 'subscription_payment_succeeded';
+    case SUBSCRIPTION_RENEWED = 'subscription_renewed';
     case SUBSCRIPTION_RENEWAL_FAILED = 'subscription_renewal_failed';
+    case SUBSCRIPTION_RENEWAL_RECOVERED = 'subscription_renewal_recovered';
+    case SUBSCRIPTION_CANCELLATION_SCHEDULED = 'subscription_cancellation_scheduled';
+    case SUBSCRIPTION_CANCELLED = 'subscription_cancelled';
 
     /** @return list<string> */
     public function defaultChannels(): array
@@ -59,7 +63,7 @@ enum NotificationType: string
             self::RCIC_COMMUNITY_NEW_POST, self::RCIC_COMMUNITY_REPLY, self::RCIC_COMMUNITY_REACTION, self::RCIC_COMMUNITY_REPORT => ['in_app'],
             self::SUPPORT_TICKET_CREATED, self::SUPPORT_TICKET_REPLY, self::SUPPORT_TICKET_CLOSED => ['in_app', 'email'],
             self::CLIENT_CONSULTANT_REQUEST, self::CLIENT_CONSULTANT_REQUEST_ACCEPTED, self::CLIENT_CONSULTANT_REQUEST_DECLINED => ['in_app', 'email'],
-            self::SUBSCRIPTION_PAYMENT_SUCCEEDED, self::SUBSCRIPTION_RENEWAL_FAILED => ['in_app', 'email', 'whatsapp'],
+            self::SUBSCRIPTION_PAYMENT_SUCCEEDED, self::SUBSCRIPTION_RENEWED, self::SUBSCRIPTION_RENEWAL_FAILED, self::SUBSCRIPTION_RENEWAL_RECOVERED, self::SUBSCRIPTION_CANCELLATION_SCHEDULED, self::SUBSCRIPTION_CANCELLED => ['in_app', 'email', 'whatsapp'],
         };
     }
 
@@ -105,7 +109,7 @@ enum NotificationType: string
             self::RCIC_COMMUNITY_NEW_POST, self::RCIC_COMMUNITY_REPLY, self::RCIC_COMMUNITY_REACTION, self::RCIC_COMMUNITY_REPORT => 'community',
             self::SUPPORT_TICKET_CREATED, self::SUPPORT_TICKET_REPLY, self::SUPPORT_TICKET_CLOSED => 'support',
             self::CLIENT_CONSULTANT_REQUEST, self::CLIENT_CONSULTANT_REQUEST_ACCEPTED, self::CLIENT_CONSULTANT_REQUEST_DECLINED => 'onboarding',
-            self::SUBSCRIPTION_PAYMENT_SUCCEEDED, self::SUBSCRIPTION_RENEWAL_FAILED => 'billing',
+            self::SUBSCRIPTION_PAYMENT_SUCCEEDED, self::SUBSCRIPTION_RENEWED, self::SUBSCRIPTION_RENEWAL_FAILED, self::SUBSCRIPTION_RENEWAL_RECOVERED, self::SUBSCRIPTION_CANCELLATION_SCHEDULED, self::SUBSCRIPTION_CANCELLED => 'billing',
         };
     }
 
@@ -143,7 +147,7 @@ enum NotificationType: string
             self::ADMIN_BROADCAST, self::SYSTEM_ALERT => 'Open dashboard',
             self::SUPPORT_TICKET_CREATED, self::SUPPORT_TICKET_REPLY, self::SUPPORT_TICKET_CLOSED => 'Open support ticket',
             self::CLIENT_CONSULTANT_REQUEST, self::CLIENT_CONSULTANT_REQUEST_ACCEPTED, self::CLIENT_CONSULTANT_REQUEST_DECLINED => 'Open dashboard',
-            self::SUBSCRIPTION_PAYMENT_SUCCEEDED, self::SUBSCRIPTION_RENEWAL_FAILED => 'Open billing',
+            self::SUBSCRIPTION_PAYMENT_SUCCEEDED, self::SUBSCRIPTION_RENEWED, self::SUBSCRIPTION_RENEWAL_FAILED, self::SUBSCRIPTION_RENEWAL_RECOVERED, self::SUBSCRIPTION_CANCELLATION_SCHEDULED, self::SUBSCRIPTION_CANCELLED => 'Open billing',
             default => 'View details',
         };
     }
@@ -180,7 +184,11 @@ enum NotificationType: string
             self::CLIENT_CONSULTANT_REQUEST_ACCEPTED => 'Consultant request accepted',
             self::CLIENT_CONSULTANT_REQUEST_DECLINED => 'Consultant request declined',
             self::SUBSCRIPTION_PAYMENT_SUCCEEDED => 'Subscription payment received',
+            self::SUBSCRIPTION_RENEWED => 'Subscription renewed',
             self::SUBSCRIPTION_RENEWAL_FAILED => 'Subscription renewal failed',
+            self::SUBSCRIPTION_RENEWAL_RECOVERED => 'Subscription payment recovered',
+            self::SUBSCRIPTION_CANCELLATION_SCHEDULED => 'Subscription cancellation scheduled',
+            self::SUBSCRIPTION_CANCELLED => 'Subscription cancelled',
         };
     }
 
@@ -205,7 +213,7 @@ enum NotificationType: string
             self::SUPPORT_TICKET_CLOSED => ['consultant'],
             self::CLIENT_CONSULTANT_REQUEST => ['consultant'],
             self::CLIENT_CONSULTANT_REQUEST_ACCEPTED, self::CLIENT_CONSULTANT_REQUEST_DECLINED => ['client'],
-            self::SUBSCRIPTION_PAYMENT_SUCCEEDED, self::SUBSCRIPTION_RENEWAL_FAILED => ['consultant'],
+            self::SUBSCRIPTION_PAYMENT_SUCCEEDED, self::SUBSCRIPTION_RENEWED, self::SUBSCRIPTION_RENEWAL_FAILED, self::SUBSCRIPTION_RENEWAL_RECOVERED, self::SUBSCRIPTION_CANCELLATION_SCHEDULED, self::SUBSCRIPTION_CANCELLED => ['consultant'],
             default => ['consultant'],
         };
     }

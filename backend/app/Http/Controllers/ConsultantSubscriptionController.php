@@ -19,9 +19,8 @@ class ConsultantSubscriptionController extends Controller
     {
         $user = $request->user();
 
-        // Find the most recent trial or active subscription and auto-expire if needed
         $sub = ConsultantSubscription::where('user_id', $user->id)
-            ->whereIn('status', ['trial', 'active'])
+            ->whereIn('status', ['trial', 'active', 'past_due'])
             ->latest()
             ->first();
 
@@ -41,25 +40,16 @@ class ConsultantSubscriptionController extends Controller
 
         $isActive = $sub && $sub->isCurrentlyActive();
 
-        if (!$isActive) {
-            // Return most recent subscription (any status) for UI messaging
+        if (! $isActive) {
             $latest = ConsultantSubscription::where('user_id', $user->id)
                 ->with('package')
                 ->latest()
                 ->first();
 
-            return response()->json([
-                'is_active'    => false,
-                'trial_used'   => $trialUsed,
-                'subscription' => $latest,
-            ]);
+            return response()->json($this->statusPayload(false, $trialUsed, $latest));
         }
 
-        return response()->json([
-            'is_active'    => true,
-            'trial_used'   => $trialUsed,
-            'subscription' => $sub->load('package'),
-        ]);
+        return response()->json($this->statusPayload(true, $trialUsed, $sub->load('package')));
     }
 
     /**
@@ -112,9 +102,8 @@ class ConsultantSubscriptionController extends Controller
     /**
      * POST /api/v1/consultant/subscription/subscribe
      *
-     * Creates a paid subscription for the authenticated consultant.
-     * (Payment processing is handled by the payment gateway — this endpoint
-     * records the subscription after a successful payment confirmation.)
+     * Complimentary / manual paid grant. Restricted to admin and super-admin.
+     * Does not create a Stripe subscription or charge a card.
      */
     public function subscribe(Request $request): JsonResponse
     {
@@ -126,7 +115,6 @@ class ConsultantSubscriptionController extends Controller
         $user    = $request->user();
         $package = SubscriptionPackage::findOrFail($data['subscription_package_id']);
 
-        // Cancel any existing active/trial subscription
         ConsultantSubscription::where('user_id', $user->id)
             ->whereIn('status', ['trial', 'active'])
             ->update(['status' => 'cancelled', 'cancelled_at' => now()]);
@@ -136,17 +124,29 @@ class ConsultantSubscriptionController extends Controller
             : now()->addMonth();
 
         $sub = ConsultantSubscription::create([
-            'user_id'                => $user->id,
+            'user_id'                 => $user->id,
             'subscription_package_id' => $package->id,
-            'status'                 => 'active',
-            'is_trial'               => false,
-            'trial_ends_at'          => null,
-            'starts_at'              => now(),
-            'ends_at'                => $endsAt,
-            'billing_cycle'          => $data['billing_cycle'],
-            'last_payment_at'        => now(),
+            'status'                  => 'active',
+            'is_trial'                => false,
+            'trial_ends_at'           => null,
+            'starts_at'               => now(),
+            'ends_at'                 => $endsAt,
+            'billing_cycle'           => $data['billing_cycle'],
+            'last_payment_at'         => now(),
         ]);
 
         return response()->json(['subscription' => $sub->load('package')], 201);
+    }
+
+    /** @return array<string, mixed> */
+    private function statusPayload(bool $isActive, bool $trialUsed, ?ConsultantSubscription $sub): array
+    {
+        return [
+            'is_active'      => $isActive,
+            'trial_used'     => $trialUsed,
+            'in_grace'       => $sub?->isWithinGracePeriod() ?? false,
+            'grace_ends_at'  => $sub?->graceEndsAt()?->toIso8601String(),
+            'subscription'   => $sub,
+        ];
     }
 }

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\ConsultantSubscription;
+use App\Services\StripeDuplicateSubscriptionReportService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -178,6 +179,11 @@ class AdminConsultantSubscriptionsController extends Controller
                 ? 'This consultant still has a Stripe subscription ID. Platform access was updated in the database only — Stripe billing may continue until cancelled in Stripe or by the consultant.'
                 : null,
         ]);
+    }
+
+    public function stripeDuplicates(StripeDuplicateSubscriptionReportService $report): JsonResponse
+    {
+        return response()->json($report->report());
     }
 
     private function successMessage(string $mode, ConsultantSubscription $subscription): string

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\ClientPaymentRequest;
 use App\Models\ConsultantPaymentAccount;
 use App\Models\PaymentGatewaySetting;
+use App\Models\StripeWebhookEvent;
 use App\Services\ClientPaymentRequestService;
 use App\Services\StripePaymentFulfillmentService;
 use Illuminate\Http\JsonResponse;
@@ -50,13 +51,19 @@ class StripeWebhookController extends Controller
         $type               = $event->type;
         $data               = $event->data->object;
         $connectedAccountId = $event->account ?? null;
+        $eventId            = (string) $event->id;
 
         Log::info('[Stripe] Webhook', [
             'type'    => $type,
             'account' => $connectedAccountId,
+            'id'      => $eventId,
         ]);
 
         $this->recordWebhookHealth($setting, $type, $connectedAccountId);
+
+        if (StripeWebhookEvent::where('event_id', $eventId)->exists()) {
+            return response()->json(['received' => true, 'duplicate' => true]);
+        }
 
         try {
             if ($connectedAccountId) {
@@ -64,6 +71,14 @@ class StripeWebhookController extends Controller
             } else {
                 $this->handlePlatformEvent($type, $data);
             }
+
+            StripeWebhookEvent::create([
+                'event_id'     => $eventId,
+                'type'         => $type,
+                'processed_at' => now(),
+            ]);
+        } catch (\Illuminate\Database\UniqueConstraintViolationException) {
+            return response()->json(['received' => true, 'duplicate' => true]);
         } catch (\Throwable $e) {
             Log::error('[Stripe] Webhook handler failed', [
                 'type'    => $type,
@@ -75,6 +90,36 @@ class StripeWebhookController extends Controller
         }
 
         return response()->json(['received' => true]);
+    }
+
+    /**
+     * Test/helper entry: process an already-verified Stripe event payload.
+     *
+     * @return array{received: bool, duplicate?: bool}
+     */
+    public function processVerifiedEvent(string $eventId, string $type, object $data, ?string $account = null): array
+    {
+        if (StripeWebhookEvent::where('event_id', $eventId)->exists()) {
+            return ['received' => true, 'duplicate' => true];
+        }
+
+        if ($account) {
+            $this->handleConnectEvent($type, $data, $account);
+        } else {
+            $this->handlePlatformEvent($type, $data);
+        }
+
+        try {
+            StripeWebhookEvent::create([
+                'event_id'     => $eventId,
+                'type'         => $type,
+                'processed_at' => now(),
+            ]);
+        } catch (\Illuminate\Database\UniqueConstraintViolationException) {
+            return ['received' => true, 'duplicate' => true];
+        }
+
+        return ['received' => true];
     }
 
     private function handlePlatformEvent(string $type, object $data): void

@@ -2,8 +2,8 @@
 
 namespace App\Services;
 
+use App\Contracts\StripePlatformClient;
 use App\Models\SubscriptionPackage;
-use Stripe\Checkout\Session;
 use Stripe\Price;
 use Stripe\Product;
 
@@ -80,6 +80,7 @@ class StripeSubscriptionService extends StripeService
         ?string $provinceCode = null,
         ?array $taxRateIds = null,
         ?string $billingCountry = 'CA',
+        ?string $existingCustomerId = null,
     ): array {
         $priceId = $this->ensurePrice($package, $cycle);
 
@@ -114,13 +115,15 @@ class StripeSubscriptionService extends StripeService
         }
 
         $testClock = new StripeTestClockService();
-        if ($testClock->getTestClockId()) {
+        if ($existingCustomerId) {
+            $sessionParams['customer'] = $existingCustomerId;
+        } elseif ($testClock->getTestClockId()) {
             $sessionParams['customer'] = $testClock->ensureCustomer($userEmail, $userId);
         } else {
             $sessionParams['customer_email'] = $userEmail;
         }
 
-        $session = Session::create($sessionParams);
+        $session = app(StripePlatformClient::class)->createCheckoutSession($sessionParams);
 
         return [
             'session_id' => $session->id,

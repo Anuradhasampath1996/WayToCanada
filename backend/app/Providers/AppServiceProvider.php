@@ -3,8 +3,10 @@
 namespace App\Providers;
 
 use App\Contracts\GovernmentForms\GovernmentPdfEngine;
+use App\Contracts\StripePlatformClient;
 use App\Implementations\GovernmentForms\JarGovernmentPdfEngine;
 use App\Services\Email\EmailBrandingService;
+use App\Services\Stripe\LiveStripePlatformClient;
 use App\Services\IntegrationSettingsService;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Auth\Notifications\VerifyEmail;
@@ -19,6 +21,7 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->bind(GovernmentPdfEngine::class, JarGovernmentPdfEngine::class);
+        $this->app->singleton(StripePlatformClient::class, LiveStripePlatformClient::class);
     }
 
     public function boot(): void

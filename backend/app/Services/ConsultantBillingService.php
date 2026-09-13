@@ -2,15 +2,16 @@
 
 namespace App\Services;
 
+use App\Contracts\StripePlatformClient;
 use App\Models\ConsultantMarketingOrder;
 use App\Models\ConsultantSubscription;
 use App\Models\MarketingService;
 use App\Models\SubscriptionPaymentRecord;
 use App\Models\User;
+use App\Services\Notifications\ConsultantBillingNotificationService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
 use Stripe\Invoice;
-use Stripe\Subscription as StripeSubscription;
 
 class ConsultantBillingService
 {
@@ -46,6 +47,8 @@ class ConsultantBillingService
         return [
             'subscription'       => $sub ? $this->formatSubscription($sub, $stripeMeta) : null,
             'is_active'          => $sub?->isCurrentlyActive() ?? false,
+            'in_grace'           => $sub?->isWithinGracePeriod() ?? false,
+            'grace_ends_at'      => $sub?->graceEndsAt()?->toIso8601String(),
             'trial_used'         => ConsultantSubscription::where('user_id', $user->id)->where('is_trial', true)->exists(),
             'payment_history'    => $history->map(fn ($s) => $this->formatHistoryRow($s))->values(),
             'marketing_orders'   => $this->marketingOrdersSummary($user),
@@ -226,12 +229,8 @@ class ConsultantBillingService
         }
 
         if ($sub->stripe_subscription_id) {
-            if (! $this->stripe()) {
-                throw new \RuntimeException('Stripe is not configured. Cannot cancel a Stripe subscription online.');
-            }
-
             try {
-                $stripeSub = StripeSubscription::update($sub->stripe_subscription_id, [
+                $stripeSub = app(StripePlatformClient::class)->updateSubscription($sub->stripe_subscription_id, [
                     'cancel_at_period_end' => true,
                 ]);
 
@@ -244,10 +243,20 @@ class ConsultantBillingService
                     'ends_at'      => $endsAt,
                 ]);
 
+                $fresh = $sub->fresh()->load('package');
+                try {
+                    app(ConsultantBillingNotificationService::class)->onCancellationScheduled(
+                        $user,
+                        $fresh,
+                        $fresh->package?->name ?? 'Platform subscription',
+                    );
+                } catch (\Throwable) {
+                }
+
                 return [
                     'message'      => 'Subscription will cancel at the end of your billing period.',
                     'subscription' => $this->formatSubscription(
-                        $sub->fresh()->load('package'),
+                        $fresh,
                         ['cancel_at_period_end' => true, 'current_period_end' => $endsAt?->toIso8601String()],
                     ),
                 ];
@@ -276,9 +285,9 @@ class ConsultantBillingService
             throw new \RuntimeException('No active paid subscription found.');
         }
 
-        if ($sub->stripe_subscription_id && $this->stripe()) {
+        if ($sub->stripe_subscription_id) {
             try {
-                $stripeSub = StripeSubscription::update($sub->stripe_subscription_id, [
+                $stripeSub = app(StripePlatformClient::class)->updateSubscription($sub->stripe_subscription_id, [
                     'cancel_at_period_end' => ! $enabled,
                 ]);
 
@@ -301,6 +310,17 @@ class ConsultantBillingService
 
         $fresh = $sub->fresh()->load('package');
         $stripeMeta = $this->stripeSubscriptionMeta($fresh);
+
+        if (! $enabled) {
+            try {
+                app(ConsultantBillingNotificationService::class)->onCancellationScheduled(
+                    $user,
+                    $fresh,
+                    $fresh->package?->name ?? 'Platform subscription',
+                );
+            } catch (\Throwable) {
+            }
+        }
 
         return [
             'message'            => $enabled
@@ -470,7 +490,7 @@ class ConsultantBillingService
     private function currentSubscription(User $user): ?ConsultantSubscription
     {
         $sub = ConsultantSubscription::where('user_id', $user->id)
-            ->whereIn('status', ['trial', 'active'])
+            ->whereIn('status', ['trial', 'active', 'past_due'])
             ->latest()
             ->first();
 
@@ -497,12 +517,12 @@ class ConsultantBillingService
     /** @return array<string, mixed>|null */
     private function stripeSubscriptionMeta(ConsultantSubscription $sub): ?array
     {
-        if (! $sub->stripe_subscription_id || ! $this->stripe()) {
+        if (! $sub->stripe_subscription_id) {
             return null;
         }
 
         try {
-            $stripeSub = StripeSubscription::retrieve($sub->stripe_subscription_id);
+            $stripeSub = app(StripePlatformClient::class)->retrieveSubscription($sub->stripe_subscription_id);
 
             return [
                 'cancel_at_period_end' => (bool) ($stripeSub->cancel_at_period_end ?? false),
@@ -534,12 +554,14 @@ class ConsultantBillingService
 
         $canManageAutoRenew = $sub->status === 'active' && ! $sub->is_trial && $sub->isCurrentlyActive();
         $autoRenewEnabled   = $canManageAutoRenew && ! $cancelAtPeriodEnd;
+        $inGrace            = $sub->isWithinGracePeriod();
 
         return [
             'id'                    => $sub->id,
             'status'                => $sub->status,
             'is_trial'              => $sub->is_trial,
             'billing_cycle'         => $sub->billing_cycle,
+            'package_id'            => $package?->id,
             'package_name'          => $package?->name,
             'package_description'   => $package?->description,
             'price'                 => $price,
@@ -553,8 +575,14 @@ class ConsultantBillingService
             'next_billing_at'       => $stripeMeta['current_period_end'] ?? $sub->ends_at?->toIso8601String(),
             'stripe_status'         => $stripeMeta['stripe_status'] ?? null,
             'has_stripe'            => (bool) $sub->stripe_subscription_id,
+            'has_live_stripe'       => $sub->hasLiveStripeSubscription(),
             'auto_renew_enabled'    => $autoRenewEnabled,
             'can_manage_auto_renew' => $canManageAutoRenew,
+            'can_update_payment_method' => (bool) $sub->stripe_customer_id,
+            'can_change_plan'       => $sub->hasLiveStripeSubscription() && in_array($sub->status, ['active', 'past_due'], true),
+            'in_grace'              => $inGrace,
+            'grace_ends_at'         => $sub->graceEndsAt()?->toIso8601String(),
+            'access_active'         => $sub->isCurrentlyActive(),
         ];
     }
 

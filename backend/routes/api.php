@@ -301,8 +301,12 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // ── Consultant subscription ───────────────────────────────────────────────
     Route::get('consultant/subscription',              [ConsultantSubscriptionController::class, 'status'])->name('consultant.subscription.status');
-    Route::post('consultant/subscription/start-trial', [ConsultantSubscriptionController::class, 'startTrial'])->name('consultant.subscription.start-trial');
-    Route::post('consultant/subscription/subscribe',   [ConsultantSubscriptionController::class, 'subscribe'])->name('consultant.subscription.subscribe');
+    Route::post('consultant/subscription/start-trial', [ConsultantSubscriptionController::class, 'startTrial'])
+        ->middleware('role:rcic,super-admin,admin')
+        ->name('consultant.subscription.start-trial');
+    Route::post('consultant/subscription/subscribe',   [ConsultantSubscriptionController::class, 'subscribe'])
+        ->middleware('role:super-admin,admin')
+        ->name('consultant.subscription.subscribe');
 
     Route::prefix('consultant/billing')->middleware('role:rcic,super-admin,admin')->name('consultant.billing.')->group(function () {
         Route::get('/',           [ConsultantBillingController::class, 'show'])->name('show');
@@ -311,6 +315,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('payments/{subscriptionPaymentRecord}/invoice', [ConsultantBillingController::class, 'downloadInvoice'])->name('payments.invoice');
         Route::post('cancel',     [ConsultantBillingController::class, 'cancel'])->name('cancel');
         Route::post('auto-renew', [ConsultantBillingController::class, 'updateAutoRenew'])->name('auto-renew');
+        Route::post('change-plan/preview', [ConsultantBillingController::class, 'previewPlanChange'])->name('change-plan.preview');
+        Route::post('change-plan', [ConsultantBillingController::class, 'changePlan'])->name('change-plan');
+        Route::post('payment-method-portal', [ConsultantBillingController::class, 'paymentMethodPortal'])->name('payment-method-portal');
         Route::post('marketing/{order}/cancel', [ConsultantBillingController::class, 'cancelMarketingOrder'])->name('marketing.cancel');
         Route::post('marketing/{order}/auto-renew', [ConsultantBillingController::class, 'updateMarketingAutoRenew'])->name('marketing.auto-renew');
     });
@@ -770,6 +777,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
         Route::prefix('consultant-subscriptions')->name('consultant-subscriptions.')->group(function () {
             Route::get('/', [AdminConsultantSubscriptionsController::class, 'index'])->name('index');
+            Route::get('stripe-duplicates', [AdminConsultantSubscriptionsController::class, 'stripeDuplicates'])->name('stripe-duplicates');
             Route::patch('{subscription}/expiry', [AdminConsultantSubscriptionsController::class, 'updateExpiry'])->name('expiry');
         });
 

@@ -21,11 +21,7 @@ class StripeSubscriptionSyncService extends StripeService
         ]);
 
         $status = $stripeSub->status ?? '';
-        $dbStatus = match (true) {
-            in_array($status, ['active', 'trialing'], true) => 'active',
-            in_array($status, ['canceled', 'unpaid', 'incomplete_expired', 'past_due'], true) => 'cancelled',
-            default => $sub->status,
-        };
+        $dbStatus = app(StripeSubscriptionStatusMapper::class)->toLocal($status, $sub->status);
 
         $updates = [
             'status'  => $dbStatus,

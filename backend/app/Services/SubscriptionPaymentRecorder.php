@@ -303,7 +303,7 @@ class SubscriptionPaymentRecorder
         ];
     }
 
-    public function recordFromStripeInvoice(object $invoice, ConsultantSubscription $subscription): ?SubscriptionPaymentRecord
+    public function recordFromStripeInvoice(object $invoice, ConsultantSubscription $subscription, ?string $paymentType = null): ?SubscriptionPaymentRecord
     {
         $invoiceId = $invoice->id ?? null;
         if (! $invoiceId) {
@@ -313,6 +313,22 @@ class SubscriptionPaymentRecorder
         $existing = SubscriptionPaymentRecord::where('stripe_invoice_id', $invoiceId)->first();
         if ($existing) {
             return $existing;
+        }
+
+        $checkoutOrphan = SubscriptionPaymentRecord::where('consultant_subscription_id', $subscription->id)
+            ->whereNull('stripe_invoice_id')
+            ->where('payment_type', SubscriptionPaymentRecord::TYPE_INITIAL)
+            ->latest('id')
+            ->first();
+        if ($checkoutOrphan) {
+            $checkoutOrphan->update([
+                'stripe_invoice_id'  => $invoiceId,
+                'invoice_number'     => $invoice->number ?? $checkoutOrphan->invoice_number,
+                'invoice_pdf'        => $invoice->invoice_pdf ?? $checkoutOrphan->invoice_pdf,
+                'hosted_invoice_url' => $invoice->hosted_invoice_url ?? $checkoutOrphan->hosted_invoice_url,
+            ]);
+
+            return $checkoutOrphan->fresh();
         }
 
         $user = $subscription->user;
@@ -348,14 +364,19 @@ class SubscriptionPaymentRecorder
             ? Carbon::createFromTimestamp($invoice->status_transitions->paid_at)
             : now();
 
-        $isRenewal = SubscriptionPaymentRecord::where('consultant_subscription_id', $subscription->id)->exists();
+        $priorPaid = SubscriptionPaymentRecord::where('consultant_subscription_id', $subscription->id)->exists();
+        $billingReason = (string) ($invoice->billing_reason ?? '');
+        $paymentType ??= match (true) {
+            $billingReason === 'subscription_create' || ! $priorPaid => SubscriptionPaymentRecord::TYPE_INITIAL,
+            default => SubscriptionPaymentRecord::TYPE_RENEWAL,
+        };
 
         return SubscriptionPaymentRecord::create([
             'user_id'                     => $user->id,
             'payment_category'            => SubscriptionPaymentRecord::CATEGORY_SUBSCRIPTION,
             'consultant_subscription_id'  => $subscription->id,
             'subscription_package_id'     => $subscription->subscription_package_id,
-            'payment_type'                => $isRenewal ? SubscriptionPaymentRecord::TYPE_RENEWAL : SubscriptionPaymentRecord::TYPE_INITIAL,
+            'payment_type'                => $paymentType,
             'billing_cycle'               => $subscription->billing_cycle,
             'stripe_invoice_id'           => $invoiceId,
             'stripe_subscription_id'      => $subscription->stripe_subscription_id,

@@ -18,30 +18,94 @@ class ConsultantBillingNotificationService
         private NotificationService $notifications,
     ) {}
 
+    public function notifyInvoicePaid(
+        User $user,
+        SubscriptionPaymentRecord $record,
+        string $productName,
+        bool $wasPastDue = false,
+    ): void {
+        if ($wasPastDue || $record->payment_type === SubscriptionPaymentRecord::TYPE_RECOVERY) {
+            $this->onRenewalRecovered($user, $record, $productName);
+
+            return;
+        }
+
+        if ($record->payment_type === SubscriptionPaymentRecord::TYPE_RENEWAL) {
+            $this->onRenewed($user, $record, $productName);
+
+            return;
+        }
+
+        $this->onPaymentSucceeded($user, $record, $productName);
+    }
+
     public function onPaymentSucceeded(User $user, SubscriptionPaymentRecord $record, string $productName): void
     {
-        $dedupeKey = 'billing_payment_success:' . ($record->stripe_invoice_id
-            ?? $record->stripe_checkout_session_id
-            ?? ('record:' . $record->id));
+        $invoiceKey = $record->stripe_invoice_id
+            ? 'billing_payment_success:'.$record->stripe_invoice_id
+            : null;
+        $sessionKey = $record->stripe_checkout_session_id
+            ? 'billing_payment_success:'.$record->stripe_checkout_session_id
+            : null;
+        $dedupeKey = $invoiceKey ?? $sessionKey ?? ('billing_payment_success:record:'.$record->id);
 
+        if ($this->alreadySent($user, $dedupeKey)
+            || ($invoiceKey && $this->alreadySent($user, $invoiceKey))
+            || ($sessionKey && $this->alreadySent($user, $sessionKey))) {
+            return;
+        }
+
+        $amount   = number_format((float) $record->total, 2);
+        $currency = strtoupper($record->currency ?? 'CAD');
+
+        $this->notifications->dispatch(
+            $user,
+            NotificationType::SUBSCRIPTION_PAYMENT_SUCCEEDED,
+            'Payment received',
+            "Your payment for \"{$productName}\" was successful. Amount charged: {$amount} {$currency}.",
+            NotificationUrlBuilder::consultantBilling(),
+            $dedupeKey,
+            $record,
+        );
+    }
+
+    public function onRenewed(User $user, SubscriptionPaymentRecord $record, string $productName): void
+    {
+        $dedupeKey = 'billing_renewal_success:'.($record->stripe_invoice_id ?? ('record:'.$record->id));
+        if ($this->alreadySent($user, $dedupeKey)
+            || ($record->stripe_invoice_id && $this->alreadySent($user, 'billing_payment_success:'.$record->stripe_invoice_id))) {
+            return;
+        }
+
+        $amount   = number_format((float) $record->total, 2);
+        $currency = strtoupper($record->currency ?? 'CAD');
+
+        $this->notifications->dispatch(
+            $user,
+            NotificationType::SUBSCRIPTION_RENEWED,
+            'Subscription renewed successfully',
+            "Your automatic renewal for \"{$productName}\" was successful. Amount charged: {$amount} {$currency}.",
+            NotificationUrlBuilder::consultantBilling(),
+            $dedupeKey,
+            $record,
+        );
+    }
+
+    public function onRenewalRecovered(User $user, SubscriptionPaymentRecord $record, string $productName): void
+    {
+        $dedupeKey = 'billing_renewal_recovered:'.($record->stripe_invoice_id ?? ('record:'.$record->id));
         if ($this->alreadySent($user, $dedupeKey)) {
             return;
         }
 
         $amount   = number_format((float) $record->total, 2);
         $currency = strtoupper($record->currency ?? 'CAD');
-        $isRenewal = $record->payment_type === SubscriptionPaymentRecord::TYPE_RENEWAL;
-
-        $title = $isRenewal ? 'Subscription renewed successfully' : 'Payment received';
-        $body  = $isRenewal
-            ? "Your automatic renewal for \"{$productName}\" was successful. Amount charged: {$amount} {$currency}."
-            : "Your payment for \"{$productName}\" was successful. Amount charged: {$amount} {$currency}.";
 
         $this->notifications->dispatch(
             $user,
-            NotificationType::SUBSCRIPTION_PAYMENT_SUCCEEDED,
-            $title,
-            $body,
+            NotificationType::SUBSCRIPTION_RENEWAL_RECOVERED,
+            'Subscription payment recovered',
+            "Your payment for \"{$productName}\" succeeded after a failed renewal. Amount charged: {$amount} {$currency}. Access is active again.",
             NotificationUrlBuilder::consultantBilling(),
             $dedupeKey,
             $record,
@@ -54,7 +118,7 @@ class ConsultantBillingNotificationService
         ?Model $related = null,
         ?string $dedupeKey = null,
     ): void {
-        $dedupeKey ??= 'billing_renewal_failed:' . md5($user->id . '|' . $productName . '|' . now()->format('Y-m-d'));
+        $dedupeKey ??= 'billing_renewal_failed:'.md5($user->id.'|'.$productName.'|'.now()->format('Y-m-d'));
 
         if ($this->alreadySent($user, $dedupeKey)) {
             return;
@@ -64,7 +128,7 @@ class ConsultantBillingNotificationService
             $user,
             NotificationType::SUBSCRIPTION_RENEWAL_FAILED,
             'Automatic renewal failed',
-            "We could not renew \"{$productName}\" automatically. Please update your payment method in Billing to keep your access active.",
+            "We could not renew \"{$productName}\" automatically. Open Billing and choose Update payment method to add a card on Stripe’s secure page. You keep workspace access during the grace period.",
             NotificationUrlBuilder::consultantBilling(),
             $dedupeKey,
             $related,
@@ -75,7 +139,7 @@ class ConsultantBillingNotificationService
     {
         $invoiceId = $invoice->id ?? null;
         $type      = $stripeSub->metadata->type ?? '';
-        $dedupeKey = $invoiceId ? 'billing_renewal_failed:stripe:' . $invoiceId : null;
+        $dedupeKey = $invoiceId ? 'billing_renewal_failed:stripe:'.$invoiceId : null;
 
         if ($type === 'marketing_service') {
             $order = ConsultantMarketingOrder::where('stripe_subscription_id', $stripeSub->id)
@@ -121,6 +185,43 @@ class ConsultantBillingNotificationService
                 $dedupeKey,
             );
         }
+    }
+
+    public function onCancellationScheduled(User $user, ConsultantSubscription $subscription, string $productName): void
+    {
+        $periodEnd = $subscription->ends_at?->toDateString() ?? 'period end';
+        $dedupeKey = 'billing_cancel_scheduled:'.$subscription->id.':'.$periodEnd;
+        if ($this->alreadySent($user, $dedupeKey)) {
+            return;
+        }
+
+        $this->notifications->dispatch(
+            $user,
+            NotificationType::SUBSCRIPTION_CANCELLATION_SCHEDULED,
+            'Cancellation scheduled',
+            "Automatic renewal for \"{$productName}\" is off. You keep access until {$periodEnd}. You can turn renewal back on before then.",
+            NotificationUrlBuilder::consultantBilling(),
+            $dedupeKey,
+            $subscription,
+        );
+    }
+
+    public function onCancelled(User $user, string $productName, ConsultantSubscription $subscription, ?string $dedupeKey = null): void
+    {
+        $dedupeKey ??= 'billing_cancelled:'.$subscription->id;
+        if ($this->alreadySent($user, $dedupeKey)) {
+            return;
+        }
+
+        $this->notifications->dispatch(
+            $user,
+            NotificationType::SUBSCRIPTION_CANCELLED,
+            'Subscription cancelled',
+            "Your \"{$productName}\" subscription is no longer active.",
+            NotificationUrlBuilder::consultantBilling(),
+            $dedupeKey,
+            $subscription,
+        );
     }
 
     private function alreadySent(User $user, string $dedupeKey): bool

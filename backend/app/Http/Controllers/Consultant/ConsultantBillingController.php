@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\ConsultantMarketingOrder;
 use App\Models\SubscriptionPaymentRecord;
 use App\Services\ConsultantBillingService;
+use App\Services\ConsultantPlanChangeService;
+use App\Services\StripeBillingPortalService;
 use App\Services\SubscriptionInvoicePdfService;
 use App\Services\SubscriptionPaymentRecorder;
 use Illuminate\Http\JsonResponse;
@@ -43,6 +45,55 @@ class ConsultantBillingController extends Controller
             $result = $this->billing->cancel($request->user());
 
             return response()->json($result);
+        } catch (\RuntimeException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
+    }
+
+    public function previewPlanChange(Request $request, ConsultantPlanChangeService $planChange): JsonResponse
+    {
+        $data = $request->validate([
+            'subscription_package_id' => 'required|integer|exists:subscription_packages,id',
+            'billing_cycle'           => 'required|in:monthly,yearly',
+        ]);
+
+        try {
+            return response()->json([
+                'preview' => $planChange->preview(
+                    $request->user(),
+                    (int) $data['subscription_package_id'],
+                    $data['billing_cycle'],
+                ),
+            ]);
+        } catch (\RuntimeException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
+    }
+
+    public function changePlan(Request $request, ConsultantPlanChangeService $planChange): JsonResponse
+    {
+        $data = $request->validate([
+            'subscription_package_id' => 'required|integer|exists:subscription_packages,id',
+            'billing_cycle'           => 'required|in:monthly,yearly',
+            'preview'                 => 'nullable|array',
+        ]);
+
+        try {
+            return response()->json($planChange->confirm(
+                $request->user(),
+                (int) $data['subscription_package_id'],
+                $data['billing_cycle'],
+                $data['preview'] ?? null,
+            ));
+        } catch (\RuntimeException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
+    }
+
+    public function paymentMethodPortal(Request $request, StripeBillingPortalService $portal): JsonResponse
+    {
+        try {
+            return response()->json($portal->createPaymentMethodSession($request->user()));
         } catch (\RuntimeException $e) {
             return response()->json(['message' => $e->getMessage()], 422);
         }

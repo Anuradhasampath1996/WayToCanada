@@ -75,6 +75,7 @@ type Subscription = {
   status: string;
   is_trial: boolean;
   billing_cycle: string | null;
+  package_id?: number | null;
   package_name: string | null;
   package_description: string | null;
   price: number | null;
@@ -87,8 +88,14 @@ type Subscription = {
   cancel_at_period_end: boolean;
   next_billing_at: string | null;
   has_stripe: boolean;
+  has_live_stripe?: boolean;
   auto_renew_enabled?: boolean;
   can_manage_auto_renew?: boolean;
+  can_update_payment_method?: boolean;
+  can_change_plan?: boolean;
+  in_grace?: boolean;
+  grace_ends_at?: string | null;
+  access_active?: boolean;
 };
 
 type MarketingOrder = {
@@ -289,6 +296,7 @@ function StatusBadge({ status, cancelAtEnd }: { status: string; cancelAtEnd?: bo
     trial: "border-blue-200 bg-blue-50 text-blue-800",
     cancelled: "border-slate-200 bg-slate-50 text-slate-600",
     expired: "border-slate-200 bg-slate-50 text-slate-500",
+    past_due: "border-amber-300 bg-amber-50 text-amber-900",
   };
 
   return (
@@ -363,6 +371,86 @@ export function BillingClient() {
   const [cancellingMarketingId, setCancellingMarketingId] = useState<number | null>(null);
   const [togglingMarketingId, setTogglingMarketingId] = useState<number | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [portalLoading, setPortalLoading] = useState(false);
+  const [changeOpen, setChangeOpen] = useState(false);
+  const [packages, setPackages] = useState<Array<{ id: number; name: string; monthly_price: number; yearly_price: number }>>([]);
+  const [changeCycle, setChangeCycle] = useState<"monthly" | "yearly">("monthly");
+  const [changePackageId, setChangePackageId] = useState<number | null>(null);
+  const [preview, setPreview] = useState<Record<string, unknown> | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [changing, setChanging] = useState(false);
+
+  async function openPaymentPortal() {
+    setPortalLoading(true);
+    setMessage(null);
+    try {
+      const res = await fetch(`${API}/consultant/billing/payment-method-portal`, {
+        method: "POST",
+        headers: authHeaders(),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message ?? "Could not open Stripe Billing Portal.");
+      if (data.url) window.location.href = data.url;
+    } catch (e: unknown) {
+      setMessage(e instanceof Error ? e.message : "Could not open payment method update.");
+    } finally {
+      setPortalLoading(false);
+    }
+  }
+
+  async function loadPackages() {
+    const res = await fetch(`${API}/subscription-packages`, { headers: { Accept: "application/json" } });
+    const data = await res.json();
+    setPackages(data.data ?? data ?? []);
+  }
+
+  async function loadPreview() {
+    if (!changePackageId) return;
+    setPreviewLoading(true);
+    setMessage(null);
+    try {
+      const res = await fetch(`${API}/consultant/billing/change-plan/preview`, {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify({ subscription_package_id: changePackageId, billing_cycle: changeCycle }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message ?? "Could not preview plan change.");
+      setPreview(data.preview);
+    } catch (e: unknown) {
+      setPreview(null);
+      setMessage(e instanceof Error ? e.message : "Could not preview plan change.");
+    } finally {
+      setPreviewLoading(false);
+    }
+  }
+
+  async function confirmPlanChange() {
+    if (!changePackageId || !preview) return;
+    setChanging(true);
+    setMessage(null);
+    try {
+      const res = await fetch(`${API}/consultant/billing/change-plan`, {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify({
+          subscription_package_id: changePackageId,
+          billing_cycle: changeCycle,
+          preview,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message ?? "Plan change failed. Your current plan is unchanged.");
+      setMessage(data.message ?? "Plan updated.");
+      setChangeOpen(false);
+      setPreview(null);
+      await load();
+    } catch (e: unknown) {
+      setMessage(e instanceof Error ? e.message : "Plan change failed.");
+    } finally {
+      setChanging(false);
+    }
+  }
 
   const load = useCallback(async () => {
     setLoadError(null);
@@ -717,11 +805,14 @@ export function BillingClient() {
                 {sub.is_trial && sub.trial_ends_at && (
                   <MetaItem label="Trial ends" value={fmtDate(sub.trial_ends_at)} />
                 )}
-                {sub.status === "active" && sub.next_billing_at && !sub.is_trial && (
+                {(sub.status === "active" || sub.status === "past_due") && sub.next_billing_at && !sub.is_trial && (
                   <MetaItem
                     label={sub.cancel_at_period_end ? "Access until" : "Next renewal"}
                     value={fmtDate(sub.next_billing_at)}
                   />
+                )}
+                {sub.status === "past_due" && sub.grace_ends_at && (
+                  <MetaItem label="Grace ends" value={fmtDate(sub.grace_ends_at)} />
                 )}
                 {sub.starts_at && <MetaItem label="Started" value={fmtDate(sub.starts_at)} />}
                 {sub.last_payment_at && (
@@ -765,6 +856,17 @@ export function BillingClient() {
               </div>
             )}
 
+            {sub.status === "past_due" && (
+              <div className="flex gap-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                <p>
+                  {sub.in_grace
+                    ? `Renewal failed. You still have workspace access until ${fmtDate(sub.grace_ends_at)}. Update your payment method to avoid interruption.`
+                    : "Grace period has ended. Update your payment method so Stripe can recover this subscription. Your workspace is paused until payment succeeds."}
+                </p>
+              </div>
+            )}
+
             {sub.cancel_at_period_end && (
               <div className="flex gap-3 rounded-lg border border-amber-200 bg-amber-50/80 px-4 py-3 text-sm text-amber-900">
                 <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
@@ -776,7 +878,26 @@ export function BillingClient() {
             )}
 
             <div className="flex flex-col gap-2 border-t border-border/60 pt-5 sm:flex-row sm:flex-wrap">
-              {!isActive && sub.status !== "trial" && (
+              {sub.can_update_payment_method && (
+                <Button size="sm" className="h-10 w-full sm:w-auto" onClick={() => void openPaymentPortal()} disabled={portalLoading}>
+                  {portalLoading ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <CreditCard className="mr-1.5 h-3.5 w-3.5" />}
+                  Update payment method
+                </Button>
+              )}
+              {sub.can_change_plan && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-10 w-full sm:w-auto"
+                  onClick={() => {
+                    setChangeOpen(true);
+                    void loadPackages();
+                  }}
+                >
+                  Change plan
+                </Button>
+              )}
+              {!isActive && sub.status !== "trial" && !sub.has_live_stripe && (
                 <Button asChild size="sm" className="h-10 w-full sm:w-auto">
                   <Link href="/dashboard/subscribe">Resubscribe</Link>
                 </Button>
@@ -1182,6 +1303,63 @@ export function BillingClient() {
           </TabsContent>
         </Tabs>
       </Section>
+
+      <Dialog open={changeOpen} onOpenChange={setChangeOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Change plan</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 text-sm">
+            <p className="text-muted-foreground">
+              Current plan: <strong>{sub?.package_name}</strong> ({sub?.billing_cycle ?? "—"})
+            </p>
+            <div className="grid gap-2">
+              <Label>New package</Label>
+              <select
+                className="h-9 rounded-md border bg-background px-2"
+                value={changePackageId ?? ""}
+                onChange={(e) => {
+                  setChangePackageId(Number(e.target.value));
+                  setPreview(null);
+                }}
+              >
+                <option value="">Select a plan</option>
+                {packages.map((pkg) => (
+                  <option key={pkg.id} value={pkg.id}>
+                    {pkg.name} — ${pkg.monthly_price}/mo or ${pkg.yearly_price}/yr
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex gap-2">
+              <Button type="button" variant={changeCycle === "monthly" ? "default" : "outline"} size="sm" onClick={() => { setChangeCycle("monthly"); setPreview(null); }}>
+                Monthly
+              </Button>
+              <Button type="button" variant={changeCycle === "yearly" ? "default" : "outline"} size="sm" onClick={() => { setChangeCycle("yearly"); setPreview(null); }}>
+                Yearly
+              </Button>
+            </div>
+            <Button type="button" variant="outline" size="sm" disabled={!changePackageId || previewLoading} onClick={() => void loadPreview()}>
+              {previewLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Preview amount"}
+            </Button>
+            {preview && (
+              <div className="rounded-lg border bg-muted/20 p-3 space-y-1">
+                <p>Unused credit: {fmtMoney(Number(preview.credit_amount ?? 0), String(preview.currency ?? "CAD"))}</p>
+                <p>Immediate charge: {fmtMoney(Number(preview.immediate_charge ?? 0), String(preview.currency ?? "CAD"))}</p>
+                <p>Tax: {fmtMoney(Number(preview.tax_amount ?? 0), String(preview.currency ?? "CAD"))}</p>
+                <p>New recurring: {fmtMoney(Number((preview.new_plan as { recurring?: number } | undefined)?.recurring ?? 0), String(preview.currency ?? "CAD"))}</p>
+                <p>Next billing: {fmtDate(String(preview.next_billing_at ?? ""))}</p>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setChangeOpen(false)}>Cancel</Button>
+            <Button disabled={!preview || changing} onClick={() => void confirmPlanChange()}>
+              {changing ? <Loader2 className="h-4 w-4 animate-spin" /> : "Confirm plan change"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Payment detail popup */}
       <Dialog

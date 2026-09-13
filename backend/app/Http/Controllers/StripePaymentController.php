@@ -2,13 +2,16 @@
 
 namespace App\Http\Controllers;
 
+use App\Contracts\StripePlatformClient;
 use App\Models\ConsultantSubscription;
 use App\Models\SubscriptionPackage;
 use App\Models\SubscriptionPaymentRecord;
 use App\Services\CanadianBillingTaxService;
 use App\Services\GstHstStripeTaxService;
 use App\Services\GstHstRatesService;
+use App\Services\StripeCustomerResolver;
 use App\Services\StripePaymentFulfillmentService;
+use App\Services\StripePlatformSubscriptionGuard;
 use App\Services\StripeSubscriptionService;
 use App\Services\SubscriptionPaymentRecorder;
 use Illuminate\Http\JsonResponse;
@@ -91,6 +94,13 @@ class StripePaymentController extends Controller
             return response()->json(['message' => 'This package has no price for the selected billing cycle.'], 422);
         }
 
+        if (app(StripePlatformSubscriptionGuard::class)->hasLivePaidStripeSubscription($user)) {
+            return response()->json([
+                'message' => 'You already have a live platform subscription. Change plans from Billing instead of starting a new Checkout subscription.',
+                'use_plan_change' => true,
+            ], 409);
+        }
+
         $baseUrl = rtrim(env('CONSULTANT_DASHBOARD_URL', 'http://localhost:3005'), '/');
 
         try {
@@ -100,7 +110,8 @@ class StripePaymentController extends Controller
             $taxRateIds = null;
             $provinceCode = $billingAddress['province'] ?? null;
 
-            if ($taxBreakdown['tax_applicable'] && $provinceCode) {
+            if ($taxBreakdown['tax_applicable'] && $provinceCode
+                && app(StripePlatformClient::class) instanceof \App\Services\Stripe\LiveStripePlatformClient) {
                 $ratesService = new GstHstRatesService();
                 $taxServiceStripe = new GstHstStripeTaxService($ratesService);
                 $taxRateIds = $taxServiceStripe->ensureTaxRates($provinceCode);
@@ -126,6 +137,7 @@ class StripePaymentController extends Controller
                 $provinceCode,
                 $taxRateIds,
                 $billingAddress['country'],
+                app(StripeCustomerResolver::class)->customerIdForUser($user),
             );
 
             return response()->json(array_merge($result, [
@@ -145,11 +157,10 @@ class StripePaymentController extends Controller
         ]);
 
         try {
-            new StripeSubscriptionService();
-            $session = StripeSession::retrieve([
-                'id'     => $data['session_id'],
-                'expand' => ['subscription', 'invoice'],
-            ]);
+            $session = app(StripePlatformClient::class)->retrieveCheckoutSession(
+                $data['session_id'],
+                ['subscription', 'invoice'],
+            );
 
             if (($session->payment_status ?? '') !== 'paid' && ($session->status ?? '') !== 'complete') {
                 return response()->json([
@@ -230,7 +241,7 @@ class StripePaymentController extends Controller
 
         $out = [];
         foreach (['subscription_package_id', 'billing_cycle', 'user_id', 'province', 'billing_country', 'type'] as $key) {
-            $val = $raw[$key] ?? ($raw->$key ?? null);
+            $val = is_array($raw) ? ($raw[$key] ?? null) : ($raw->$key ?? null);
             if ($val !== null && $val !== '') {
                 $out[$key] = (string) $val;
             }
