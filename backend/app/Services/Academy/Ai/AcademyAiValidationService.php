@@ -75,6 +75,7 @@ class AcademyAiValidationService
             }
         }
 
+        $this->applyExamPasses($job, $payload, $flags);
         $label = $this->label($flags, $grounding, $agrees);
         $item->update([
             'citation_unverified' => in_array('citation_unverified', $flags, true),
@@ -99,8 +100,50 @@ class AcademyAiValidationService
                 'flags_json' => array_values(array_unique($flags)),
                 'validator_payload_json' => $validatorPayload,
                 'validator_model' => $validatorModel,
+                'exam_relevance_ok' => ! in_array('low_exam_relevance', $flags, true),
+                'style_ok' => ! in_array('style_mismatch', $flags, true),
+                'near_copy_ok' => ! in_array('near_past_paper', $flags, true),
             ]
         );
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     * @param  list<string>  $flags
+     */
+    public function applyExamPasses(AcademyAiGenerationJob $job, array $payload, array &$flags): void
+    {
+        if (! $job->exam_id) {
+            return;
+        }
+        $exam = \App\Models\Academy\AcademyExam::query()->find($job->exam_id);
+        if ($exam) {
+            $allowed = collect($exam->exam_format_json['competencies'] ?? [])->filter()->all();
+            $questionComps = collect($payload['competencies'] ?? [])->filter()->all();
+            if ($allowed !== [] && $questionComps !== [] && array_intersect($questionComps, $allowed) === []) {
+                $flags[] = 'low_exam_relevance';
+                $flags[] = 'needs_review';
+            }
+        }
+        $pack = $job->evidence_pack_id
+            ? \App\Models\Academy\AcademyExamEvidencePack::query()->find($job->evidence_pack_id)
+            : null;
+        $expectedStyle = $pack?->pattern_metadata_json['dominant_style'] ?? null;
+        if ($expectedStyle && isset($payload['style_pattern_category']) && $payload['style_pattern_category'] !== $expectedStyle) {
+            $flags[] = 'style_mismatch';
+            $flags[] = 'needs_review';
+        }
+        $stem = (string) ($payload['stem'] ?? '');
+        if ($pack && $stem !== '') {
+            foreach ($pack->items as $item) {
+                $official = (string) ($item->excerpt ?? '');
+                if ($official !== '' && app(\App\Services\Learning\ExamEvidencePackService::class)->nearCopy($stem, $official)) {
+                    $flags[] = 'near_past_paper';
+                    $flags[] = 'needs_review';
+                    break;
+                }
+            }
+        }
     }
 
     /**
@@ -209,16 +252,22 @@ class AcademyAiValidationService
     private function label(array $flags, bool $grounding, ?bool $agrees): string
     {
         if (in_array('answer_conflict', $flags, true)) {
-            return 'Answer Conflict';
+            return 'Review Required';
         }
         if (in_array('citation_unverified', $flags, true) || ! $grounding) {
-            return 'Source Issue';
+            return 'Citation Unverified';
+        }
+        if (in_array('low_exam_relevance', $flags, true)) {
+            return 'Review Required';
+        }
+        if (in_array('style_mismatch', $flags, true)) {
+            return 'Review Required';
         }
         if (in_array('needs_review', $flags, true) || in_array('ambiguous', $flags, true)) {
-            return 'Review Recommended';
+            return 'Review Required';
         }
 
-        return $agrees === false ? 'Review Recommended' : 'High Confidence';
+        return $agrees === false ? 'Review Required' : 'Verified';
     }
 
     public function applyQuestionFlags(AcademyQuestionVersion $version, AcademyAiValidationResult $result): void

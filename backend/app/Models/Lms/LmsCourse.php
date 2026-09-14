@@ -14,11 +14,19 @@ class LmsCourse extends Model
 
     protected $fillable = [
         'category_id', 'title', 'slug', 'description', 'thumbnail_url', 'is_published', 'sort_order',
+        'exam_id', 'subtitle', 'price_cents', 'currency', 'access_months', 'access_mode',
+        'commerce_confirmed', 'content_language', 'review_status', 'is_preview', 'featured',
+        'variant_of_course_id', 'generation_job_id',
     ];
 
     protected function casts(): array
     {
-        return ['is_published' => 'boolean'];
+        return [
+            'is_published' => 'boolean',
+            'commerce_confirmed' => 'boolean',
+            'is_preview' => 'boolean',
+            'featured' => 'boolean',
+        ];
     }
 
     public function category(): BelongsTo

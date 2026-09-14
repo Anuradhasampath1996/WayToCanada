@@ -60,6 +60,13 @@ class AcademyAccess
             return;
         }
 
+        if ($tier === 'purchase') {
+            if ($this->hasActiveGrant($user, $course)) {
+                return;
+            }
+            abort(403, 'This course requires a purchase.');
+        }
+
         if ($tier === 'grant_required') {
             if ($this->hasActiveGrant($user, $course)) {
                 return;
@@ -91,6 +98,30 @@ class AcademyAccess
             ->first();
 
         return $sub?->isCurrentlyActive() === true;
+    }
+
+    public function hasCourseAccess(User $user, AcademyCourse $course): bool
+    {
+        try {
+            $this->assertCourse($user, $course);
+
+            return true;
+        } catch (HttpException $e) {
+            if (in_array($e->getStatusCode(), [403, 404], true)) {
+                return false;
+            }
+
+            throw $e;
+        }
+    }
+
+    public function courseGrant(User $user, AcademyCourse $course): ?AcademyEntitlement
+    {
+        return AcademyEntitlement::query()
+            ->where('user_id', $user->id)
+            ->where('course_id', $course->id)
+            ->latest('id')
+            ->first();
     }
 
     public function hasActiveGrant(User $user, ?AcademyCourse $course = null): bool

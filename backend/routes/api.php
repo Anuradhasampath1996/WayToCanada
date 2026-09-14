@@ -29,6 +29,10 @@ use App\Http\Controllers\Admin\AdminPlatformCompanyController;
 use App\Http\Controllers\Admin\AdminLmsController;
 use App\Http\Controllers\Admin\AdminAcademyController;
 use App\Http\Controllers\Admin\AdminAcademyAiController;
+use App\Http\Controllers\Admin\AdminLearningExamController;
+use App\Http\Controllers\Admin\AdminLmsAiController;
+use App\Http\Controllers\MeController;
+use App\Http\Controllers\LearningCourseCheckoutController;
 use App\Http\Controllers\Webhooks\ManusAcademyWebhookController;
 use App\Http\Controllers\Consultant\ConsultantLmsController;
 use App\Http\Controllers\Consultant\ConsultantAcademyController;
@@ -52,6 +56,7 @@ use App\Http\Controllers\Client\ClientMeetingController;
 use App\Http\Controllers\Client\ClientPaymentRequestController;
 use App\Http\Controllers\Client\ClientTrustController;
 use App\Http\Controllers\Client\ClientLmsController;
+use App\Http\Controllers\Client\ClientLmsExamMasterController;
 use App\Http\Controllers\PublicPaymentRequestController;
 use App\Http\Controllers\PublicClientMeetingController;
 use App\Http\Controllers\ApplicationPackageController;
@@ -257,6 +262,9 @@ Route::middleware(['auth:sanctum', 'throttle:20,1'])->prefix('noc')->name('noc.'
 // ── Protected routes ─────────────────────────────────────────────────────────
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('me',      [AuthController::class, 'me'])->name('auth.me');
+    Route::patch('me/locale', [MeController::class, 'updateLocale'])->name('me.locale');
+    Route::get('learning/i18n', [MeController::class, 'dictionaries'])->name('learning.i18n');
+    Route::post('learning/checkout', [LearningCourseCheckoutController::class, 'store'])->name('learning.checkout');
     Route::post('logout', [AuthController::class, 'logout'])->name('auth.logout');
 
     // ── In-app notifications (all authenticated users) ────────────────────────
@@ -432,7 +440,15 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // ── Client: LMS learning portal ─────────────────────────────────────────────
     Route::prefix('client/lms')->name('client.lms.')->group(function () {
+        Route::get('catalog', [ClientLmsController::class, 'catalog'])->name('catalog');
+        Route::post('catalog/{course}/start', [ClientLmsController::class, 'startFree'])->name('catalog.start');
         Route::get('courses', [ClientLmsController::class, 'myCourses'])->name('courses');
+        Route::get('courses/{course}/exam-templates', [ClientLmsExamMasterController::class, 'templates'])->name('exam-templates');
+        Route::post('exam-templates/{template}/attempts', [ClientLmsExamMasterController::class, 'start'])->name('exam-templates.start');
+        Route::get('exam-attempts/{attempt}', [ClientLmsExamMasterController::class, 'show'])->name('exam-master.show');
+        Route::put('exam-attempts/{attempt}/answers', [ClientLmsExamMasterController::class, 'saveAnswer'])->name('exam-master.answers');
+        Route::post('exam-attempts/{attempt}/submit', [ClientLmsExamMasterController::class, 'submit'])->name('exam-master.submit');
+        Route::get('exam-attempts/{attempt}/results', [ClientLmsExamMasterController::class, 'results'])->name('exam-master.results');
         Route::get('assignments/{assignment}', [ClientLmsController::class, 'showAssignment'])->name('assignments.show');
         Route::post('assignments/{assignment}/lessons/{lesson}/complete', [ClientLmsController::class, 'completeLesson'])->name('lessons.complete');
         Route::get('assignments/{assignment}/quizzes/{quiz}', [ClientLmsController::class, 'showQuiz'])->name('quizzes.show');
@@ -723,6 +739,29 @@ Route::middleware('auth:sanctum')->group(function () {
         // Overview stats
         Route::get('stats', [AdminStatsController::class, 'index'])->name('stats');
 
+        Route::prefix('learning')->name('learning.')->group(function () {
+            Route::get('catalog', [AdminLearningExamController::class, 'catalog']);
+            Route::get('exams', [AdminLearningExamController::class, 'index']);
+            Route::post('exams', [AdminLearningExamController::class, 'store']);
+            Route::get('exams/{exam}', [AdminLearningExamController::class, 'show']);
+            Route::put('exams/{exam}', [AdminLearningExamController::class, 'update']);
+            Route::post('exams/{exam}/structure', [AdminLearningExamController::class, 'assertStructure']);
+            Route::post('exams/{exam}/research', [AdminLearningExamController::class, 'recordResearch']);
+            Route::post('exams/{exam}/sources', [AdminLearningExamController::class, 'addSource']);
+            Route::post('exams/{exam}/sources/{item}/verify', [AdminLearningExamController::class, 'verifySource']);
+            Route::post('exams/{exam}/sources/{item}/disable', [AdminLearningExamController::class, 'disableSource']);
+            Route::get('exams/{exam}/sources/{item}/snapshot', [AdminLearningExamController::class, 'snapshot']);
+            Route::post('exams/{exam}/evidence-pack/approve', [AdminLearningExamController::class, 'approvePack']);
+            Route::post('exams/{exam}/generate-course', [AdminLearningExamController::class, 'generateCourse']);
+            Route::get('lms-ai-jobs/{lmsAiJob}', [AdminLmsAiController::class, 'show']);
+            Route::post('lms-ai-jobs/{lmsAiJob}/approve-blueprint', [AdminLmsAiController::class, 'approveBlueprint']);
+            Route::post('lms-ai-jobs/{lmsAiJob}/retry', [AdminLmsAiController::class, 'retry']);
+            Route::post('lms-ai-jobs/{lmsAiJob}/publish', [AdminLmsAiController::class, 'publishDenied']);
+            Route::get('exams/{exam}/questions', [AdminLearningExamController::class, 'questionBank']);
+            Route::post('exams/{exam}/questions', [AdminLearningExamController::class, 'storeQuestion']);
+            Route::post('exams/{exam}/mock-templates', [AdminLearningExamController::class, 'storeMockTemplate']);
+        });
+
         Route::prefix('referral-program')->name('referral-program.')->group(function () {
             Route::get('settings', [AdminReferralProgramController::class, 'settings'])->name('settings.show');
             Route::put('settings', [AdminReferralProgramController::class, 'updateSettings'])->name('settings.update');
@@ -828,13 +867,14 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::delete('{gateway}/keys',          [AdminPaymentGatewayController::class, 'clearKeys'])->name('clearKeys');
         });
 
-        // Integration credentials (Google OAuth, SMTP, Twilio, Zoom, Teams, AWS, OpenAI)
+        // Integration credentials (Google OAuth, SMTP, Twilio, Zoom, Teams, AWS, OpenAI, Manus)
         Route::prefix('integration-settings')->name('integration-settings.')->group(function () {
             Route::get('/',                    [AdminIntegrationSettingsController::class, 'index'])->name('index');
             Route::put('{group}',              [AdminIntegrationSettingsController::class, 'update'])->name('update');
             Route::delete('{group}',           [AdminIntegrationSettingsController::class, 'clear'])->name('clear');
             Route::post('mail/test',           [AdminIntegrationSettingsController::class, 'testMail'])->name('mail.test');
             Route::post('openai/test',         [AdminIntegrationSettingsController::class, 'testOpenAi'])->name('openai.test');
+            Route::post('manus/test',          [AdminIntegrationSettingsController::class, 'testManus'])->name('manus.test');
             Route::post('whatsapp/test',       [AdminIntegrationSettingsController::class, 'testWhatsApp'])->name('whatsapp.test');
         });
 

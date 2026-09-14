@@ -11,11 +11,13 @@ use App\Models\Academy\AcademyQuestionVersion;
 class AcademyPayload
 {
     /** @return array<string, mixed> */
-    public function learnerQuestion(AcademyQuestionVersion $version, bool $shuffleOptions = false, bool $reveal = false): array
+    public function learnerQuestion(AcademyQuestionVersion $version, bool $shuffleOptions = false, bool $reveal = false, ?array $optionIds = null): array
     {
         $version->loadMissing(['options', 'question', 'topics', 'competencies', 'caseVersion.exhibits']);
         $options = $version->options;
-        if ($shuffleOptions) {
+        if (is_array($optionIds) && $optionIds !== []) {
+            $options = $options->sortBy(fn (AcademyQuestionOption $o) => array_search($o->id, $optionIds, false))->values();
+        } elseif ($shuffleOptions) {
             $options = $options->shuffle()->values();
         }
 

@@ -24,6 +24,7 @@ use App\Services\Academy\AcademyNotificationService;
 use App\Services\Academy\AcademyPayload;
 use App\Services\Academy\AcademyPlannerService;
 use App\Services\Academy\AcademyPracticeService;
+use App\Services\Learning\LearningCatalogService;
 use Illuminate\Http\Request;
 
 class ConsultantAcademyController extends Controller
@@ -37,6 +38,7 @@ class ConsultantAcademyController extends Controller
         private AcademyPlannerService $planner,
         private AcademyPayload $payload,
         private AcademyNotificationService $notifications,
+        private LearningCatalogService $catalog,
     ) {}
 
     public function dashboard(Request $request)
@@ -55,10 +57,14 @@ class ConsultantAcademyController extends Controller
 
     public function courses(Request $request)
     {
-        $this->access->assertAcademySurface($request->user());
-        $rows = AcademyCourse::query()->where('status', 'published')->whereNotNull('current_published_version_id')->orderBy('title')->get();
+        $this->access->assertLearner($request->user());
+        $locale = $request->query('locale', $request->user()->locale ?? 'en');
 
-        return response()->json(['data' => $rows->map(fn ($c) => $this->courses->courseSummary($c))]);
+        return response()->json([
+            'data' => $this->catalog->academyCatalog($request->user(), $locale, $request->only([
+                'q', 'exam_id', 'category', 'language', 'price', 'status',
+            ])),
+        ]);
     }
 
     public function showCourse(Request $request, AcademyCourse $course)

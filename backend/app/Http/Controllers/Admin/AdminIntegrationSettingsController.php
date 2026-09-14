@@ -153,10 +153,43 @@ class AdminIntegrationSettingsController extends Controller
             }
 
             return response()->json([
-                'message' => 'OpenAI connection OK — Maple can use AI enhanced mode.',
+                'message' => 'OpenAI connection OK — Maple and Academy AI can use this key.',
             ]);
         } catch (\Throwable $e) {
             return response()->json(['message' => 'Test failed: '.$e->getMessage()], 422);
+        }
+    }
+
+    public function testManus(): JsonResponse
+    {
+        $this->settings->applyRuntimeConfig();
+
+        $key = (string) config('academy_ai.manus.api_key', '');
+        if ($key === '') {
+            return response()->json([
+                'message' => 'No Manus API key configured. Paste your key, enable Manus research, and Save.',
+            ], 422);
+        }
+
+        if (! (bool) config('academy_ai.manus.enabled')) {
+            return response()->json([
+                'message' => 'Manus research is turned off. Enable it and Save, then test again.',
+            ], 422);
+        }
+
+        try {
+            $publicKey = app(\App\Services\Academy\Ai\Manus\ManusV2Client::class)->webhookPublicKey();
+            if ($publicKey === '') {
+                return response()->json([
+                    'message' => 'Manus accepted the key but did not return a webhook public key. Check the Manus dashboard.',
+                ], 422);
+            }
+
+            return response()->json([
+                'message' => 'Manus connection OK — Academy Evidence Pack research can use this key. OpenAI still verifies independently.',
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json(['message' => 'Manus test failed: '.$e->getMessage()], 422);
         }
     }
 }

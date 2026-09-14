@@ -16,6 +16,7 @@ class AcademyQuestionVersion extends AcademyModel
         'needs_legal_review', 'source_outdated', 'source_changed', 'author_user_id',
         'reviewer_user_id', 'approved_by', 'reviewed_at', 'approved_at', 'published_at',
         'generated_by_ai', 'ai_generation_job_id', 'ai_prompt_version',
+        'provenance_json', 'evidence_item_ids_json', 'validation_flags_json',
     ];
 
     protected function casts(): array
@@ -31,6 +32,9 @@ class AcademyQuestionVersion extends AcademyModel
             'approved_at' => 'datetime',
             'published_at' => 'datetime',
             'generated_by_ai' => 'boolean',
+            'provenance_json' => 'array',
+            'evidence_item_ids_json' => 'array',
+            'validation_flags_json' => 'array',
         ];
     }
 

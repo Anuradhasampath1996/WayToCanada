@@ -17,7 +17,7 @@ class AcademyExamAttempt extends AcademyModel
         'user_id', 'exam_template_id', 'exam_template_version', 'started_at', 'expires_at',
         'submitted_at', 'duration_seconds', 'status', 'score_percent', 'independent_score_percent',
         'case_score_percent', 'topic_scores_json', 'competency_scores_json', 'time_analysis_json',
-        'readiness_score', 'question_set_json',
+        'readiness_score', 'question_set_json', 'submission_reason', 'unanswered_count',
     ];
 
     protected function casts(): array

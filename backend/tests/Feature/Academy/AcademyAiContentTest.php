@@ -65,6 +65,7 @@ class AcademyAiContentTest extends TestCase
         $this->app->forgetInstance(\Illuminate\Http\Client\Factory::class);
         Http::clearResolvedInstance('http');
         Http::fake($callback);
+        Http::preventStrayRequests();
     }
 
     public function test_admin_can_create_generation_request(): void

@@ -161,6 +161,11 @@ class StripeWebhookController extends Controller
 
                 return;
             }
+            if (($metadata['type'] ?? '') === 'learning_course') {
+                $this->fulfillment->fulfillCheckoutSession($session);
+
+                return;
+            }
 
             // Platform-mode client payments (legacy) — Connect checkouts use connected account events.
             $this->handleClientPaymentCheckout($session);
@@ -238,16 +243,16 @@ class StripeWebhookController extends Controller
         if ($payment) {
             $payment->update(['payment_status' => \App\Models\SubscriptionPaymentRecord::STATUS_REFUNDED]);
             $this->referralReversal->reverseFromPayment($payment, 'refunded');
-
-            return;
+        } else {
+            $sessionId = $charge->metadata->checkout_session_id ?? null;
+            if ($sessionId) {
+                \App\Models\SubscriptionPaymentRecord::query()
+                    ->where('stripe_checkout_session_id', $sessionId)
+                    ->update(['payment_status' => \App\Models\SubscriptionPaymentRecord::STATUS_REFUNDED]);
+            }
         }
 
-        $sessionId = $charge->metadata->checkout_session_id ?? null;
-        if ($sessionId) {
-            \App\Models\SubscriptionPaymentRecord::query()
-                ->where('stripe_checkout_session_id', $sessionId)
-                ->update(['payment_status' => \App\Models\SubscriptionPaymentRecord::STATUS_REFUNDED]);
-        }
+        $this->fulfillment->revokeLearningCourseFromCharge($charge);
     }
 
     private function handleChargeDisputed(object $charge): void

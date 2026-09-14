@@ -3,8 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import {
-  Save, Loader2, Trash2, CheckCircle2, AlertCircle, Mail, KeyRound,
-  MessageCircle, Cloud, Video, Brain, Shield,
+  Save, Loader2, Trash2, CheckCircle2, AlertCircle,   Mail, KeyRound,
+  MessageCircle, Cloud, Video, Brain, Shield, Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -61,6 +61,7 @@ const TAB_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   microsoft: Video,
   aws_s3: Cloud,
   openai: Brain,
+  manus: Sparkles,
 };
 
 const FIELD_LABELS: Record<string, string> = {
@@ -101,7 +102,18 @@ const FIELD_LABELS: Record<string, string> = {
   model: "Legislation model",
   workspace_enabled: "Maple workspace AI (chat & analyze)",
   workspace_model: "Maple model",
+  fallback: "If Manus fails",
+  base_url: "Manus API base URL",
+  agent_profile: "Agent profile",
+  webhook_url: "Webhook callback URL",
 };
+
+function fieldLabel(groupKey: string, field: string): string {
+  if (groupKey === "manus" && field === "enabled") return "Enable Manus research";
+  if (groupKey === "manus" && field === "api_key") return "Manus API key";
+  if (groupKey === "openai" && field === "api_key") return "OpenAI API key";
+  return FIELD_LABELS[field] ?? field;
+}
 
 function SecretField({
   label,
@@ -168,6 +180,10 @@ function GroupForm({
       }
       if (f === "enabled" || f === "workspace_enabled") {
         const v = group.values[f];
+        if (group.key === "manus" && f === "enabled" && (v == null || v === "")) {
+          init[f] = "true";
+          return;
+        }
         init[f] = isTruthySetting(v) ? "true" : "false";
         return;
       }
@@ -214,6 +230,24 @@ function GroupForm({
         method: "POST",
         headers: adminAuthHeaders("application/json"),
         body: JSON.stringify({ to: testEmail }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message ?? "Test failed");
+      setMessage(data.message);
+    } catch (e: unknown) {
+      setMessage(e instanceof Error ? e.message : "Test failed");
+    } finally {
+      setTesting(false);
+    }
+  }
+
+  async function sendTestManus() {
+    setTesting(true);
+    setMessage(null);
+    try {
+      const res = await fetch(`${API}/admin/integration-settings/manus/test`, {
+        method: "POST",
+        headers: adminAuthHeaders("application/json"),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message ?? "Test failed");
@@ -283,12 +317,28 @@ function GroupForm({
 
       {group.key === "openai" && (
         <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
-          <p className="font-medium">Maple AI setup</p>
+          <p className="font-medium">Maple / Academy AI setup</p>
           <ol className="mt-2 list-decimal space-y-1 pl-4 text-emerald-800">
             <li>Get a key from <strong>platform.openai.com → API keys</strong> (starts with <code className="text-xs">sk-proj-</code> or <code className="text-xs">sk-</code>).</li>
             <li><strong>Paste the full key</strong> in API key below — leaving it blank keeps the old saved key.</li>
             <li>Turn on <strong>Maple workspace AI</strong>, Save, then click <strong>Test OpenAI</strong>.</li>
           </ol>
+          <p className="mt-2 text-xs text-emerald-800">This same key is used for Legislation Hub, Maple, and Academy/LMS AI generation.</p>
+        </div>
+      )}
+
+      {group.key === "manus" && (
+        <div className="rounded-lg border border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-950">
+          <p className="font-medium">Manus research setup</p>
+          <ol className="mt-2 list-decimal space-y-1 pl-4 text-violet-900">
+            <li>Turn on <strong>Enable Manus research</strong>.</li>
+            <li>Paste the Manus API key (leave blank later to keep the saved key).</li>
+            <li>Leave fallback on <strong>OpenAI</strong> so research still works if Manus is down.</li>
+            <li>Save, then click <strong>Test Manus</strong>.</li>
+          </ol>
+          <p className="mt-2 text-xs text-violet-800">
+            Manus is research-only for Exam Evidence Packs. It cannot publish courses or overwrite Exam Master. OpenAI still does independent verification and generation.
+          </p>
         </div>
       )}
 
@@ -392,10 +442,25 @@ Please do not reply to this message. Contact your consultant directly if you nee
             );
           }
 
+          if (field === "fallback") {
+            return (
+              <div key={field} className="space-y-2">
+                <Label>{fieldLabel(group.key, field)}</Label>
+                <Select value={form.fallback || "openai"} onValueChange={(v) => setForm({ ...form, fallback: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="openai">Fall back to OpenAI research</SelectItem>
+                    <SelectItem value="fail">Fail the research step</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            );
+          }
+
           if (field === "enabled" || field === "workspace_enabled") {
             return (
               <div key={field} className="flex items-center justify-between rounded-lg border p-4 sm:col-span-2">
-                <Label>{FIELD_LABELS[field] ?? field}</Label>
+                <Label>{fieldLabel(group.key, field)}</Label>
                 <Switch
                   checked={form[field] === "true" || form[field] === "1"}
                   onCheckedChange={(v) => setForm({ ...form, [field]: v ? "true" : "false" })}
@@ -408,7 +473,7 @@ Please do not reply to this message. Contact your consultant directly if you nee
             return (
               <SecretField
                 key={field}
-                label={FIELD_LABELS[field] ?? field}
+                label={fieldLabel(group.key, field)}
                 preview={group.previews[field] ?? null}
                 hint={group.hints?.[field] ?? null}
                 value={form[field] ?? ""}
@@ -420,12 +485,18 @@ Please do not reply to this message. Contact your consultant directly if you nee
 
           return (
             <div key={field} className="space-y-2">
-              <Label>{FIELD_LABELS[field] ?? field}</Label>
+              <Label>{fieldLabel(group.key, field)}</Label>
               <Input
                 value={form[field] ?? ""}
                 onChange={(e) => setForm({ ...form, [field]: e.target.value })}
-                placeholder={FIELD_LABELS[field] ?? field}
-                className={field.includes("uri") || field.includes("redirect") ? "font-mono text-xs" : ""}
+                placeholder={
+                  field === "webhook_url"
+                    ? `${process.env.NEXT_PUBLIC_API_URL ?? "https://api.rcicmaster.ca"}/api/v1/webhooks/manus/academy-research`
+                    : field === "base_url"
+                      ? "https://api.manus.ai"
+                      : fieldLabel(group.key, field)
+                }
+                className={field.includes("uri") || field.includes("redirect") || field.includes("url") ? "font-mono text-xs" : ""}
               />
             </div>
           );
@@ -490,6 +561,12 @@ Please do not reply to this message. Contact your consultant directly if you nee
           </Button>
         )}
 
+        {group.key === "manus" && (
+          <Button variant="secondary" size="sm" className="ml-auto" onClick={sendTestManus} disabled={testing}>
+            {testing ? <Loader2 className="h-4 w-4 animate-spin" /> : "Test Manus"}
+          </Button>
+        )}
+
         {group.key === "whatsapp_cloud" && (
           <div className="flex items-center gap-2 ml-auto">
             <Input
@@ -534,7 +611,7 @@ export default function IntegrationsPage() {
           Integration credentials
         </h1>
         <p className="text-sm text-muted-foreground mt-1 max-w-2xl">
-          Manage Google OAuth, SMTP email, WhatsApp, video meetings, AWS, and OpenAI settings.
+          Manage Google OAuth, SMTP email, WhatsApp, video meetings, AWS, OpenAI, and Manus settings.
           Secrets are encrypted in the database. Leave secret fields blank to keep existing values.
         </p>
       </div>

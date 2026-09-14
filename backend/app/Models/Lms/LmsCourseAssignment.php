@@ -15,6 +15,7 @@ class LmsCourseAssignment extends Model
     protected $fillable = [
         'course_id', 'client_user_id', 'assigned_by_user_id',
         'progress_percent', 'status', 'assigned_at', 'completed_at',
+        'source', 'ends_at',
     ];
 
     protected function casts(): array
@@ -22,6 +23,7 @@ class LmsCourseAssignment extends Model
         return [
             'assigned_at'  => 'datetime',
             'completed_at' => 'datetime',
+            'ends_at' => 'datetime',
         ];
     }
 

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ACADEMY_NAV } from "@/lib/academy";
+import { LocaleToggle } from "@/components/locale-toggle";
 import { cn } from "@/lib/utils";
 
 export function AcademyShell({ children }: { children: React.ReactNode }) {
@@ -10,12 +11,15 @@ export function AcademyShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="space-y-6 p-6">
-      <div>
-        <h1 className="text-2xl font-semibold">RCIC Academy</h1>
-        <p className="text-sm text-muted-foreground">
-          Independent professional learning and exam preparation. Scores are readiness indicators, not official CICC
-          pass predictions. Legal summaries are study aids — verify the official source.
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold">RCIC Academy</h1>
+          <p className="text-sm text-muted-foreground">
+            Independent professional learning and exam preparation. Scores are readiness indicators, not official CICC
+            pass predictions. Legal summaries are study aids — verify the official source.
+          </p>
+        </div>
+        <LocaleToggle />
       </div>
       <nav className="flex flex-wrap gap-2">
         {ACADEMY_NAV.map((item) => {

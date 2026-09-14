@@ -22,6 +22,7 @@ import {
   GiftIcon,
   UsersRoundIcon,
   GraduationCapIcon,
+  BookOpenIcon,
   type LucideIcon,
 } from "lucide-react";
 import { canSeeNavHref, readTeamSession, type TeamSession } from "@/lib/team-access";
@@ -96,6 +97,13 @@ export const navItems: NavGroup[] = [
         description: "Professional learning home",
         icon: GraduationCapIcon,
         match: (p) => p === "/dashboard/academy",
+      },
+      {
+        title: "RCIC Academy",
+        href: "/dashboard/academy/courses",
+        description: "Course catalog",
+        icon: BookOpenIcon,
+        match: (p) => p.startsWith("/dashboard/academy/courses"),
       },
     ],
   },

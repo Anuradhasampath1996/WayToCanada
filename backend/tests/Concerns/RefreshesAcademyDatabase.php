@@ -3,7 +3,6 @@
 namespace Tests\Concerns;
 
 use App\Services\Academy\AcademyBootstrap;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 trait RefreshesAcademyDatabase
@@ -36,6 +35,7 @@ trait RefreshesAcademyDatabase
 
     /**
      * Reset only db_academy_test. Never wipe db_cws, db_lms, or a non-test academy database.
+     * When the schema already exists, truncate + re-bootstrap instead of dropAllTables.
      */
     protected function resetAcademySchema(): void
     {
@@ -44,12 +44,21 @@ trait RefreshesAcademyDatabase
             throw new \RuntimeException('Refusing to wipe Academy database ['.$database.']. Tests may only reset db_academy_test.');
         }
 
+        if (Schema::connection('academy')->hasTable('academy_courses')) {
+            $this->truncateSatelliteIfExists('academy', 'db_academy_test');
+            app(AcademyBootstrap::class)->ensure();
+
+            return;
+        }
+
         Schema::connection('academy')->dropAllTables();
 
         $migration = include database_path('migrations/2026_09_14_140000_create_academy_tables.php');
         $migration->up();
         $ai = include database_path('migrations/2026_09_14_160000_create_academy_ai_tables.php');
         $ai->up();
+        $marketplace = include database_path('migrations/2026_09_14_180000_create_learning_marketplace_academy_tables.php');
+        $marketplace->up();
 
         app(AcademyBootstrap::class)->ensure();
     }

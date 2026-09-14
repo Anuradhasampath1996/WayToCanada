@@ -3,7 +3,10 @@
 namespace App\Services;
 
 use App\Contracts\StripePlatformClient;
+use App\Models\Academy\AcademyEntitlement;
 use App\Models\ConsultantMarketingOrder;
+use App\Models\LearningCoursePayment;
+use App\Models\Lms\LmsCourseAssignment;
 use App\Models\ConsultantStorageAddon;
 use App\Models\ConsultantSubscription;
 use App\Models\MarketingService;
@@ -42,11 +45,21 @@ class StripePaymentFulfillmentService
             if ($type === 'marketing_service') {
                 return $this->fulfillMarketingCheckout($session);
             }
+            if ($type === 'learning_course') {
+                return $this->fulfillLearningCourseCheckout($session);
+            }
 
             return null;
         }
 
         if (($session->mode ?? '') === 'subscription') {
+            if ($type === 'learning_course') {
+                Log::warning('[Fulfillment] learning_course must not use subscription mode', [
+                    'session_id' => $session->id ?? null,
+                ]);
+
+                return null;
+            }
             if ($type === 'marketing_service') {
                 return $this->fulfillMarketingCheckout($session);
             }
@@ -740,6 +753,106 @@ class StripePaymentFulfillmentService
         }
 
         return null;
+    }
+
+    /** @return array<string, mixed>|null */
+    private function fulfillLearningCourseCheckout(object $session): ?array
+    {
+        $metadata = (array) ($session->metadata ?? []);
+        $userId = (int) ($metadata['learner_user_id'] ?? $metadata['user_id'] ?? 0);
+        $courseId = (int) ($metadata['course_id'] ?? 0);
+        $domain = (string) ($metadata['product_domain'] ?? '');
+        if ($userId < 1 || $courseId < 1 || ! in_array($domain, ['rcic_academy', 'client_lms'], true)) {
+            Log::warning('[Fulfillment] learning_course missing metadata', ['session' => $session->id ?? null]);
+
+            return null;
+        }
+
+        $months = max(1, (int) ($metadata['access_months'] ?? config('learning.default_access_months', 3)));
+        $until = now()->addMonths($months);
+        $payment = LearningCoursePayment::query()->updateOrCreate(
+            ['stripe_checkout_session_id' => (string) ($session->id ?? '')],
+            [
+                'learner_user_id' => $userId,
+                'product_domain' => $domain,
+                'course_id' => $courseId,
+                'amount_cents' => (int) (($session->amount_total ?? 0)),
+                'currency' => strtoupper((string) ($session->currency ?? 'cad')),
+                'status' => 'paid',
+                'stripe_payment_intent_id' => is_string($session->payment_intent ?? null) ? $session->payment_intent : null,
+                'access_months' => $months,
+                'entitled_until' => $until,
+                'metadata_json' => $metadata,
+            ]
+        );
+
+        if ($domain === 'rcic_academy') {
+            AcademyEntitlement::query()->updateOrCreate(
+                [
+                    'user_id' => $userId,
+                    'type' => 'one_time_purchase',
+                    'course_id' => $courseId,
+                ],
+                [
+                    'is_active' => true,
+                    'starts_at' => now(),
+                    'ends_at' => $until,
+                    'notes' => 'learning_course payment '.$payment->id,
+                ]
+            );
+        }
+
+        if ($domain === 'client_lms') {
+            LmsCourseAssignment::query()->updateOrCreate(
+                [
+                    'client_user_id' => $userId,
+                    'course_id' => $courseId,
+                ],
+                [
+                    'assigned_by_user_id' => $userId,
+                    'status' => 'assigned',
+                    'source' => 'self_purchase',
+                    'ends_at' => $until,
+                    'assigned_at' => now(),
+                ]
+            );
+        }
+
+        return ['type' => 'learning_course', 'payment_id' => $payment->id];
+    }
+
+    public function revokeLearningCourseFromCharge(object $charge): void
+    {
+        $intentId = is_string($charge->payment_intent ?? null) ? $charge->payment_intent : null;
+        $sessionId = $charge->metadata->checkout_session_id ?? null;
+        $payment = null;
+        if ($intentId) {
+            $payment = LearningCoursePayment::query()->where('stripe_payment_intent_id', $intentId)->first();
+        }
+        if (! $payment && $sessionId) {
+            $payment = LearningCoursePayment::query()->where('stripe_checkout_session_id', $sessionId)->first();
+        }
+        if (! $payment) {
+            return;
+        }
+
+        $payment->update(['status' => 'refunded']);
+
+        if ($payment->product_domain === 'rcic_academy') {
+            AcademyEntitlement::query()
+                ->where('user_id', $payment->learner_user_id)
+                ->where('type', 'one_time_purchase')
+                ->where('course_id', $payment->course_id)
+                ->update(['is_active' => false]);
+        }
+
+        if ($payment->product_domain === 'client_lms') {
+            LmsCourseAssignment::query()
+                ->where('client_user_id', $payment->learner_user_id)
+                ->where('course_id', $payment->course_id)
+                ->where('source', 'self_purchase')
+                ->update(['status' => 'expired']);
+        }
     }
 
     /** @return array<string, string> */

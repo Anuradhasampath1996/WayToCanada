@@ -63,7 +63,10 @@ export default function AdminAcademyPage() {
           <a className="underline" href="/admindashboard/academy/ai-studio">
             AI Content Studio
           </a>{" "}
-          generates drafts only.
+          generates drafts only.{" "}
+          <a className="underline" href="/admindashboard/learning/exams">
+            Exam Master / Research
+          </a>
         </p>
       </div>
       <div className="flex flex-wrap gap-2">

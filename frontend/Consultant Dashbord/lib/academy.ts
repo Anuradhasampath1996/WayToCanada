@@ -32,9 +32,9 @@ export async function academySend<T>(path: string, method: string, body?: unknow
 
 export const ACADEMY_NAV = [
   { href: "/dashboard/academy", label: "Dashboard" },
+  { href: "/dashboard/academy/courses", label: "RCIC Academy" },
   { href: "/dashboard/academy/learning", label: "My Learning" },
   { href: "/dashboard/academy/exam-prep", label: "Exam Preparation" },
-  { href: "/dashboard/academy/courses", label: "Courses" },
   { href: "/dashboard/academy/practice", label: "Practice" },
   { href: "/dashboard/academy/exams", label: "Mock Exams" },
   { href: "/dashboard/academy/planner", label: "Study Planner" },

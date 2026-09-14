@@ -125,7 +125,7 @@ class IntegrationSettingsService
         ],
         'openai' => [
             'label'       => 'OpenAI',
-            'description' => 'Shared API key for Legislation Hub analysis and Maple (consultant workspace AI chat & case advisor).',
+            'description' => 'Shared API key for Legislation Hub, Maple, and RCIC Academy / LMS AI (research cross-check and course generation).',
             'secrets'     => ['api_key'],
             'fields'      => ['api_key', 'enabled', 'model', 'workspace_enabled', 'workspace_model'],
             'env'         => [
@@ -134,6 +134,20 @@ class IntegrationSettingsService
                 'model'             => 'LEGISLATION_OPENAI_MODEL',
                 'workspace_enabled' => 'WORKSPACE_AI_ENABLED',
                 'workspace_model'   => 'WORKSPACE_AI_MODEL',
+            ],
+        ],
+        'manus' => [
+            'label'       => 'Manus (Academy research)',
+            'description' => 'Optional research-only provider for Exam Evidence Packs. Manus notes never write Exam Master and never publish courses. OpenAI still does independent verification and generation.',
+            'secrets'     => ['api_key'],
+            'fields'      => ['api_key', 'enabled', 'fallback', 'base_url', 'agent_profile', 'webhook_url'],
+            'env'         => [
+                'api_key'       => 'MANUS_API_KEY',
+                'enabled'       => 'ACADEMY_MANUS_ENABLED',
+                'fallback'      => 'ACADEMY_MANUS_FALLBACK',
+                'base_url'      => 'ACADEMY_MANUS_BASE_URL',
+                'agent_profile' => 'ACADEMY_MANUS_AGENT_PROFILE',
+                'webhook_url'   => 'ACADEMY_MANUS_WEBHOOK_URL',
             ],
         ],
     ];
@@ -165,6 +179,9 @@ class IntegrationSettingsService
 
             if ($key === 'openai' && is_string($merged['api_key'] ?? null) && str_starts_with($merged['api_key'], 'sk-test')) {
                 $warnings[] = 'Saved API key looks like a placeholder (sk-test…). Paste your real OpenAI key from platform.openai.com and click Save.';
+            }
+            if ($key === 'manus' && ! empty($merged['api_key']) && ! $this->envBool($merged['enabled'] ?? false)) {
+                $warnings[] = 'A Manus API key is saved but research is turned off. Enable Manus research and Save.';
             }
 
             return [
@@ -253,6 +270,7 @@ class IntegrationSettingsService
         $this->applyMicrosoft($all['microsoft'] ?? []);
         $this->applyAws($all['aws_s3'] ?? [], $all['mail'] ?? []);
         $this->applyOpenAi($all['openai'] ?? []);
+        $this->applyManus($all['manus'] ?? []);
     }
 
     /** @return array<string, mixed> */
@@ -300,6 +318,7 @@ class IntegrationSettingsService
             'whatsapp_cloud' => ! empty($v['phone_number_id']) && ! empty($v['access_token']),
             'aws_s3' => ! empty($v['access_key_id']) && ! empty($v['bucket']),
             'openai' => ! empty($v['api_key']),
+            'manus' => ! empty($v['api_key']) && $this->envBool($v['enabled'] ?? false),
             default => false,
         };
     }
@@ -457,6 +476,7 @@ class IntegrationSettingsService
     {
         if (! empty($v['api_key'])) {
             config(['services.openai.key' => $v['api_key']]);
+            config(['academy_ai.openai.key' => $v['api_key']]);
         }
 
         if (array_key_exists('enabled', $v)) {
@@ -474,6 +494,34 @@ class IntegrationSettingsService
         $workspaceModel = $v['workspace_model'] ?? $v['model'] ?? null;
         if (! empty($workspaceModel)) {
             config(['workspace_ai.model' => $workspaceModel]);
+        }
+    }
+
+    /** @param array<string, mixed> $v */
+    private function applyManus(array $v): void
+    {
+        if (array_key_exists('enabled', $v) && $v['enabled'] !== null && $v['enabled'] !== '') {
+            config(['academy_ai.manus.enabled' => $this->envBool($v['enabled'])]);
+        }
+
+        if (! empty($v['api_key'])) {
+            config(['academy_ai.manus.api_key' => $v['api_key']]);
+        }
+
+        if (! empty($v['base_url'])) {
+            config(['academy_ai.manus.base_url' => $v['base_url']]);
+        }
+
+        if (! empty($v['agent_profile'])) {
+            config(['academy_ai.manus.agent_profile' => $v['agent_profile']]);
+        }
+
+        if (! empty($v['fallback'])) {
+            config(['academy_ai.manus.fallback' => $v['fallback']]);
+        }
+
+        if (! empty($v['webhook_url'])) {
+            config(['academy_ai.manus.webhook_url' => $v['webhook_url']]);
         }
     }
 

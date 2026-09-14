@@ -115,13 +115,25 @@ class AcademyAiOrchestrator
         $step = $this->beginStep($job, 'blueprint');
         $job->update(['status' => 'blueprint']);
         if (! $job->blueprint_json) {
+            if ($job->exam_id && ! $job->evidence_pack_id) {
+                throw new \RuntimeException('Blueprint requires a verified Exam Evidence Pack.');
+            }
             $generation = $this->factory->generation();
             $job->update(['generation_provider' => $generation->name()]);
+            $evidence = '';
+            if ($job->evidence_pack_id) {
+                $pack = \App\Models\Academy\AcademyExamEvidencePack::query()->with('items')->find($job->evidence_pack_id);
+                $exam = \App\Models\Academy\AcademyExam::query()->find($job->exam_id);
+                $evidence = "\nVerified exam structure: ".json_encode($exam?->exam_format_json)
+                    ."\nEvidence summary: ".($pack?->research_summary)
+                    ."\nPattern metadata: ".json_encode($pack?->pattern_metadata_json)
+                    ."\nDo not invent exam structure from model memory.";
+            }
             $result = $generation->generateStructured(
                 AcademyAiSchemas::courseBlueprint(),
                 'course_blueprint',
                 AcademyAiPromptCatalog::system('course_blueprint'),
-                $this->sourceContext($job)."\nTitle: {$job->title}\nGoal: {$job->goal}",
+                $this->sourceContext($job)."\nTitle: {$job->title}\nGoal: {$job->goal}".$evidence,
             );
             $this->usage->recordStructured($job->id, 'blueprint', $result, AcademyAiPromptCatalog::version('course_blueprint'), $step->id);
             $this->promptRun($job, $step, 'course_blueprint');

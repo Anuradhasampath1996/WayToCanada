@@ -14,7 +14,8 @@ class AcademyAiGenerationJob extends AcademyModel
         'course_version_id', 'title', 'goal', 'difficulty', 'estimated_hours',
         'request_json', 'blueprint_json', 'blueprint_approved', 'progress_json',
         'research_provider', 'generation_provider', 'error', 'cancel_requested',
-        'started_at', 'completed_at',
+        'started_at', 'completed_at', 'exam_id', 'evidence_pack_id', 'generation_profile',
+        'product_domain', 'content_language', 'coverage_json',
     ];
 
     protected function casts(): array

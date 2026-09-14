@@ -13,7 +13,13 @@ class LmsLesson extends Model
 
     protected $fillable = [
         'module_id', 'title', 'lesson_type', 'video_url', 'pdf_url', 'text_content', 'duration_minutes', 'sort_order',
+        'evidence_mapping_json',
     ];
+
+    protected function casts(): array
+    {
+        return ['evidence_mapping_json' => 'array'];
+    }
 
     public function module(): BelongsTo
     {

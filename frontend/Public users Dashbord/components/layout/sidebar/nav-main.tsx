@@ -31,7 +31,6 @@ import { useClientJourneyOptional } from "@/context/client-journey-context";
 import { useClientUnreadMessages } from "@/hooks/use-client-unread-messages";
 import {
   journeyStepBadge,
-  LEARNING_LOCKED_REASON,
   canAccessClientMessages,
   type JourneyStep,
   type JourneyStepId,
@@ -185,7 +184,6 @@ export function NavMain() {
   const consultant = journey?.consultant;
   const showJourneyNav = Boolean(consultant);
   const canAccess = journey?.canAccess ?? (() => false);
-  const learningUnlocked = journey?.canAccessLearning ?? false;
   const messagesUnlocked = canAccessClientMessages(journey?.caseFile ?? null);
   const pathwayAssigned = Boolean(journey?.meta.pathwayAssigned);
   const { count: unreadMessages } = useClientUnreadMessages(messagesUnlocked);
@@ -307,43 +305,19 @@ export function NavMain() {
             </SidebarMenuItem>
           )}
 
-          {showJourneyNav && (
-            <SidebarMenuItem>
-              {learningUnlocked ? (
-                <SidebarMenuButton
-                  className="hover:!bg-primary/10 hover:!text-foreground active:!bg-primary/10 active:!text-foreground data-[active=true]:!bg-primary/15 data-[active=true]:!text-foreground hover:[&_svg]:!text-foreground data-[active=true]:[&_svg]:!text-foreground"
-                  isActive={pathname.startsWith("/user-dashboard/learning")}
-                  tooltip="Learning courses"
-                  asChild
-                >
-                  <Link href="/user-dashboard/learning">
-                    <BookOpenIcon className="size-4 shrink-0" />
-                    <span>Learning courses</span>
-                  </Link>
-                </SidebarMenuButton>
-              ) : (
-                <SidebarMenuButton
-                  className="h-auto min-h-10 cursor-not-allowed items-start py-2 opacity-80 hover:!bg-transparent active:!bg-transparent hover:!text-inherit"
-                  isActive={false}
-                  tooltip={`Learning courses — ${LEARNING_LOCKED_REASON}`}
-                  onClick={(e) => e.preventDefault()}
-                >
-                  <BookOpenIcon className="size-4 shrink-0 text-muted-foreground opacity-40" />
-                  <div className="min-w-0 flex-1 group-data-[collapsible=icon]:hidden">
-                    <span className="block truncate text-sm font-medium text-muted-foreground/70">
-                      Learning courses
-                    </span>
-                    <span className="mt-0.5 inline-flex rounded-md border border-muted-foreground/20 bg-muted px-1.5 py-px text-[10px] font-semibold leading-tight text-muted-foreground">
-                      Locked
-                    </span>
-                    <p className="mt-1 line-clamp-2 text-[10px] leading-snug text-muted-foreground/70">
-                      {LEARNING_LOCKED_REASON}
-                    </p>
-                  </div>
-                </SidebarMenuButton>
-              )}
-            </SidebarMenuItem>
-          )}
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              className="hover:!bg-primary/10 hover:!text-foreground active:!bg-primary/10 active:!text-foreground data-[active=true]:!bg-primary/15 data-[active=true]:!text-foreground hover:[&_svg]:!text-foreground data-[active=true]:[&_svg]:!text-foreground"
+              isActive={pathname.startsWith("/user-dashboard/learning")}
+              tooltip="Learning Marketplace"
+              asChild
+            >
+              <Link href="/user-dashboard/learning">
+                <BookOpenIcon className="size-4 shrink-0" />
+                <span>Learning Marketplace</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
         </SidebarMenu>
       </SidebarGroupContent>
 

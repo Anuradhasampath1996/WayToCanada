@@ -9,7 +9,11 @@ class AcademyQuestion extends AcademyModel
 {
     protected $table = 'academy_questions';
 
-    protected $fillable = ['type', 'status', 'current_published_version_id', 'created_by'];
+    protected $fillable = [
+        'type', 'status', 'current_published_version_id', 'created_by', 'exam_id',
+        'generation_job_id', 'generation_profile', 'style_pattern_category',
+        'practice_eligible', 'mock_eligible', 'content_language',
+    ];
 
     public function versions(): HasMany
     {

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Client;
 
 use App\Http\Controllers\Controller;
+use App\Models\Lms\LmsCourse;
 use App\Models\Lms\LmsCourseAssignment;
 use App\Models\Lms\LmsLesson;
 use App\Models\Lms\LmsLessonCompletion;
@@ -13,6 +14,7 @@ use App\Models\Lms\LmsQuizAttempt;
 use App\Services\LmsExamService;
 use App\Services\LmsProgressService;
 use App\Services\LmsPathwayGate;
+use App\Services\Learning\LearningCatalogService;
 use App\Services\ClientActivity\ClientActivityTriggers;
 use App\Services\Notifications\WorkspaceNotificationTriggers;
 use Illuminate\Http\JsonResponse;
@@ -25,17 +27,70 @@ class ClientLmsController extends Controller
         private LmsExamService $exams,
         private WorkspaceNotificationTriggers $notify,
         private ClientActivityTriggers $activity,
+        private LearningCatalogService $catalog,
     ) {}
+
+    public function catalog(Request $request): JsonResponse
+    {
+        if (! $request->user()?->hasRole('client')) {
+            abort(404);
+        }
+        $locale = $request->query('locale', $request->user()->locale ?? 'en');
+
+        return response()->json([
+            'data' => $this->catalog->lmsCatalog($request->user(), $locale, $request->only([
+                'q', 'exam_id', 'category', 'language', 'price', 'status',
+            ])),
+        ]);
+    }
+
+    public function startFree(Request $request, LmsCourse $course): JsonResponse
+    {
+        if (! $request->user()?->hasRole('client')) {
+            abort(404);
+        }
+        if (! $course->is_published || $course->access_mode !== 'free') {
+            return response()->json(['message' => 'This course cannot be started for free.'], 422);
+        }
+        $assignment = LmsCourseAssignment::query()->updateOrCreate(
+            [
+                'client_user_id' => $request->user()->id,
+                'course_id' => $course->id,
+            ],
+            [
+                'assigned_by_user_id' => $request->user()->id,
+                'status' => 'assigned',
+                'source' => 'self_purchase',
+                'assigned_at' => now(),
+                'ends_at' => now()->addMonths((int) ($course->access_months ?: config('learning.default_access_months', 3))),
+            ]
+        );
+
+        return response()->json([
+            'assignment_id' => $assignment->id,
+            'course_id' => $course->id,
+        ], 201);
+    }
 
     public function myCourses(Request $request): JsonResponse
     {
-        $this->assertLmsUnlocked($request);
+        if (! $request->user()?->hasRole('client')) {
+            abort(404);
+        }
         $userId = $request->user()->id;
+        $pathwayOk = $this->lmsPathwayOk($request);
 
         $items = LmsCourseAssignment::with(['course.category'])
             ->where('client_user_id', $userId)
             ->orderByDesc('assigned_at')
             ->get()
+            ->filter(function ($a) use ($pathwayOk) {
+                if ($pathwayOk) {
+                    return true;
+                }
+                $mode = $a->course?->access_mode;
+                return $a->source === 'self_purchase' || in_array($mode, ['self_purchase', 'free', 'assigned_or_purchase'], true);
+            })
             ->map(fn ($a) => [
                 'assignment_id'    => $a->id,
                 'progress_percent' => $a->progress_percent,
@@ -47,7 +102,8 @@ class ClientLmsController extends Controller
                     'thumbnail_url' => $a->course->thumbnail_url,
                     'category'      => $a->course->category?->name,
                 ],
-            ]);
+            ])
+            ->values();
 
         return response()->json(['data' => $items]);
     }
@@ -174,7 +230,23 @@ class ClientLmsController extends Controller
         if ($assignment->client_user_id !== $request->user()->id) {
             abort(403, 'Unauthorized');
         }
+        $assignment->loadMissing('course');
+        $mode = $assignment->course?->access_mode;
+        if ($assignment->source === 'self_purchase' || in_array($mode, ['self_purchase', 'free', 'assigned_or_purchase'], true)) {
+            return;
+        }
         $this->assertLmsUnlocked($request);
+    }
+
+    private function lmsPathwayOk(Request $request): bool
+    {
+        try {
+            $this->assertLmsUnlocked($request);
+
+            return true;
+        } catch (\Symfony\Component\HttpKernel\Exception\HttpException) {
+            return false;
+        }
     }
 
     private function assertLmsUnlocked(Request $request): void

@@ -18,6 +18,7 @@ class AcademyBootstrap
             $this->topics($irb->id);
             $this->competencies();
             $this->irbExamTemplate($irb->id);
+            $this->irbExamMaster();
         });
     }
 
@@ -124,6 +125,37 @@ class AcademyBootstrap
                 'max_attempts' => null,
                 'status' => 'published',
                 'version_number' => 1,
+            ]
+        );
+    }
+
+    private function irbExamMaster(): void
+    {
+        if (! \Illuminate\Support\Facades\Schema::connection('academy')->hasTable('academy_exams')) {
+            return;
+        }
+
+        \App\Models\Academy\AcademyExam::query()->updateOrCreate(
+            ['key' => 'rcic_irb_specialization'],
+            [
+                'product_domain' => 'rcic_academy',
+                'audience' => 'rcic',
+                'slug' => 'rcic-irb-specialization',
+                'generation_profile' => 'rcic_exam_prep',
+                'name' => 'RCIC-IRB Specialization Exam',
+                'description' => 'Independent preparation target. Not an official CICC exam.',
+                'exam_authority' => 'CICC',
+                'official_exam_url' => 'https://college-ic.ca',
+                'content_language' => 'en',
+                'status' => 'active',
+                'exam_format_json' => [
+                    'total_questions' => 190,
+                    'duration_minutes' => 240,
+                    'independent_mcq_count' => 95,
+                    'case_based_mcq_count' => 95,
+                ],
+                'next_review_at' => now()->addDays((int) config('learning.verification_intervals_days.rcic_exam_prep', 90)),
+                'verification_interval_days' => (int) config('learning.verification_intervals_days.rcic_exam_prep', 90),
             ]
         );
     }

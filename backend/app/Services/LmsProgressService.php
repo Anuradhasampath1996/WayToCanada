@@ -115,6 +115,11 @@ class LmsProgressService
                 'progress_percent' => $assignment->progress_percent,
                 'status'           => $assignment->status,
             ] : null,
+            'exam_master_templates' => \App\Models\Lms\LmsExamTemplate::query()
+                ->where('course_id', $course->id)
+                ->where('status', 'published')
+                ->orderBy('name')
+                ->get(['id', 'name', 'duration_minutes', 'total_questions', 'selection_mode']),
         ];
     }
 }

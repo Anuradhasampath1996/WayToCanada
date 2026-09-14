@@ -104,12 +104,46 @@ class AcademyCourseService
 
     public function learnerCourse(User $user, AcademyCourse $course): array
     {
-        $this->access->assertCourse($user, $course);
+        $this->access->assertLearner($user);
+        if (! $course->isPublished()) {
+            abort(404);
+        }
+
+        $catalog = app(\App\Services\Learning\LearningCatalogService::class);
+        $locale = $user->locale ?? 'en';
+        $card = \App\Support\Learning\LearningCatalogCard::fromDomain(
+            'rcic_academy',
+            array_merge($course->load('translations')->toArray(), [
+                'translations' => $course->translations->keyBy('locale')->map(fn ($row) => [
+                    'title' => $row->title,
+                    'subtitle' => $row->subtitle,
+                    'description' => $row->description,
+                ])->all(),
+            ]),
+            $course->exam_id ? optional(\App\Models\Academy\AcademyExam::query()->find($course->exam_id))->only(['id', 'name']) : null,
+            $locale,
+            $catalog->academyEntitlement($user, $course)
+        );
+
+        if (! $this->access->hasCourseAccess($user, $course)) {
+            if ($course->access_tier !== 'purchase') {
+                $this->access->assertCourse($user, $course);
+            }
+
+            return [
+                'course' => $card,
+                'entitled' => false,
+                'modules' => [],
+                'disclaimer' => config('academy.disclaimer'),
+            ];
+        }
+
         $progress = $this->ensureProgress($user, $course);
         $version = $this->pinnedVersion($course, $progress);
 
         return [
-            'course' => $this->courseSummary($course),
+            'course' => array_merge($this->courseSummary($course), $card),
+            'entitled' => true,
             'version' => [
                 'id' => $version->id,
                 'version_number' => $version->version_number,

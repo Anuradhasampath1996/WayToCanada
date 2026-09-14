@@ -13,7 +13,7 @@ class AcademyAiValidationResult extends AcademyModel
         'ambiguous', 'currency_ok', 'validator_option_key', 'generated_option_key',
         'source_grounding_score', 'answer_consistency_score', 'ambiguity_score',
         'citation_coverage_score', 'admin_label', 'flags_json', 'validator_payload_json',
-        'validator_model',
+        'validator_model', 'exam_relevance_ok', 'style_ok', 'near_copy_ok',
     ];
 
     protected function casts(): array
@@ -24,6 +24,9 @@ class AcademyAiValidationResult extends AcademyModel
             'agrees_with_generated' => 'boolean',
             'ambiguous' => 'boolean',
             'currency_ok' => 'boolean',
+            'exam_relevance_ok' => 'boolean',
+            'style_ok' => 'boolean',
+            'near_copy_ok' => 'boolean',
             'source_grounding_score' => 'float',
             'answer_consistency_score' => 'float',
             'ambiguity_score' => 'float',

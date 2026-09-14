@@ -378,6 +378,35 @@ export default function CoursePlayerPage() {
             )}
 
             <LmsCourseMetaCard categoryName={course.category?.name} courseTitle={course.title} />
+            {(course.exam_master_templates ?? []).length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Exam Master mocks</CardTitle>
+                  <CardDescription>Server-timed random pool. Legacy quizzes keep their original player.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  {course.exam_master_templates.map((t: { id: number; name: string; duration_minutes: number; total_questions: number }) => (
+                    <Button
+                      key={t.id}
+                      variant="outline"
+                      className="w-full justify-between"
+                      onClick={async () => {
+                        const res = await fetch(`${API}/client/lms/exam-templates/${t.id}/attempts`, {
+                          method: "POST",
+                          headers: { Accept: "application/json", "Content-Type": "application/json", Authorization: `Bearer ${token()}` },
+                        });
+                        const body = await res.json().catch(() => ({}));
+                        if (!res.ok) return;
+                        router.push(`/user-dashboard/learning/mocks/${body.attempt.id}`);
+                      }}
+                    >
+                      <span>{t.name}</span>
+                      <span className="text-xs text-muted-foreground">{t.total_questions} q · {t.duration_minutes} min</span>
+                    </Button>
+                  ))}
+                </CardContent>
+              </Card>
+            )}
           </div>
 
           <div className="hidden space-y-4 lg:col-span-1 lg:block">
