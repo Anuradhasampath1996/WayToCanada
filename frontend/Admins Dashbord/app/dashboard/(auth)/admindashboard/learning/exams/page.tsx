@@ -1,7 +1,16 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { BookOpen, Plus } from "lucide-react";
 import { adminAuthHeaders } from "@/lib/admin-auth";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 const API = (process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000") + "/api/v1";
 
@@ -9,180 +18,311 @@ function headers() {
   return adminAuthHeaders("application/json");
 }
 
+type Exam = {
+  id: number;
+  name: string;
+  generation_profile?: string;
+  status?: string;
+  exam_authority?: string | null;
+};
+
 type Summary = Record<string, string | number | boolean | null>;
 
 export default function AdminLearningExamsPage() {
   const [domain, setDomain] = useState("rcic_academy");
-  const [exams, setExams] = useState<Array<{ id: number; name: string }>>([]);
+  const [exams, setExams] = useState<Exam[]>([]);
   const [open, setOpen] = useState<number | null>(null);
-  const [detail, setDetail] = useState<{ exam?: { name: string }; evidence_summary?: Summary } | null>(null);
-  const [payload, setPayload] = useState<unknown>(null);
+  const [detail, setDetail] = useState<{ exam?: Exam; evidence_summary?: Summary } | null>(null);
+  const [name, setName] = useState("");
+  const [sourceUrl, setSourceUrl] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
   const [lmsJobId, setLmsJobId] = useState<number | null>(null);
 
+  const isLms = domain === "client_lms";
+
   async function loadList() {
+    setError(null);
     const res = await fetch(`${API}/admin/learning/exams?product_domain=${domain}`, { headers: headers() });
     const json = await res.json();
+    if (!res.ok) {
+      setError(json.message ?? "Could not load exams");
+      setExams([]);
+      return;
+    }
     setExams(json.data ?? []);
   }
 
   useEffect(() => {
+    setOpen(null);
+    setDetail(null);
+    setName(isLms ? "Canadian Citizenship Test" : "RCIC-IRB Specialization Exam");
+    setSourceUrl(
+      isLms
+        ? "https://www.canada.ca/en/immigration-refugees-citizenship/services/canadian-citizenship.html"
+        : "https://college-ic.ca"
+    );
     loadList();
   }, [domain]);
 
   async function loadExam(id: number) {
     setOpen(id);
     const res = await fetch(`${API}/admin/learning/exams/${id}?product_domain=${domain}`, { headers: headers() });
-    setDetail(await res.json());
+    const json = await res.json();
+    if (!res.ok) {
+      setError(json.message ?? "Could not load exam");
+      return;
+    }
+    setDetail(json);
+  }
+
+  async function run(label: string, fn: () => Promise<void>) {
+    setBusy(true);
+    setError(null);
+    setNotice(null);
+    try {
+      await fn();
+      setNotice(label);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Request failed");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function createExam() {
-    const res = await fetch(`${API}/admin/learning/exams?product_domain=${domain}`, {
-      method: "POST",
-      headers: headers(),
-      body: JSON.stringify({
-        name: domain === "rcic_academy" ? "RCIC-IRB Specialization Exam" : "Canadian Citizenship Test",
-        generation_profile: domain === "rcic_academy" ? "rcic_exam_prep" : "citizenship_exam_prep",
-      }),
+    await run("Exam created as a draft.", async () => {
+      const res = await fetch(`${API}/admin/learning/exams?product_domain=${domain}`, {
+        method: "POST",
+        headers: headers(),
+        body: JSON.stringify({
+          name,
+          generation_profile: isLms ? "citizenship_exam_prep" : "rcic_exam_prep",
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.message ?? "Create failed");
+      await loadList();
+      if (json.exam?.id) await loadExam(json.exam.id);
     });
-    setPayload(await res.json());
-    loadList();
   }
 
-  async function post(path: string, body: unknown) {
-    const res = await fetch(`${API}/admin/learning/exams/${open}${path}?product_domain=${domain}`, {
-      method: "POST",
-      headers: headers(),
-      body: JSON.stringify(body),
+  async function post(path: string, body: unknown, label: string) {
+    if (!open) return;
+    await run(label, async () => {
+      const res = await fetch(`${API}/admin/learning/exams/${open}${path}?product_domain=${domain}`, {
+        method: "POST",
+        headers: headers(),
+        body: JSON.stringify(body),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.message ?? "Request failed");
+      if (typeof json.job_id === "number") setLmsJobId(json.job_id);
+      await loadExam(open);
     });
-    const json = await res.json();
-    setPayload(json);
-    if (typeof json?.job_id === "number") {
-      setLmsJobId(json.job_id);
-    }
-    if (open) loadExam(open);
-  }
-
-  async function approveLmsBlueprint() {
-    if (!lmsJobId) return;
-    const res = await fetch(`${API}/admin/learning/lms-ai-jobs/${lmsJobId}/approve-blueprint`, {
-      method: "POST",
-      headers: headers(),
-    });
-    setPayload(await res.json());
   }
 
   const summary = detail?.evidence_summary ?? {};
 
   return (
-    <div className="space-y-4 p-6">
-      <h1 className="text-2xl font-semibold">Learning → Exams</h1>
-      <p className="text-sm text-muted-foreground">
-        Research the exam before generating. AI never publishes. Statuses are Verified / Review Required / Source
-        Conflict — never “100% accurate”.
-      </p>
-      <div className="flex gap-2">
-        <button className="rounded border px-3 py-1 text-sm" onClick={() => setDomain("rcic_academy")}>
-          RCIC Academy
-        </button>
-        <button className="rounded border px-3 py-1 text-sm" onClick={() => setDomain("client_lms")}>
-          Client LMS
-        </button>
-        <button className="rounded border px-3 py-1 text-sm" onClick={createExam}>
-          Create Exam
-        </button>
-        <a className="rounded border px-3 py-1 text-sm" href="/admindashboard/academy/ai-studio">
-          AI Studio
-        </a>
+    <div className="space-y-6 p-6">
+      <div>
+        <h1 className="text-2xl font-bold flex items-center gap-2">
+          <BookOpen className="h-7 w-7 text-emerald-600" />
+          Exam Master
+        </h1>
+        <p className="text-muted-foreground text-sm mt-1">
+          Create an exam, add official sources, then generate a draft course. AI never publishes.
+        </p>
       </div>
-      <div className="grid gap-4 md:grid-cols-2">
-        <ul className="space-y-2">
-          {exams.map((exam) => (
-            <li key={exam.id}>
-              <button className="w-full rounded border p-3 text-left" onClick={() => loadExam(exam.id)}>
-                {exam.name}
-              </button>
-            </li>
-          ))}
-        </ul>
-        {open && (
-          <div className="space-y-3 rounded border p-4">
-            <h2 className="font-medium">Research / Evidence</h2>
-            <dl className="grid grid-cols-2 gap-1 text-sm">
-              {Object.entries(summary).map(([k, v]) => (
-                <div key={k} className="contents">
-                  <dt className="text-muted-foreground">{k.replaceAll("_", " ")}</dt>
-                  <dd>{String(v)}</dd>
-                </div>
-              ))}
-            </dl>
-            <div className="flex flex-wrap gap-2 text-sm">
-              <button
-                className="rounded border px-2 py-1"
-                onClick={() =>
-                  post("/sources", {
-                    source_type: "official_exam_page",
-                    url: domain === "client_lms"
-                      ? "https://www.canada.ca/en/immigration-refugees-citizenship/services/canadian-citizenship.html"
-                      : "https://college-ic.ca",
-                    title: "Official exam page",
-                    verification_status: "verified",
-                  })
-                }
-              >
-                Add Source
-              </button>
-              <button className="rounded border px-2 py-1" onClick={() => post("/evidence-pack/approve", {})}>
-                Approve Pack
-              </button>
-              <button
-                className="rounded border px-2 py-1"
-                disabled={summary.evidence_pack !== "APPROVED"}
-                onClick={() =>
-                  post(
-                    "/generate-course",
-                    domain === "client_lms"
-                      ? {
-                          title: "Citizenship smoke draft",
-                          generate_lessons: true,
-                          generate_independent_mcqs: true,
-                          generate_cases: false,
-                          generate_case_mcqs: false,
-                          independent_count: 10,
-                          case_based_count: 0,
-                          case_count: 0,
-                          module_count: 1,
-                          lesson_count: 2,
-                          mock_question_count: 10,
-                          include_mock: true,
-                        }
-                      : {
-                          title: "IRB smoke draft",
-                          generate_lessons: true,
-                          generate_independent_mcqs: true,
-                          generate_cases: true,
-                          generate_case_mcqs: true,
-                          independent_count: 10,
-                          case_based_count: 10,
-                          case_count: 2,
-                          include_mock: true,
-                        }
-                  )
-                }
-              >
-                Generate Full Course with AI
-              </button>
-              {domain === "client_lms" && lmsJobId ? (
-                <button className="rounded border px-2 py-1" onClick={approveLmsBlueprint}>
-                  Approve LMS blueprint
-                </button>
-              ) : null}
-            </div>
-          </div>
-        )}
-      </div>
-      {payload ? (
-        <pre className="overflow-auto rounded border p-3 text-xs">{JSON.stringify(payload, null, 2)}</pre>
+
+      <Tabs value={domain} onValueChange={setDomain}>
+        <TabsList>
+          <TabsTrigger value="rcic_academy">RCIC Academy</TabsTrigger>
+          <TabsTrigger value="client_lms">Client LMS</TabsTrigger>
+        </TabsList>
+      </Tabs>
+
+      {error ? (
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
       ) : null}
+      {notice ? (
+        <Alert>
+          <AlertDescription>{notice}</AlertDescription>
+        </Alert>
+      ) : null}
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Create exam</CardTitle>
+          <CardDescription>
+            {isLms
+              ? "Client marketplace exams such as Citizenship. This does not write RCIC Academy courses."
+              : "RCIC Academy exams such as IRB specialization."}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-wrap items-end gap-3">
+          <div className="space-y-1 min-w-64 flex-1">
+            <Label>Exam name</Label>
+            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Exam name" />
+          </div>
+          <Button disabled={busy || !name.trim()} onClick={createExam}>
+            <Plus className="h-4 w-4 mr-1" />
+            {busy ? "Creating…" : "Create exam"}
+          </Button>
+        </CardContent>
+      </Card>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Exams</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Status</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {exams.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={2} className="text-muted-foreground">
+                      No exams yet. Use Create exam above.
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  exams.map((exam) => (
+                    <TableRow
+                      key={exam.id}
+                      className={open === exam.id ? "bg-muted/50 cursor-pointer" : "cursor-pointer"}
+                      onClick={() => loadExam(exam.id)}
+                    >
+                      <TableCell className="font-medium">{exam.name}</TableCell>
+                      <TableCell>
+                        <Badge variant="secondary">{exam.status ?? "draft"}</Badge>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">{detail?.exam?.name ?? "Research / Evidence"}</CardTitle>
+            <CardDescription>Select an exam, add an official source, approve the pack, then generate a draft.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {!open ? (
+              <p className="text-sm text-muted-foreground">Choose an exam from the list.</p>
+            ) : (
+              <>
+                <div className="flex flex-wrap gap-2 text-sm">
+                  {Object.entries(summary).map(([key, value]) => (
+                    <Badge key={key} variant="outline">
+                      {key.replaceAll("_", " ")}: {String(value)}
+                    </Badge>
+                  ))}
+                </div>
+                <div className="space-y-1">
+                  <Label>Official source URL</Label>
+                  <Input value={sourceUrl} onChange={(e) => setSourceUrl(e.target.value)} />
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    variant="outline"
+                    disabled={busy}
+                    onClick={() =>
+                      post(
+                        "/sources",
+                        {
+                          source_type: "official_exam_page",
+                          url: sourceUrl,
+                          title: "Official exam page",
+                          verification_status: "verified",
+                        },
+                        "Source added."
+                      )
+                    }
+                  >
+                    Add source
+                  </Button>
+                  <Button
+                    variant="outline"
+                    disabled={busy}
+                    onClick={() => post("/evidence-pack/approve", {}, "Evidence pack approved.")}
+                  >
+                    Approve pack
+                  </Button>
+                  <Button
+                    disabled={busy || summary.evidence_pack !== "APPROVED"}
+                    onClick={() =>
+                      post(
+                        "/generate-course",
+                        isLms
+                          ? {
+                              title: `${detail?.exam?.name ?? "Citizenship"} draft`,
+                              generate_lessons: true,
+                              generate_independent_mcqs: true,
+                              generate_cases: false,
+                              generate_case_mcqs: false,
+                              independent_count: 10,
+                              case_based_count: 0,
+                              case_count: 0,
+                              module_count: 1,
+                              lesson_count: 2,
+                              mock_question_count: 10,
+                              include_mock: true,
+                            }
+                          : {
+                              title: `${detail?.exam?.name ?? "IRB"} draft`,
+                              generate_lessons: true,
+                              generate_independent_mcqs: true,
+                              generate_cases: true,
+                              generate_case_mcqs: true,
+                              independent_count: 10,
+                              case_based_count: 10,
+                              case_count: 2,
+                              include_mock: true,
+                            },
+                        "Draft generation started. AI will not publish."
+                      )
+                    }
+                  >
+                    Generate draft course
+                  </Button>
+                  {isLms && lmsJobId ? (
+                    <Button
+                      variant="outline"
+                      disabled={busy}
+                      onClick={() =>
+                        run("LMS blueprint approved.", async () => {
+                          const res = await fetch(`${API}/admin/learning/lms-ai-jobs/${lmsJobId}/approve-blueprint`, {
+                            method: "POST",
+                            headers: headers(),
+                          });
+                          const json = await res.json();
+                          if (!res.ok) throw new Error(json.message ?? "Approve failed");
+                        })
+                      }
+                    >
+                      Approve LMS blueprint
+                    </Button>
+                  ) : null}
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }
