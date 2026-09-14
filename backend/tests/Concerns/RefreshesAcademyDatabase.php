@@ -44,27 +44,12 @@ trait RefreshesAcademyDatabase
             throw new \RuntimeException('Refusing to wipe Academy database ['.$database.']. Tests may only reset db_academy_test.');
         }
 
-        $schema = Schema::connection('academy');
+        Schema::connection('academy')->dropAllTables();
 
-        if (! $schema->hasTable('academy_learning_tracks')) {
-            $migration = include database_path('migrations/2026_09_14_140000_create_academy_tables.php');
-            $migration->up();
-
-            return;
-        }
-
-        $names = collect($schema->getTables())
-            ->map(fn ($table) => is_array($table) ? ($table['name'] ?? '') : (string) $table)
-            ->filter()
-            ->unique()
-            ->values();
-
-        if ($names->isNotEmpty()) {
-            $quoted = $names
-                ->map(fn (string $name) => '"'.str_replace('"', '""', $name).'"')
-                ->implode(', ');
-            DB::connection('academy')->statement('TRUNCATE TABLE '.$quoted.' RESTART IDENTITY CASCADE');
-        }
+        $migration = include database_path('migrations/2026_09_14_140000_create_academy_tables.php');
+        $migration->up();
+        $ai = include database_path('migrations/2026_09_14_160000_create_academy_ai_tables.php');
+        $ai->up();
 
         app(AcademyBootstrap::class)->ensure();
     }

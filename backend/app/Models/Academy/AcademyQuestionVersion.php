@@ -15,6 +15,7 @@ class AcademyQuestionVersion extends AcademyModel
         'case_version_id', 'status', 'effective_from', 'effective_to', 'last_verified_at',
         'needs_legal_review', 'source_outdated', 'source_changed', 'author_user_id',
         'reviewer_user_id', 'approved_by', 'reviewed_at', 'approved_at', 'published_at',
+        'generated_by_ai', 'ai_generation_job_id', 'ai_prompt_version',
     ];
 
     protected function casts(): array
@@ -29,6 +30,7 @@ class AcademyQuestionVersion extends AcademyModel
             'reviewed_at' => 'datetime',
             'approved_at' => 'datetime',
             'published_at' => 'datetime',
+            'generated_by_ai' => 'boolean',
         ];
     }
 

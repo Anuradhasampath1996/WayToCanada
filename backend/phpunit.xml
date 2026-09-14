@@ -43,6 +43,10 @@
         <env name="DB_ACADEMY_USERNAME" value="postgres"/>
         <env name="DB_ACADEMY_PASSWORD" value="secret"/>
         <env name="ACADEMY_MEDIA_DISK" value="local"/>
+        <env name="ACADEMY_AI_RESEARCH_DRIVER" value="fake"/>
+        <env name="ACADEMY_AI_GENERATION_DRIVER" value="fake"/>
+        <env name="ACADEMY_MANUS_ENABLED" value="false"/>
+        <env name="MANUS_API_KEY" value=""/>
         <env name="MAIL_MAILER" value="array"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
         <env name="SESSION_DRIVER" value="array"/>

@@ -14,6 +14,7 @@ class AcademyCaseVersion extends AcademyModel
         'case_id', 'version_number', 'client_profile_json', 'immigration_history', 'facts',
         'procedural_history', 'tribunal_info', 'legal_issues_json', 'status', 'created_by',
         'reviewed_by', 'approved_by', 'reviewed_at', 'approved_at', 'published_at', 'published_by',
+        'generated_by_ai', 'ai_generation_job_id', 'ai_prompt_version',
     ];
 
     protected function casts(): array
@@ -24,6 +25,7 @@ class AcademyCaseVersion extends AcademyModel
             'reviewed_at' => 'datetime',
             'approved_at' => 'datetime',
             'published_at' => 'datetime',
+            'generated_by_ai' => 'boolean',
         ];
     }
 

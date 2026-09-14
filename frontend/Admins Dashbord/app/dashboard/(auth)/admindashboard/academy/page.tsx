@@ -59,7 +59,11 @@ export default function AdminAcademyPage() {
         <h1 className="text-2xl font-semibold">RCIC Academy</h1>
         <p className="text-sm text-muted-foreground">
           Professional learning CMS. Question Bank, review workflow, and exam templates live here — not in client LMS
-          Management.
+          Management.{" "}
+          <a className="underline" href="/admindashboard/academy/ai-studio">
+            AI Content Studio
+          </a>{" "}
+          generates drafts only.
         </p>
       </div>
       <div className="flex flex-wrap gap-2">

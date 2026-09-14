@@ -185,6 +185,10 @@ export const navItems: NavGroup[] = [
         href: "/admindashboard/academy",
         icon: GraduationCapIcon,
         match: (p) => p.startsWith("/admindashboard/academy"),
+        items: [
+          { title: "CMS", href: "/admindashboard/academy" },
+          { title: "AI Content Studio", href: "/admindashboard/academy/ai-studio" },
+        ],
       },
       {
         title: "CRS Calculator Sync",

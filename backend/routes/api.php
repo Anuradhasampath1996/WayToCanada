@@ -28,6 +28,8 @@ use App\Http\Controllers\Admin\AdminSubscriptionPaymentsController;
 use App\Http\Controllers\Admin\AdminPlatformCompanyController;
 use App\Http\Controllers\Admin\AdminLmsController;
 use App\Http\Controllers\Admin\AdminAcademyController;
+use App\Http\Controllers\Admin\AdminAcademyAiController;
+use App\Http\Controllers\Webhooks\ManusAcademyWebhookController;
 use App\Http\Controllers\Consultant\ConsultantLmsController;
 use App\Http\Controllers\Consultant\ConsultantAcademyController;
 use App\Http\Controllers\Consultant\ConsultantPaymentAccountController;
@@ -191,6 +193,10 @@ Route::get('webhooks/whatsapp', [WhatsAppWebhookController::class, 'verify'])
     ->name('webhooks.whatsapp.verify');
 Route::post('webhooks/whatsapp', [WhatsAppWebhookController::class, 'handle'])
     ->name('webhooks.whatsapp.handle');
+
+Route::post('webhooks/manus/academy-research', [ManusAcademyWebhookController::class, 'handle'])
+    ->middleware('throttle:60,1')
+    ->name('webhooks.manus.academy-research');
 
 // ── Authentication (Google OAuth + email/password) ───────────────────────────
 Route::prefix('auth')->group(function () {
@@ -1058,6 +1064,28 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('outdated', [AdminAcademyController::class, 'outdated']);
             Route::post('outdated/{flag}/resolve', [AdminAcademyController::class, 'resolveOutdated']);
             Route::get('analytics', [AdminAcademyController::class, 'analytics']);
+
+            Route::prefix('ai')->middleware('throttle:30,1')->group(function () {
+                Route::get('bootstrap', [AdminAcademyAiController::class, 'bootstrap']);
+                Route::get('settings', [AdminAcademyAiController::class, 'settings']);
+                Route::put('settings', [AdminAcademyAiController::class, 'updateSettings']);
+                Route::get('usage', [AdminAcademyAiController::class, 'usage']);
+                Route::get('jobs', [AdminAcademyAiController::class, 'jobs']);
+                Route::post('jobs', [AdminAcademyAiController::class, 'storeJob']);
+                Route::get('jobs/{job}', [AdminAcademyAiController::class, 'showJob']);
+                Route::post('jobs/{job}/uploads', [AdminAcademyAiController::class, 'uploadSource']);
+                Route::put('jobs/{job}/blueprint', [AdminAcademyAiController::class, 'saveBlueprint']);
+                Route::post('jobs/{job}/approve-blueprint', [AdminAcademyAiController::class, 'approveBlueprint']);
+                Route::post('jobs/{job}/retry', [AdminAcademyAiController::class, 'retry']);
+                Route::post('jobs/{job}/cancel', [AdminAcademyAiController::class, 'cancel']);
+                Route::post('jobs/{job}/publish', [AdminAcademyAiController::class, 'publishDenied']);
+                Route::get('review-queue', [AdminAcademyAiController::class, 'reviewQueue']);
+                Route::post('items/{item}/content-review', [AdminAcademyAiController::class, 'sendToContentReview']);
+                Route::post('items/{item}/reject', [AdminAcademyAiController::class, 'rejectItem']);
+                Route::post('items/{item}/revalidate', [AdminAcademyAiController::class, 'revalidate']);
+                Route::post('items/{item}/regenerate', [AdminAcademyAiController::class, 'regenerateItem']);
+                Route::post('media/{media}/approve', [AdminAcademyAiController::class, 'approveMedia']);
+            });
         });
     });
 });

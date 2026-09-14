@@ -13,6 +13,7 @@ class AcademyCourseVersion extends AcademyModel
         'course_id', 'version_number', 'title', 'description', 'estimated_hours', 'status',
         'effective_from', 'effective_to', 'change_notes', 'created_by', 'reviewed_by',
         'approved_by', 'reviewed_at', 'approved_at', 'published_at', 'published_by',
+        'generated_by_ai', 'ai_generation_job_id', 'ai_prompt_version',
     ];
 
     protected function casts(): array
@@ -24,6 +25,7 @@ class AcademyCourseVersion extends AcademyModel
             'reviewed_at' => 'datetime',
             'approved_at' => 'datetime',
             'published_at' => 'datetime',
+            'generated_by_ai' => 'boolean',
         ];
     }
 

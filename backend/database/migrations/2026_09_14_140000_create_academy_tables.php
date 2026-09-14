@@ -10,7 +10,9 @@ return new class extends Migration
     public function up(): void
     {
         if (Schema::connection('academy')->hasTable('academy_learning_tracks')) {
-            app(AcademyBootstrap::class)->ensure();
+            if (Schema::connection('academy')->hasTable('academy_exam_templates')) {
+                app(AcademyBootstrap::class)->ensure();
+            }
 
             return;
         }
