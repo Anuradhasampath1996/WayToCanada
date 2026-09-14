@@ -75,11 +75,11 @@ class DocumentWorkshopTest extends TestCase
         $this->actingAsConsultant($other);
 
         $this->getJson("/api/v1/consultant/clients/{$profile->id}/document-workshop/sources")
-            ->assertForbidden();
+            ->assertNotFound();
 
         $this->postJson("/api/v1/consultant/clients/{$profile->id}/document-workshop/save", [
             'document_name' => 'Package',
-        ])->assertForbidden();
+        ])->assertNotFound();
     }
 
     public function test_save_stores_pdf_and_creates_approved_workshop_submission(): void

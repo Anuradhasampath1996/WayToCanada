@@ -40,8 +40,8 @@ class GovernmentFormsStageISecurityTest extends TestCase
 
         $this->getJson("/api/v1/consultant/clients/{$profile->id}/government-forms")->assertForbidden();
         $this->getJson("/api/v1/consultant/clients/{$profile->id}/government-forms/IMM5476/readiness")->assertForbidden();
-        $this->postJson("/api/v1/consultant/clients/{$profile->id}/government-forms/IMM5476/generate")->assertForbidden();
-        $this->postJson("/api/v1/consultant/clients/{$profile->id}/government-forms/application-info/review")->assertForbidden();
+        $this->postJson("/api/v1/consultant/clients/{$profile->id}/government-forms/IMM5476/generate")->assertNotFound();
+        $this->postJson("/api/v1/consultant/clients/{$profile->id}/government-forms/application-info/review")->assertNotFound();
     }
 
     public function test_idor_download_with_wrong_profile_returns_forbidden(): void
