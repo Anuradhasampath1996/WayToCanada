@@ -28,9 +28,7 @@ class ConsultantLegislationController extends Controller
     /** GET /api/v1/consultant/clients/{profile}/legislation/relevant */
     public function relevant(Request $request, ClientProfile $profile): JsonResponse
     {
-        if ($profile->consultant_id !== $request->user()->id) {
-            abort(403, 'Access denied.');
-        }
+        app(\App\Services\Team\TeamAccess::class)->authorize($request->user(), $profile, 'legislations.view');
 
         $context = $this->buildContext($profile, $request->user());
 
@@ -65,9 +63,7 @@ class ConsultantLegislationController extends Controller
 
         if (! empty($data['client_profile_id'])) {
             $profile = ClientProfile::findOrFail($data['client_profile_id']);
-            if ($profile->consultant_id !== $request->user()->id) {
-                abort(403, 'Access denied.');
-            }
+            app(\App\Services\Team\TeamAccess::class)->authorize($request->user(), $profile, 'legislations.view');
         }
 
         $bookmark = $this->bookmarks->store($request->user(), $data);

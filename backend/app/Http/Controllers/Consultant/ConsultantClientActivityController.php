@@ -106,8 +106,6 @@ class ConsultantClientActivityController extends Controller
 
     private function authorizeConsultant(Request $request, ClientProfile $profile): void
     {
-        if ($profile->consultant_id !== $request->user()->id) {
-            abort(403, 'Access denied.');
-        }
+        app(\App\Services\Team\TeamAccess::class)->authorize($request->user(), $profile);
     }
 }

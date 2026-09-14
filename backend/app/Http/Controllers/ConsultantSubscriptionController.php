@@ -19,8 +19,9 @@ class ConsultantSubscriptionController extends Controller
     public function status(Request $request): JsonResponse
     {
         $user = $request->user();
+        $entitlementUser = app(\App\Services\Team\TeamAccess::class)->entitlementUser($user);
 
-        $sub = ConsultantSubscription::where('user_id', $user->id)
+        $sub = ConsultantSubscription::where('user_id', $entitlementUser->id)
             ->whereIn('status', ['trial', 'active', 'past_due'])
             ->latest()
             ->first();
@@ -35,22 +36,22 @@ class ConsultantSubscriptionController extends Controller
             }
         }
 
-        $trialUsed = ConsultantSubscription::where('user_id', $user->id)
+        $trialUsed = ConsultantSubscription::where('user_id', $entitlementUser->id)
             ->where('is_trial', true)
             ->exists();
 
         $isActive = $sub && $sub->isCurrentlyActive();
 
         if (! $isActive) {
-            $latest = ConsultantSubscription::where('user_id', $user->id)
+            $latest = ConsultantSubscription::where('user_id', $entitlementUser->id)
                 ->with('package')
                 ->latest()
                 ->first();
 
-            return response()->json($this->statusPayload(false, $trialUsed, $latest));
+            return response()->json($this->statusPayload(false, $trialUsed, $latest, $user));
         }
 
-        return response()->json($this->statusPayload(true, $trialUsed, $sub->load('package')));
+        return response()->json($this->statusPayload(true, $trialUsed, $sub->load('package'), $user));
     }
 
     /**
@@ -142,14 +143,18 @@ class ConsultantSubscriptionController extends Controller
     }
 
     /** @return array<string, mixed> */
-    private function statusPayload(bool $isActive, bool $trialUsed, ?ConsultantSubscription $sub): array
+    private function statusPayload(bool $isActive, bool $trialUsed, ?ConsultantSubscription $sub, $user = null): array
     {
+        $isStaff = $user && $user->hasRole('staff');
+
         return [
             'is_active'      => $isActive,
             'trial_used'     => $trialUsed,
             'in_grace'       => $sub?->isWithinGracePeriod() ?? false,
             'grace_ends_at'  => $sub?->graceEndsAt()?->toIso8601String(),
             'subscription'   => $sub,
+            'can_checkout'   => ! $isStaff,
+            'inherited'      => (bool) $isStaff,
         ];
     }
 }

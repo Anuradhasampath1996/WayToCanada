@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 import { workflowLabel } from "@/lib/case-workflow-labels";
 import { ConsultantInteractiveFormsPanel } from "./case-management/consultant-interactive-forms-panel";
 import { WorkspaceHero } from "./workspace-hero";
+import { CaseTeamCard } from "@/components/team/case-team-card";
 import {
   SignedRetainerAgreementPreview,
   type AgreementData,
@@ -579,6 +580,7 @@ export function WorkspacePageClient({ paramsPromise }: { paramsPromise: Promise<
       <div className="grid min-w-0 gap-4 sm:gap-6 xl:grid-cols-[minmax(0,1fr)_280px]">
         <aside className="order-1 min-w-0 xl:order-2 xl:sticky xl:top-4 xl:self-start">
           <ClientActivityTimeline events={activityEvents} />
+          <CaseTeamCard profileId={id} />
         </aside>
 
         <div className="order-2 min-w-0 xl:order-1 xl:pr-2">

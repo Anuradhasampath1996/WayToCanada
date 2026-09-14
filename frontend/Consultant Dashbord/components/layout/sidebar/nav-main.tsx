@@ -20,8 +20,10 @@ import {
   MessagesSquareIcon,
   MegaphoneIcon,
   GiftIcon,
+  UsersRoundIcon,
   type LucideIcon,
 } from "lucide-react";
+import { canSeeNavHref, readTeamSession, type TeamSession } from "@/lib/team-access";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
@@ -82,13 +84,6 @@ export const navItems: NavGroup[] = [
         badge: "New",
         match: (p) => p.startsWith("/dashboard/letters"),
       },
-      {
-        title: "Referrals & Wallet",
-        href: "/dashboard/referrals",
-        description: "Share your link and withdraw rewards",
-        icon: GiftIcon,
-        match: (p) => p.startsWith("/dashboard/referrals"),
-      },
     ],
   },
   {
@@ -124,6 +119,13 @@ export const navItems: NavGroup[] = [
         match: (p) => p.startsWith("/dashboard/case-pipeline"),
       },
       {
+        title: "Team Management",
+        href: "/dashboard/team",
+        description: "Invite staff and manage access",
+        icon: UsersRoundIcon,
+        match: (p) => p.startsWith("/dashboard/team"),
+      },
+      {
         title: "My Document Storage",
         href: "/dashboard/storage",
         description: "Personal folders & files (3 GB free)",
@@ -141,6 +143,13 @@ export const navItems: NavGroup[] = [
         description: "Website, social media & Google Ads",
         icon: MegaphoneIcon,
         match: (p) => p.startsWith("/dashboard/marketing"),
+      },
+      {
+        title: "Referrals & Wallet",
+        href: "/dashboard/referrals",
+        description: "Share your link and withdraw rewards",
+        icon: GiftIcon,
+        match: (p) => p.startsWith("/dashboard/referrals"),
       },
     ],
   },
@@ -257,10 +266,45 @@ function NavGroupBlock({
   );
 }
 
+function readCachedTeam(): TeamSession | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem("wtc_consultant_user");
+    return raw ? readTeamSession(JSON.parse(raw)) : null;
+  } catch {
+    return null;
+  }
+}
+
+function filterGroups(groups: NavGroup[], session: TeamSession | null): NavGroup[] {
+  return groups
+    .map((group) => ({
+      ...group,
+      items: group.items.filter((item) => canSeeNavHref(session, item.href)),
+    }))
+    .filter((group) => group.items.length > 0);
+}
+
 export function NavMain() {
   const pathname = usePathname();
-  const mainGroups = navItems.slice(0, -1);
-  const bottomGroup = navItems[navItems.length - 1];
+  const [team, setTeam] = useState<TeamSession | null>(() => readCachedTeam());
+  const visibleGroups = filterGroups(navItems, team);
+  const mainGroups = visibleGroups.slice(0, -1);
+  const bottomGroup = visibleGroups[visibleGroups.length - 1] ?? navItems[navItems.length - 1];
+  useEffect(() => {
+    setTeam(readCachedTeam());
+    const token = localStorage.getItem("wtc_consultant_token");
+    if (!token) return;
+    fetch(`${API}/me`, { headers: authHeaders() })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((user) => {
+        if (!user) return;
+        localStorage.setItem("wtc_consultant_user", JSON.stringify(user));
+        setTeam(readTeamSession(user));
+      })
+      .catch(() => undefined);
+  }, []);
+
   const [rcicUnread, setRcicUnread] = useState(0);
   const [clientRequestCount, setClientRequestCount] = useState(0);
   const onCommunityPage = pathname.startsWith("/dashboard/rcic-community");

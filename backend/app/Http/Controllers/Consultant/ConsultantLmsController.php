@@ -24,9 +24,7 @@ class ConsultantLmsController extends Controller
 
     private function authorizeClient(Request $request, ClientProfile $profile): void
     {
-        if ($profile->consultant_id !== $request->user()->id) {
-            abort(403, 'Unauthorized');
-        }
+        app(\App\Services\Team\TeamAccess::class)->authorize($request->user(), $profile, 'lms.view');
     }
 
     public function index(Request $request, ClientProfile $profile): JsonResponse

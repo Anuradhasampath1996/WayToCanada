@@ -84,7 +84,7 @@ function LoginPageContent() {
         setError("This account is for applicants. Please use the Public Portal.");
         return;
       }
-      if (!roles.includes("rcic") && !roles.includes("super-admin") && !roles.includes("admin")) {
+      if (!roles.includes("rcic") && !roles.includes("staff") && !roles.includes("super-admin") && !roles.includes("admin")) {
         setError("Your account does not have consultant access. Contact support.");
         return;
       }

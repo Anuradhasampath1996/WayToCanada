@@ -67,9 +67,7 @@ class SecurePdfController extends Controller
     /** GET /api/v1/consultant/clients/{profile}/package-documents/{document}/stream */
     public function consultantPackageDocument(Request $request, ClientProfile $profile, IrccCategoryDocument $document): StreamedResponse
     {
-        if ($profile->consultant_id !== $request->user()->id) {
-            abort(403, 'Access denied.');
-        }
+        app(\App\Services\Team\TeamAccess::class)->authorize($request->user(), $profile);
 
         $caseFile = $profile->caseFile;
 
@@ -107,9 +105,7 @@ class SecurePdfController extends Controller
     /** GET /api/v1/consultant/clients/{profile}/documents/{submission}/stream */
     public function consultantSubmission(Request $request, ClientProfile $profile, DocumentSubmission $submission): StreamedResponse
     {
-        if ($profile->consultant_id !== $request->user()->id) {
-            abort(403, 'Access denied.');
-        }
+        app(\App\Services\Team\TeamAccess::class)->authorize($request->user(), $profile);
 
         $ownsCase = CaseFile::where('client_profile_id', $profile->id)
             ->where('id', $submission->case_file_id)
@@ -132,9 +128,7 @@ class SecurePdfController extends Controller
         ClientProfile $profile,
         IrccPackageDocumentSubmission $submission,
     ): StreamedResponse {
-        if ($profile->consultant_id !== $request->user()->id) {
-            abort(403, 'Access denied.');
-        }
+        app(\App\Services\Team\TeamAccess::class)->authorize($request->user(), $profile);
 
         $ownsCase = CaseFile::where('client_profile_id', $profile->id)
             ->where('id', $submission->case_file_id)

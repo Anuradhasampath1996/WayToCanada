@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/layout/sidebar/app-sidebar";
 import { SiteHeader } from "@/components/layout/header";
+import { StaffBanner } from "@/components/team/staff-banner";
 import { OnboardingGuard } from "@/components/onboarding-guard";
 import { SubscriptionGuard } from "@/components/subscription-guard";
 import { SupportTicketFab } from "@/components/support/support-ticket-fab";
@@ -33,6 +34,7 @@ export default async function AuthLayout({
       }>
       <AppSidebar variant="floating" />
       <SidebarInset>
+        <StaffBanner />
         <SiteHeader />
         <div className="bg-muted/40 flex flex-1 flex-col">
           <div className="@container/main p-(--content-padding) xl:group-data-[theme-content-layout=centered]/layout:container xl:group-data-[theme-content-layout=centered]/layout:mx-auto">

@@ -84,7 +84,7 @@ class ConsultantIrccInteractiveFormController extends Controller
     /** PATCH /api/v1/consultant/clients/{profile}/interactive-forms/{form}/review */
     public function review(Request $request, ClientProfile $profile, IrccInteractiveForm $form): JsonResponse
     {
-        $this->authorizeConsultant($request, $profile);
+        app(\App\Services\Team\TeamAccess::class)->requireOwner($request->user(), $profile);
 
         $caseFile = $profile->caseFile;
         if (! $caseFile?->assigned_ircc_category_id || $form->ircc_category_id !== $caseFile->assigned_ircc_category_id) {
@@ -136,7 +136,7 @@ class ConsultantIrccInteractiveFormController extends Controller
     /** PATCH /api/v1/consultant/clients/{profile}/interactive-forms/review-all-submitted */
     public function reviewAllSubmitted(Request $request, ClientProfile $profile): JsonResponse
     {
-        $this->authorizeConsultant($request, $profile);
+        app(\App\Services\Team\TeamAccess::class)->requireOwner($request->user(), $profile);
 
         $caseFile = $profile->caseFile;
         if (! $caseFile?->assigned_ircc_category_id) {
@@ -252,7 +252,7 @@ class ConsultantIrccInteractiveFormController extends Controller
     /** PATCH /api/v1/consultant/clients/{profile}/interactive-forms/{form}/verify-field */
     public function verifyField(Request $request, ClientProfile $profile, IrccInteractiveForm $form): JsonResponse
     {
-        $this->authorizeConsultant($request, $profile);
+        app(\App\Services\Team\TeamAccess::class)->requireOwner($request->user(), $profile);
 
         $caseFile = $profile->caseFile;
         if (! $caseFile?->assigned_ircc_category_id || $form->ircc_category_id !== $caseFile->assigned_ircc_category_id) {
@@ -291,8 +291,6 @@ class ConsultantIrccInteractiveFormController extends Controller
 
     private function authorizeConsultant(Request $request, ClientProfile $profile): void
     {
-        if ($profile->consultant_id !== $request->user()->id) {
-            abort(403, 'Access denied.');
-        }
+        app(\App\Services\Team\TeamAccess::class)->authorize($request->user(), $profile);
     }
 }

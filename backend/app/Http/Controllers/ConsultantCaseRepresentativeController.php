@@ -29,6 +29,7 @@ class ConsultantCaseRepresentativeController extends Controller
 
     public function transition(Request $request, ClientProfile $profile): JsonResponse
     {
+        app(\App\Services\Team\TeamAccess::class)->requireOwner($request->user(), $profile);
         $caseFile = $this->owned($request, $profile);
         $data = $request->validate([
             'action' => 'required|in:send,sign,review,complete,leave_unused',
@@ -55,11 +56,9 @@ class ConsultantCaseRepresentativeController extends Controller
 
     private function owned(Request $request, ClientProfile $profile): \App\Models\CaseFile
     {
-        if ($profile->consultant_id !== $request->user()->id) {
-            abort(403, 'Access denied.');
-        }
+        app(\App\Services\Team\TeamAccess::class)->authorize($request->user(), $profile);
 
-        $caseFile = $this->lifecycle->resolveActiveCaseFile($profile, $request->user()->id, createIfMissing: false);
+        $caseFile = $this->lifecycle->resolveActiveCaseFile($profile, (int) $profile->consultant_id, createIfMissing: false);
         if (! $caseFile) {
             abort(404, 'No case file found.');
         }

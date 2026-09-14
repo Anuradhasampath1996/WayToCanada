@@ -20,9 +20,7 @@ class ConsultantWorkspaceAiAdvisorController extends Controller
     /** GET /api/v1/consultant/clients/{profile}/ai-advisor/state */
     public function state(Request $request, ClientProfile $profile): JsonResponse
     {
-        if ($profile->consultant_id !== $request->user()->id) {
-            abort(403, 'Access denied.');
-        }
+        app(\App\Services\Team\TeamAccess::class)->authorize($request->user(), $profile);
 
         return response()->json([
             'data' => $this->advisor->state($profile, $request->user()),
@@ -32,9 +30,7 @@ class ConsultantWorkspaceAiAdvisorController extends Controller
     /** POST /api/v1/consultant/clients/{profile}/ai-advisor/analyze */
     public function analyze(Request $request, ClientProfile $profile): JsonResponse
     {
-        if ($profile->consultant_id !== $request->user()->id) {
-            abort(403, 'Access denied.');
-        }
+        app(\App\Services\Team\TeamAccess::class)->authorize($request->user(), $profile);
 
         $data = $this->advisor->analyze($profile, $request->user());
 
@@ -49,9 +45,7 @@ class ConsultantWorkspaceAiAdvisorController extends Controller
     /** POST /api/v1/consultant/clients/{profile}/ai-advisor/chat */
     public function chat(Request $request, ClientProfile $profile): JsonResponse
     {
-        if ($profile->consultant_id !== $request->user()->id) {
-            abort(403, 'Access denied.');
-        }
+        app(\App\Services\Team\TeamAccess::class)->authorize($request->user(), $profile);
 
         $validated = $request->validate([
             'message' => 'required|string|max:4000',
@@ -79,9 +73,7 @@ class ConsultantWorkspaceAiAdvisorController extends Controller
     /** GET /api/v1/consultant/clients/{profile}/ai-advisor/documents */
     public function documentsIndex(Request $request, ClientProfile $profile): JsonResponse
     {
-        if ($profile->consultant_id !== $request->user()->id) {
-            abort(403, 'Access denied.');
-        }
+        app(\App\Services\Team\TeamAccess::class)->authorize($request->user(), $profile);
 
         return response()->json([
             'data' => $this->documents->listForWorkspace($profile, $request->user()),
@@ -91,9 +83,7 @@ class ConsultantWorkspaceAiAdvisorController extends Controller
     /** POST /api/v1/consultant/clients/{profile}/ai-advisor/documents */
     public function documentsUpload(Request $request, ClientProfile $profile): JsonResponse
     {
-        if ($profile->consultant_id !== $request->user()->id) {
-            abort(403, 'Access denied.');
-        }
+        app(\App\Services\Team\TeamAccess::class)->authorize($request->user(), $profile);
 
         $validated = $request->validate([
             'file' => [
@@ -123,9 +113,7 @@ class ConsultantWorkspaceAiAdvisorController extends Controller
         ClientProfile $profile,
         ConsultantClientAiDocument $document,
     ): JsonResponse {
-        if ($profile->consultant_id !== $request->user()->id) {
-            abort(403, 'Access denied.');
-        }
+        app(\App\Services\Team\TeamAccess::class)->authorize($request->user(), $profile);
 
         $this->documents->delete($profile, $request->user(), $document);
 

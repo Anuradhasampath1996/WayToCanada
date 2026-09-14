@@ -31,9 +31,10 @@ class ClientController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
-        $consultant = $request->user();
+        $access = app(\App\Services\Team\TeamAccess::class);
+        $access->authorizeModule($request->user(), 'clients.view');
 
-        $query = ClientProfile::forConsultant($consultant->id)
+        $query = $access->visibleClientQuery($request->user())
             ->with('user:id,name,email,phone,created_at')
             ->latest();
 
@@ -77,7 +78,13 @@ class ClientController extends Controller
      */
     public function store(Request $request): JsonResponse
     {
-        $consultant = $request->user();
+        $access = app(\App\Services\Team\TeamAccess::class);
+        $access->authorizeModule($request->user(), 'clients.create');
+        $ownerId = $access->actingOwnerId($request->user());
+        if (! $ownerId) {
+            abort(403, 'You do not have permission to create clients.');
+        }
+        $consultant = User::query()->findOrFail($ownerId);
 
         $validated = $request->validate([
             'name'                 => ['required', 'string', 'max:255'],
@@ -186,7 +193,7 @@ class ClientController extends Controller
                 } else {
                     $mailOk = $this->sendLinkedConsultantEmail($result['user'], $consultant);
                 }
-                $this->activity->onClientInvited($result['profile'], $consultant, $request);
+                $this->activity->onClientInvited($result['profile'], $request->user(), $request);
             } else {
                 $mailOk = null;
             }
@@ -255,7 +262,7 @@ class ClientController extends Controller
      */
     public function update(Request $request, ClientProfile $profile): JsonResponse
     {
-        $this->authorizeConsultant($request, $profile);
+        app(\App\Services\Team\TeamAccess::class)->authorize($request->user(), $profile, 'clients.edit');
 
         $validated = $request->validate([
             'name'                 => ['sometimes', 'required', 'string', 'max:255'],
@@ -302,7 +309,7 @@ class ClientController extends Controller
      */
     public function destroy(Request $request, ClientProfile $profile): JsonResponse
     {
-        $this->authorizeConsultant($request, $profile);
+        app(\App\Services\Team\TeamAccess::class)->requireOwner($request->user(), $profile);
         $consultantId = (int) $request->user()->id;
 
         DB::connection('cws')->transaction(function () use ($profile, $consultantId) {
@@ -352,7 +359,7 @@ class ClientController extends Controller
      */
     public function toggleStatus(Request $request, ClientProfile $profile): JsonResponse
     {
-        $this->authorizeConsultant($request, $profile);
+        app(\App\Services\Team\TeamAccess::class)->requireOwner($request->user(), $profile);
 
         $newStatus = ! $profile->user->is_verified;
         $profile->user->update(['is_verified' => $newStatus]);
@@ -372,9 +379,7 @@ class ClientController extends Controller
 
     private function authorizeConsultant(Request $request, ClientProfile $profile): void
     {
-        if ($profile->consultant_id !== $request->user()->id) {
-            abort(403, 'Unauthorized.');
-        }
+        app(\App\Services\Team\TeamAccess::class)->authorize($request->user(), $profile);
     }
 
     private function sendInvitationEmail(User $client, string $plainPassword, User $consultant): bool

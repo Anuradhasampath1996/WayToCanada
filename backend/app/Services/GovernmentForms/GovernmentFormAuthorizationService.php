@@ -11,7 +11,9 @@ class GovernmentFormAuthorizationService
 {
     public function authorizeConsultantForProfile(User $consultant, ClientProfile $profile): void
     {
-        if ($profile->consultant_id !== $consultant->id) {
+        try {
+            app(\App\Services\Team\TeamAccess::class)->authorize($consultant, $profile, 'forms.view');
+        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
             throw new AuthorizationException('Access denied for this client profile.');
         }
     }

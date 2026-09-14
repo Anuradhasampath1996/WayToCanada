@@ -58,6 +58,16 @@ class AuthController extends Controller
             ], 403);
         }
 
+        if ($user->hasRole('staff')) {
+            $member = app(\App\Services\Team\TeamAccess::class)->activeMembership($user);
+            if (! $member) {
+                return response()->json([
+                    'message' => 'Your team access is no longer active. Contact the practice owner.',
+                ], 403);
+            }
+            $member->update(['last_login_at' => now()]);
+        }
+
         // Revoke old password-login tokens and issue a fresh one
         $user->tokens()->where('name', 'password-auth')->delete();
         $token = $user->createToken('password-auth')->plainTextToken;
@@ -167,7 +177,7 @@ class AuthController extends Controller
         }
 
         // Assign role to new users only
-        if (! $user->hasAnyRole(['rcic', 'client', 'admin', 'super-admin'])) {
+        if (! $user->hasAnyRole(['rcic', 'client', 'admin', 'super-admin', 'staff'])) {
             $user->assignRole(($isConsultantRegister || $isConsultantLogin) ? 'rcic' : 'client');
         }
 
@@ -281,7 +291,7 @@ class AuthController extends Controller
         }
 
         // Assign role to new users only
-        if (! $user->hasAnyRole(['rcic', 'client', 'admin', 'super-admin'])) {
+        if (! $user->hasAnyRole(['rcic', 'client', 'admin', 'super-admin', 'staff'])) {
             $user->assignRole($isConsultantLogin ? 'rcic' : 'client');
         }
 

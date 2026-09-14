@@ -82,6 +82,9 @@ use App\Http\Controllers\Admin\AdminMarketingServiceController;
 use App\Http\Controllers\Admin\AdminConsultantWebsiteFeatureController;
 use App\Http\Controllers\ConsultantMarketingPaymentController;
 use App\Http\Controllers\PublicReferralController;
+use App\Http\Controllers\TeamInvitationController;
+use App\Http\Controllers\Consultant\ConsultantTeamController;
+use App\Http\Controllers\Consultant\ConsultantCaseTeamController;
 use App\Http\Controllers\StripeWebhookController;
 use App\Http\Controllers\Consultant\ConsultantReferralWalletController;
 use App\Http\Controllers\Admin\AdminReferralProgramController;
@@ -173,6 +176,13 @@ Route::get('referral/resolve/{code}', [PublicReferralController::class, 'resolve
 Route::post('referral/attribute/{code}', [PublicReferralController::class, 'attribute'])
     ->middleware('throttle:60,1')
     ->name('referral.attribute');
+
+Route::get('team/invitations/{token}', [TeamInvitationController::class, 'show'])
+    ->middleware('throttle:30,1')
+    ->name('team.invitations.show');
+Route::post('team/invitations/{token}/accept', [TeamInvitationController::class, 'accept'])
+    ->middleware('throttle:10,1')
+    ->name('team.invitations.accept');
 
 // ── Public: Meta WhatsApp webhook (no auth — verified via verify token + signature) ─
 Route::get('webhooks/whatsapp', [WhatsAppWebhookController::class, 'verify'])
@@ -474,6 +484,23 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('{consultantClientRequest}/decline', [ConsultantClientRequestController::class, 'decline'])->name('decline');
     });
 
+    Route::prefix('consultant/team')->name('consultant.team.')->group(function () {
+        Route::get('/', [ConsultantTeamController::class, 'index'])->name('index');
+        Route::get('session', [ConsultantTeamController::class, 'session'])->name('session');
+        Route::get('presets', [ConsultantTeamController::class, 'presets'])->name('presets');
+        Route::get('activity', [ConsultantTeamController::class, 'activity'])->name('activity');
+        Route::post('invitations', [ConsultantTeamController::class, 'storeInvitation'])->middleware('throttle:10,1')->name('invitations.store');
+        Route::post('invitations/{invitation}/resend', [ConsultantTeamController::class, 'resendInvitation'])->middleware('throttle:10,1')->name('invitations.resend');
+        Route::delete('invitations/{invitation}', [ConsultantTeamController::class, 'destroyInvitation'])->name('invitations.destroy');
+        Route::get('members/{member}', [ConsultantTeamController::class, 'showMember'])->name('members.show');
+        Route::patch('members/{member}', [ConsultantTeamController::class, 'updateMember'])->name('members.update');
+        Route::patch('members/{member}/permissions', [ConsultantTeamController::class, 'updatePermissions'])->name('members.permissions');
+        Route::patch('members/{member}/scope', [ConsultantTeamController::class, 'updateScope'])->name('members.scope');
+        Route::post('members/{member}/deactivate', [ConsultantTeamController::class, 'deactivate'])->name('members.deactivate');
+        Route::post('members/{member}/reactivate', [ConsultantTeamController::class, 'reactivate'])->name('members.reactivate');
+        Route::post('members/{member}/revoke-sessions', [ConsultantTeamController::class, 'revokeSessions'])->name('members.revoke-sessions');
+    });
+
     // ── Consultant: Client Management ─────────────────────────────────────────
     Route::prefix('consultant/clients')->name('consultant.clients.')->group(function () {        Route::get('/',                              [ClientController::class, 'index'])->name('index');
         Route::post('/',                             [ClientController::class, 'store'])->name('store');
@@ -483,6 +510,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('{profile}/resend-invite',        [ClientController::class, 'resendInvite'])->name('resend-invite');
         Route::patch('{profile}/toggle-status',         [ClientController::class, 'toggleStatus'])->name('toggle-status');
         Route::get('{profile}/command-center',        [ClientController::class, 'commandCenter'])->name('command-center');
+        Route::get('{profile}/case-file/team',        [ConsultantCaseTeamController::class, 'show'])->name('case-file.team.show');
+        Route::post('{profile}/case-file/team',       [ConsultantCaseTeamController::class, 'store'])->name('case-file.team.store');
+        Route::delete('{profile}/case-file/team/{member}', [ConsultantCaseTeamController::class, 'destroy'])->name('case-file.team.destroy');
 
         // ── Case File / Workspace ──────────────────────────────────────────────
         Route::get('{profile}/case-file',                          [CaseFileController::class, 'show'])->name('case-file.show');

@@ -24,9 +24,7 @@ class PathwayCatalogController extends Controller
     /** GET /api/v1/consultant/clients/{profile}/pathways/suggested */
     public function suggested(Request $request, ClientProfile $profile): JsonResponse
     {
-        if ($profile->consultant_id !== $request->user()->id) {
-            abort(403, 'Access denied.');
-        }
+        app(\App\Services\Team\TeamAccess::class)->authorize($request->user(), $profile, 'pathways.view');
 
         $submission = QuestionnaireSubmission::where('user_id', $profile->user_id)->first();
 

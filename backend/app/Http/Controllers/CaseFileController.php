@@ -59,19 +59,22 @@ class CaseFileController extends Controller
 
     private function authorizeConsultant(Request $request, ClientProfile $profile): void
     {
-        if ($profile->consultant_id !== $request->user()->id) {
-            abort(403, 'Access denied.');
-        }
+        app(\App\Services\Team\TeamAccess::class)->authorize($request->user(), $profile);
+    }
+
+    private function workspaceOwnerId(ClientProfile $profile): int
+    {
+        return (int) $profile->consultant_id;
     }
 
     private function getOrCreateCaseFile(ClientProfile $profile, Request $request): CaseFile
     {
-        return $this->lifecycle->resolveActiveCaseFile($profile, $request->user()->id);
+        return $this->lifecycle->resolveActiveCaseFile($profile, $this->workspaceOwnerId($profile));
     }
 
     private function requireActiveCaseFile(ClientProfile $profile, Request $request): CaseFile
     {
-        $caseFile = $this->lifecycle->resolveActiveCaseFile($profile, $request->user()->id, createIfMissing: false);
+        $caseFile = $this->lifecycle->resolveActiveCaseFile($profile, $this->workspaceOwnerId($profile), createIfMissing: false);
         if (! $caseFile) {
             abort(404, 'No case file found.');
         }
@@ -145,6 +148,7 @@ class CaseFileController extends Controller
     public function selectPathway(Request $request, ClientProfile $profile): JsonResponse
     {
         $this->authorizeConsultant($request, $profile);
+        app(\App\Services\Team\TeamAccess::class)->requireOwner($request->user(), $profile);
 
         $data = $request->validate([
             'immigration_pathway' => 'nullable|string|max:255',
@@ -432,6 +436,7 @@ class CaseFileController extends Controller
 
     public function sendAgreement(Request $request, ClientProfile $profile, GstHstRatesService $taxRates): JsonResponse
     {
+        app(\App\Services\Team\TeamAccess::class)->requireOwner($request->user(), $profile);
         $this->authorizeConsultant($request, $profile);
         $profile->load('user');
 
@@ -901,7 +906,11 @@ class CaseFileController extends Controller
             'note'   => 'nullable|string|max:2000',
         ]);
 
-        $caseFile = $this->lifecycle->resolveActiveCaseFile($profile, $request->user()->id);
+        if (in_array($data['action'], ['close', 'complete'], true)) {
+            app(\App\Services\Team\TeamAccess::class)->requireOwner($request->user(), $profile);
+        }
+
+        $caseFile = $this->lifecycle->resolveActiveCaseFile($profile, $this->workspaceOwnerId($profile));
         $updated = $this->lifecycle->updateLifecycle($profile, $caseFile, $data['action'], $data['note'] ?? null);
 
         return response()->json([
@@ -922,9 +931,11 @@ class CaseFileController extends Controller
             'note' => 'nullable|string|max:2000',
         ]);
 
+        app(\App\Services\Team\TeamAccess::class)->authorize($request->user(), $profile, 'cases.create');
+
         $caseFile = $this->lifecycle->openNewCase(
             $profile,
-            $request->user()->id,
+            $this->workspaceOwnerId($profile),
             $data['name'],
             $data['note'] ?? null,
         );

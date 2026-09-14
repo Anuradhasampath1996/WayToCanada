@@ -158,6 +158,7 @@ class DocumentSubmissionController extends Controller
     public function review(Request $request, ClientProfile $profile, DocumentSubmission $submission): JsonResponse
     {
         $this->authorizeConsultant($request, $profile);
+        app(\App\Services\Team\TeamAccess::class)->requireOwner($request->user(), $profile);
 
         // Ensure submission belongs to this client's case file
         if ($submission->case_file_id !== $profile->caseFile?->id) {
@@ -253,9 +254,10 @@ class DocumentSubmissionController extends Controller
      */
     public function pipeline(Request $request): JsonResponse
     {
-        $consultant = $request->user();
+        $access = app(\App\Services\Team\TeamAccess::class);
+        $access->authorizeModule($request->user(), 'cases.view');
 
-        $profiles = ClientProfile::where('consultant_id', $consultant->id)
+        $profiles = $access->visibleClientQuery($request->user())
             ->with([
                 'user:id,name,email,avatar',
                 'caseFile.documentSubmissions',
@@ -339,9 +341,7 @@ class DocumentSubmissionController extends Controller
 
     private function authorizeConsultant(Request $request, ClientProfile $profile): void
     {
-        if ($profile->consultant_id !== $request->user()->id) {
-            abort(403, 'Access denied.');
-        }
+        app(\App\Services\Team\TeamAccess::class)->authorize($request->user(), $profile);
     }
 
     private function formatDoc(DocumentSubmission $d, bool $includeReviewer = false): array

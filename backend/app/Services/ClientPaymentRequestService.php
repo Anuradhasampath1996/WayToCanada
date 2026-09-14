@@ -176,8 +176,6 @@ class ClientPaymentRequestService
 
     public function authorizeConsultant(User $user, ClientProfile $profile): void
     {
-        if ((int) $profile->consultant_id !== (int) $user->id) {
-            abort(403, 'You do not manage this client.');
-        }
+        app(\App\Services\Team\TeamAccess::class)->authorize($user, $profile);
     }
 }

@@ -19,9 +19,7 @@ class CaseManagementHubController extends Controller
     /** GET /api/v1/consultant/clients/{profile}/case-management-hub */
     public function consultantShow(Request $request, ClientProfile $profile): JsonResponse
     {
-        if ($profile->consultant_id !== $request->user()->id) {
-            abort(403, 'Access denied.');
-        }
+        app(\App\Services\Team\TeamAccess::class)->authorize($request->user(), $profile);
 
         $caseFile = app(\App\Services\CaseFileLifecycleService::class)
             ->resolveActiveCaseFile($profile, (int) $request->user()->id, createIfMissing: false)

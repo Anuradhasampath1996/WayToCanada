@@ -67,6 +67,7 @@ class ConsultantGovernmentFormController extends Controller
     /** POST /consultant/clients/{profile}/government-forms/application-info/review */
     public function reviewApplicationInfo(Request $request, ClientProfile $profile): JsonResponse
     {
+        app(\App\Services\Team\TeamAccess::class)->requireOwner($request->user(), $profile);
         $this->authorization->authorizeConsultantForProfile($request->user(), $profile);
         $caseFile = $this->authorization->resolveCaseFile($profile, $request->integer('case_file_id') ?: null);
         $updated = $this->reviewService->markReviewed($caseFile, $request->user());
@@ -225,6 +226,7 @@ class ConsultantGovernmentFormController extends Controller
     /** POST /consultant/clients/{profile}/government-forms/{formCode}/generate */
     public function generate(Request $request, ClientProfile $profile, string $formCode): JsonResponse
     {
+        app(\App\Services\Team\TeamAccess::class)->requireOwner($request->user(), $profile);
         try {
             $result = $this->generationService->generate(
                 $request->user(),
@@ -251,6 +253,7 @@ class ConsultantGovernmentFormController extends Controller
     /** POST /consultant/clients/{profile}/government-forms/generations/{submission}/mark-reviewed */
     public function markReviewed(Request $request, ClientProfile $profile, IrccPackageDocumentSubmission $submission): JsonResponse
     {
+        app(\App\Services\Team\TeamAccess::class)->requireOwner($request->user(), $profile);
         $updated = $this->generationService->markReviewed($request->user(), $profile, $submission);
 
         return response()->json(['submission' => $this->serializeSubmission($updated, $updated->caseFile)]);

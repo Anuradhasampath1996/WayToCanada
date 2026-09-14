@@ -24,6 +24,7 @@ class ConsultantRcicCommunityController extends Controller
 
     public function unreadCount(Request $request): JsonResponse
     {
+        app(\App\Services\Team\TeamAccess::class)->authorizeModule($request->user(), 'community.view');
         $this->ensureRcicConsultant($request->user());
 
         $user     = $request->user();
@@ -295,7 +296,7 @@ class ConsultantRcicCommunityController extends Controller
 
     private function ensureRcicConsultant(User $user): void
     {
-        if (! $user->hasAnyRole(['rcic', 'super-admin', 'admin'])) {
+        if (! $user->hasAnyRole(['rcic', 'staff', 'super-admin', 'admin'])) {
             abort(403, 'RCIC Community is available to registered consultants only.');
         }
     }

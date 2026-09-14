@@ -52,6 +52,12 @@ enum NotificationType: string
     case REFERRAL_WITHDRAWAL_PAID = 'referral_withdrawal_paid';
     case REFERRAL_ADMIN_WITHDRAWAL = 'referral_admin_withdrawal';
     case REFERRAL_ADMIN_RISK = 'referral_admin_risk';
+    case TEAM_INVITED = 'team_invited';
+    case TEAM_INVITE_ACCEPTED = 'team_invite_accepted';
+    case TEAM_ASSIGNED = 'team_assigned';
+    case TEAM_REMOVED = 'team_removed';
+    case TEAM_DEACTIVATED = 'team_deactivated';
+    case TEAM_ACCESS_UPDATED = 'team_access_updated';
 
     /** @return list<string> */
     public function defaultChannels(): array
@@ -77,6 +83,7 @@ enum NotificationType: string
             self::CLIENT_CONSULTANT_REQUEST, self::CLIENT_CONSULTANT_REQUEST_ACCEPTED, self::CLIENT_CONSULTANT_REQUEST_DECLINED => ['in_app', 'email'],
             self::SUBSCRIPTION_PAYMENT_SUCCEEDED, self::SUBSCRIPTION_RENEWED, self::SUBSCRIPTION_RENEWAL_FAILED, self::SUBSCRIPTION_RENEWAL_RECOVERED, self::SUBSCRIPTION_CANCELLATION_SCHEDULED, self::SUBSCRIPTION_CANCELLED => ['in_app', 'email', 'whatsapp'],
             self::REFERRAL_REGISTERED, self::REFERRAL_VERIFIED, self::REFERRAL_QUALIFIED, self::REFERRAL_REWARD_PENDING, self::REFERRAL_REWARD_AVAILABLE, self::REFERRAL_REWARD_REVERSED, self::REFERRAL_WITHDRAWAL_REQUESTED, self::REFERRAL_WITHDRAWAL_APPROVED, self::REFERRAL_WITHDRAWAL_REJECTED, self::REFERRAL_WITHDRAWAL_PAID, self::REFERRAL_ADMIN_WITHDRAWAL, self::REFERRAL_ADMIN_RISK => ['in_app', 'email'],
+            self::TEAM_INVITED, self::TEAM_INVITE_ACCEPTED, self::TEAM_ASSIGNED, self::TEAM_REMOVED, self::TEAM_DEACTIVATED, self::TEAM_ACCESS_UPDATED => ['in_app', 'email'],
         };
     }
 
@@ -124,6 +131,7 @@ enum NotificationType: string
             self::CLIENT_CONSULTANT_REQUEST, self::CLIENT_CONSULTANT_REQUEST_ACCEPTED, self::CLIENT_CONSULTANT_REQUEST_DECLINED => 'onboarding',
             self::SUBSCRIPTION_PAYMENT_SUCCEEDED, self::SUBSCRIPTION_RENEWED, self::SUBSCRIPTION_RENEWAL_FAILED, self::SUBSCRIPTION_RENEWAL_RECOVERED, self::SUBSCRIPTION_CANCELLATION_SCHEDULED, self::SUBSCRIPTION_CANCELLED => 'billing',
             self::REFERRAL_REGISTERED, self::REFERRAL_VERIFIED, self::REFERRAL_QUALIFIED, self::REFERRAL_REWARD_PENDING, self::REFERRAL_REWARD_AVAILABLE, self::REFERRAL_REWARD_REVERSED, self::REFERRAL_WITHDRAWAL_REQUESTED, self::REFERRAL_WITHDRAWAL_APPROVED, self::REFERRAL_WITHDRAWAL_REJECTED, self::REFERRAL_WITHDRAWAL_PAID, self::REFERRAL_ADMIN_WITHDRAWAL, self::REFERRAL_ADMIN_RISK => 'referral',
+            self::TEAM_INVITED, self::TEAM_INVITE_ACCEPTED, self::TEAM_ASSIGNED, self::TEAM_REMOVED, self::TEAM_DEACTIVATED, self::TEAM_ACCESS_UPDATED => 'team',
         };
     }
 
@@ -144,6 +152,7 @@ enum NotificationType: string
             'onboarding'    => 'Onboarding',
             'billing'         => 'Billing',
             'referral'        => 'Referral',
+            'team'            => 'Team',
             default         => 'Notification',
         };
     }
@@ -216,6 +225,12 @@ enum NotificationType: string
             self::REFERRAL_WITHDRAWAL_PAID => 'Withdrawal paid',
             self::REFERRAL_ADMIN_WITHDRAWAL => 'Referral withdrawal request',
             self::REFERRAL_ADMIN_RISK => 'Referral review needed',
+            self::TEAM_INVITED => 'Team invitation',
+            self::TEAM_INVITE_ACCEPTED => 'Team invitation accepted',
+            self::TEAM_ASSIGNED => 'Assigned to a case',
+            self::TEAM_REMOVED => 'Removed from a case',
+            self::TEAM_DEACTIVATED => 'Team access deactivated',
+            self::TEAM_ACCESS_UPDATED => 'Team access updated',
         };
     }
 

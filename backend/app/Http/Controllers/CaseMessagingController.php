@@ -201,9 +201,7 @@ class CaseMessagingController extends Controller
 
     private function authorizeConsultant(Request $request, ClientProfile $profile): void
     {
-        if ($profile->consultant_id !== $request->user()->id) {
-            abort(403, 'Access denied.');
-        }
+        app(\App\Services\Team\TeamAccess::class)->authorize($request->user(), $profile, 'communications.view');
     }
 
     /** Clients can read (and mark read) after retainer is signed; sending still requires full case hub. */

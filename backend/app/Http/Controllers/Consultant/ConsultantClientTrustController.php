@@ -136,9 +136,7 @@ class ConsultantClientTrustController extends Controller
 
     private function authorize(Request $request, ClientProfile $profile): void
     {
-        if ($profile->consultant_id !== $request->user()->id) {
-            abort(403, 'Access denied.');
-        }
+        app(\App\Services\Team\TeamAccess::class)->authorize($request->user(), $profile);
     }
 
     private function assertMilestone(ClientProfile $profile, CaseFeeMilestone $milestone): void

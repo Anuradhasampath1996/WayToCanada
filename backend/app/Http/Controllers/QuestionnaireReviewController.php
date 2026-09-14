@@ -24,9 +24,7 @@ class QuestionnaireReviewController extends Controller
 
     private function authorizeConsultant(Request $request, ClientProfile $profile): void
     {
-        if ($profile->consultant_id !== $request->user()->id) {
-            abort(403, 'Access denied.');
-        }
+        app(\App\Services\Team\TeamAccess::class)->authorize($request->user(), $profile);
     }
 
     // ── GET /consultant/clients/{profile}/questionnaire ────────────────────────
@@ -49,7 +47,7 @@ class QuestionnaireReviewController extends Controller
 
     public function verify(Request $request, ClientProfile $profile): JsonResponse
     {
-        $this->authorizeConsultant($request, $profile);
+        app(\App\Services\Team\TeamAccess::class)->requireOwner($request->user(), $profile);
 
         $data = $request->validate([
             'field_key' => 'required|string|max:200',
@@ -81,7 +79,7 @@ class QuestionnaireReviewController extends Controller
 
     public function verifyAll(Request $request, ClientProfile $profile): JsonResponse
     {
-        $this->authorizeConsultant($request, $profile);
+        app(\App\Services\Team\TeamAccess::class)->requireOwner($request->user(), $profile);
 
         $data = $request->validate([
             'field_keys'   => 'required|array|max:500',

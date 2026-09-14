@@ -22,6 +22,7 @@ class UserResource extends JsonResource
             'has_password'        => $this->hasPassword(),
             'auth_providers'      => $this->authProviders(),
             'assigned_consultant' => $this->assignedConsultantPayload(),
+            'team'                => app(\App\Services\Team\TeamAccess::class)->sessionContext($this->resource),
             'created_at'          => $this->created_at?->toIso8601String(),
         ];
     }

@@ -68,6 +68,7 @@ class ConsultantCaseAssessmentController extends Controller
 
     public function reviewProfile(Request $request, ClientProfile $profile): JsonResponse
     {
+        app(\App\Services\Team\TeamAccess::class)->requireOwner($request->user(), $profile);
         $caseFile = $this->requireOwnedCase($request, $profile);
 
         try {
@@ -96,11 +97,9 @@ class ConsultantCaseAssessmentController extends Controller
 
     private function requireOwnedCase(Request $request, ClientProfile $profile): \App\Models\CaseFile
     {
-        if ($profile->consultant_id !== $request->user()->id) {
-            abort(403, 'Access denied.');
-        }
+        app(\App\Services\Team\TeamAccess::class)->authorize($request->user(), $profile);
 
-        $caseFile = $this->lifecycle->resolveActiveCaseFile($profile, $request->user()->id, createIfMissing: false);
+        $caseFile = $this->lifecycle->resolveActiveCaseFile($profile, (int) $profile->consultant_id, createIfMissing: false);
         if (! $caseFile) {
             abort(404, 'No case file found.');
         }

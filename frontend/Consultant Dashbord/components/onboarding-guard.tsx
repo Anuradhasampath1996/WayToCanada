@@ -33,7 +33,11 @@ export function OnboardingGuard() {
       return;
     }
 
-    function applyUser(user: { is_license_verified?: boolean; rcic_number?: string | null }) {
+    function applyUser(user: { is_license_verified?: boolean; rcic_number?: string | null; roles?: string[]; team?: { actor_type?: string } }) {
+      if (user.team?.actor_type === "staff" || user.roles?.includes("staff")) {
+        setStatus("none");
+        return;
+      }
       if (user.is_license_verified) setStatus("none");
       else if (user.rcic_number)    setStatus("pending");
       else                          setStatus("onboarding");

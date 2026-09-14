@@ -306,21 +306,23 @@ class ConsultantLettersController extends Controller
 
     private function authorizeClient(Request $request, ClientProfile $profile): void
     {
-        if ($profile->consultant_id !== $request->user()->id) {
-            abort(403, 'Access denied.');
-        }
+        app(\App\Services\Team\TeamAccess::class)->authorize($request->user(), $profile, 'letters.use');
     }
 
     private function authorizeTemplate(Request $request, ConsultantLetterTemplate $template): void
     {
-        if ($template->consultant_id !== $request->user()->id) {
+        $ownerId = app(\App\Services\Team\TeamAccess::class)->actingOwnerId($request->user());
+        app(\App\Services\Team\TeamAccess::class)->authorizeModule($request->user(), 'letters.use');
+        if (! $ownerId || (int) $template->consultant_id !== (int) $ownerId) {
             abort(403, 'Access denied.');
         }
     }
 
     private function authorizeLetter(Request $request, ConsultantLetter $letter): void
     {
-        if ($letter->consultant_id !== $request->user()->id) {
+        $ownerId = app(\App\Services\Team\TeamAccess::class)->actingOwnerId($request->user());
+        app(\App\Services\Team\TeamAccess::class)->authorizeModule($request->user(), 'letters.use');
+        if (! $ownerId || (int) $letter->consultant_id !== (int) $ownerId) {
             abort(403, 'Access denied.');
         }
     }
@@ -331,7 +333,8 @@ class ConsultantLettersController extends Controller
             return;
         }
 
-        $exists = ClientProfile::forConsultant($request->user()->id)
+        $ownerId = app(\App\Services\Team\TeamAccess::class)->actingOwnerId($request->user()) ?? 0;
+        $exists = ClientProfile::forConsultant($ownerId)
             ->where('id', $clientProfileId)
             ->exists();
 

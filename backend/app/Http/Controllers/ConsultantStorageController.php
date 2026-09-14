@@ -19,6 +19,7 @@ class ConsultantStorageController extends Controller
     /** GET /api/v1/consultant/storage */
     public function summary(Request $request): JsonResponse
     {
+        app(\App\Services\Team\TeamAccess::class)->authorizeModule($request->user(), 'storage.view');
         $userId = $request->user()->id;
 
         return response()->json([

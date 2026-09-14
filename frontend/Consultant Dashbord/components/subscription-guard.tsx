@@ -158,6 +158,8 @@ type StatusResponse = {
   in_grace?: boolean;
   grace_ends_at?: string | null;
   subscription: SubscriptionRecord | null;
+  can_checkout?: boolean;
+  inherited?: boolean;
 };
 
 type GuardStatus =
@@ -282,6 +284,7 @@ function PlanCard({
 export function SubscriptionGuard() {
   const router = useRouter();
 
+  const [inheritedLock, setInheritedLock] = useState(false);
   const [guardStatus, setGuardStatus] = useState<GuardStatus>("loading");
   const [trialUsed, setTrialUsed] = useState(false);
   const [packages, setPackages] = useState<SubscriptionPackage[]>([]);
@@ -308,6 +311,7 @@ export function SubscriptionGuard() {
 
   function applyStatus(data: StatusResponse) {
     setTrialUsed(data.trial_used);
+    setInheritedLock(Boolean(data.inherited && data.can_checkout === false && !data.is_active && !data.in_grace));
     if (data.is_active && data.in_grace) {
       setGuardStatus("grace");
       return;
@@ -434,6 +438,23 @@ export function SubscriptionGuard() {
   }
 
   if (guardStatus === "loading" || guardStatus === "active" || dismissed) return null;
+
+  if (inheritedLock) {
+    return (
+      <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+        <div className="w-full max-w-md rounded-2xl bg-white p-8 text-center shadow-2xl">
+          <Lock className="mx-auto mb-3 h-10 w-10 text-amber-600" />
+          <h2 className="text-xl font-bold">Workspace locked</h2>
+          <p className="mt-2 text-sm text-muted-foreground">
+            The practice subscription is inactive. Ask the licensed consultant to renew. Staff cannot open billing or checkout.
+          </p>
+          <button type="button" className="mt-5 text-sm font-medium text-[#d01d20]" onClick={handleLogout}>
+            Log out
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (guardStatus === "grace") {
     return (

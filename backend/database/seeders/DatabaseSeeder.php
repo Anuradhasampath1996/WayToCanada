@@ -24,6 +24,7 @@ class DatabaseSeeder extends Seeder
             PathwayRequirementRegistrySeeder::class,
             GovernmentFormVersionSeeder::class,
             ReferralRewardRuleSeeder::class,
+            TeamPermissionPresetSeeder::class,
         ]);
     }
 }

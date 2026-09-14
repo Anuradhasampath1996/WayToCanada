@@ -55,6 +55,7 @@ class ConsultantCaseFinalReviewController extends Controller
 
     public function markReadyForClient(Request $request, ClientProfile $profile): JsonResponse
     {
+        app(\App\Services\Team\TeamAccess::class)->requireOwner($request->user(), $profile);
         $caseFile = $this->owned($request, $profile);
 
         try {
@@ -71,6 +72,7 @@ class ConsultantCaseFinalReviewController extends Controller
 
     public function markReadyToSubmit(Request $request, ClientProfile $profile): JsonResponse
     {
+        app(\App\Services\Team\TeamAccess::class)->requireOwner($request->user(), $profile);
         $caseFile = $this->owned($request, $profile);
 
         try {
@@ -89,6 +91,7 @@ class ConsultantCaseFinalReviewController extends Controller
 
     public function recordSubmission(Request $request, ClientProfile $profile): JsonResponse
     {
+        app(\App\Services\Team\TeamAccess::class)->requireOwner($request->user(), $profile);
         $caseFile = $this->owned($request, $profile);
         $data = $request->validate([
             'submission_date' => 'required|date',
@@ -144,11 +147,9 @@ class ConsultantCaseFinalReviewController extends Controller
 
     private function owned(Request $request, ClientProfile $profile): \App\Models\CaseFile
     {
-        if ($profile->consultant_id !== $request->user()->id) {
-            abort(403, 'Access denied.');
-        }
+        app(\App\Services\Team\TeamAccess::class)->authorize($request->user(), $profile);
 
-        $caseFile = $this->lifecycle->resolveActiveCaseFile($profile, $request->user()->id, createIfMissing: false);
+        $caseFile = $this->lifecycle->resolveActiveCaseFile($profile, (int) $profile->consultant_id, createIfMissing: false);
         if (! $caseFile) {
             abort(404, 'No case file found.');
         }

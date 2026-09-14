@@ -28,7 +28,7 @@ export default function ConsultantDashboard() {
       return;
     }
     const parsed: UserData = JSON.parse(userData);
-    if (!parsed.roles.includes("rcic")) {
+    if (!parsed.roles.includes("rcic") && !parsed.roles.includes("staff")) {
       router.replace("/login");
       return;
     }

@@ -92,7 +92,8 @@ class AgreementTemplateController extends Controller
 
     private function authorizeTemplate(Request $request, ConsultantAgreementTemplate $template): void
     {
-        if ($template->consultant_id !== $request->user()->id) {
+        if (! app(\App\Services\Team\TeamAccess::class)->isWorkspaceOwner($request->user())
+            || (int) $template->consultant_id !== (int) $request->user()->id) {
             abort(403, 'Access denied.');
         }
     }
