@@ -81,7 +81,10 @@ use App\Http\Controllers\Admin\AdminStorageAddonPackageController;
 use App\Http\Controllers\Admin\AdminMarketingServiceController;
 use App\Http\Controllers\Admin\AdminConsultantWebsiteFeatureController;
 use App\Http\Controllers\ConsultantMarketingPaymentController;
+use App\Http\Controllers\PublicReferralController;
 use App\Http\Controllers\StripeWebhookController;
+use App\Http\Controllers\Consultant\ConsultantReferralWalletController;
+use App\Http\Controllers\Admin\AdminReferralProgramController;
 use App\Http\Controllers\QuestionnaireController;
 use App\Http\Controllers\QuestionnaireReviewController;
 use App\Http\Controllers\NotificationController;
@@ -163,6 +166,13 @@ Route::prefix('case-file')->name('case-file.public.')->group(function () {
 // ── Public: Stripe webhook (no auth — verified via Stripe signature) ────────────
 Route::post('webhooks/stripe', [StripeWebhookController::class, 'handle'])
     ->name('webhooks.stripe');
+
+Route::get('referral/resolve/{code}', [PublicReferralController::class, 'resolve'])
+    ->middleware('throttle:60,1')
+    ->name('referral.resolve');
+Route::post('referral/attribute/{code}', [PublicReferralController::class, 'attribute'])
+    ->middleware('throttle:60,1')
+    ->name('referral.attribute');
 
 // ── Public: Meta WhatsApp webhook (no auth — verified via verify token + signature) ─
 Route::get('webhooks/whatsapp', [WhatsAppWebhookController::class, 'verify'])
@@ -307,6 +317,18 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('consultant/subscription/subscribe',   [ConsultantSubscriptionController::class, 'subscribe'])
         ->middleware('role:super-admin,admin')
         ->name('consultant.subscription.subscribe');
+
+    Route::middleware('role:rcic,super-admin,admin')->group(function () {
+        Route::get('consultant/referral', [ConsultantReferralWalletController::class, 'overview'])->name('consultant.referral.overview');
+        Route::get('consultant/referral/terms', [ConsultantReferralWalletController::class, 'terms'])->name('consultant.referral.terms');
+        Route::get('consultant/referrals', [ConsultantReferralWalletController::class, 'referrals'])->name('consultant.referrals.index');
+        Route::get('consultant/wallet', [ConsultantReferralWalletController::class, 'wallet'])->name('consultant.wallet.show');
+        Route::get('consultant/wallet/transactions', [ConsultantReferralWalletController::class, 'transactions'])->name('consultant.wallet.transactions');
+        Route::patch('consultant/wallet/credit-preference', [ConsultantReferralWalletController::class, 'updateCreditPreference'])->name('consultant.wallet.credit-preference');
+        Route::get('consultant/withdrawals', [ConsultantReferralWalletController::class, 'withdrawals'])->name('consultant.withdrawals.index');
+        Route::post('consultant/withdrawals', [ConsultantReferralWalletController::class, 'storeWithdrawal'])->name('consultant.withdrawals.store');
+        Route::post('consultant/withdrawals/{withdrawal}/cancel', [ConsultantReferralWalletController::class, 'cancelWithdrawal'])->name('consultant.withdrawals.cancel');
+    });
 
     Route::prefix('consultant/billing')->middleware('role:rcic,super-admin,admin')->name('consultant.billing.')->group(function () {
         Route::get('/',           [ConsultantBillingController::class, 'show'])->name('show');
@@ -629,6 +651,24 @@ Route::middleware('auth:sanctum')->group(function () {
 
         // Overview stats
         Route::get('stats', [AdminStatsController::class, 'index'])->name('stats');
+
+        Route::prefix('referral-program')->name('referral-program.')->group(function () {
+            Route::get('settings', [AdminReferralProgramController::class, 'settings'])->name('settings.show');
+            Route::put('settings', [AdminReferralProgramController::class, 'updateSettings'])->name('settings.update');
+            Route::get('referrals', [AdminReferralProgramController::class, 'referrals'])->name('referrals.index');
+            Route::patch('referrals/{referral}', [AdminReferralProgramController::class, 'updateReferral'])->name('referrals.update');
+            Route::get('ledger', [AdminReferralProgramController::class, 'ledger'])->name('ledger');
+            Route::get('withdrawals', [AdminReferralProgramController::class, 'withdrawals'])->name('withdrawals.index');
+            Route::post('withdrawals/{withdrawal}/review', [AdminReferralProgramController::class, 'reviewWithdrawal'])->name('withdrawals.review');
+            Route::post('withdrawals/{withdrawal}/approve', [AdminReferralProgramController::class, 'approveWithdrawal'])->name('withdrawals.approve');
+            Route::post('withdrawals/{withdrawal}/reject', [AdminReferralProgramController::class, 'rejectWithdrawal'])->name('withdrawals.reject');
+            Route::post('withdrawals/{withdrawal}/processing', [AdminReferralProgramController::class, 'processingWithdrawal'])->name('withdrawals.processing');
+            Route::post('withdrawals/{withdrawal}/paid', [AdminReferralProgramController::class, 'paidWithdrawal'])->name('withdrawals.paid');
+            Route::post('wallets/{user}/adjust', [AdminReferralProgramController::class, 'adjustWallet'])->name('wallets.adjust');
+            Route::post('wallets/{user}/unfreeze', [AdminReferralProgramController::class, 'unfreezeWallet'])->name('wallets.unfreeze');
+            Route::get('risk-flags', [AdminReferralProgramController::class, 'riskFlags'])->name('risk-flags.index');
+            Route::post('risk-flags/{flag}/clear', [AdminReferralProgramController::class, 'clearRiskFlag'])->name('risk-flags.clear');
+        });
 
         // Consultant broadcasts (in-app + email + WhatsApp)
         Route::prefix('notifications/broadcasts')->name('notifications.broadcasts.')->group(function () {

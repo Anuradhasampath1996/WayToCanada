@@ -35,6 +35,7 @@ import {
   ScaleIcon,
   UsersIcon,
   WalletMinimalIcon,
+  GiftIcon,
   type LucideIcon,
 } from "lucide-react";
 import Link from "next/link";
@@ -148,6 +149,12 @@ export const navItems: NavGroup[] = [
         href: "/admindashboard/company-invoice-settings",
         icon: Building2Icon,
         match: (p) => p.startsWith("/admindashboard/company-invoice-settings"),
+      },
+      {
+        title: "Referral Program",
+        href: "/admindashboard/referral-program/settings",
+        icon: GiftIcon,
+        match: (p) => p.startsWith("/admindashboard/referral-program"),
       },
     ],
   },

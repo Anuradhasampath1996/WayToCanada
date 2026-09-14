@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\UserResource;
 use App\Models\User;
+use App\Services\Referral\ReferralAttributionService;
 use Illuminate\Auth\Events\Verified;
 use Illuminate\Foundation\Auth\EmailVerificationRequest;
 use Illuminate\Http\JsonResponse;
@@ -29,6 +30,7 @@ class ConsultantRegisterController extends Controller
             'email'      => ['required', 'email:rfc,dns', 'max:255', 'unique:cws.users,email'],
             'phone'      => ['required', 'string', 'max:30'],
             'password'   => ['required', 'confirmed', Password::min(8)->letters()->numbers()],
+            'referral_code' => ['nullable', 'string', 'max:16'],
         ]);
 
         $user = User::create([
@@ -40,6 +42,12 @@ class ConsultantRegisterController extends Controller
         ]);
 
         $user->assignRole('rcic');
+
+        app(ReferralAttributionService::class)->attachOnRegistration(
+            $user,
+            $request,
+            $data['referral_code'] ?? null,
+        );
 
         // Send Laravel's built-in verification email
         $user->sendEmailVerificationNotification();
@@ -113,11 +121,14 @@ class ConsultantRegisterController extends Controller
      * Initiates Google OAuth for consultant registration.
      * The `state` parameter tells the callback to assign the 'rcic' role.
      */
-    public function googleRedirect(): JsonResponse
+    public function googleRedirect(Request $request): JsonResponse
     {
+        $code = strtoupper(trim((string) $request->query('referral_code', $request->query('ref', ''))));
+        $state = $code !== '' ? 'consultant|'.$code : 'consultant';
+
         $url = \Laravel\Socialite\Facades\Socialite::driver('google')
             ->stateless()
-            ->with(['state' => 'consultant'])
+            ->with(['state' => $state])
             ->redirect()
             ->getTargetUrl();
 

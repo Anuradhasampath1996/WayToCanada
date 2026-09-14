@@ -186,6 +186,32 @@ class FakeStripePlatformClient implements StripePlatformClient
         return $customer;
     }
 
+    /** @var array<int, object> */
+    public array $invoiceItems = [];
+
+    /** @var array<string, string> */
+    public array $paymentIntentInvoices = [];
+
+    public function createInvoiceCreditItem(string $customerId, string $invoiceId, float $amountCad, string $description): object
+    {
+        $item = (object) [
+            'id' => 'ii_wallet_'.(count($this->invoiceItems) + 1),
+            'customer' => $customerId,
+            'invoice' => $invoiceId,
+            'amount' => (int) round($amountCad * -100),
+            'currency' => 'cad',
+            'description' => $description,
+        ];
+        $this->invoiceItems[] = $item;
+
+        return $item;
+    }
+
+    public function invoiceIdForPaymentIntent(string $paymentIntentId): ?string
+    {
+        return $this->paymentIntentInvoices[$paymentIntentId] ?? null;
+    }
+
     public function seedSubscription(string $id, string $customerId, string $priceId = 'price_test_monthly', string $status = 'active'): object
     {
         $sub = (object) [

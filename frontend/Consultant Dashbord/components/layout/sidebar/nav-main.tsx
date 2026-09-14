@@ -19,6 +19,7 @@ import {
   HardDriveIcon,
   MessagesSquareIcon,
   MegaphoneIcon,
+  GiftIcon,
   type LucideIcon,
 } from "lucide-react";
 import Link from "next/link";
@@ -80,6 +81,13 @@ export const navItems: NavGroup[] = [
         icon: MailIcon,
         badge: "New",
         match: (p) => p.startsWith("/dashboard/letters"),
+      },
+      {
+        title: "Referrals & Wallet",
+        href: "/dashboard/referrals",
+        description: "Share your link and withdraw rewards",
+        icon: GiftIcon,
+        match: (p) => p.startsWith("/dashboard/referrals"),
       },
     ],
   },

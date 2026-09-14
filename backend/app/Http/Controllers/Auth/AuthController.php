@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\UserResource;
 use App\Models\User;
 use App\Services\Auth\MobileOAuthStateService;
+use App\Services\Referral\ReferralAttributionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -131,6 +132,11 @@ class AuthController extends Controller
         $state = $request->query('state');
         $mobileOAuth = app(MobileOAuthStateService::class);
         $mobile = is_string($state) ? $mobileOAuth->consume($state) : null;
+        $referralCode = null;
+        if (is_string($state) && str_starts_with($state, 'consultant|')) {
+            $referralCode = strtoupper(substr($state, strlen('consultant|')));
+            $state = 'consultant';
+        }
         $isConsultantRegister = $state === 'consultant';
         $isConsultantLogin    = $state === 'consultant-login' || ($mobile && $mobile['intent'] === 'consultant');
 
@@ -138,6 +144,7 @@ class AuthController extends Controller
         // users who registered manually and are now linking their Google account).
         $user = User::where('google_id', $googleUser->getId())->first()
             ?? User::where('email', $googleUser->getEmail())->first();
+        $wasNewUser = $user === null;
 
         if ($user) {
             // Link Google ID and update avatar/verification if not already set
@@ -162,6 +169,10 @@ class AuthController extends Controller
         // Assign role to new users only
         if (! $user->hasAnyRole(['rcic', 'client', 'admin', 'super-admin'])) {
             $user->assignRole(($isConsultantRegister || $isConsultantLogin) ? 'rcic' : 'client');
+        }
+
+        if ($wasNewUser && $user->hasRole('rcic')) {
+            app(ReferralAttributionService::class)->attachOnRegistration($user, $request, $referralCode);
         }
 
         $user->tokens()->where('name', 'google-auth')->delete();

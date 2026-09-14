@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\ConsultantSubscription;
 use App\Models\SubscriptionPackage;
+use App\Services\Referral\ReferralLifecycleService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -95,6 +96,8 @@ class ConsultantSubscriptionController extends Controller
             'ends_at'                => null,
             'billing_cycle'          => null,
         ]);
+
+        app(ReferralLifecycleService::class)->onTrialStarted($user);
 
         return response()->json(['subscription' => $sub->load('package')], 201);
     }

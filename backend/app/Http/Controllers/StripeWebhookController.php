@@ -7,6 +7,8 @@ use App\Models\ConsultantPaymentAccount;
 use App\Models\PaymentGatewaySetting;
 use App\Models\StripeWebhookEvent;
 use App\Services\ClientPaymentRequestService;
+use App\Services\Referral\ReferralReversalService;
+use App\Services\Referral\WalletSubscriptionCreditService;
 use App\Services\StripePaymentFulfillmentService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -18,6 +20,8 @@ class StripeWebhookController extends Controller
     public function __construct(
         private StripePaymentFulfillmentService $fulfillment,
         private ClientPaymentRequestService $clientPayments,
+        private ReferralReversalService $referralReversal,
+        private WalletSubscriptionCreditService $walletCredit,
     ) {}
 
     public function handle(Request $request): JsonResponse
@@ -126,11 +130,15 @@ class StripeWebhookController extends Controller
     {
         match ($type) {
             'checkout.session.completed' => $this->handlePlatformCheckoutCompleted($data),
+            'invoice.created'              => $this->walletCredit->onInvoiceCreated($data),
             'invoice.paid'                 => $this->fulfillment->handleInvoicePaid($data),
             'invoice.payment_failed'       => $this->fulfillment->handleInvoicePaymentFailed($data),
+            'invoice.voided'               => $this->walletCredit->onInvoiceVoided($data),
             'customer.subscription.deleted',
             'customer.subscription.updated' => $this->fulfillment->handleSubscriptionUpdated($data),
             'charge.refunded'              => $this->handleChargeRefunded($data),
+            'charge.dispute.created'       => $this->handleChargeDisputed($data),
+            'charge.dispute.closed'        => $this->handleChargeDisputeClosed($data),
             default => null,
         };
     }
@@ -226,27 +234,38 @@ class StripeWebhookController extends Controller
 
     private function handleChargeRefunded(object $charge): void
     {
-        $paymentIntent = $charge->payment_intent ?? null;
-        $sessionId     = $charge->metadata->checkout_session_id ?? null;
+        $payment = app(\App\Services\Referral\StripePaymentRecordResolver::class)->fromCharge($charge);
+        if ($payment) {
+            $payment->update(['payment_status' => \App\Models\SubscriptionPaymentRecord::STATUS_REFUNDED]);
+            $this->referralReversal->reverseFromPayment($payment, 'refunded');
 
-        if (! $paymentIntent && ! $sessionId) {
             return;
         }
 
-        $query = \App\Models\SubscriptionPaymentRecord::query();
+        $sessionId = $charge->metadata->checkout_session_id ?? null;
+        if ($sessionId) {
+            \App\Models\SubscriptionPaymentRecord::query()
+                ->where('stripe_checkout_session_id', $sessionId)
+                ->update(['payment_status' => \App\Models\SubscriptionPaymentRecord::STATUS_REFUNDED]);
+        }
+    }
 
-        $query->where(function ($q) use ($paymentIntent, $sessionId) {
-            if ($paymentIntent) {
-                $q->where('stripe_invoice_id', $paymentIntent);
-            }
-            if ($sessionId) {
-                $paymentIntent
-                    ? $q->orWhere('stripe_checkout_session_id', $sessionId)
-                    : $q->where('stripe_checkout_session_id', $sessionId);
-            }
-        });
+    private function handleChargeDisputed(object $charge): void
+    {
+        $this->referralReversal->reverseFromCharge($charge, 'disputed');
+    }
 
-        $query->update(['payment_status' => \App\Models\SubscriptionPaymentRecord::STATUS_REFUNDED]);
+    private function handleChargeDisputeClosed(object $dispute): void
+    {
+        $status = (string) ($dispute->status ?? '');
+        if (! in_array($status, ['lost', 'charge_refunded'], true)) {
+            return;
+        }
+
+        $charge = $dispute->charge ?? null;
+        if (is_object($charge)) {
+            $this->referralReversal->reverseFromCharge($charge, 'dispute_lost');
+        }
     }
 
     private function recordWebhookHealth(PaymentGatewaySetting $setting, string $type, ?string $connectedAccountId): void

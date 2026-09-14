@@ -23,6 +23,7 @@ class DatabaseSeeder extends Seeder
             PathwayCatalogSeeder::class,
             PathwayRequirementRegistrySeeder::class,
             GovernmentFormVersionSeeder::class,
+            ReferralRewardRuleSeeder::class,
         ]);
     }
 }

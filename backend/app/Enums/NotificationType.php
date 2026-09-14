@@ -40,6 +40,18 @@ enum NotificationType: string
     case SUBSCRIPTION_RENEWAL_RECOVERED = 'subscription_renewal_recovered';
     case SUBSCRIPTION_CANCELLATION_SCHEDULED = 'subscription_cancellation_scheduled';
     case SUBSCRIPTION_CANCELLED = 'subscription_cancelled';
+    case REFERRAL_REGISTERED = 'referral_registered';
+    case REFERRAL_VERIFIED = 'referral_verified';
+    case REFERRAL_QUALIFIED = 'referral_qualified';
+    case REFERRAL_REWARD_PENDING = 'referral_reward_pending';
+    case REFERRAL_REWARD_AVAILABLE = 'referral_reward_available';
+    case REFERRAL_REWARD_REVERSED = 'referral_reward_reversed';
+    case REFERRAL_WITHDRAWAL_REQUESTED = 'referral_withdrawal_requested';
+    case REFERRAL_WITHDRAWAL_APPROVED = 'referral_withdrawal_approved';
+    case REFERRAL_WITHDRAWAL_REJECTED = 'referral_withdrawal_rejected';
+    case REFERRAL_WITHDRAWAL_PAID = 'referral_withdrawal_paid';
+    case REFERRAL_ADMIN_WITHDRAWAL = 'referral_admin_withdrawal';
+    case REFERRAL_ADMIN_RISK = 'referral_admin_risk';
 
     /** @return list<string> */
     public function defaultChannels(): array
@@ -64,6 +76,7 @@ enum NotificationType: string
             self::SUPPORT_TICKET_CREATED, self::SUPPORT_TICKET_REPLY, self::SUPPORT_TICKET_CLOSED => ['in_app', 'email'],
             self::CLIENT_CONSULTANT_REQUEST, self::CLIENT_CONSULTANT_REQUEST_ACCEPTED, self::CLIENT_CONSULTANT_REQUEST_DECLINED => ['in_app', 'email'],
             self::SUBSCRIPTION_PAYMENT_SUCCEEDED, self::SUBSCRIPTION_RENEWED, self::SUBSCRIPTION_RENEWAL_FAILED, self::SUBSCRIPTION_RENEWAL_RECOVERED, self::SUBSCRIPTION_CANCELLATION_SCHEDULED, self::SUBSCRIPTION_CANCELLED => ['in_app', 'email', 'whatsapp'],
+            self::REFERRAL_REGISTERED, self::REFERRAL_VERIFIED, self::REFERRAL_QUALIFIED, self::REFERRAL_REWARD_PENDING, self::REFERRAL_REWARD_AVAILABLE, self::REFERRAL_REWARD_REVERSED, self::REFERRAL_WITHDRAWAL_REQUESTED, self::REFERRAL_WITHDRAWAL_APPROVED, self::REFERRAL_WITHDRAWAL_REJECTED, self::REFERRAL_WITHDRAWAL_PAID, self::REFERRAL_ADMIN_WITHDRAWAL, self::REFERRAL_ADMIN_RISK => ['in_app', 'email'],
         };
     }
 
@@ -110,6 +123,7 @@ enum NotificationType: string
             self::SUPPORT_TICKET_CREATED, self::SUPPORT_TICKET_REPLY, self::SUPPORT_TICKET_CLOSED => 'support',
             self::CLIENT_CONSULTANT_REQUEST, self::CLIENT_CONSULTANT_REQUEST_ACCEPTED, self::CLIENT_CONSULTANT_REQUEST_DECLINED => 'onboarding',
             self::SUBSCRIPTION_PAYMENT_SUCCEEDED, self::SUBSCRIPTION_RENEWED, self::SUBSCRIPTION_RENEWAL_FAILED, self::SUBSCRIPTION_RENEWAL_RECOVERED, self::SUBSCRIPTION_CANCELLATION_SCHEDULED, self::SUBSCRIPTION_CANCELLED => 'billing',
+            self::REFERRAL_REGISTERED, self::REFERRAL_VERIFIED, self::REFERRAL_QUALIFIED, self::REFERRAL_REWARD_PENDING, self::REFERRAL_REWARD_AVAILABLE, self::REFERRAL_REWARD_REVERSED, self::REFERRAL_WITHDRAWAL_REQUESTED, self::REFERRAL_WITHDRAWAL_APPROVED, self::REFERRAL_WITHDRAWAL_REJECTED, self::REFERRAL_WITHDRAWAL_PAID, self::REFERRAL_ADMIN_WITHDRAWAL, self::REFERRAL_ADMIN_RISK => 'referral',
         };
     }
 
@@ -129,6 +143,7 @@ enum NotificationType: string
             'support'       => 'Support',
             'onboarding'    => 'Onboarding',
             'billing'         => 'Billing',
+            'referral'        => 'Referral',
             default         => 'Notification',
         };
     }
@@ -189,6 +204,18 @@ enum NotificationType: string
             self::SUBSCRIPTION_RENEWAL_RECOVERED => 'Subscription payment recovered',
             self::SUBSCRIPTION_CANCELLATION_SCHEDULED => 'Subscription cancellation scheduled',
             self::SUBSCRIPTION_CANCELLED => 'Subscription cancelled',
+            self::REFERRAL_REGISTERED => 'Referral registered',
+            self::REFERRAL_VERIFIED => 'Referral verified',
+            self::REFERRAL_QUALIFIED => 'Referral subscription qualified',
+            self::REFERRAL_REWARD_PENDING => 'Referral reward pending',
+            self::REFERRAL_REWARD_AVAILABLE => 'Referral reward available',
+            self::REFERRAL_REWARD_REVERSED => 'Referral reward reversed',
+            self::REFERRAL_WITHDRAWAL_REQUESTED => 'Withdrawal requested',
+            self::REFERRAL_WITHDRAWAL_APPROVED => 'Withdrawal approved',
+            self::REFERRAL_WITHDRAWAL_REJECTED => 'Withdrawal rejected',
+            self::REFERRAL_WITHDRAWAL_PAID => 'Withdrawal paid',
+            self::REFERRAL_ADMIN_WITHDRAWAL => 'Referral withdrawal request',
+            self::REFERRAL_ADMIN_RISK => 'Referral review needed',
         };
     }
 
@@ -214,6 +241,7 @@ enum NotificationType: string
             self::CLIENT_CONSULTANT_REQUEST => ['consultant'],
             self::CLIENT_CONSULTANT_REQUEST_ACCEPTED, self::CLIENT_CONSULTANT_REQUEST_DECLINED => ['client'],
             self::SUBSCRIPTION_PAYMENT_SUCCEEDED, self::SUBSCRIPTION_RENEWED, self::SUBSCRIPTION_RENEWAL_FAILED, self::SUBSCRIPTION_RENEWAL_RECOVERED, self::SUBSCRIPTION_CANCELLATION_SCHEDULED, self::SUBSCRIPTION_CANCELLED => ['consultant'],
+            self::REFERRAL_ADMIN_WITHDRAWAL, self::REFERRAL_ADMIN_RISK => ['admin'],
             default => ['consultant'],
         };
     }

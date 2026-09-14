@@ -45,3 +45,6 @@ Schedule::command('meetings:send-reminders')->everyFifteenMinutes()->timezone('A
 
 // Unpaid client payment request reminders
 Schedule::command('payments:send-reminders')->dailyAt('09:30')->timezone('America/Toronto');
+
+// Release referral rewards after the configured hold period
+Schedule::command('referral:release-holds')->dailyAt('10:00')->timezone('America/Toronto');

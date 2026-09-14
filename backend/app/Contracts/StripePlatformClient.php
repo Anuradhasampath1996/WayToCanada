@@ -26,4 +26,13 @@ interface StripePlatformClient
     public function listCustomerSubscriptions(string $customerId): array;
 
     public function createCustomer(string $email, int $userId): object;
+
+    /**
+     * Negative, tax-exempt invoice item on one draft invoice. Never a customer balance.
+     *
+     * @return object{id: string}
+     */
+    public function createInvoiceCreditItem(string $customerId, string $invoiceId, float $amountCad, string $description): object;
+
+    public function invoiceIdForPaymentIntent(string $paymentIntentId): ?string;
 }

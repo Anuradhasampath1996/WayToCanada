@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { Bell, Eye, EyeOff, FileText, Loader2, MailCheck, Shield, Users } from "lucide-react";
@@ -10,6 +10,14 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 
 const API = `${process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000"}/api/v1`;
+
+function readReferralCode(): string {
+  if (typeof window === "undefined") return "";
+  const fromQuery = new URLSearchParams(window.location.search).get("ref") ?? "";
+  if (fromQuery.trim()) return fromQuery.trim().toUpperCase();
+  const match = document.cookie.match(/(?:^|; )wtc_ref_code=([^;]+)/);
+  return match ? decodeURIComponent(match[1]).toUpperCase() : "";
+}
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface FieldErrors {
@@ -37,6 +45,7 @@ export default function RegisterPage() {
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [generalError, setGeneralError] = useState("");
   const [done, setDone] = useState(false);
+  const referralCode = useMemo(() => readReferralCode(), []);
 
   function set(field: keyof typeof form) {
     return (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -55,7 +64,10 @@ export default function RegisterPage() {
       const res = await fetch(`${API}/auth/register/consultant`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Accept: "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          ...form,
+          ...(referralCode ? { referral_code: referralCode } : {}),
+        }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -80,7 +92,8 @@ export default function RegisterPage() {
     setGoogleLoading(true);
     setGeneralError("");
     try {
-      const res = await fetch(`${API}/auth/google/consultant/redirect`, {
+      const qs = referralCode ? `?referral_code=${encodeURIComponent(referralCode)}` : "";
+      const res = await fetch(`${API}/auth/google/consultant/redirect${qs}`, {
         headers: { Accept: "application/json" },
       });
       const data = await res.json();

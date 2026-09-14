@@ -5,9 +5,12 @@ namespace App\Services\Stripe;
 use App\Contracts\StripePlatformClient;
 use App\Services\StripeService;
 use Stripe\BillingPortal\Session as PortalSession;
+use Stripe\Charge;
 use Stripe\Checkout\Session as CheckoutSession;
 use Stripe\Customer;
 use Stripe\Invoice;
+use Stripe\InvoiceItem;
+use Stripe\PaymentIntent;
 use Stripe\Subscription;
 
 class LiveStripePlatformClient implements StripePlatformClient
@@ -68,5 +71,52 @@ class LiveStripePlatformClient implements StripePlatformClient
             'email'    => $email,
             'metadata' => ['user_id' => (string) $userId, 'type' => 'platform_subscription'],
         ]);
+    }
+
+    public function createInvoiceCreditItem(string $customerId, string $invoiceId, float $amountCad, string $description): object
+    {
+        $cents = (int) round($amountCad * 100);
+        if ($cents <= 0) {
+            throw new \InvalidArgumentException('Wallet credit must be greater than zero.');
+        }
+
+        return InvoiceItem::create([
+            'customer' => $customerId,
+            'invoice' => $invoiceId,
+            'amount' => -$cents,
+            'currency' => 'cad',
+            'description' => $description,
+            'tax_behavior' => 'exclusive',
+            'metadata' => [
+                'type' => 'consultant_wallet_credit',
+                'isolated' => 'platform_renewal_only',
+            ],
+        ]);
+    }
+
+    public function invoiceIdForPaymentIntent(string $paymentIntentId): ?string
+    {
+        $intent = PaymentIntent::retrieve($paymentIntentId);
+        $invoice = $intent->invoice ?? null;
+        if (is_string($invoice) && str_starts_with($invoice, 'in_')) {
+            return $invoice;
+        }
+        if (is_object($invoice) && isset($invoice->id)) {
+            return (string) $invoice->id;
+        }
+
+        $latestCharge = $intent->latest_charge ?? null;
+        $chargeId = is_object($latestCharge) ? ($latestCharge->id ?? null) : $latestCharge;
+        if (! is_string($chargeId) || $chargeId === '') {
+            return null;
+        }
+
+        $charge = Charge::retrieve($chargeId);
+        $chargeInvoice = $charge->invoice ?? null;
+        if (is_string($chargeInvoice) && str_starts_with($chargeInvoice, 'in_')) {
+            return $chargeInvoice;
+        }
+
+        return is_object($chargeInvoice) ? ($chargeInvoice->id ?? null) : null;
     }
 }

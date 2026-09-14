@@ -12,6 +12,8 @@ use App\Models\SubscriptionPackage;
 use App\Models\SubscriptionPaymentRecord;
 use App\Models\User;
 use App\Services\Notifications\ConsultantBillingNotificationService;
+use App\Services\Referral\ReferralQualificationService;
+use App\Services\Referral\WalletSubscriptionCreditService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
 use Stripe\Checkout\Session as StripeSession;
@@ -254,6 +256,10 @@ class StripePaymentFulfillmentService
             ]);
         }
 
+        if ($payment) {
+            app(ReferralQualificationService::class)->onPlatformPaymentRecorded($payment);
+        }
+
         return ['type' => 'subscription', 'subscription' => $sub->load('package'), 'payment' => $payment];
     }
 
@@ -463,6 +469,8 @@ class StripePaymentFulfillmentService
                 $sub->package?->name ?? 'Platform subscription',
                 $wasPastDue,
             );
+            app(WalletSubscriptionCreditService::class)->finalizeFromPayment($payment, $invoice);
+            app(ReferralQualificationService::class)->onPlatformPaymentRecorded($payment);
         }
     }
 

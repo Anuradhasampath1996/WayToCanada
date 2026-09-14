@@ -7,6 +7,7 @@ use App\Http\Resources\UserResource;
 use App\Mail\RcicLicenseVerificationMail;
 use App\Models\RcicConsultant;
 use App\Models\User;
+use App\Services\Referral\ReferralLifecycleService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
@@ -58,6 +59,8 @@ class ConsultantOnboardingController extends Controller
                 'license_verified_at' => now(),
             ]);
 
+            app(ReferralLifecycleService::class)->onLicenseVerified($user->fresh());
+
             return response()->json([
                 'status' => 'verified',
                 'user'   => new UserResource($user->fresh()->load('roles')),
@@ -106,6 +109,7 @@ class ConsultantOnboardingController extends Controller
                 'is_license_verified' => true,
                 'license_verified_at' => now(),
             ]);
+            app(ReferralLifecycleService::class)->onLicenseVerified($user->fresh());
         }
 
         $dashboardUrl = rtrim(env('CONSULTANT_DASHBOARD_URL', 'http://localhost:3005'), '/');
