@@ -33,6 +33,7 @@ use App\Services\Lms\LmsExamMasterService;
 use App\Services\StripePaymentFulfillmentService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Http;
 use Laravel\Sanctum\Sanctum;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 use Tests\Concerns\CreatesSubscriptionFixtures;
@@ -50,6 +51,7 @@ class LearningMarketplaceTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        Http::preventStrayRequests();
         $this->resetAcademySchema();
         $this->ensureLmsTestSchema();
         $this->seedBillingRoles();

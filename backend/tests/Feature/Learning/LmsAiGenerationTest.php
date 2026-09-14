@@ -23,6 +23,7 @@ use App\Services\Academy\Ai\Providers\FakeAcademyGenerationProvider;
 use App\Services\Learning\ExamEvidencePackService;
 use App\Services\Lms\Ai\LmsAiPromptCatalog;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Http;
 use Laravel\Sanctum\Sanctum;
 use Tests\Concerns\CreatesSubscriptionFixtures;
 use Tests\Concerns\RefreshesAcademyDatabase;
@@ -39,6 +40,7 @@ class LmsAiGenerationTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        Http::preventStrayRequests();
         $this->resetAcademySchema();
         $this->ensureLmsTestSchema();
         $this->seedBillingRoles();

@@ -7,7 +7,6 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Foundation\Testing\RefreshDatabaseState;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
 use Tests\Fakes\FakeStripePlatformClient;
 
@@ -43,7 +42,6 @@ abstract class TestCase extends BaseTestCase
     {
         parent::setUp();
 
-        Http::preventStrayRequests();
         $this->app->instance(StripePlatformClient::class, new FakeStripePlatformClient());
         config([
             'academy_ai.research_driver' => 'fake',
