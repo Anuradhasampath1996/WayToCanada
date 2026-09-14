@@ -21,10 +21,8 @@ import {
   Square,
   Link2,
   Pencil,
-  HelpCircle,
   ChevronDown,
   ChevronRight,
-  Info,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -209,128 +207,13 @@ const emptyRefForm = {
   admin_notes: "",
 };
 
-type HubAction = {
-  id: string;
-  title: string;
-  summary: string;
-  when: string;
-  note?: string;
-};
-
-const HUB_ACTIONS: Record<string, HubAction> = {
-  refresh: {
-    id: "refresh",
-    title: "Refresh",
-    summary: "Reload sync status, document list, and catalog counts from the database — does not fetch anything from Justice Canada.",
-    when: "After a sync finishes, or when another admin may have changed data.",
-  },
-  discoverActs: {
-    id: "discoverActs",
-    title: "Discover Acts",
-    summary: "Scrape the federal Acts index on laws.justice.gc.ca and save act codes + titles into the local catalog table.",
-    when: "First-time setup, or when you need to refresh the list of available Acts. Does not download document content.",
-    note: "Number in parentheses = acts currently stored in catalog.",
-  },
-  discoverRegs: {
-    id: "discoverRegs",
-    title: "Discover Regs",
-    summary: "Same as Discover Acts, but for Regulations (SOR/DORS codes). Builds the catalog only — no XML/HTML/PDF yet.",
-    when: "Before Batch Sync Regs. Required once before bulk regulation import.",
-    note: "Number in parentheses = regulations in catalog.",
-  },
-  syncPriority: {
-    id: "syncPriority",
-    title: "Sync Priority",
-    summary: "Download IRPA (I-2.5) + IRPR (SOR-2002-227) in EN + FR — XML, HTML, and PDF. Parses provisions, builds interactive viewer HTML, and runs cross-reference linkify.",
-    when: "Daily use for immigration consultants. This is the minimum set needed for Maple + Legislation Hub.",
-    note: "Runs in background via queue worker. Does not require catalog discovery.",
-  },
-  downloadAllActs: {
-    id: "downloadAllActs",
-    title: "Download All Pending Acts",
-    summary: "Download every unsynced Act in the catalog (XML + HTML + PDF per entry). Chains batches automatically until done — shows % progress.",
-    when: "After Discover Acts. Skips entries already downloaded unless you uncheck “Skip already downloaded”.",
-    note: "Requires QUEUE_CONNECTION=database and php artisan queue:work running.",
-  },
-  downloadAllRegs: {
-    id: "downloadAllRegs",
-    title: "Download All Pending Regs",
-    summary: "Download every unsynced Regulation in the catalog. Same auto-chain + progress % as acts.",
-    when: "After Discover Regs. 4,000+ regulations — keep queue worker running.",
-    note: "Already-downloaded regs are skipped by default.",
-  },
-  downloadAll: {
-    id: "downloadAll",
-    title: "Download All Pending",
-    summary: "Download all unsynced Acts + Regulations in one run. Progress bar shows documents completed vs total pending.",
-    when: "Full catalog import after discovery. One click starts the entire queue chain.",
-    note: "Uncheck “Skip already downloaded” only if you need to re-fetch everything from Justice Canada.",
-  },
-  batchActs: {
-    id: "batchActs",
-    title: "Batch Sync Acts",
-    summary: "Alias for Download All Pending Acts — processes N entries per queue job, then auto-continues until catalog is empty.",
-    when: "Same as Download All Pending Acts.",
-    note: "Batch size = entries per queue job chunk (not total limit).",
-  },
-  batchRegs: {
-    id: "batchRegs",
-    title: "Batch Sync Regs",
-    summary: "Alias for Download All Pending Regs.",
-    when: "Same as Download All Pending Regs.",
-    note: "Rate-limited requests to Justice Canada.",
-  },
-  syncAi: {
-    id: "syncAi",
-    title: "Sync + Linkify",
-    summary: "One-click pipeline: sync IRPA + IRPR → regex re-linkify all XML → optional OpenAI pass → coverage % report in sync stats.",
-    when: "After Justice Canada updates, or when link coverage is low. Best all-in-one maintenance button.",
-    note: "Enable “AI pass” checkbox for OpenAI (costs tokens). Regex linkify always runs.",
-  },
-  syncTier: {
-    id: "syncTier",
-    title: "Sync Immigration Tier",
-    summary: "Sync ~15 immigration-relevant acts/regs (Citizenship Act, Criminal Code, RPD/RAD rules, etc.) — excludes IRPA/IRPR already in priority.",
-    when: "After Sync Priority, to expand consultant-relevant federal law without full catalog batch.",
-    note: "Configured in legislation_sources.php immigration_tier list.",
-  },
-  clearAll: {
-    id: "clearAll",
-    title: "Clear All",
-    summary: "Delete downloaded legislation files, documents, provisions, references, and sync history. Catalog index can be kept or removed.",
-    when: "Fresh start, corrupted data, or before a full re-download. Cannot be undone.",
-    note: "Type CLEAR to confirm. Default keeps catalog list (Discover not needed again).",
-  },
-};
-
-function ActionButton({
-  action,
-  children,
-  onClick,
-  disabled,
-  variant = "outline",
-}: {
-  action: HubAction;
-  children: React.ReactNode;
-  onClick?: () => void;
-  disabled?: boolean;
-  variant?: "default" | "outline" | "secondary" | "ghost";
-}) {
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Button variant={variant} size="sm" onClick={onClick} disabled={disabled}>
-          {children}
-        </Button>
-      </TooltipTrigger>
-      <TooltipContent side="bottom" className="max-w-xs text-left leading-relaxed">
-        <p className="font-semibold">{action.title}</p>
-        <p className="mt-1 opacity-90">{action.summary}</p>
-        {action.note && <p className="mt-1.5 text-[10px] opacity-75">{action.note}</p>}
-      </TooltipContent>
-    </Tooltip>
-  );
-}
+const SYNC_STEPS = [
+  "Discover the federal Acts & Regulations catalog from Justice Canada",
+  "Download IRPA + IRPR (English and French, XML / HTML / PDF) and build the viewer",
+  "Download the immigration-tier set (Citizenship Act, RPD/RAD rules, and related regs)",
+  "Linkify cross-references so consultants can click between provisions",
+  "Queue the remaining catalog downloads in the background (skip already downloaded)",
+];
 
 export default function LegislationsHubPage() {
   const [status, setStatus] = React.useState<SyncStatus | null>(null);
@@ -338,7 +221,6 @@ export default function LegislationsHubPage() {
   const [loading, setLoading] = React.useState(true);
   const [syncing, setSyncing] = React.useState(false);
   const [activeRun, setActiveRun] = React.useState<SyncRun | null>(null);
-  const [discovering, setDiscovering] = React.useState<"acts" | "regulations" | null>(null);
   const [message, setMessage] = React.useState<string | null>(null);
 
   // Catalog tab
@@ -594,29 +476,6 @@ export default function LegislationsHubPage() {
     }
   };
 
-  const discoverCatalog = async (type: "acts" | "regulations" | "both") => {
-    setDiscovering(type === "both" ? "acts" : type);
-    setMessage(null);
-    try {
-      const res = await fetch(`${API}/admin/legislation/discover-catalog`, {
-        method: "POST",
-        headers: adminAuthHeaders("application/json"),
-        body: JSON.stringify({ type }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.message ?? "Discovery failed");
-      setMessage(json.message ?? `Discovered ${type}.`);
-      if (json.stats) setCatalogStats(json.stats);
-      load();
-      loadCatalog(1);
-      setCatalogPage(1);
-    } catch (e) {
-      setMessage(e instanceof Error ? e.message : "Discovery failed");
-    } finally {
-      setDiscovering(null);
-    }
-  };
-
   const syncCatalogEntry = async (entry: CatalogEntry) => {
     setSyncingEntryId(entry.id);
     setMessage(null);
@@ -838,223 +697,97 @@ export default function LegislationsHubPage() {
             Legislation Hub
           </h1>
           <p className="text-muted-foreground text-sm mt-1 max-w-2xl">
-            Sync Canadian Acts &amp; Regulations from{" "}
+            One click syncs Canadian Acts &amp; Regulations from{" "}
             <a href="https://laws.justice.gc.ca/eng/acts/" target="_blank" rel="noopener noreferrer" className="underline">
               laws.justice.gc.ca
             </a>
-            . Priority: IRPA + IRPR. Full catalog via batch sync (requires queue worker).
+            {" "}into the consultant library. IRPA + IRPR first, then the rest in the background.
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <ActionButton action={HUB_ACTIONS.refresh} onClick={load} disabled={loading}>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            size="sm"
+            onClick={() => startSync({ scope: "full", batchSize, runAi: syncWithAi, runLinkify: true })}
+            disabled={syncing}
+          >
+            {syncing ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <CloudDownload className="h-4 w-4 mr-1" />}
+            Sync legislation
+          </Button>
+          <Button variant="outline" size="sm" onClick={load} disabled={loading}>
             <RefreshCw className={`h-4 w-4 mr-1 ${loading ? "animate-spin" : ""}`} />
             Refresh
-          </ActionButton>
-          <ActionButton
-            action={HUB_ACTIONS.discoverActs}
-            onClick={() => discoverCatalog("acts")}
-            disabled={!!discovering || syncing}
-          >
-            {discovering === "acts" ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <BookOpen className="h-4 w-4 mr-1" />}
-            Discover Acts ({catalogCounts.acts})
-          </ActionButton>
-          <ActionButton
-            action={HUB_ACTIONS.discoverRegs}
-            onClick={() => discoverCatalog("regulations")}
-            disabled={!!discovering || syncing}
-          >
-            {discovering === "regulations" ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <FileText className="h-4 w-4 mr-1" />}
-            Discover Regs ({catalogCounts.regulations})
-          </ActionButton>
-          <ActionButton action={HUB_ACTIONS.syncPriority} onClick={() => startSync()} disabled={syncing} variant="outline">
-            {syncing ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <CloudDownload className="h-4 w-4 mr-1" />}
-            Sync Priority
-          </ActionButton>
-          <ActionButton
-            action={HUB_ACTIONS.syncTier}
-            onClick={() => startSync({ scope: "immigration_tier" })}
-            disabled={syncing}
-            variant="outline"
-          >
-            <CloudDownload className="h-4 w-4 mr-1" />
-            Immigration Tier ({status?.immigration_tier_count ?? "—"})
-          </ActionButton>
-          <ActionButton
-            action={HUB_ACTIONS.syncAi}
-            onClick={() => startSync({ scope: "sync_and_linkify", runAi: syncWithAi, runLinkify: true })}
-            disabled={syncing}
-            variant="default"
-          >
-            <Sparkles className="h-4 w-4 mr-1" />
-            Sync + Linkify
-          </ActionButton>
-          <ActionButton
-            action={HUB_ACTIONS.downloadAll}
-            onClick={() => startSync({ scope: "catalog_batch", batchSize })}
-            disabled={syncing || pendingTotal === 0}
-            variant="default"
-          >
-            {syncing ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <CloudDownload className="h-4 w-4 mr-1" />}
-            Download All ({pendingTotal})
-          </ActionButton>
-          <ActionButton
-            action={HUB_ACTIONS.downloadAllActs}
-            onClick={() => startSync({ scope: "catalog_batch", category: "act", batchSize })}
-            disabled={syncing || pendingActs === 0}
-            variant="secondary"
-          >
-            <CloudDownload className="h-4 w-4 mr-1" />
-            All Acts ({pendingActs})
-          </ActionButton>
-          <ActionButton
-            action={HUB_ACTIONS.downloadAllRegs}
-            onClick={() => startSync({ scope: "catalog_batch", category: "regulation", batchSize })}
-            disabled={syncing || pendingRegs === 0}
-            variant="secondary"
-          >
-            <CloudDownload className="h-4 w-4 mr-1" />
-            All Regs ({pendingRegs})
-          </ActionButton>
-          <ActionButton
-            action={HUB_ACTIONS.batchActs}
-            onClick={() => startSync({ scope: "catalog_batch", category: "act", batchSize })}
-            disabled={syncing || pendingActs === 0}
-            variant="outline"
-          >
-            <CloudDownload className="h-4 w-4 mr-1" />
-            Batch Acts
-          </ActionButton>
-          <ActionButton
-            action={HUB_ACTIONS.batchRegs}
-            onClick={() => startSync({ scope: "catalog_batch", category: "regulation", batchSize })}
-            disabled={syncing || pendingRegs === 0}
-            variant="outline"
-          >
-            <CloudDownload className="h-4 w-4 mr-1" />
-            Batch Regs
-          </ActionButton>
+          </Button>
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
-                variant="destructive"
+                variant="ghost"
                 size="sm"
                 onClick={() => setClearOpen(true)}
                 disabled={syncing || clearing}
+                className="text-destructive hover:text-destructive"
               >
                 {clearing ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Trash2 className="h-4 w-4 mr-1" />}
-                Clear All
+                Clear library
               </Button>
             </TooltipTrigger>
             <TooltipContent side="bottom" className="max-w-xs text-left leading-relaxed">
-              <p className="font-semibold">{HUB_ACTIONS.clearAll.title}</p>
-              <p className="mt-1 opacity-90">{HUB_ACTIONS.clearAll.summary}</p>
-              <p className="mt-1.5 text-[10px] opacity-75">{HUB_ACTIONS.clearAll.note}</p>
+              <p className="font-semibold">Clear library</p>
+              <p className="mt-1 opacity-90">Deletes downloaded files and sync history. Type CLEAR to confirm. Does not run as part of Sync legislation.</p>
             </TooltipContent>
           </Tooltip>
         </div>
-        <div className="flex flex-wrap items-center gap-3 w-full lg:justify-end">
-          <label className="flex items-center gap-2 text-xs text-muted-foreground">
-            Batch size
-            <Input
-              type="number"
-              min={1}
-              max={status?.batch?.max_size ?? 30}
-              value={batchSize}
-              onChange={(e) => setBatchSize(Math.min(30, Math.max(1, Number(e.target.value) || 10)))}
-              className="h-8 w-16"
-            />
-          </label>
-          <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
-            <input
-              type="checkbox"
-              checked={skipAlreadyDownloaded}
-              onChange={(e) => setSkipAlreadyDownloaded(e.target.checked)}
-              className="rounded border-input"
-            />
-            Skip already downloaded (only fetch remaining)
-          </label>
-          <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
-            <input
-              type="checkbox"
-              checked={syncWithAi}
-              onChange={(e) => setSyncWithAi(e.target.checked)}
-              className="rounded border-input"
-            />
-            AI pass on Sync + Linkify
-          </label>
-        </div>
-      </div>
-
-      <Collapsible open={guideOpen} onOpenChange={setGuideOpen}>
-        <Card className="border-primary/20 bg-primary/5">
-          <CollapsibleTrigger asChild>
-            <button
-              type="button"
-              className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-primary/5 rounded-lg transition-colors"
-            >
-              <span className="flex items-center gap-2 text-sm font-medium">
-                <HelpCircle className="h-4 w-4 text-primary shrink-0" />
-                Sync workflow guide — what each button does &amp; how to improve this flow
-              </span>
-              {guideOpen ? <ChevronDown className="h-4 w-4 shrink-0" /> : <ChevronRight className="h-4 w-4 shrink-0" />}
-            </button>
-          </CollapsibleTrigger>
-          <CollapsibleContent>
-            <CardContent className="pt-0 space-y-5 text-sm">
-              <div>
-                <p className="font-medium flex items-center gap-1.5 mb-2">
-                  <Info className="h-3.5 w-3.5 text-primary" />
-                  Recommended order
-                </p>
-                <ol className="list-decimal list-inside space-y-1.5 text-muted-foreground ml-1">
-                  <li><strong className="text-foreground">Sync Priority</strong> — IRPA + IRPR for consultant dashboard (enough for most immigration work).</li>
-                  <li><strong className="text-foreground">Discover Acts / Regs</strong> — build catalog index only (metadata, no files).</li>
-                  <li><strong className="text-foreground">Batch Sync</strong> — import more documents 5 at a time (queue worker must be running).</li>
-                  <li>Open a synced <strong className="text-foreground">XML document</strong> → <strong className="text-foreground">Analyze &amp; Linkify</strong> for clickable cross-references + popup content.</li>
-                  <li><strong className="text-foreground">Sync + AI</strong> — optional; re-syncs priority sources and runs AI link detection on all XML docs.</li>
-                </ol>
-              </div>
-
-              <div className="grid gap-3 md:grid-cols-2">
-                {Object.values(HUB_ACTIONS).map((action) => (
-                  <div key={action.id} className="rounded-lg border bg-background/80 p-3 space-y-1">
-                    <p className="font-medium">{action.title}</p>
-                    <p className="text-xs text-muted-foreground leading-relaxed">{action.summary}</p>
-                    <p className="text-[11px] text-muted-foreground"><span className="font-medium text-foreground">When:</span> {action.when}</p>
-                    {action.note && (
-                      <p className="text-[11px] text-primary/80">{action.note}</p>
-                    )}
-                  </div>
-                ))}
-              </div>
-
-              <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-4 space-y-2">
-                <p className="font-medium text-amber-900 dark:text-amber-200">Weaknesses vs. professional legislation platforms</p>
-                <ul className="text-xs text-muted-foreground space-y-1.5 list-disc list-inside">
-                  <li><strong className="text-foreground">Queue dependency</strong> — Batch sync silently stalls if <code className="text-[10px]">queue:work</code> is not running.</li>
-                  <li><strong className="text-foreground">Slow bulk import</strong> — 5 entries per batch × 5,000+ regs = days of background jobs; no immigration-priority queue beyond IRPA/IRPR.</li>
-                  <li><strong className="text-foreground">Discovery is EN-only index scrape</strong> — no amendment/version diff; re-sync replaces all provisions instead of showing what changed.</li>
-                  <li><strong className="text-foreground">Linkify split across steps</strong> — regex runs on sync; AI is separate (Analyze &amp; Linkify per doc or Sync + AI). Easy to forget the second step.</li>
-                  <li><strong className="text-foreground">No link health dashboard</strong> — broken/stripped links are not surfaced in this hub UI.</li>
-                  <li><strong className="text-foreground">Interactive viewer = XML only</strong> — HTML/PDF are download/view only; consultants need XML for smart popups.</li>
-                </ul>
-              </div>
-
-              <div className="rounded-lg border p-4 space-y-2">
-                <p className="font-medium">Suggested improvements (higher impact first)</p>
-                <ul className="text-xs text-muted-foreground space-y-1.5 list-disc list-inside">
-                  <li><strong className="text-foreground">Auto linkify on every sync</strong> — call <code className="text-[10px]">legislation:relinkify</code> after sync (already partially done); surface stripped-link count in UI.</li>
-                  <li><strong className="text-foreground">Immigration tier list</strong> — sync ~20 high-value acts/regs (Citizenship Act, LMIA regs, etc.) before full catalog batch.</li>
-                  <li><strong className="text-foreground">Queue health indicator</strong> — show worker status + last job error on this page.</li>
-                  <li><strong className="text-foreground">Larger batch size + rate limiting</strong> — configurable batch (e.g. 20) with Justice Canada polite delays.</li>
-                  <li><strong className="text-foreground">Consolidated “Sync + Linkify”</strong> — one button: sync → regex linkify → optional AI → report coverage %.</li>
-                  <li><strong className="text-foreground">Amendment tracking</strong> — store <code className="text-[10px]">last_synced_at</code> + provision hash; notify when Justice Canada updates IRPA/IRPR.</li>
-                </ul>
-              </div>
-            </CardContent>
+        <Collapsible className="w-full" open={guideOpen} onOpenChange={setGuideOpen}>
+          <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+            <span>
+              Catalog: {catalogCounts.acts} acts · {catalogCounts.regulations} regs · {pendingTotal} pending
+            </span>
+            <CollapsibleTrigger asChild>
+              <button type="button" className="inline-flex items-center gap-1 hover:text-foreground">
+                Options
+                {guideOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+              </button>
+            </CollapsibleTrigger>
+          </div>
+          <CollapsibleContent className="mt-3 space-y-3">
+            <div className="flex flex-wrap items-center gap-3">
+              <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                Batch size
+                <Input
+                  type="number"
+                  min={1}
+                  max={status?.batch?.max_size ?? 30}
+                  value={batchSize}
+                  onChange={(e) => setBatchSize(Math.min(30, Math.max(1, Number(e.target.value) || 10)))}
+                  className="h-8 w-16"
+                />
+              </label>
+              <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={skipAlreadyDownloaded}
+                  onChange={(e) => setSkipAlreadyDownloaded(e.target.checked)}
+                  className="rounded border-input"
+                />
+                Skip already downloaded
+              </label>
+              <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={syncWithAi}
+                  onChange={(e) => setSyncWithAi(e.target.checked)}
+                  className="rounded border-input"
+                />
+                Optional AI pass
+              </label>
+            </div>
+            <ol className="list-decimal space-y-1 pl-5 text-xs text-muted-foreground">
+              {SYNC_STEPS.map((step) => (
+                <li key={step}>{step}</li>
+              ))}
+            </ol>
           </CollapsibleContent>
-        </Card>
-      </Collapsible>
+        </Collapsible>
+      </div>
 
       {message && (
         <div className="rounded-lg border px-4 py-2 text-sm flex items-center gap-2">
@@ -1089,7 +822,7 @@ export default function LegislationsHubPage() {
                 <> · Link coverage {(activeRun.stats as { coverage: LinkCoverage }).coverage.coverage_percent}%</>
               )}
             </p>
-            {(activeRun.scope === "catalog_batch" || activeRun.scope === "catalog") && (
+            {(activeRun.scope === "catalog_batch" || activeRun.scope === "catalog" || activeRun.scope === "full") && (
               <div className="flex flex-wrap gap-2">
                 {activeRun.status === "paused" ? (
                   <Button
@@ -1359,7 +1092,7 @@ export default function LegislationsHubPage() {
                       </TableRow>
                     ))}
                     {!catalogLoading && !catalogRows.length && (
-                      <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-8">No catalog entries. Run Discover Acts or Discover Regs.</TableCell></TableRow>
+                      <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-8">No catalog entries yet. Click Sync legislation to build the catalog.</TableCell></TableRow>
                     )}
                   </TableBody>
                 </Table>

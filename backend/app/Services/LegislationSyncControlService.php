@@ -55,7 +55,7 @@ class LegislationSyncControlService
             throw new \RuntimeException('This download is not paused.');
         }
 
-        if ($run->scope !== 'catalog_batch' && $run->scope !== 'catalog') {
+        if (! in_array($run->scope, ['catalog_batch', 'catalog', 'full'], true)) {
             throw new \RuntimeException('Resume is only supported for catalog batch downloads.');
         }
 

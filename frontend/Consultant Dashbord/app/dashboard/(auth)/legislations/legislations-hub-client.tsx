@@ -508,7 +508,7 @@ export function LegislationsHubClient() {
               Legislations Hub
             </h1>
             <p className="max-w-2xl text-sm text-muted-foreground">
-              Canadian Acts &amp; Regulations — browse consolidated legislation in XML, HTML, or PDF.
+              Canadian Acts &amp; Regulations — browse the library synced from Justice Canada.
             </p>
           </div>
         </div>

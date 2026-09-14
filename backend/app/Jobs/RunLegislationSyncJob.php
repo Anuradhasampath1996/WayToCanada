@@ -33,6 +33,18 @@ class RunLegislationSyncJob implements ShouldQueue
         $run = LegislationSyncRun::findOrFail($this->syncRunId);
 
         try {
+            if ($run->scope === 'full') {
+                $stats = $run->stats ?? [];
+                $sync->runFullHubSync(
+                    $run,
+                    (int) ($stats['batch_size'] ?? config('legislation_sources.batch.default_size', 10)),
+                    (bool) ($stats['only_unsynced'] ?? true),
+                    $this->runAiAnalysis,
+                );
+
+                return;
+            }
+
             if ($run->scope === 'immigration_tier') {
                 $stats = $sync->runImmigrationTierSync($run);
             } else {

@@ -147,7 +147,7 @@ class AdminLegislationController extends Controller
     {
         $data = $request->validate([
             'source'       => 'nullable|string|max:80',
-            'scope'        => 'nullable|string|in:all,catalog,catalog_batch,source,immigration_tier,sync_and_linkify',
+            'scope'        => 'nullable|string|in:all,catalog,catalog_batch,source,immigration_tier,sync_and_linkify,full',
             'category'     => 'nullable|string|in:act,regulation',
             'batch_size'   => 'nullable|integer|min:1|max:30',
             'only_unsynced'=> 'nullable|boolean',
@@ -172,7 +172,43 @@ class AdminLegislationController extends Controller
         if ($scope === 'sync_and_linkify') {
             $runLinkify = true;
         }
+        if ($scope === 'full' && app(LegislationClearService::class)->hasActiveSync()) {
+            return response()->json([
+                'message' => 'Another legislation sync is already running. Wait for it to finish or stop it first.',
+            ], 409);
+        }
+
         $run          = $sync->startSyncRun($scope, $sourceSlug, $category, $onlyUnsynced);
+
+        if ($scope === 'full') {
+
+            $run->update([
+                'stats' => array_merge($run->stats ?? [], [
+                    'batch_size'    => $batchSize,
+                    'only_unsynced' => $onlyUnsynced,
+                    'run_ai'        => $runAi,
+                ]),
+            ]);
+
+            if ($data['async'] ?? true) {
+                RunLegislationSyncJob::dispatch($run->id, null, true, $runAi);
+
+                return response()->json([
+                    'message' => 'Legislation sync started — discover catalog, IRPA/IRPR, immigration tier, linkify, then remaining downloads.',
+                    'warning' => config('queue.default') === 'sync'
+                        ? 'Queue driver is "sync". Set QUEUE_CONNECTION=database and run php artisan queue:work'
+                        : null,
+                    'run'     => $sync->formatSyncRun($run->fresh()),
+                ], 202);
+            }
+
+            $sync->runFullHubSync($run, $batchSize, $onlyUnsynced, $runAi);
+
+            return response()->json([
+                'message' => 'Legislation sync completed.',
+                'run'     => $sync->formatSyncRun($run->fresh()),
+            ]);
+        }
 
         if ($scope === 'catalog_batch') {
             $pending = (int) ($run->stats['pending_total'] ?? 0);

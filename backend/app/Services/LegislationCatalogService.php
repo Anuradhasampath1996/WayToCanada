@@ -9,47 +9,84 @@ use Illuminate\Support\Str;
 
 class LegislationCatalogService
 {
-    private const INDEX_LETTERS = ['num', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'y'];
+    private const INDEX_LETTERS = ['num', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z'];
 
-    /** @return array{discovered: int, total: int, sample: array<int, array<string, mixed>>} */
+    /** @return array{discovered: int, total: int, sample: array<int, array<string, mixed>>, failed_pages: array<int, string>} */
     public function discoverActs(): array
     {
         return $this->discoverFromIndex('/eng/acts/', 'act');
     }
 
-    /** @return array{discovered: int, total: int, sample: array<int, array<string, mixed>>} */
+    /** @return array{discovered: int, total: int, sample: array<int, array<string, mixed>>, failed_pages: array<int, string>} */
     public function discoverRegulations(): array
     {
         return $this->discoverFromIndex('/eng/regulations/', 'regulation');
     }
 
-    /** @return array{discovered: int, total: int, sample: array<int, array<string, mixed>>} */
+    /**
+     * Parse a Justice Canada letter-index page into act_code => title.
+     *
+     * @return array<string, string>
+     */
+    public function parseIndexHtml(string $html): array
+    {
+        $found = [];
+
+        preg_match_all(
+            '/<a[^>]*href="([A-Za-z0-9._,\-]+)\/index\.html(?:#[^"]*)?"[^>]*>\s*(.*?)<\/a>/is',
+            $html,
+            $matches,
+            PREG_SET_ORDER
+        );
+
+        foreach ($matches as $m) {
+            $code = trim($m[1]);
+            if (strlen($code) < 2 || str_contains($code, '/') || str_contains($code, 'laws-index')) {
+                continue;
+            }
+            $title = trim(html_entity_decode(strip_tags($m[2])));
+            if ($title === '' || strcasecmp($title, 'R') === 0) {
+                continue;
+            }
+            $found[$code] = Str::limit($title, 500, '…');
+        }
+
+        return $found;
+    }
+
+    /** @return array{discovered: int, total: int, sample: array<int, array<string, mixed>>, failed_pages: array<int, string>} */
     private function discoverFromIndex(string $indexPath, string $category): array
     {
         $base  = rtrim(config('legislation_sources.base_url'), '/').$indexPath;
         $found = [];
+        $failedPages = [];
 
         foreach (self::INDEX_LETTERS as $letter) {
             $file = $letter === 'num' ? 'num.html' : "{$letter}.html";
-            $response = Http::timeout(60)->get($base.$file);
-            if (! $response->successful()) {
+            $url = $base.$file;
+            try {
+                $response = Http::timeout(60)
+                    ->withHeaders([
+                        'User-Agent' => 'RCICMaster-LegislationHub/1.0 (+https://rcicmaster.ca)',
+                        'Accept' => 'text/html,*/*',
+                    ])
+                    ->retry(2, 400)
+                    ->get($url);
+            } catch (\Throwable $e) {
+                $failedPages[] = "{$file}: {$e->getMessage()}";
                 continue;
             }
 
-            preg_match_all(
-                '/href="([A-Za-z0-9\.\-]+)\/index\.html">\s*([^<]+)/',
-                $response->body(),
-                $matches,
-                PREG_SET_ORDER
-            );
+            if ($response->status() === 404) {
+                continue;
+            }
+            if (! $response->successful()) {
+                $failedPages[] = "{$file}: HTTP {$response->status()}";
+                continue;
+            }
 
-            foreach ($matches as $m) {
-                $code = $m[1];
-                if (strlen($code) < 2) {
-                    continue;
-                }
-                $title = trim(html_entity_decode(strip_tags($m[2])));
-                $found[$code] = Str::limit($title !== '' ? $title : $code, 500, '…');
+            foreach ($this->parseIndexHtml($response->body()) as $code => $title) {
+                $found[$code] = $title;
             }
         }
 
@@ -68,9 +105,10 @@ class LegislationCatalogService
         }
 
         return [
-            'discovered' => count($found),
-            'total'      => LegislationCatalogEntry::where('category', $category)->count(),
-            'sample'     => LegislationCatalogEntry::where('category', $category)
+            'discovered'   => count($found),
+            'total'        => LegislationCatalogEntry::where('category', $category)->count(),
+            'failed_pages' => $failedPages,
+            'sample'       => LegislationCatalogEntry::where('category', $category)
                 ->orderBy('title')->limit(20)->get(['act_code', 'title', 'category', 'last_synced_at'])->toArray(),
         ];
     }
