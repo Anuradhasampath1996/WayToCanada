@@ -37,6 +37,12 @@
         <env name="DB_LMS_DATABASE" value="db_lms_test"/>
         <env name="DB_LMS_USERNAME" value="postgres"/>
         <env name="DB_LMS_PASSWORD" value="secret"/>
+        <env name="DB_ACADEMY_HOST" value="127.0.0.1"/>
+        <env name="DB_ACADEMY_PORT" value="5433"/>
+        <env name="DB_ACADEMY_DATABASE" value="db_academy_test"/>
+        <env name="DB_ACADEMY_USERNAME" value="postgres"/>
+        <env name="DB_ACADEMY_PASSWORD" value="secret"/>
+        <env name="ACADEMY_MEDIA_DISK" value="local"/>
         <env name="MAIL_MAILER" value="array"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
         <env name="SESSION_DRIVER" value="array"/>

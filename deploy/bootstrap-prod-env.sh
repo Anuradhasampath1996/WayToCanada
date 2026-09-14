@@ -32,7 +32,7 @@ if ! grep -q '^APP_KEY=base64:' "$ENV_FILE" 2>/dev/null; then
   set_var APP_KEY "base64:$(openssl rand -base64 32)"
 fi
 
-for prefix in CWS LMS LEGAL; do
+for prefix in CWS LMS LEGAL ACADEMY; do
   set_var "DB_${prefix}_HOST" postgres
   set_var "DB_${prefix}_PORT" 5432
   set_var "DB_${prefix}_USERNAME" postgres
@@ -42,6 +42,8 @@ done
 set_var DB_CWS_DATABASE db_cws
 set_var DB_LMS_DATABASE db_lms
 set_var DB_LEGAL_DATABASE db_legal
+set_var DB_ACADEMY_DATABASE db_academy
+set_var ACADEMY_MEDIA_DISK local
 
 set_var SESSION_DRIVER cookie
 set_var QUEUE_CONNECTION database

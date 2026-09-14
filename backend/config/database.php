@@ -61,7 +61,7 @@ return [
         ],
 
         // ---------------------------------------------------------------
-        // LMS — Learning Management System
+        // LMS — client exam-prep Learning Management System
         // ---------------------------------------------------------------
         'lms' => [
             'driver'   => 'pgsql',
@@ -70,6 +70,23 @@ return [
             'database' => env('DB_LMS_DATABASE', 'db_lms'),
             'username' => env('DB_LMS_USERNAME', 'postgres'),
             'password' => env('DB_LMS_PASSWORD', ''),
+            'charset'  => 'utf8',
+            'prefix'   => '',
+            'prefix_indexes' => true,
+            'search_path' => 'public',
+            'sslmode'  => 'prefer',
+        ],
+
+        // ---------------------------------------------------------------
+        // RCIC Academy — professional learning (not client LMS)
+        // ---------------------------------------------------------------
+        'academy' => [
+            'driver'   => 'pgsql',
+            'host'     => env('DB_ACADEMY_HOST', env('DB_LMS_HOST', '127.0.0.1')),
+            'port'     => env('DB_ACADEMY_PORT', env('DB_LMS_PORT', '5432')),
+            'database' => env('DB_ACADEMY_DATABASE', 'db_academy'),
+            'username' => env('DB_ACADEMY_USERNAME', env('DB_LMS_USERNAME', 'postgres')),
+            'password' => env('DB_ACADEMY_PASSWORD', env('DB_LMS_PASSWORD', '')),
             'charset'  => 'utf8',
             'prefix'   => '',
             'prefix_indexes' => true,

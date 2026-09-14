@@ -94,6 +94,10 @@ jobs:
             "SELECT 1 FROM pg_database WHERE datname = 'db_lms_test'" | grep -q 1 \
             || psql -h 127.0.0.1 -p 5433 -U postgres -d postgres -c "CREATE DATABASE db_lms_test;" \
             || php -r "try { \$p=new PDO('pgsql:host=127.0.0.1;port=5433;dbname=postgres','postgres','secret'); if(!\$p->query(\"SELECT 1 FROM pg_database WHERE datname='db_lms_test'\")->fetch()){ \$p->exec('CREATE DATABASE db_lms_test'); } echo 'db_lms_test ready'; } catch(Throwable \$e){ fwrite(STDERR,\$e->getMessage()); exit(1);} "
+          psql -h 127.0.0.1 -p 5433 -U postgres -d postgres -tc \
+            "SELECT 1 FROM pg_database WHERE datname = 'db_academy_test'" | grep -q 1 \
+            || psql -h 127.0.0.1 -p 5433 -U postgres -d postgres -c "CREATE DATABASE db_academy_test;" \
+            || php -r "try { \$p=new PDO('pgsql:host=127.0.0.1;port=5433;dbname=postgres','postgres','secret'); if(!\$p->query(\"SELECT 1 FROM pg_database WHERE datname='db_academy_test'\")->fetch()){ \$p->exec('CREATE DATABASE db_academy_test'); } echo 'db_academy_test ready'; } catch(Throwable \$e){ fwrite(STDERR,\$e->getMessage()); exit(1);} "
 
       - name: Run tests
         working-directory: backend

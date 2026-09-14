@@ -62,6 +62,14 @@ return [
         ],
 
         // LocalStack (local dev) — S3-compatible, path-style endpoints required
+        'academy' => [
+            'driver' => 'local',
+            'root' => storage_path('app/private/academy'),
+            'serve' => false,
+            'throw' => false,
+            'report' => false,
+        ],
+
         'localstack' => [
             'driver'                  => 's3',
             'key'                     => env('AWS_ACCESS_KEY_ID', 'test'),

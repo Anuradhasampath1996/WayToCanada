@@ -107,6 +107,8 @@ docker compose -f docker-compose.prod.yml up -d --remove-orphans --no-build \
 
 docker exec wtc_postgres psql -U postgres -tc "SELECT 1 FROM pg_database WHERE datname='db_lms'" | grep -q 1 || \
   docker exec wtc_postgres psql -U postgres -c "CREATE DATABASE db_lms;"
+docker exec wtc_postgres psql -U postgres -tc "SELECT 1 FROM pg_database WHERE datname='db_academy'" | grep -q 1 || \
+  docker exec wtc_postgres psql -U postgres -c "CREATE DATABASE db_academy;"
 docker exec wtc_postgres psql -U postgres -tc "SELECT 1 FROM pg_database WHERE datname='db_legal'" | grep -q 1 || \
   docker exec wtc_postgres psql -U postgres -c "CREATE DATABASE db_legal;"
 

@@ -10,7 +10,7 @@ trait RefreshesLmsDatabase
      */
     protected function wipeLmsTestDatabase(): void
     {
-        if (! config('database.connections.lms')) {
+        if (config('database.connections.lms.database') !== 'db_lms_test') {
             return;
         }
 

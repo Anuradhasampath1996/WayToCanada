@@ -9,6 +9,8 @@ echo ""
 echo "=== Creating extra DBs in postgres container ==="
 sudo -u github-actions docker exec wtc_postgres psql -U postgres -tc "SELECT 1 FROM pg_database WHERE datname='db_lms'" | grep -q 1 || \
   sudo -u github-actions docker exec wtc_postgres psql -U postgres -c "CREATE DATABASE db_lms;"
+sudo -u github-actions docker exec wtc_postgres psql -U postgres -tc "SELECT 1 FROM pg_database WHERE datname='db_academy'" | grep -q 1 || \
+  sudo -u github-actions docker exec wtc_postgres psql -U postgres -c "CREATE DATABASE db_academy;"
 sudo -u github-actions docker exec wtc_postgres psql -U postgres -tc "SELECT 1 FROM pg_database WHERE datname='db_legal'" | grep -q 1 || \
   sudo -u github-actions docker exec wtc_postgres psql -U postgres -c "CREATE DATABASE db_legal;"
 

@@ -178,7 +178,13 @@ export const navItems: NavGroup[] = [
         title: "LMS Management",
         href: "/admindashboard/lms",
         icon: GraduationCapIcon,
-        match: (p) => p.startsWith("/admindashboard/lms"),
+        match: (p) => p.startsWith("/admindashboard/lms") && !p.startsWith("/admindashboard/academy"),
+      },
+      {
+        title: "RCIC Academy",
+        href: "/admindashboard/academy",
+        icon: GraduationCapIcon,
+        match: (p) => p.startsWith("/admindashboard/academy"),
       },
       {
         title: "CRS Calculator Sync",

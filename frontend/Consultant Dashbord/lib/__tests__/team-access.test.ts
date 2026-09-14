@@ -21,6 +21,8 @@ describe("team access nav helpers", () => {
     expect(canSeeNavHref(session, "/dashboard/legislations")).toBe(false);
     expect(canSeeNavHref(session, "/dashboard/storage")).toBe(false);
     expect(canSeeNavHref(session, "/dashboard/marketing")).toBe(false);
+    expect(canSeeNavHref(session, "/dashboard/academy")).toBe(false);
+    expect(canSeeNavHref({ ...session, permissions: { ...session.permissions, "academy.learn": true } }, "/dashboard/academy")).toBe(true);
     expect(canSeeNavHref({ ...session, permissions: { ...session.permissions, "letters.use": true } }, "/dashboard/letters")).toBe(true);
   });
 

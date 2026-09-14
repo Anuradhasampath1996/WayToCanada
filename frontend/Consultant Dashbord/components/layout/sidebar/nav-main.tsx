@@ -21,6 +21,7 @@ import {
   MegaphoneIcon,
   GiftIcon,
   UsersRoundIcon,
+  GraduationCapIcon,
   type LucideIcon,
 } from "lucide-react";
 import { canSeeNavHref, readTeamSession, type TeamSession } from "@/lib/team-access";
@@ -83,6 +84,18 @@ export const navItems: NavGroup[] = [
         icon: MailIcon,
         badge: "New",
         match: (p) => p.startsWith("/dashboard/letters"),
+      },
+    ],
+  },
+  {
+    title: "RCIC Academy",
+    items: [
+      {
+        title: "Academy Dashboard",
+        href: "/dashboard/academy",
+        description: "Professional learning home",
+        icon: GraduationCapIcon,
+        match: (p) => p === "/dashboard/academy",
       },
     ],
   },

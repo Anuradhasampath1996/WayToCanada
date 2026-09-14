@@ -45,6 +45,7 @@ return [
         'storage.manage',
         'marketing.view',
         'lms.view',
+        'academy.learn',
     ],
     'owner_only' => [
         'clients.archive',

@@ -58,6 +58,13 @@ enum NotificationType: string
     case TEAM_REMOVED = 'team_removed';
     case TEAM_DEACTIVATED = 'team_deactivated';
     case TEAM_ACCESS_UPDATED = 'team_access_updated';
+    case ACADEMY_COURSE_UNLOCKED = 'academy_course_unlocked';
+    case ACADEMY_STUDY_REMINDER = 'academy_study_reminder';
+    case ACADEMY_MOCK_REMINDER = 'academy_mock_reminder';
+    case ACADEMY_COURSE_COMPLETED = 'academy_course_completed';
+    case ACADEMY_QUESTION_REPORTED = 'academy_question_reported';
+    case ACADEMY_LEGAL_REVIEW_PENDING = 'academy_legal_review_pending';
+    case ACADEMY_SOURCE_OUTDATED = 'academy_source_outdated';
 
     /** @return list<string> */
     public function defaultChannels(): array
@@ -84,6 +91,9 @@ enum NotificationType: string
             self::SUBSCRIPTION_PAYMENT_SUCCEEDED, self::SUBSCRIPTION_RENEWED, self::SUBSCRIPTION_RENEWAL_FAILED, self::SUBSCRIPTION_RENEWAL_RECOVERED, self::SUBSCRIPTION_CANCELLATION_SCHEDULED, self::SUBSCRIPTION_CANCELLED => ['in_app', 'email', 'whatsapp'],
             self::REFERRAL_REGISTERED, self::REFERRAL_VERIFIED, self::REFERRAL_QUALIFIED, self::REFERRAL_REWARD_PENDING, self::REFERRAL_REWARD_AVAILABLE, self::REFERRAL_REWARD_REVERSED, self::REFERRAL_WITHDRAWAL_REQUESTED, self::REFERRAL_WITHDRAWAL_APPROVED, self::REFERRAL_WITHDRAWAL_REJECTED, self::REFERRAL_WITHDRAWAL_PAID, self::REFERRAL_ADMIN_WITHDRAWAL, self::REFERRAL_ADMIN_RISK => ['in_app', 'email'],
             self::TEAM_INVITED, self::TEAM_INVITE_ACCEPTED, self::TEAM_ASSIGNED, self::TEAM_REMOVED, self::TEAM_DEACTIVATED, self::TEAM_ACCESS_UPDATED => ['in_app', 'email'],
+            self::ACADEMY_COURSE_UNLOCKED, self::ACADEMY_COURSE_COMPLETED => ['in_app', 'email'],
+            self::ACADEMY_STUDY_REMINDER, self::ACADEMY_MOCK_REMINDER => ['in_app'],
+            self::ACADEMY_QUESTION_REPORTED, self::ACADEMY_LEGAL_REVIEW_PENDING, self::ACADEMY_SOURCE_OUTDATED => ['in_app'],
         };
     }
 
@@ -132,6 +142,7 @@ enum NotificationType: string
             self::SUBSCRIPTION_PAYMENT_SUCCEEDED, self::SUBSCRIPTION_RENEWED, self::SUBSCRIPTION_RENEWAL_FAILED, self::SUBSCRIPTION_RENEWAL_RECOVERED, self::SUBSCRIPTION_CANCELLATION_SCHEDULED, self::SUBSCRIPTION_CANCELLED => 'billing',
             self::REFERRAL_REGISTERED, self::REFERRAL_VERIFIED, self::REFERRAL_QUALIFIED, self::REFERRAL_REWARD_PENDING, self::REFERRAL_REWARD_AVAILABLE, self::REFERRAL_REWARD_REVERSED, self::REFERRAL_WITHDRAWAL_REQUESTED, self::REFERRAL_WITHDRAWAL_APPROVED, self::REFERRAL_WITHDRAWAL_REJECTED, self::REFERRAL_WITHDRAWAL_PAID, self::REFERRAL_ADMIN_WITHDRAWAL, self::REFERRAL_ADMIN_RISK => 'referral',
             self::TEAM_INVITED, self::TEAM_INVITE_ACCEPTED, self::TEAM_ASSIGNED, self::TEAM_REMOVED, self::TEAM_DEACTIVATED, self::TEAM_ACCESS_UPDATED => 'team',
+            self::ACADEMY_COURSE_UNLOCKED, self::ACADEMY_STUDY_REMINDER, self::ACADEMY_MOCK_REMINDER, self::ACADEMY_COURSE_COMPLETED, self::ACADEMY_QUESTION_REPORTED, self::ACADEMY_LEGAL_REVIEW_PENDING, self::ACADEMY_SOURCE_OUTDATED => 'academy',
         };
     }
 
@@ -153,6 +164,7 @@ enum NotificationType: string
             'billing'         => 'Billing',
             'referral'        => 'Referral',
             'team'            => 'Team',
+            'academy'         => 'RCIC Academy',
             default         => 'Notification',
         };
     }
@@ -231,6 +243,13 @@ enum NotificationType: string
             self::TEAM_REMOVED => 'Removed from a case',
             self::TEAM_DEACTIVATED => 'Team access deactivated',
             self::TEAM_ACCESS_UPDATED => 'Team access updated',
+            self::ACADEMY_COURSE_UNLOCKED => 'Academy course unlocked',
+            self::ACADEMY_STUDY_REMINDER => 'Academy study reminder',
+            self::ACADEMY_MOCK_REMINDER => 'Academy mock reminder',
+            self::ACADEMY_COURSE_COMPLETED => 'Academy course completed',
+            self::ACADEMY_QUESTION_REPORTED => 'Academy question reported',
+            self::ACADEMY_LEGAL_REVIEW_PENDING => 'Academy legal review pending',
+            self::ACADEMY_SOURCE_OUTDATED => 'Academy source outdated',
         };
     }
 

@@ -8,6 +8,10 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (Schema::connection('lms')->hasTable('lms_question_bank')) {
+            return;
+        }
+
         Schema::connection('lms')->create('lms_question_bank', function (Blueprint $table) {
             $table->id();
             $table->foreignId('course_id')->constrained('lms_courses')->cascadeOnDelete();

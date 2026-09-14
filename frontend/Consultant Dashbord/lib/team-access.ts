@@ -35,6 +35,7 @@ const NAV_PERMISSION: Record<string, string> = {
   "/dashboard/storage": "storage.view",
   "/dashboard/marketing": "marketing.view",
   "/dashboard/rcic-community": "community.view",
+  "/dashboard/academy": "academy.learn",
 };
 
 export function readTeamSession(user: { team?: TeamSession | null; roles?: string[] } | null | undefined): TeamSession | null {
@@ -79,7 +80,7 @@ export const PERMISSION_GROUPS: { title: string; keys: string[] }[] = [
   { title: "Calendar & tasks", keys: ["calendar.view", "calendar.manage", "tasks.view", "tasks.create", "tasks.edit"] },
   { title: "Communication", keys: ["communications.view", "communications.send"] },
   { title: "Team", keys: ["team.view"] },
-  { title: "Extra modules", keys: ["letters.use", "legislations.view", "community.view", "storage.view", "storage.manage", "marketing.view", "lms.view"] },
+  { title: "Extra modules", keys: ["letters.use", "legislations.view", "community.view", "storage.view", "storage.manage", "marketing.view", "lms.view", "academy.learn"] },
 ];
 
 export const OWNER_ONLY_LABELS = [
