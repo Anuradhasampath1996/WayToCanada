@@ -1,19 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { adminAuthHeaders } from "@/lib/admin-auth";
 
 const API = (process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000") + "/api/v1";
 
 function headers() {
-  const token =
-    (typeof document !== "undefined"
-      ? document.cookie.match(/wtc_admin_token=([^;]+)/)?.[1]
-      : undefined) ?? (typeof window !== "undefined" ? localStorage.getItem("wtc_admin_token") : null);
-  return {
-    Accept: "application/json",
-    "Content-Type": "application/json",
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-  };
+  return adminAuthHeaders("application/json");
 }
 
 type Summary = Record<string, string | number | boolean | null>;
