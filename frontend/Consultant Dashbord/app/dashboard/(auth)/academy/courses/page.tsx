@@ -26,7 +26,7 @@ export default function AcademyCoursesPage() {
           <button
             key={course.id}
             className="rounded-lg border p-4 text-left"
-            onClick={() => academyGet(`/courses/${course.id}`).then(setOpen)}
+            onClick={() => academyGet<Record<string, unknown>>(`/courses/${course.id}`).then(setOpen)}
           >
             <div className="font-medium">{course.title}</div>
             <p className="text-sm text-muted-foreground">{course.description}</p>

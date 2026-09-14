@@ -6,7 +6,7 @@ import { academyGet } from "@/lib/academy";
 export default function AcademyPerformancePage() {
   const [data, setData] = useState<Record<string, unknown> | null>(null);
   useEffect(() => {
-    academyGet("/analytics").then(setData).catch(() => null);
+    academyGet<Record<string, unknown>>("/analytics").then(setData).catch(() => null);
   }, []);
   return (
     <div className="space-y-3">

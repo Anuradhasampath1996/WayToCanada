@@ -6,14 +6,14 @@ import { academyGet, academySend } from "@/lib/academy";
 export default function AcademyPlannerPage() {
   const [plan, setPlan] = useState<unknown>(null);
   useEffect(() => {
-    academyGet("/planner").then(setPlan).catch(() => null);
+    academyGet<unknown>("/planner").then(setPlan).catch(() => null);
   }, []);
   return (
     <div className="space-y-3">
       <h2 className="text-lg font-medium">Study Planner</h2>
       <button
         className="rounded border px-3 py-2 text-sm"
-        onClick={() => academySend("/planner", "PUT", { weekly_hours: 8 }).then(setPlan)}
+        onClick={() => academySend<unknown>("/planner", "PUT", { weekly_hours: 8 }).then(setPlan)}
       >
         Generate / refresh plan
       </button>

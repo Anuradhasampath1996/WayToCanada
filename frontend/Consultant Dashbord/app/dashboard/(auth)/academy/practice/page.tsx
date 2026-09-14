@@ -17,7 +17,12 @@ export default function AcademyPracticePage() {
 
   async function start() {
     try {
-      setSession(await academySend("/practice/sessions", "POST", { count: 10, explain_mode: "explain_immediately" }));
+      setSession(
+        await academySend<{ session: { id: number }; questions: Question[] }>("/practice/sessions", "POST", {
+          count: 10,
+          explain_mode: "explain_immediately",
+        }),
+      );
     } catch (e) {
       setError((e as Error).message);
     }
@@ -25,7 +30,7 @@ export default function AcademyPracticePage() {
 
   async function answer(question: Question, optionId: number) {
     if (!session) return;
-    const next = await academySend<typeof session>(`/practice/sessions/${session.session.id}/answers`, "POST", {
+    const next = await academySend<{ question: Question }>(`/practice/sessions/${session.session.id}/answers`, "POST", {
       question_id: question.id,
       selected_option_id: optionId,
     });

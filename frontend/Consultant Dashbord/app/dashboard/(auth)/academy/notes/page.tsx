@@ -6,7 +6,7 @@ import { academyGet } from "@/lib/academy";
 export default function AcademyNotesPage() {
   const [data, setData] = useState<{ data: { id: number; body: string }[] } | null>(null);
   useEffect(() => {
-    academyGet("/notes").then(setData).catch(() => setData({ data: [] }));
+    academyGet<{ data: { id: number; body: string }[] }>("/notes").then(setData).catch(() => setData({ data: [] }));
   }, []);
   return (
     <div className="space-y-3">

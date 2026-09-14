@@ -6,7 +6,9 @@ import { academyGet } from "@/lib/academy";
 export default function AcademySourcesPage() {
   const [data, setData] = useState<{ disclaimer: string; data: { id: number; title: string; source_url?: string; summary?: string }[] } | null>(null);
   useEffect(() => {
-    academyGet("/sources").then(setData).catch(() => null);
+    academyGet<{ disclaimer: string; data: { id: number; title: string; source_url?: string; summary?: string }[] }>("/sources")
+      .then(setData)
+      .catch(() => null);
   }, []);
   return (
     <div className="space-y-3">
