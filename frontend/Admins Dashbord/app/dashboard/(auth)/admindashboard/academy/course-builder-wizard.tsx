@@ -10,7 +10,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
-import { Textarea } from "@/components/ui/textarea";
 
 const API = (process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000") + "/api/v1";
 
@@ -44,6 +43,28 @@ async function jsonFetch(url: string, init?: RequestInit) {
 function stripHtml(value?: string | null) {
   if (!value) return "";
   return value.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function extractOutline(blueprint: unknown): OutlineModule[] {
+  let data = blueprint as Record<string, unknown> | string | null | undefined;
+  if (typeof data === "string") {
+    try {
+      data = JSON.parse(data) as Record<string, unknown>;
+    } catch {
+      return [];
+    }
+  }
+  if (!data || typeof data !== "object") return [];
+  const raw = data.modules ?? data.topics ?? data.sections ?? data.blueprintJson;
+  if (!Array.isArray(raw)) return [];
+  return raw.map((item) => {
+    const module = (item ?? {}) as OutlineModule & { name?: string; lessons?: Array<{ title?: string; objective?: string }> };
+    return {
+      title: module.title || module.name,
+      objective: module.objective,
+      lesson_outlines: module.lesson_outlines ?? module.lessons ?? [],
+    };
+  });
 }
 
 export function CourseBuilderWizard() {
@@ -165,11 +186,13 @@ export function CourseBuilderWizard() {
         ? await jsonFetch(`${API}/admin/learning/lms-ai-jobs/${id}`)
         : await jsonFetch(`${API}/admin/academy/ai/jobs/${id}`);
       const job = json.job ?? json;
+      const blueprint = job.blueprint_json ?? job.blueprintJson;
+      const modules = extractOutline(blueprint);
       setJobStatus(job.status ?? "");
       if (job.course_id) setCourseId(job.course_id);
       if (job.evidence_pack_id) setEvidencePackId(job.evidence_pack_id);
-      if (job.blueprint_json?.modules) setOutline(job.blueprint_json.modules);
-      if (stopAtBlueprint && job.status === "blueprint") {
+      if (modules.length > 0) setOutline(modules);
+      if (stopAtBlueprint && job.status === "blueprint" && modules.length > 0) {
         return job;
       }
       if (["draft_ready", "partially_failed", "failed"].includes(job.status)) {
@@ -188,6 +211,12 @@ export function CourseBuilderWizard() {
     setBusy(true);
     setError(null);
     try {
+      if (jobId) {
+        const existing = await pollJob(jobId, true);
+        if (extractOutline(existing.blueprint_json ?? existing.blueprintJson).length > 0) {
+          return;
+        }
+      }
       await prepareEvidence(id);
       const json = await jsonFetch(`${API}/admin/learning/exams/${id}/generate-course?${q}`, {
         method: "POST",
@@ -208,7 +237,10 @@ export function CourseBuilderWizard() {
       });
       setJobId(json.job_id);
       setJobStatus(json.status ?? "queued");
-      await pollJob(json.job_id, true);
+      const job = await pollJob(json.job_id, true);
+      if (extractOutline(job.blueprint_json ?? job.blueprintJson).length === 0) {
+        throw new Error("The outline job finished without topics. Try Build outline again.");
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not build the course structure");
     } finally {
@@ -438,8 +470,10 @@ export function CourseBuilderWizard() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {busy && outline.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Building the outline… {jobStatus || "queued"}</p>
+            {busy ? (
+              <p className="text-sm text-muted-foreground">
+                {outline.length > 0 ? "Loading the saved outline…" : `Building the outline… ${jobStatus || "queued"}`}
+              </p>
             ) : null}
             {outline.map((module, index) => (
               <div key={`${module.title}-${index}`} className="rounded-lg border p-4 space-y-2">
@@ -461,8 +495,18 @@ export function CourseBuilderWizard() {
                 <ChevronRight className="h-4 w-4 ml-1" />
               </Button>
             ) : !busy ? (
-              <Button className="w-fit" disabled={!examId} onClick={() => examId && buildOutline(examId)}>
-                Build outline
+              <Button
+                className="w-fit"
+                disabled={!examId && !jobId}
+                onClick={() => {
+                  if (examId) {
+                    void buildOutline(examId);
+                    return;
+                  }
+                  setError("Save the exam name first, then build the outline.");
+                }}
+              >
+                {jobId ? "Show outline" : "Build outline"}
               </Button>
             ) : null}
           </CardContent>

@@ -113,7 +113,7 @@ class AcademyAiOrchestrator
             return;
         }
         $step = $this->beginStep($job, 'blueprint');
-        $job->update(['status' => 'blueprint']);
+        $job->update(['status' => 'outlining']);
         if (! $job->blueprint_json) {
             if ($job->exam_id && ! $job->evidence_pack_id) {
                 throw new \RuntimeException('Blueprint requires a verified Exam Evidence Pack.');
