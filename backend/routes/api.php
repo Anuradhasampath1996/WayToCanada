@@ -260,6 +260,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('me',      [AuthController::class, 'me'])->name('auth.me');
     Route::patch('me/locale', [MeController::class, 'updateLocale'])->name('me.locale');
     Route::get('learning/i18n', [MeController::class, 'dictionaries'])->name('learning.i18n');
+    Route::get('learning/checkout/tax-quote', [LearningCourseCheckoutController::class, 'taxQuote'])->name('learning.checkout.tax-quote');
     Route::post('learning/checkout', [LearningCourseCheckoutController::class, 'store'])->name('learning.checkout');
     Route::post('learning/checkout/verify', [LearningCourseCheckoutController::class, 'verify'])->name('learning.checkout.verify');
     Route::post('logout', [AuthController::class, 'logout'])->name('auth.logout');

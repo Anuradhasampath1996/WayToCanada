@@ -12,6 +12,7 @@ import {
   GraduationCap,
   Loader2,
   Lock,
+  MapPin,
   PlayCircle,
   ShoppingCart,
 } from "lucide-react";
@@ -19,6 +20,15 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const API = `${process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000"}/api/v1`;
 
@@ -72,12 +82,37 @@ type CourseDetail = {
   };
 };
 
+type TaxQuote = {
+  subtotal: number;
+  total_tax: number;
+  total: number;
+  tax_label?: string | null;
+  tax_applicable?: boolean;
+  disclaimer?: string | null;
+};
+
+type ProvinceOpt = { code: string; name: string; label: string };
+
 function money(cents?: number | null, currency?: string | null) {
   if (cents == null || cents < 1) return "Free";
   return new Intl.NumberFormat("en-CA", {
     style: "currency",
     currency: (currency || "CAD").toUpperCase(),
   }).format(cents / 100);
+}
+
+function moneyCad(amount?: number | null) {
+  if (amount == null) return "—";
+  return new Intl.NumberFormat("en-CA", { style: "currency", currency: "CAD" }).format(amount);
+}
+
+function resolveCountryCode(raw?: string | null) {
+  const v = (raw ?? "").trim().toUpperCase();
+  if (!v || v === "CA" || v === "CANADA") return "CA";
+  if (v === "US" || v === "USA" || v === "UNITED STATES") return "US";
+  if (v === "GB" || v === "UK" || v === "UNITED KINGDOM") return "GB";
+  if (v === "IN" || v === "INDIA") return "IN";
+  return "OTHER";
 }
 
 export function LmsCourseDetailClient({ courseId }: { courseId: string }) {
@@ -89,6 +124,18 @@ export function LmsCourseDetailClient({ courseId }: { courseId: string }) {
   const [busy, setBusy] = React.useState(false);
   const [notice, setNotice] = React.useState<string | null>(null);
   const verifyingRef = React.useRef(false);
+
+  const [billingCountry, setBillingCountry] = React.useState("CA");
+  const [addressLine1, setAddressLine1] = React.useState("");
+  const [addressLine2, setAddressLine2] = React.useState("");
+  const [city, setCity] = React.useState("");
+  const [postalCode, setPostalCode] = React.useState("");
+  const [province, setProvince] = React.useState("");
+  const [provinces, setProvinces] = React.useState<ProvinceOpt[]>([]);
+  const [tax, setTax] = React.useState<TaxQuote | null>(null);
+  const [taxLoading, setTaxLoading] = React.useState(false);
+
+  const isCanada = billingCountry === "CA";
 
   const load = React.useCallback(async () => {
     setLoading(true);
@@ -108,6 +155,97 @@ export function LmsCourseDetailClient({ courseId }: { courseId: string }) {
   React.useEffect(() => {
     void load();
   }, [load]);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const [ratesRes, profileRes] = await Promise.all([
+          fetch(`${API}/tax/gst-hst/rates`, { headers: { Accept: "application/json" } }),
+          fetch(`${API}/consultant/profile`, { headers: authHeaders() }),
+        ]);
+        const ratesJson = ratesRes.ok ? await ratesRes.json() : null;
+        const profileJson = profileRes.ok ? await profileRes.json() : null;
+        if (cancelled) return;
+
+        const opts: ProvinceOpt[] = ratesJson?.provinces ?? [];
+        setProvinces(opts);
+
+        const fromProfile = profileJson?.company_province ?? "";
+        if (fromProfile) {
+          const match = opts.find(
+            (p) =>
+              p.code === String(fromProfile).toUpperCase() ||
+              p.name.toLowerCase() === String(fromProfile).toLowerCase()
+          );
+          setProvince(match?.code ?? String(fromProfile).toUpperCase());
+        } else if (opts.length > 0) {
+          setProvince(opts.find((p) => p.code === "ON")?.code ?? opts[0].code);
+        }
+
+        if (profileJson) {
+          setBillingCountry(resolveCountryCode(profileJson.company_country));
+          setAddressLine1(profileJson.company_address_line1 ?? "");
+          setAddressLine2(profileJson.company_address_line2 ?? "");
+          setCity(profileJson.company_city ?? "");
+          setPostalCode(profileJson.company_postal_code ?? "");
+        }
+      } catch {
+        /* optional profile/tax preload */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const billingPayload = React.useCallback(() => {
+    if (!course) return null;
+    return {
+      product_domain: "consultant_lms",
+      course_id: course.id,
+      billing_country: billingCountry,
+      billing_address_line1: addressLine1.trim(),
+      billing_address_line2: addressLine2.trim() || undefined,
+      billing_city: city.trim(),
+      billing_postal_code: postalCode.trim() || undefined,
+      billing_province: isCanada ? province : undefined,
+      province: isCanada ? province : undefined,
+    };
+  }, [course, billingCountry, addressLine1, addressLine2, city, postalCode, province, isCanada]);
+
+  const fetchTaxQuote = React.useCallback(async () => {
+    const payload = billingPayload();
+    if (!payload || !addressLine1.trim() || !city.trim()) {
+      setTax(null);
+      return;
+    }
+    if (isCanada && !province) {
+      setTax(null);
+      return;
+    }
+    setTaxLoading(true);
+    try {
+      const params = new URLSearchParams();
+      Object.entries(payload).forEach(([k, v]) => {
+        if (v !== undefined && v !== null && v !== "") params.set(k, String(v));
+      });
+      const res = await fetch(`${API}/learning/checkout/tax-quote?${params}`, {
+        headers: authHeaders(),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (res.ok && json.tax) setTax(json.tax);
+      else setTax(null);
+    } catch {
+      setTax(null);
+    } finally {
+      setTaxLoading(false);
+    }
+  }, [billingPayload, addressLine1, city, isCanada, province]);
+
+  React.useEffect(() => {
+    if (course?.access?.can_buy) void fetchTaxQuote();
+  }, [course?.access?.can_buy, fetchTaxQuote]);
 
   React.useEffect(() => {
     const checkout = searchParams.get("checkout");
@@ -147,13 +285,19 @@ export function LmsCourseDetailClient({ courseId }: { courseId: string }) {
 
   async function buyCourse() {
     if (!course || busy) return;
+    const payload = billingPayload();
+    if (!payload) return;
+    if (!addressLine1.trim() || !city.trim() || (isCanada && !province)) {
+      setError("Enter your billing address so we can calculate GST/HST before checkout.");
+      return;
+    }
     setBusy(true);
     setError("");
     try {
       const res = await fetch(`${API}/learning/checkout`, {
         method: "POST",
         headers: authHeaders(true),
-        body: JSON.stringify({ product_domain: "consultant_lms", course_id: course.id }),
+        body: JSON.stringify(payload),
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json.message ?? "Checkout failed.");
@@ -220,6 +364,14 @@ export function LmsCourseDetailClient({ courseId }: { courseId: string }) {
 
   const access = course.access;
   const owned = Boolean(access?.owned || access?.can_continue);
+  const canBuy =
+    !owned &&
+    Boolean(access?.can_buy) &&
+    Boolean(addressLine1.trim()) &&
+    Boolean(city.trim()) &&
+    (!isCanada || Boolean(province)) &&
+    !taxLoading &&
+    !busy;
 
   return (
     <div className="min-w-0 space-y-6 overflow-x-hidden pb-10">
@@ -332,14 +484,117 @@ export function LmsCourseDetailClient({ courseId }: { courseId: string }) {
                   Start free course
                 </Button>
               ) : (
-                <Button
-                  className="h-11 rounded-xl bg-emerald-700 hover:bg-emerald-800"
-                  disabled={busy}
-                  onClick={() => void buyCourse()}
-                >
-                  {busy ? <Loader2 className="mr-1.5 size-4 animate-spin" /> : <ShoppingCart className="mr-1.5 size-4" />}
-                  Buy course — {money(course.price_cents, course.currency)}
-                </Button>
+                <>
+                  <div className="space-y-3 rounded-2xl border border-border/70 bg-muted/10 p-3.5">
+                    <p className="text-sm font-medium">Billing address</p>
+                    <p className="text-[11px] text-muted-foreground">
+                      Same GST/HST place-of-supply calculation as subscription checkout — enter address before Stripe.
+                    </p>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="lms-country">Country</Label>
+                      <Select value={billingCountry} onValueChange={setBillingCountry}>
+                        <SelectTrigger id="lms-country" className="h-10 w-full rounded-xl">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="CA">Canada</SelectItem>
+                          <SelectItem value="US">United States</SelectItem>
+                          <SelectItem value="GB">United Kingdom</SelectItem>
+                          <SelectItem value="IN">India</SelectItem>
+                          <SelectItem value="OTHER">Outside Canada (other)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <Input
+                      className="h-10 rounded-xl"
+                      placeholder="Street address"
+                      value={addressLine1}
+                      onChange={(e) => setAddressLine1(e.target.value)}
+                    />
+                    <Input
+                      className="h-10 rounded-xl"
+                      placeholder="Apartment, suite (optional)"
+                      value={addressLine2}
+                      onChange={(e) => setAddressLine2(e.target.value)}
+                    />
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                      <Input
+                        className="h-10 rounded-xl"
+                        placeholder="City"
+                        value={city}
+                        onChange={(e) => setCity(e.target.value)}
+                      />
+                      <Input
+                        className="h-10 rounded-xl"
+                        placeholder="Postal / ZIP"
+                        value={postalCode}
+                        onChange={(e) => setPostalCode(e.target.value)}
+                      />
+                    </div>
+                    {isCanada ? (
+                      <div className="space-y-1.5">
+                        <Label htmlFor="lms-province" className="flex items-center gap-1.5">
+                          <MapPin className="size-3.5 text-muted-foreground" />
+                          Province (place of supply)
+                        </Label>
+                        <Select value={province} onValueChange={setProvince} disabled={provinces.length === 0}>
+                          <SelectTrigger id="lms-province" className="h-10 w-full rounded-xl">
+                            <SelectValue placeholder="Select province" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {provinces.map((p) => (
+                              <SelectItem key={p.code} value={p.code}>
+                                {p.name} — {p.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    ) : null}
+                  </div>
+
+                  {taxLoading ? (
+                    <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <Loader2 className="size-3 animate-spin" /> Calculating tax…
+                    </p>
+                  ) : tax ? (
+                    <div className="space-y-1 rounded-2xl bg-muted/40 p-3 text-sm">
+                      <div className="flex justify-between gap-3">
+                        <span>Subtotal</span>
+                        <span className="tabular-nums">{moneyCad(tax.subtotal)}</span>
+                      </div>
+                      <div className="flex justify-between gap-3 text-muted-foreground">
+                        <span className="min-w-0 break-words">
+                          Tax{tax.tax_label ? ` (${tax.tax_label})` : ""}
+                        </span>
+                        <span className="shrink-0 tabular-nums">
+                          {tax.tax_applicable === false ? "—" : moneyCad(tax.total_tax)}
+                        </span>
+                      </div>
+                      {tax.disclaimer ? (
+                        <p className="pt-1 text-[11px] text-muted-foreground">{tax.disclaimer}</p>
+                      ) : null}
+                      <div className="flex justify-between gap-3 border-t pt-1 font-semibold">
+                        <span>Total</span>
+                        <span className="tabular-nums">{moneyCad(tax.total)}</span>
+                      </div>
+                    </div>
+                  ) : null}
+
+                  <Button
+                    className="h-11 rounded-xl bg-emerald-700 hover:bg-emerald-800"
+                    disabled={!canBuy}
+                    onClick={() => void buyCourse()}
+                  >
+                    {busy ? <Loader2 className="mr-1.5 size-4 animate-spin" /> : <ShoppingCart className="mr-1.5 size-4" />}
+                    {busy
+                      ? "Redirecting to Stripe…"
+                      : `Continue to Stripe — ${tax ? moneyCad(tax.total) : money(course.price_cents, course.currency)}`}
+                  </Button>
+                  <p className="text-center text-[11px] text-muted-foreground">
+                    Payments secured by Stripe · GST/HST calculated from your billing address
+                  </p>
+                </>
               )}
 
               {course.estimated_hours ? (

@@ -38,7 +38,7 @@ class StripePaymentFulfillmentService
             return null;
         }
 
-        $metadata = (array) ($session->metadata ?? []);
+        $metadata = $this->metaArray($session);
         $type     = $metadata['type'] ?? null;
 
         if (($session->mode ?? '') === 'payment') {
@@ -758,12 +758,15 @@ class StripePaymentFulfillmentService
     /** @return array<string, mixed>|null */
     private function fulfillLearningCourseCheckout(object $session): ?array
     {
-        $metadata = (array) ($session->metadata ?? []);
+        $metadata = $this->metaArray($session);
         $userId = (int) ($metadata['learner_user_id'] ?? $metadata['user_id'] ?? 0);
         $courseId = (int) ($metadata['course_id'] ?? 0);
         $domain = (string) ($metadata['product_domain'] ?? '');
         if ($userId < 1 || $courseId < 1 || ! in_array($domain, ['rcic_academy', 'client_lms', 'consultant_lms'], true)) {
-            Log::warning('[Fulfillment] learning_course missing metadata', ['session' => $session->id ?? null]);
+            Log::warning('[Fulfillment] learning_course missing metadata', [
+                'session' => $session->id ?? null,
+                'metadata' => $metadata,
+            ]);
 
             return null;
         }
@@ -863,24 +866,53 @@ class StripePaymentFulfillmentService
             return [];
         }
         if (is_array($raw)) {
-            return array_map(static fn ($v) => is_scalar($v) || $v === null ? (string) $v : '', $raw);
+            $clean = [];
+            foreach ($raw as $key => $value) {
+                if (! is_string($key) || str_starts_with($key, "\0")) {
+                    continue;
+                }
+                if (is_scalar($value) || $value === null) {
+                    $clean[$key] = (string) $value;
+                }
+            }
+            if ($clean !== []) {
+                return $clean;
+            }
         }
         if (is_object($raw) && method_exists($raw, 'toArray')) {
-            return array_map(
-                static fn ($v) => is_scalar($v) || $v === null ? (string) $v : '',
-                $raw->toArray()
-            );
+            $arr = $raw->toArray();
+            $clean = [];
+            foreach ($arr as $key => $value) {
+                if (! is_string($key) || str_starts_with($key, "\0")) {
+                    continue;
+                }
+                if (is_scalar($value) || $value === null) {
+                    $clean[$key] = (string) $value;
+                }
+            }
+            if ($clean !== []) {
+                return $clean;
+            }
         }
 
         $out = [];
-        foreach (['subscription_package_id', 'billing_cycle', 'user_id', 'province', 'billing_country', 'type'] as $key) {
-            $val = is_array($raw) ? ($raw[$key] ?? null) : ($raw->$key ?? null);
+        foreach ([
+            'subscription_package_id', 'billing_cycle', 'user_id', 'province', 'billing_country', 'type',
+            'product_domain', 'course_id', 'learner_user_id', 'access_months', 'marketing_service_id',
+        ] as $key) {
+            $val = is_array($raw) ? ($raw[$key] ?? null) : ($raw->{$key} ?? null);
             if ($val !== null && $val !== '') {
                 $out[$key] = (string) $val;
             }
         }
 
         return $out;
+    }
+
+    /** @return array<string, string> */
+    public function sessionMetadata(object $session): array
+    {
+        return $this->metaArray($session);
     }
 
     private function subscriptionPeriodEnd(mixed $stripeSub): ?int
