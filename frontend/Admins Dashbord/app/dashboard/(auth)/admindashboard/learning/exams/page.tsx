@@ -133,7 +133,10 @@ export default function AdminLearningExamsPage() {
           Exam Master
         </h1>
         <p className="text-muted-foreground text-sm mt-1">
-          Create an exam, add official sources, then generate a draft course. AI never publishes.
+          Create an exam, add official sources, then generate a draft course. AI never publishes.{" "}
+          <a className="underline" href="/admindashboard/academy/ai-studio">
+            Guided course builder
+          </a>
         </p>
       </div>
 

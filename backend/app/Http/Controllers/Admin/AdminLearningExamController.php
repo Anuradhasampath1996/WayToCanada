@@ -144,6 +144,27 @@ class AdminLearningExamController extends Controller
         return response()->json(['exam' => $model, 'evidence_summary' => $this->evidence->evidenceSummary($domain, $exam)]);
     }
 
+    public function confirmOfficialStructure(Request $request, int $exam)
+    {
+        $domain = $this->domain($request);
+        $data = $request->validate([
+            'item_id' => 'required|integer',
+            'exam_format_json' => 'required|array',
+            'exam_format_json.duration_minutes' => 'required|integer|min:1',
+            'exam_format_json.total_questions' => 'required|integer|min:1',
+        ]);
+        $item = $domain === 'client_lms'
+            ? \App\Models\Lms\LmsExamEvidenceItem::query()->findOrFail($data['item_id'])
+            : AcademyExamEvidenceItem::query()->findOrFail($data['item_id']);
+        $model = $this->evidence->exam($domain, $exam);
+        $this->evidence->applyOfficialStructure($model, $data['exam_format_json'], $item);
+
+        return response()->json([
+            'exam' => $model->fresh(),
+            'evidence_summary' => $this->evidence->evidenceSummary($domain, $exam),
+        ]);
+    }
+
     public function addSource(Request $request, int $exam)
     {
         $domain = $this->domain($request);
@@ -453,8 +474,11 @@ class AdminLearningExamController extends Controller
         if ($summary['critical_structure_unverified']) {
             return response()->json(['message' => 'Critical structure unverified', 'code' => 'critical_structure_unverified'], 422);
         }
+        $eligible = $domain === 'client_lms'
+            ? \App\Models\Lms\LmsExamQuestion::query()->where('exam_id', $exam)->where('mock_eligible', true)->count()
+            : AcademyQuestion::query()->where('exam_id', $exam)->where('status', 'published')->where('mock_eligible', true)->count();
         $poolCheck = $this->evidence->mockPoolSufficient(
-            AcademyQuestion::query()->where('exam_id', $exam)->where('status', 'published')->where('mock_eligible', true)->count(),
+            $eligible,
             ['total' => $data['total_questions']],
             [],
             (bool) ($data['allow_fallback_mix'] ?? false)
@@ -463,14 +487,35 @@ class AdminLearningExamController extends Controller
             return response()->json(['message' => $poolCheck['message'], 'code' => $poolCheck['code']], 422);
         }
 
+        $slug = Str::slug($data['name']).'-'.$exam.'-'.Str::random(4);
+        $duration = $data['duration_minutes'] ?: ($format['duration_minutes'] ?? 60);
+        if ($domain === 'client_lms') {
+            $template = \App\Models\Lms\LmsExamTemplate::query()->create([
+                'exam_id' => $exam,
+                'course_id' => $data['course_id'] ?? null,
+                'name' => $data['name'],
+                'slug' => $slug,
+                'total_questions' => $data['total_questions'],
+                'duration_minutes' => $duration,
+                'independent_count' => $data['independent_count'] ?? $data['total_questions'],
+                'case_based_count' => $data['case_based_count'] ?? 0,
+                'selection_mode' => $data['selection_mode'] ?? 'random_pool',
+                'allow_answer_review_after_submit' => true,
+                'status' => 'draft',
+                'created_by' => $request->user()->id,
+            ]);
+
+            return response()->json(['template' => $template, 'pool' => $poolCheck], 201);
+        }
+
         $template = AcademyExamTemplate::query()->create([
             'exam_id' => $exam,
             'course_id' => $data['course_id'] ?? null,
             'track_id' => null,
             'name' => $data['name'],
-            'slug' => Str::slug($data['name']).'-'.$exam.'-'.Str::random(4),
+            'slug' => $slug,
             'total_questions' => $data['total_questions'],
-            'duration_minutes' => $data['duration_minutes'] ?: ($format['duration_minutes'] ?? 60),
+            'duration_minutes' => $duration,
             'independent_count' => $data['independent_count'] ?? 0,
             'case_based_count' => $data['case_based_count'] ?? 0,
             'selection_mode' => $data['selection_mode'] ?? 'random_pool',

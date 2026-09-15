@@ -746,6 +746,7 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('exams/{exam}', [AdminLearningExamController::class, 'show']);
             Route::put('exams/{exam}', [AdminLearningExamController::class, 'update']);
             Route::post('exams/{exam}/structure', [AdminLearningExamController::class, 'assertStructure']);
+            Route::post('exams/{exam}/official-structure', [AdminLearningExamController::class, 'confirmOfficialStructure']);
             Route::post('exams/{exam}/research', [AdminLearningExamController::class, 'recordResearch']);
             Route::post('exams/{exam}/sources', [AdminLearningExamController::class, 'addSource']);
             Route::post('exams/{exam}/sources/{item}/verify', [AdminLearningExamController::class, 'verifySource']);
