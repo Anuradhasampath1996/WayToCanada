@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useSearchParams } from "next/navigation";
 import { GraduationCap, ImageIcon, Plus, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,18 +24,23 @@ type Category = { id: number; name: string; slug: string; description?: string; 
 type Course = {
   id: number; title: string; category_id: number; is_published: boolean;
   thumbnail_url?: string | null; category?: Category; modules_count?: number;
+  price_cents?: number | null; currency?: string | null;
 };
 
 export default function LmsAdminPage() {
+  const searchParams = useSearchParams();
   const [categories, setCategories] = React.useState<Category[]>([]);
   const [courses, setCourses] = React.useState<Course[]>([]);
   const [selectedCourse, setSelectedCourse] = React.useState<any>(null);
   const [catForm, setCatForm] = React.useState({ name: "", description: "" });
-  const [courseForm, setCourseForm] = React.useState({ title: "", category_id: "", description: "", thumbnail_url: "" });
+  const [courseForm, setCourseForm] = React.useState({
+    title: "", category_id: "", description: "", thumbnail_url: "", price_cad: "", access_months: "3",
+  });
   const [thumbnailFile, setThumbnailFile] = React.useState<File | null>(null);
   const [thumbnailPreview, setThumbnailPreview] = React.useState<string | null>(null);
   const [creating, setCreating] = React.useState(false);
   const [tab, setTab] = React.useState("categories");
+  const openedFromQuery = React.useRef<string | null>(null);
 
   const load = React.useCallback(async () => {
     const [cRes, coRes] = await Promise.all([
@@ -49,8 +55,21 @@ export default function LmsAdminPage() {
 
   async function loadCourse(id: number) {
     const res = await fetch(`${API}/admin/lms/courses/${id}`, { headers: adminAuthHeaders() });
+    if (!res.ok) return;
     setSelectedCourse(await res.json());
   }
+
+  React.useEffect(() => {
+    const courseId = searchParams.get("course");
+    if (!courseId || openedFromQuery.current === courseId) return;
+    openedFromQuery.current = courseId;
+    const id = Number(courseId);
+    if (!Number.isFinite(id) || id <= 0) return;
+    void (async () => {
+      await loadCourse(id);
+      setTab("builder");
+    })();
+  }, [searchParams]);
 
   async function addCategory() {
     await fetch(`${API}/admin/lms/categories`, {
@@ -88,13 +107,17 @@ export default function LmsAdminPage() {
           thumbnail_url: courseForm.thumbnail_url || null,
           category_id: Number(courseForm.category_id),
           is_published: true,
+          currency: "CAD",
+          price_cad: courseForm.price_cad.trim() === "" ? null : Number(courseForm.price_cad),
+          access_months: Number(courseForm.access_months) || 3,
+          commerce_confirmed: courseForm.price_cad.trim() !== "" && Number(courseForm.price_cad) > 0,
         }),
       });
       const created = await res.json();
       if (thumbnailFile && created?.id) {
         await uploadCourseThumbnail(created.id, thumbnailFile);
       }
-      setCourseForm({ title: "", category_id: "", description: "", thumbnail_url: "" });
+      setCourseForm({ title: "", category_id: "", description: "", thumbnail_url: "", price_cad: "", access_months: "3" });
       onThumbnailPick(null);
       load();
     } finally {
@@ -166,6 +189,22 @@ export default function LmsAdminPage() {
                 value={courseForm.thumbnail_url}
                 onChange={(e) => setCourseForm({ ...courseForm, thumbnail_url: e.target.value })}
               />
+              <Input
+                type="number"
+                min="0"
+                step="0.01"
+                placeholder="Price (CAD)"
+                value={courseForm.price_cad}
+                onChange={(e) => setCourseForm({ ...courseForm, price_cad: e.target.value })}
+              />
+              <Input
+                type="number"
+                min="1"
+                max="60"
+                placeholder="Access months"
+                value={courseForm.access_months}
+                onChange={(e) => setCourseForm({ ...courseForm, access_months: e.target.value })}
+              />
               <div className="sm:col-span-2 flex flex-wrap items-center gap-4 rounded-lg border p-4 bg-muted/20">
                 <div className="h-24 w-40 rounded-lg border bg-muted overflow-hidden flex items-center justify-center shrink-0">
                   {thumbnailPreview || courseForm.thumbnail_url ? (
@@ -197,13 +236,24 @@ export default function LmsAdminPage() {
           </Card>
           <Table>
             <TableHeader>
-              <TableRow><TableHead>Course</TableHead><TableHead>Category</TableHead><TableHead>Thumbnail</TableHead><TableHead></TableHead></TableRow>
+              <TableRow>
+                <TableHead>Course</TableHead>
+                <TableHead>Category</TableHead>
+                <TableHead>Price (CAD)</TableHead>
+                <TableHead>Thumbnail</TableHead>
+                <TableHead></TableHead>
+              </TableRow>
             </TableHeader>
             <TableBody>
               {courses.map((c) => (
                 <TableRow key={c.id}>
                   <TableCell>{c.title}</TableCell>
                   <TableCell>{c.category?.name}</TableCell>
+                  <TableCell className="tabular-nums">
+                    {c.price_cents != null
+                      ? new Intl.NumberFormat("en-CA", { style: "currency", currency: "CAD" }).format(c.price_cents / 100)
+                      : "—"}
+                  </TableCell>
                   <TableCell>
                     {c.thumbnail_url ? (
                       // eslint-disable-next-line @next/next/no-img-element

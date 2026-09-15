@@ -164,21 +164,15 @@ class AdminIntegrationSettingsController extends Controller
     {
         $this->settings->applyRuntimeConfig();
 
-        $key = (string) config('academy_ai.manus.api_key', '');
+        $key = (string) config('course_factory.manus.api_key', '');
         if ($key === '') {
             return response()->json([
-                'message' => 'No Manus API key configured. Paste your key, enable Manus research, and Save.',
-            ], 422);
-        }
-
-        if (! (bool) config('academy_ai.manus.enabled')) {
-            return response()->json([
-                'message' => 'Manus research is turned off. Enable it and Save, then test again.',
+                'message' => 'No Manus API key configured. Paste your key and Save.',
             ], 422);
         }
 
         try {
-            $publicKey = app(\App\Services\Academy\Ai\Manus\ManusV2Client::class)->webhookPublicKey();
+            $publicKey = app(\App\Services\CourseFactory\Manus\ManusV2Client::class)->webhookPublicKey();
             if ($publicKey === '') {
                 return response()->json([
                     'message' => 'Manus accepted the key but did not return a webhook public key. Check the Manus dashboard.',
@@ -186,7 +180,7 @@ class AdminIntegrationSettingsController extends Controller
             }
 
             return response()->json([
-                'message' => 'Manus connection OK — Academy Evidence Pack research can use this key. OpenAI still verifies independently.',
+                'message' => 'Manus connection OK — AI Course Factory can use this key for deep research.',
             ]);
         } catch (\Throwable $e) {
             return response()->json(['message' => 'Manus test failed: '.$e->getMessage()], 422);

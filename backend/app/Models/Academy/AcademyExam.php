@@ -3,7 +3,6 @@
 namespace App\Models\Academy;
 
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class AcademyExam extends AcademyModel
 {
@@ -32,21 +31,6 @@ class AcademyExam extends AcademyModel
     public function translations(): HasMany
     {
         return $this->hasMany(AcademyExamTranslation::class, 'exam_id');
-    }
-
-    public function evidencePacks(): HasMany
-    {
-        return $this->hasMany(AcademyExamEvidencePack::class, 'exam_id');
-    }
-
-    public function latestEvidencePack(): HasOne
-    {
-        return $this->hasOne(AcademyExamEvidencePack::class, 'exam_id')->latestOfMany();
-    }
-
-    public function fieldAudits(): HasMany
-    {
-        return $this->hasMany(AcademyExamFieldAudit::class, 'exam_id');
     }
 
     public function questions(): HasMany

@@ -21,7 +21,9 @@ describe("team access nav helpers", () => {
     expect(canSeeNavHref(session, "/dashboard/legislations")).toBe(false);
     expect(canSeeNavHref(session, "/dashboard/storage")).toBe(false);
     expect(canSeeNavHref(session, "/dashboard/marketing")).toBe(false);
+    expect(canSeeNavHref(session, "/dashboard/lms")).toBe(false);
     expect(canSeeNavHref({ ...session, permissions: { ...session.permissions, "letters.use": true } }, "/dashboard/letters")).toBe(true);
+    expect(canSeeNavHref({ ...session, permissions: { ...session.permissions, "lms.view": true } }, "/dashboard/lms")).toBe(true);
   });
 
   it("lets owners see everything", () => {

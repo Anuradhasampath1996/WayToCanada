@@ -77,9 +77,10 @@ class LearningCatalogService
     public function lmsCatalog(User $user, string $locale, array $filters = []): array
     {
         $query = LmsCourse::query()
+            ->forClients()
             ->with('category')
             ->where('is_published', true)
-            ->whereIn('access_mode', ['self_purchase', 'assigned_or_purchase', 'free']);
+            ->whereIn('access_mode', ['self_purchase', 'assigned_or_purchase', 'free', 'consultant_assigned']);
 
         if (! empty($filters['q'])) {
             $q = (string) $filters['q'];

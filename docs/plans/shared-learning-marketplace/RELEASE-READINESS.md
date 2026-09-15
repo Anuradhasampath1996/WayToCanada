@@ -82,8 +82,8 @@ Allowed labels: **Complete** · **Backend complete / frontend pending** · **Tes
 | Exam Master | **Complete** | Admin `/admindashboard/learning/exams`; APIs `/api/v1/admin/learning/exams*`; `academy_exams` / `lms_exams`. |
 | Evidence Pack | **Tested with mocks only** | Pack ingest, classify, conflict, stale, Evidence Summary, generation gate: PHPUnit. **No real-provider pack was inspected this phase.** |
 | Manus research | **Tested with mocks only** | Notes stored separately; cannot write Exam Master. Local `MANUS_ENABLED` / `MANUS_API_KEY` **unset**. One Academy AI Manus webhook test skipped on Windows OpenSSL. |
-| OpenAI research cross-check | **Tested with mocks only** | Stored separately from Manus; agreement ≠ verified. Local `OPENAI_API_KEY` **empty**. |
-| OpenAI course generation | **Tested with mocks only** | Academy + Client LMS orchestrators + importers gated on Evidence Pack. LMS `generate-course` is a real `db_lms` job (`LmsAiGenerationTest` 10/112). No live generate-course this phase. |
+| OpenAI research cross-check | **Tested with mocks only** plus **PARTIAL live** | Stored separately from Manus; agreement ≠ verified. `.env` `OPENAI_API_KEY` empty; Admin Integrations key used. Local jobs used `research_provider=openai`. Human Evidence Pack audit still open. |
+| OpenAI course generation | **Tested with mocks only** plus **PARTIAL live** | Academy + Client LMS orchestrators + importers gated on Evidence Pack. LMS `generate-course` is a real `db_lms` job (`LmsAiGenerationTest` 10/112). Local live drafts exist (IRB `course_id=1`, citizenship `course_id=6`). Checklist 10/10/2 bank **not** run — do not mark Real-provider smoke passed. |
 | Admin blueprint approval | **Complete** | Human approve required for Academy and LMS; AI cannot publish (`AcademyAiGuard` / `LmsAiGuard`). |
 | Lesson generation | **Tested with mocks only** | Pipeline implemented. No generated smoke lessons to audit. |
 | Question-bank generation | **Tested with mocks only** | Provenance, eight-pass flags, validator omits `is_correct`. No live bank. |
@@ -106,26 +106,22 @@ Allowed labels: **Complete** · **Backend complete / frontend pending** · **Tes
 ## 2. RCIC golden-path smoke
 
 **Preferred course:** `RCIC-IRB Specialization Exam`  
-**Result:** **not executed with real providers.**
+**Result:** **partial local live OpenAI run** — not the checklist 10/10/2 bank. **Do not mark `OPENAI REAL-PROVIDER SMOKE: PASS`.**
 
-Local `.env` / process env this pass (values not recorded):
+Host: local `127.0.0.1` / `APP_ENV=local` (not production). Additive `php artisan migrate --force` applied **locally** so `db_academy` could exist; **not** production.
 
-| Variable | Presence |
-|----------|----------|
-| `OPENAI_API_KEY` | empty / unset |
-| `ACADEMY_OPENAI_API_KEY` | missing |
-| `MANUS_API_KEY` / `ACADEMY_MANUS_ENABLED` | missing / unset |
-| `STRIPE_SECRET` / `STRIPE_KEY` | missing |
+| Variable / store | Presence (no secrets) |
+|------------------|------------------------|
+| `.env` `OPENAI_API_KEY` | empty |
+| Admin Integrations OpenAI (`db_cws`) | present (`sk-…`, not `sk-test`) |
+| Manus | empty / not enabled |
+| Stripe test row | `mode=test`, **secret/publishable empty** |
 
-No non-production OpenAI, Manus, or Stripe test-mode keys were configured in this environment. Keys were **not** copied from chat, Admin Integrations, or product `db_cws`.
+**OpenAI ping:** Chat Completions **HTTP 200**.  
+**IRB live job:** `academy_ai_generation_jobs.id=1`, `exam_id=2`, `course_id=1`, `status=draft_ready`, `research_provider=openai`, `generation_provider=openai`. 8 draft lessons imported; 2 independent MCQs generated (1 `draft_imported`, 1 `likely_duplicate`); all items flagged `Citation Unverified`. Course **draft**. Full 10 independent + 10 case-based + 2 cases **not run**.
 
-**OpenAI real-provider smoke:** **NOT CONFIGURED**  
-**Manus real-provider smoke:** **NOT CONFIGURED** — `MANUS REAL-PROVIDER SMOKE PENDING`  
-Manus remaining optional: OpenAI-only functionality is not blocked by Manus absence, but the IRB golden path still needs an OpenAI key.
-
-Automated substitutes (PHPUnit, mocked/fake providers) still cover pack gates, classification, conflicts, Manus notes ≠ Exam Master, OpenAI disagreement storage, AI cannot publish, exam-scoped random_pool.
-
-No Exam Master / Evidence Pack / lesson / MCQ IDs were created on **product** databases for a live IRB smoke.
+**Manus real-provider smoke:** **`MANUS REAL-PROVIDER SMOKE PENDING`** (no key).  
+**Stripe test-mode E2E:** **NOT CONFIGURED**.
 
 **Do not publish automatically:** still enforced.
 
@@ -133,7 +129,7 @@ No Exam Master / Evidence Pack / lesson / MCQ IDs were created on **product** da
 
 ## 3. Research quality (manual)
 
-**Not performed on a real Evidence Pack** — no pack was generated with live Manus/OpenAI (`OPENAI_API_KEY` empty; Manus unset).
+**Not signed off.** Local OpenAI jobs ran research+generation, but no human Evidence Pack table was filled. Manus was not in the loop. Do not treat this as a completed research-quality audit.
 
 | Check | Result |
 |-------|--------|
@@ -151,9 +147,7 @@ Sample evidence from tests (not production data): official `college-ic.ca` host 
 
 ## 4. Lesson audit
 
-**Not performed.** No AI-generated smoke lessons exist in this environment.
-
-Reviewer decision: **FAIL** — blocked on real-provider generation.
+**Not performed as a human audit.** Local IRB job imported 8 draft lessons; all live items were flagged `Citation Unverified`. Reviewer decision: **FAIL**.
 
 | Lesson | Statement | supported | unsupported | citation mismatch | needs correction |
 |--------|-----------|-----------|-------------|-------------------|------------------|
@@ -163,7 +157,7 @@ Reviewer decision: **FAIL** — blocked on real-provider generation.
 
 ## 5. MCQ audit
 
-**Not performed** on a live generated bank. **FAIL** — blocked on real-provider generation.
+**Not performed** as a 20-question human audit. Local IRB bank is 2 MCQs (1 imported, 1 likely_duplicate), not the checklist 10/10. **FAIL**.
 
 | Q | Correct defensible? | Second correct possible? | Explanation | Citation supports? | Exam-relevant? | Difficulty | Too similar to official sample? | Validator agrees? |
 |---|---------------------|--------------------------|-------------|--------------------|----------------|------------|---------------------------------|-------------------|
@@ -282,7 +276,7 @@ Implemented (additive; legacy `LmsExamService` quizzes unchanged).
 
 ## 13. Stripe test-mode E2E
 
-**NOT CONFIGURED** — local `STRIPE_SECRET` / `STRIPE_KEY` missing. **Do not record `STRIPE TEST-MODE END-TO-END PASSED`.**
+**NOT CONFIGURED** — Stripe test-mode row is `is_active=true` but **secret is empty**. **Do not record `STRIPE TEST-MODE END-TO-END PASSED`.**
 
 Still **MOCK-VERIFIED ONLY — STAGING REAL STRIPE TEST REQUIRED**.
 
@@ -328,11 +322,11 @@ The previous **code** blocker (HTTP 201 stub `LMS generation job accepted as dra
 | Endpoint no longer stub | `job_id` persisted in `lms_ai_generation_jobs`; approve-blueprint imports `db_lms` drafts |
 | Cross-domain write protection | Academy course/module/lesson/question counts unchanged |
 | `citizenship_exam_prep` vs RCIC catalog | LMS systems are Client LMS; Academy catalog still RCIC |
-| Live OpenAI/Manus citizenship generate | **NOT CONFIGURED** — do not mark `CITIZENSHIP AI SMOKE: PASS` |
+| Live OpenAI citizenship generate | **PARTIAL** — local `lms_ai_generation_jobs.id=1`, `course_id=6`, `draft_ready`, 1 module / 2 lessons / 2 MCQs / `random_pool` template, unpublished `content_review`. Academy course count unchanged. **Do not mark `CITIZENSHIP AI SMOKE: PASS`** (10-MCQ checklist bank not run). |
 
 Required live checks remain in `STAGING-VALIDATION-CHECKLIST.md` (official canada.ca pack, 1/2/10 draft import, no `db_academy` writes).
 
-Classification: **Tested with mocks only** / live smoke **not executed**.
+Classification: **Tested with mocks only** plus a **small live OpenAI draft** on local DBs. Checklist citizenship smoke remains **not PASS**.
 
 ---
 
@@ -382,9 +376,9 @@ LMS this pass:
 
 | Provider | PHPUnit | This machine live smoke |
 |----------|---------|-------------------------|
-| OpenAI | Fake driver / empty key / stray HTTP forbidden | **NOT CONFIGURED** |
-| Manus | Disabled, timeout 0, empty key | **NOT CONFIGURED** (`MANUS REAL-PROVIDER SMOKE PENDING`) |
-| Stripe | `FakeStripePlatformClient` | **NOT CONFIGURED** |
+| OpenAI | Fake driver / empty key / stray HTTP forbidden | **PARTIAL** — ping HTTP 200; small IRB + citizenship `draft_ready` jobs. Checklist 10/10/2 **not PASS** |
+| Manus | Disabled, timeout 0, empty key | **PENDING** (no key / not enabled) |
+| Stripe | `FakeStripePlatformClient` | **NOT CONFIGURED** (test row active; secret empty) |
 
 ### Routes / UI
 
@@ -394,10 +388,10 @@ Browser end-to-end click-through was **not** completed.
 
 | Item | Status |
 |------|--------|
-| Real Stripe | **NOT CONFIGURED** / **MOCK-VERIFIED ONLY — STAGING REAL STRIPE TEST REQUIRED** |
-| Real Manus | **NOT CONFIGURED** |
-| Real OpenAI | **NOT CONFIGURED** |
-| Product migrations | Additive files exist; **not applied to production** |
+| Real Stripe | **NOT CONFIGURED** (test-mode row, empty keys) |
+| Real Manus | **PENDING** (no key) |
+| Real OpenAI | **PARTIAL** local ping + small IRB/citizenship drafts; checklist 10/10/2 **not PASS** |
+| Product migrations | Additive migrate run on **local** `127.0.0.1:5432` only; **not applied to production** |
 | Production | **Not deployed** |
 
 ---
@@ -406,14 +400,14 @@ Browser end-to-end click-through was **not** completed.
 
 ### Blockers that remain
 
-1. No non-production `OPENAI_API_KEY` — IRB Evidence Pack → small course smoke not run.
+1. OpenAI checklist 10/10/2 IRB bank + human lesson/MCQ audit still open (small live draft exists locally).
 2. `MANUS REAL-PROVIDER SMOKE PENDING`.
-3. No Stripe **test-mode** Checkout + webhook (`STRIPE TEST-MODE END-TO-END PASSED` not recorded).
-4. Manual Evidence Pack / lesson / MCQ audits have no live artifact.
+3. Stripe **test-mode** keys empty — Checkout + webhook not run.
+4. Manual Evidence Pack / lesson / MCQ audits incomplete (citation-unverified flags on the live IRB items).
 5. Random-pool **browser** matrix not executed (engine matrix passed).
-6. Client LMS `citizenship_exam_prep` **live** AI smoke not executed (mocked factory **PASS**; do not mark `CITIZENSHIP AI SMOKE: PASS`).
+6. Citizenship checklist 10-MCQ live bank not run (2-MCQ local live draft exists).
 
-Closed this pass: Client LMS `generate-course` stub replaced with `lms_ai_generation_jobs` + `LmsAiDraftImporter`; `LmsAiGenerationTest` 10/112; citizenship profile isolated from RCIC catalog. Credentialed smokes: **not run** (keys unset). Operator steps: `STAGING-VALIDATION-CHECKLIST.md`.
+Closed this pass: local OpenAI ping 200; small IRB + citizenship `draft_ready` jobs on local DBs. Production **not** deployed.
 
 Until staging smokes pass, this is not production-ready and should not be treated as a finished Phase 1–9 release.
 
@@ -423,15 +417,15 @@ Until staging smokes pass, this is not production-ready and should not be treate
 * LMS AI factory (`LmsAiGenerationTest`): **PASS** (mocked)
 * Academy regressions: **PASS** (spot-check this pass; prior full class PASS)
 * LMS regressions: **PASS**
-* OpenAI real-provider smoke: **NOT CONFIGURED**
-* Manus real-provider smoke: **NOT CONFIGURED**
-* RCIC Evidence → Course smoke: **FAIL**
+* OpenAI real-provider smoke: **PARTIAL** (not PASS)
+* Manus real-provider smoke: **PENDING**
+* RCIC Evidence → Course smoke: **PARTIAL** (small bank; 10/10/2 FAIL)
 * Manual Evidence audit: **FAIL**
 * Manual Lesson audit: **FAIL**
 * Manual MCQ audit: **FAIL**
 * Random mock browser matrix: **FAIL** (engine 20/10 A/B/C PHPUnit remains PASS)
 * Stripe test-mode E2E: **NOT CONFIGURED**
-* Citizenship AI smoke: **FAIL**
+* Citizenship AI smoke: **PARTIAL** (2-MCQ local live; not PASS)
 
 Operator runbook (no secrets): `docs/plans/shared-learning-marketplace/STAGING-VALIDATION-CHECKLIST.md`.
 

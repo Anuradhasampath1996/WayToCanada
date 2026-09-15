@@ -21,6 +21,7 @@ import {
   MegaphoneIcon,
   GiftIcon,
   UsersRoundIcon,
+  GraduationCapIcon,
   type LucideIcon,
 } from "lucide-react";
 import { canSeeNavHref, readTeamSession, type TeamSession } from "@/lib/team-access";
@@ -131,6 +132,19 @@ export const navItems: NavGroup[] = [
         description: "Personal folders & files (3 GB free)",
         icon: HardDriveIcon,
         match: (p) => p.startsWith("/dashboard/storage"),
+      },
+    ],
+  },
+  {
+    title: "Learning",
+    items: [
+      {
+        title: "Exam Prep LMS",
+        href: "/dashboard/lms",
+        description: "Your professional exam courses",
+        icon: GraduationCapIcon,
+        badge: "New",
+        match: (p) => p.startsWith("/dashboard/lms"),
       },
     ],
   },

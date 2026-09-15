@@ -7,7 +7,7 @@
 
 **Release status:** see `docs/plans/shared-learning-marketplace/RELEASE-READINESS.md`.  
 **Credentialed staging steps:** `docs/plans/shared-learning-marketplace/STAGING-VALIDATION-CHECKLIST.md`.  
-**Phases 1–9 are not 100% complete.** PHPUnit is green offline. Real-provider golden path, Stripe test-mode Checkout, and browser mock matrix were **not** run (`OPENAI_API_KEY` empty; Stripe/Manus unset).
+**Phases 1–9 are not 100% complete.** PHPUnit is green offline. Local OpenAI ping + small IRB/citizenship drafts ran this session. Checklist 10/10/2 OpenAI smoke, Manus, Stripe test-mode Checkout, and browser mock matrix are **not PASS**.
 
 Accuracy target is **maximum verifiable accuracy**. The product does **not** claim 100% AI accuracy, guaranteed correctness, or a model-generated “AI accuracy = N%”.
 
@@ -172,9 +172,9 @@ Covers R80 1–24 plus extended 25–34 including:
 
 | Provider | PHPUnit | This machine live smoke |
 |----------|---------|-------------------------|
-| OpenAI | Fake / empty key / stray HTTP forbidden | **NOT CONFIGURED** |
-| Manus | Disabled in phpunit.xml | **NOT CONFIGURED** (`MANUS REAL-PROVIDER SMOKE PENDING`) |
-| Stripe | `FakeStripePlatformClient` | **NOT CONFIGURED** / **MOCK-VERIFIED ONLY — STAGING REAL STRIPE TEST REQUIRED** |
+| OpenAI | Fake / empty key / stray HTTP forbidden | **PARTIAL** — Admin Integrations key; Chat Completions ping HTTP 200; small IRB + citizenship `draft_ready` jobs. Do not mark `OPENAI REAL-PROVIDER SMOKE: PASS` |
+| Manus | Disabled in phpunit.xml | **PENDING** (key empty, not enabled) |
+| Stripe | `FakeStripePlatformClient` | **NOT CONFIGURED** (test-mode row active; secret empty) / **MOCK-VERIFIED ONLY — STAGING REAL STRIPE TEST REQUIRED** |
 
 ---
 
@@ -183,11 +183,11 @@ Covers R80 1–24 plus extended 25–34 including:
 - Production deploy / ECR / EC2
 - `migrate:fresh` anywhere
 - Merging Academy and LMS learner data
-- Real IRB Evidence Pack → course generation smoke (**NOT CONFIGURED**)
-- Manual lesson/MCQ audit of generated smoke content (**no artifact**)
+- Real IRB Evidence Pack → course generation smoke (**PARTIAL** small local bank; checklist 10/10/2 **not PASS**)
+- Manual lesson/MCQ audit of generated smoke content (**FAIL** — Citation Unverified; 20-Q bank missing)
 - Live Stripe Checkout/webhook against test-mode keys (**NOT CONFIGURED**)
 - Random mock **browser** matrix (engine 20/10 A/B/C PHPUnit passed)
-- Client LMS `citizenship_exam_prep` **live** AI smoke (mocked PHPUnit factory is implemented; real provider still required)
+- Client LMS `citizenship_exam_prep` **live** AI smoke (**PARTIAL** 2-MCQ local draft; do not mark `CITIZENSHIP AI SMOKE: PASS`)
 - Synthetic listening audio / speaking scoring (schema-ready only)
 
 ---

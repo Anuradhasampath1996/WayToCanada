@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Lock, GraduationCap } from "lucide-react";
+import { Lock, GraduationCap, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -29,14 +29,19 @@ export default function ClientLmsPage({ params }: { params: Promise<{ id: string
     title: string;
     thumbnail_url?: string | null;
     description?: string | null;
+    price_cents?: number | null;
+    currency?: string | null;
     category?: { name: string };
   }[]>([]);
   const [courseId, setCourseId] = React.useState("");
   const [pathwayLocked, setPathwayLocked] = React.useState(false);
   const [pathway, setPathway] = React.useState<string | null>(null);
   const [loading, setLoading] = React.useState(true);
+  const [assignBusy, setAssignBusy] = React.useState(false);
 
-  React.useEffect(() => { params.then((p) => setId(p.id)); }, [params]);
+  React.useEffect(() => {
+    params.then((p) => setId(p.id));
+  }, [params]);
 
   const load = React.useCallback(async () => {
     if (!id) return;
@@ -58,7 +63,7 @@ export default function ClientLmsPage({ params }: { params: Promise<{ id: string
 
     const [aRes, cRes] = await Promise.all([
       fetch(`${API}/consultant/clients/${id}/lms`, { headers: authHeaders() }),
-      fetch(`${API}/consultant/lms/courses`, { headers: authHeaders() }),
+      fetch(`${API}/consultant/lms/client-courses`, { headers: authHeaders() }),
     ]);
 
     if (aRes.status === 403) {
@@ -74,28 +79,41 @@ export default function ClientLmsPage({ params }: { params: Promise<{ id: string
     setLoading(false);
   }, [id]);
 
-  React.useEffect(() => { void load(); }, [load]);
+  React.useEffect(() => {
+    void load();
+  }, [load]);
 
   async function assign() {
-    if (!courseId || pathwayLocked) return;
-    await fetch(`${API}/consultant/clients/${id}/lms/assign`, {
-      method: "POST",
-      headers: { ...authHeaders(), "Content-Type": "application/json" },
-      body: JSON.stringify({ course_id: Number(courseId) }),
-    });
-    setCourseId("");
-    void load();
+    if (!courseId || pathwayLocked || assignBusy) return;
+    setAssignBusy(true);
+    try {
+      await fetch(`${API}/consultant/clients/${id}/lms/assign`, {
+        method: "POST",
+        headers: { ...authHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({ course_id: Number(courseId) }),
+      });
+      setCourseId("");
+      await load();
+    } finally {
+      setAssignBusy(false);
+    }
   }
 
   async function unassign(assignmentId: number) {
     await fetch(`${API}/consultant/clients/${id}/lms/assignments/${assignmentId}`, {
-      method: "DELETE", headers: authHeaders(),
+      method: "DELETE",
+      headers: authHeaders(),
     });
     void load();
   }
 
+  const avgProgress =
+    assignments.length === 0
+      ? 0
+      : Math.round(assignments.reduce((sum, a) => sum + (a.progress_percent || 0), 0) / assignments.length);
+
   return (
-    <div className="min-w-0 w-full overflow-x-hidden pb-4">
+    <div className="min-w-0 w-full overflow-x-hidden pb-6">
       <WorkspaceSubpageHero
         profileId={id}
         stepLabel={LMS_WORKSPACE_PAGE.stepLabel}
@@ -116,30 +134,34 @@ export default function ClientLmsPage({ params }: { params: Promise<{ id: string
           </Badge>
         )}
         {!loading && !pathwayLocked && (
-          <Badge variant="outline" className="h-8 rounded-xl px-3 text-xs border-emerald-200 bg-emerald-50 text-emerald-800">
-            {assignments.length} course{assignments.length === 1 ? "" : "s"} assigned
+          <Badge className="h-8 rounded-xl border-0 bg-emerald-700 px-3 text-xs text-white hover:bg-emerald-700">
+            {assignments.length} assigned
           </Badge>
         )}
       </WorkspaceSubpageHero>
 
       {loading && (
-        <p className="py-12 text-center text-sm text-muted-foreground">Loading courses…</p>
+        <div className="rounded-2xl border bg-card/60 py-16 text-center text-sm text-muted-foreground">
+          Loading exam prep courses…
+        </div>
       )}
 
       {!loading && pathwayLocked && (
-        <Card className="border-amber-200/70 bg-amber-500/[0.04]">
-          <CardContent className="flex flex-col items-center gap-4 py-12 text-center">
-            <span className="flex size-14 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-700">
+        <Card className="overflow-hidden border-amber-200/80 bg-[linear-gradient(180deg,rgba(245,158,11,0.06),transparent)] shadow-sm">
+          <CardContent className="flex flex-col items-center gap-4 py-14 text-center">
+            <span className="flex size-14 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-700 ring-1 ring-amber-500/20">
               <Lock className="size-7" />
             </span>
             <div className="max-w-md space-y-2">
-              <p className="text-lg font-semibold">Pathway required</p>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-lg font-semibold tracking-tight">Pathway required</p>
+              <p className="text-sm leading-relaxed text-muted-foreground">
                 Assign an immigration pathway in the workspace before assigning exam prep courses to this client.
               </p>
             </div>
             <Button asChild className="rounded-xl">
-              <Link href={`/dashboard/clients/${id}/workspace/pathway-calculator`}>Open pathway calculator</Link>
+              <Link href={`/dashboard/clients/${id}/workspace/pathway-calculator`}>
+                Open pathway calculator
+              </Link>
             </Button>
           </CardContent>
         </Card>
@@ -147,28 +169,50 @@ export default function ClientLmsPage({ params }: { params: Promise<{ id: string
 
       {!loading && !pathwayLocked && (
         <div className="space-y-6">
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div className="rounded-2xl border bg-card p-4 shadow-sm">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Assigned</p>
+              <p className="mt-1 text-2xl font-semibold tabular-nums">{assignments.length}</p>
+            </div>
+            <div className="rounded-2xl border bg-card p-4 shadow-sm">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Avg progress</p>
+              <p className="mt-1 text-2xl font-semibold tabular-nums">{avgProgress}%</p>
+            </div>
+            <div className="rounded-2xl border bg-card p-4 shadow-sm">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Catalog</p>
+              <p className="mt-1 text-sm text-muted-foreground">Client exam courses only</p>
+            </div>
+          </div>
+
           <LmsAvailableCoursePicker
             courses={courses}
             courseId={courseId}
             onCourseIdChange={setCourseId}
             onAssign={() => void assign()}
+            assignBusy={assignBusy}
             assignedCourseIds={assignments.map((a) => a.course?.id).filter(Boolean) as number[]}
           />
 
           <div>
             <div className="mb-4 flex items-center justify-between gap-2">
-              <h2 className="text-base font-semibold">Assigned exam courses</h2>
-              <span className="text-xs text-muted-foreground">
+              <div>
+                <h2 className="text-base font-semibold tracking-tight">Assigned exam courses</h2>
+                <p className="text-xs text-muted-foreground">Track progress and quiz results for this client.</p>
+              </div>
+              <Badge variant="outline" className="gap-1 rounded-full">
+                <Sparkles className="size-3 text-emerald-600" />
                 {assignments.length} course{assignments.length === 1 ? "" : "s"}
-              </span>
+              </Badge>
             </div>
 
             {assignments.length === 0 ? (
-              <div className="flex flex-col items-center justify-center rounded-xl border border-dashed bg-muted/20 py-14 text-center">
-                <GraduationCap className="mb-3 h-10 w-10 text-muted-foreground/40" />
-                <p className="text-sm font-medium text-muted-foreground">No courses assigned yet</p>
-                <p className="mt-1 max-w-sm text-xs text-muted-foreground/80">
-                  Select a course above and click Assign to add exam prep for this client.
+              <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed bg-muted/20 py-16 text-center">
+                <span className="mb-3 flex size-12 items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-700">
+                  <GraduationCap className="size-6" />
+                </span>
+                <p className="text-sm font-medium">No courses assigned yet</p>
+                <p className="mt-1 max-w-sm text-xs text-muted-foreground">
+                  Select a published course above and assign it to start this client&apos;s exam prep.
                 </p>
               </div>
             ) : (

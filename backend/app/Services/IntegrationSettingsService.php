@@ -125,7 +125,7 @@ class IntegrationSettingsService
         ],
         'openai' => [
             'label'       => 'OpenAI',
-            'description' => 'Shared API key for Legislation Hub, Maple, and RCIC Academy / LMS AI (research cross-check and course generation).',
+            'description' => 'Shared API key for Legislation Hub, Maple, and AI Course Factory.',
             'secrets'     => ['api_key'],
             'fields'      => ['api_key', 'enabled', 'model', 'workspace_enabled', 'workspace_model'],
             'env'         => [
@@ -137,17 +137,17 @@ class IntegrationSettingsService
             ],
         ],
         'manus' => [
-            'label'       => 'Manus (Academy research)',
-            'description' => 'Optional research-only provider for Exam Evidence Packs. Manus notes never write Exam Master and never publish courses. OpenAI still does independent verification and generation.',
+            'label'       => 'Manus (Course Factory research)',
+            'description' => 'Deep research provider for AI Course Factory. Keys stay server-side. OpenAI still handles generation and validation.',
             'secrets'     => ['api_key'],
             'fields'      => ['api_key', 'enabled', 'fallback', 'base_url', 'agent_profile', 'webhook_url'],
             'env'         => [
                 'api_key'       => 'MANUS_API_KEY',
-                'enabled'       => 'ACADEMY_MANUS_ENABLED',
-                'fallback'      => 'ACADEMY_MANUS_FALLBACK',
-                'base_url'      => 'ACADEMY_MANUS_BASE_URL',
-                'agent_profile' => 'ACADEMY_MANUS_AGENT_PROFILE',
-                'webhook_url'   => 'ACADEMY_MANUS_WEBHOOK_URL',
+                'enabled'       => 'COURSE_FACTORY_MANUS_ENABLED',
+                'fallback'      => 'COURSE_FACTORY_MANUS_FALLBACK',
+                'base_url'      => 'MANUS_API_BASE_URL',
+                'agent_profile' => 'MANUS_AGENT_PROFILE',
+                'webhook_url'   => 'MANUS_WEBHOOK_URL',
             ],
         ],
     ];
@@ -476,7 +476,7 @@ class IntegrationSettingsService
     {
         if (! empty($v['api_key'])) {
             config(['services.openai.key' => $v['api_key']]);
-            config(['academy_ai.openai.key' => $v['api_key']]);
+            config(['course_factory.openai.key' => $v['api_key']]);
         }
 
         if (array_key_exists('enabled', $v)) {
@@ -500,28 +500,20 @@ class IntegrationSettingsService
     /** @param array<string, mixed> $v */
     private function applyManus(array $v): void
     {
-        if (array_key_exists('enabled', $v) && $v['enabled'] !== null && $v['enabled'] !== '') {
-            config(['academy_ai.manus.enabled' => $this->envBool($v['enabled'])]);
-        }
-
         if (! empty($v['api_key'])) {
-            config(['academy_ai.manus.api_key' => $v['api_key']]);
+            config(['course_factory.manus.api_key' => $v['api_key']]);
         }
 
         if (! empty($v['base_url'])) {
-            config(['academy_ai.manus.base_url' => $v['base_url']]);
+            config(['course_factory.manus.base_url' => rtrim((string) $v['base_url'], '/')]);
         }
 
         if (! empty($v['agent_profile'])) {
-            config(['academy_ai.manus.agent_profile' => $v['agent_profile']]);
-        }
-
-        if (! empty($v['fallback'])) {
-            config(['academy_ai.manus.fallback' => $v['fallback']]);
+            config(['course_factory.manus.agent_profile' => $v['agent_profile']]);
         }
 
         if (! empty($v['webhook_url'])) {
-            config(['academy_ai.manus.webhook_url' => $v['webhook_url']]);
+            config(['course_factory.manus.webhook_url' => $v['webhook_url']]);
         }
     }
 

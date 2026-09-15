@@ -96,8 +96,26 @@ class AdminLmsController extends Controller
             'thumbnail_url' => 'nullable|url|max:500',
             'is_published'  => 'nullable|boolean',
             'sort_order'    => 'nullable|integer|min:0',
+            'price_cad'     => 'nullable|numeric|min:0',
+            'price_cents'   => 'nullable|integer|min:0',
+            'currency'      => 'nullable|string|in:CAD',
+            'access_months' => 'nullable|integer|min:1|max:60',
+            'commerce_confirmed' => 'nullable|boolean',
         ]);
         $data['slug'] = Str::slug($data['title']);
+        $data['currency'] = 'CAD';
+        if (array_key_exists('price_cents', $data) && $data['price_cents'] !== null) {
+            // keep cents
+        } elseif (array_key_exists('price_cad', $data) && $data['price_cad'] !== null) {
+            $data['price_cents'] = (int) round(((float) $data['price_cad']) * 100);
+        }
+        unset($data['price_cad']);
+        if (! empty($data['price_cents']) && ! array_key_exists('commerce_confirmed', $data)) {
+            $data['commerce_confirmed'] = true;
+        }
+        if (! array_key_exists('access_months', $data) || $data['access_months'] === null) {
+            $data['access_months'] = (int) config('learning.default_access_months', 3);
+        }
         $course = LmsCourse::create($data);
         return response()->json($course->load('category'), 201);
     }
@@ -111,9 +129,26 @@ class AdminLmsController extends Controller
             'thumbnail_url' => 'nullable|url|max:500',
             'is_published'  => 'nullable|boolean',
             'sort_order'    => 'nullable|integer|min:0',
+            'price_cad'     => 'nullable|numeric|min:0',
+            'price_cents'   => 'nullable|integer|min:0',
+            'currency'      => 'nullable|string|in:CAD',
+            'access_months' => 'nullable|integer|min:1|max:60',
+            'commerce_confirmed' => 'nullable|boolean',
         ]);
         if (isset($data['title'])) {
             $data['slug'] = Str::slug($data['title']);
+        }
+        $data['currency'] = 'CAD';
+        if (array_key_exists('price_cents', $data)) {
+            // keep
+        } elseif (array_key_exists('price_cad', $data)) {
+            $data['price_cents'] = $data['price_cad'] === null
+                ? null
+                : (int) round(((float) $data['price_cad']) * 100);
+        }
+        unset($data['price_cad']);
+        if (array_key_exists('price_cents', $data) && $data['price_cents'] && ! array_key_exists('commerce_confirmed', $data)) {
+            $data['commerce_confirmed'] = true;
         }
         $course->update($data);
         return response()->json($course->fresh()->load('category'));

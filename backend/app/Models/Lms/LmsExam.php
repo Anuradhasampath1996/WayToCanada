@@ -4,7 +4,6 @@ namespace App\Models\Lms;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class LmsExam extends Model
 {
@@ -32,18 +31,13 @@ class LmsExam extends Model
         ];
     }
 
-    public function evidencePacks(): HasMany
+    public function questions(): HasMany
     {
-        return $this->hasMany(LmsExamEvidencePack::class, 'exam_id');
+        return $this->hasMany(LmsExamQuestion::class, 'exam_id');
     }
 
-    public function latestEvidencePack(): HasOne
+    public function templates(): HasMany
     {
-        return $this->hasOne(LmsExamEvidencePack::class, 'exam_id')->latestOfMany();
-    }
-
-    public function fieldAudits(): HasMany
-    {
-        return $this->hasMany(LmsExamFieldAudit::class, 'exam_id');
+        return $this->hasMany(LmsExamTemplate::class, 'exam_id');
     }
 }

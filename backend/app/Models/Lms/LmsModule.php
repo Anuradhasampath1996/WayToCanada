@@ -12,7 +12,18 @@ class LmsModule extends Model
 
     protected $table = 'lms_modules';
 
-    protected $fillable = ['course_id', 'title', 'sort_order'];
+    protected $fillable = [
+        'course_id', 'title', 'sort_order', 'description', 'objectives_json',
+        'competency_map_json', 'study_minutes',
+    ];
+
+    protected function casts(): array
+    {
+        return [
+            'objectives_json' => 'array',
+            'competency_map_json' => 'array',
+        ];
+    }
 
     public function course(): BelongsTo
     {

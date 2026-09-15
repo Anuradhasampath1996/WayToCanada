@@ -39,6 +39,10 @@ type QuizItem = {
 type HomeworkItem = { id: number; title: string; instructions?: string; max_score: number };
 type CourseDetail = {
   id: number; title: string; thumbnail_url?: string | null;
+  price_cents?: number | null;
+  currency?: string | null;
+  access_months?: number | null;
+  commerce_confirmed?: boolean;
   modules: { id: number; title: string; lessons: { id: number; title: string; lesson_type: string }[] }[];
   quizzes: QuizItem[];
   homework: HomeworkItem[];
@@ -80,10 +84,20 @@ export function LmsCourseBuilder({
   const [hwEditorKey, setHwEditorKey] = React.useState(0);
   const [thumbnailUrl, setThumbnailUrl] = React.useState(course.thumbnail_url ?? "");
   const [thumbnailUploading, setThumbnailUploading] = React.useState(false);
+  const [priceCad, setPriceCad] = React.useState(
+    course.price_cents != null ? (course.price_cents / 100).toFixed(2) : ""
+  );
+  const [accessMonths, setAccessMonths] = React.useState(String(course.access_months || 3));
+  const [pricingBusy, setPricingBusy] = React.useState(false);
 
   React.useEffect(() => {
     setThumbnailUrl(course.thumbnail_url ?? "");
   }, [course.thumbnail_url]);
+
+  React.useEffect(() => {
+    setPriceCad(course.price_cents != null ? (course.price_cents / 100).toFixed(2) : "");
+    setAccessMonths(String(course.access_months || 3));
+  }, [course.price_cents, course.access_months]);
 
   const loadBank = React.useCallback(async () => {
     const res = await fetch(`${API}/admin/lms/courses/${course.id}/question-bank`, { headers: adminAuthHeaders() });
@@ -99,6 +113,32 @@ export function LmsCourseBuilder({
       body: JSON.stringify({ thumbnail_url: thumbnailUrl || null }),
     });
     onRefresh();
+  }
+
+  async function savePricing() {
+    setPricingBusy(true);
+    try {
+      const priceTrim = priceCad.trim();
+      const body: Record<string, unknown> = {
+        currency: "CAD",
+        access_months: Number(accessMonths) || 3,
+      };
+      if (priceTrim === "") {
+        body.price_cad = null;
+        body.commerce_confirmed = false;
+      } else {
+        body.price_cad = Number(priceTrim);
+        body.commerce_confirmed = Number(priceTrim) > 0;
+      }
+      await fetch(`${API}/admin/lms/courses/${course.id}`, {
+        method: "PUT",
+        headers: { ...adminAuthHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      onRefresh();
+    } finally {
+      setPricingBusy(false);
+    }
   }
 
   async function uploadThumbnail(file: File) {
@@ -260,6 +300,43 @@ export function LmsCourseBuilder({
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
+        <div className="rounded-xl border p-4 bg-emerald-50/40 space-y-3">
+          <p className="font-semibold text-sm">Pricing (CAD)</p>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="course-price-cad">Price</Label>
+              <Input
+                id="course-price-cad"
+                type="number"
+                min="0"
+                step="0.01"
+                inputMode="decimal"
+                value={priceCad}
+                onChange={(e) => setPriceCad(e.target.value)}
+                placeholder="e.g. 199.00"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="course-access-months">Access months</Label>
+              <Input
+                id="course-access-months"
+                type="number"
+                min="1"
+                max="60"
+                value={accessMonths}
+                onChange={(e) => setAccessMonths(e.target.value)}
+              />
+            </div>
+            <div className="flex items-end">
+              <Button onClick={savePricing} disabled={pricingBusy}>
+                {pricingBusy ? "Saving…" : "Save price"}
+              </Button>
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Currency is CAD. Saving a price marks the course ready for checkout.
+          </p>
+        </div>
         <div className="rounded-xl border p-4 bg-muted/20 space-y-4">
           <div className="flex items-center gap-2">
             <ImageIcon className="h-4 w-4 text-emerald-600" />

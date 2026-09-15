@@ -35,6 +35,7 @@ const NAV_PERMISSION: Record<string, string> = {
   "/dashboard/storage": "storage.view",
   "/dashboard/marketing": "marketing.view",
   "/dashboard/rcic-community": "community.view",
+  "/dashboard/lms": "lms.view",
 };
 
 export function readTeamSession(user: { team?: TeamSession | null; roles?: string[] } | null | undefined): TeamSession | null {

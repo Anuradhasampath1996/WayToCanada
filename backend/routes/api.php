@@ -27,11 +27,10 @@ use App\Http\Controllers\Admin\AdminConsultantSubscriptionsController;
 use App\Http\Controllers\Admin\AdminSubscriptionPaymentsController;
 use App\Http\Controllers\Admin\AdminPlatformCompanyController;
 use App\Http\Controllers\Admin\AdminLmsController;
-use App\Http\Controllers\Admin\AdminLearningExamController;
-use App\Http\Controllers\Admin\AdminLmsAiController;
+use App\Http\Controllers\Admin\AdminCourseFactoryController;
 use App\Http\Controllers\MeController;
 use App\Http\Controllers\LearningCourseCheckoutController;
-use App\Http\Controllers\Webhooks\ManusAcademyWebhookController;
+use App\Http\Controllers\Webhooks\ManusCourseFactoryWebhookController;
 use App\Http\Controllers\Consultant\ConsultantLmsController;
 use App\Http\Controllers\Consultant\ConsultantPaymentAccountController;
 use App\Http\Controllers\Consultant\ConsultantClientPaymentRequestController;
@@ -196,9 +195,9 @@ Route::get('webhooks/whatsapp', [WhatsAppWebhookController::class, 'verify'])
 Route::post('webhooks/whatsapp', [WhatsAppWebhookController::class, 'handle'])
     ->name('webhooks.whatsapp.handle');
 
-Route::post('webhooks/manus/academy-research', [ManusAcademyWebhookController::class, 'handle'])
+Route::post('webhooks/manus/course-factory', [ManusCourseFactoryWebhookController::class, 'handle'])
     ->middleware('throttle:60,1')
-    ->name('webhooks.manus.academy-research');
+    ->name('webhooks.manus.course-factory');
 
 // ── Authentication (Google OAuth + email/password) ───────────────────────────
 Route::prefix('auth')->group(function () {
@@ -262,6 +261,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::patch('me/locale', [MeController::class, 'updateLocale'])->name('me.locale');
     Route::get('learning/i18n', [MeController::class, 'dictionaries'])->name('learning.i18n');
     Route::post('learning/checkout', [LearningCourseCheckoutController::class, 'store'])->name('learning.checkout');
+    Route::post('learning/checkout/verify', [LearningCourseCheckoutController::class, 'verify'])->name('learning.checkout.verify');
     Route::post('logout', [AuthController::class, 'logout'])->name('auth.logout');
 
     // ── In-app notifications (all authenticated users) ────────────────────────
@@ -672,6 +672,14 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
     Route::get('consultant/lms/courses', [ConsultantLmsController::class, 'availableCourses'])->name('consultant.lms.courses');
+    Route::get('consultant/lms/client-courses', [ConsultantLmsController::class, 'availableClientCourses'])->name('consultant.lms.client-courses');
+    Route::get('consultant/lms/courses/{course}', [ConsultantLmsController::class, 'showCourse'])->name('consultant.lms.courses.show');
+    Route::post('consultant/lms/courses/{course}/start', [ConsultantLmsController::class, 'startLearning'])->name('consultant.lms.courses.start');
+    Route::get('consultant/lms/assignments/{assignment}', [ConsultantLmsController::class, 'showAssignment'])->name('consultant.lms.assignments.show');
+    Route::post('consultant/lms/assignments/{assignment}/lessons/{lesson}/complete', [ConsultantLmsController::class, 'completeLesson'])->name('consultant.lms.lessons.complete');
+    Route::get('consultant/lms/assignments/{assignment}/quizzes/{quiz}', [ConsultantLmsController::class, 'showQuiz'])->name('consultant.lms.quizzes.show');
+    Route::post('consultant/lms/assignments/{assignment}/quizzes/{quiz}/submit', [ConsultantLmsController::class, 'submitQuiz'])->name('consultant.lms.quizzes.submit');
+    Route::post('consultant/lms/assignments/{assignment}/homework/{homework}/submit', [ConsultantLmsController::class, 'submitHomework'])->name('consultant.lms.homework.submit');
 
     Route::any('consultant/academy/{path?}', function () {
         return response()->json(['message' => 'RCIC Academy has been removed from this platform.'], 410);
@@ -707,29 +715,22 @@ Route::middleware('auth:sanctum')->group(function () {
         // Overview stats
         Route::get('stats', [AdminStatsController::class, 'index'])->name('stats');
 
+        Route::prefix('course-factory')->name('course-factory.')->group(function () {
+            Route::get('/', [AdminCourseFactoryController::class, 'index']);
+            Route::post('/', [AdminCourseFactoryController::class, 'store']);
+            Route::get('settings', [AdminCourseFactoryController::class, 'settings']);
+            Route::get('{run}', [AdminCourseFactoryController::class, 'show']);
+            Route::put('{run}', [AdminCourseFactoryController::class, 'update']);
+            Route::delete('{run}', [AdminCourseFactoryController::class, 'destroy']);
+            Route::get('{run}/events', [AdminCourseFactoryController::class, 'events']);
+            Route::post('{run}/cancel', [AdminCourseFactoryController::class, 'cancel']);
+            Route::post('{run}/resume', [AdminCourseFactoryController::class, 'resume']);
+            Route::post('{run}/retry-step', [AdminCourseFactoryController::class, 'retryStep']);
+            Route::post('{run}/publish', [AdminCourseFactoryController::class, 'publish']);
+        });
+
         Route::prefix('learning')->name('learning.')->group(function () {
-            Route::get('catalog', [AdminLearningExamController::class, 'catalog']);
-            Route::get('exams', [AdminLearningExamController::class, 'index']);
-            Route::post('exams', [AdminLearningExamController::class, 'store']);
-            Route::get('exams/{exam}', [AdminLearningExamController::class, 'show']);
-            Route::put('exams/{exam}', [AdminLearningExamController::class, 'update']);
-            Route::post('exams/{exam}/structure', [AdminLearningExamController::class, 'assertStructure']);
-            Route::post('exams/{exam}/official-structure', [AdminLearningExamController::class, 'confirmOfficialStructure']);
-            Route::post('exams/{exam}/research', [AdminLearningExamController::class, 'recordResearch']);
-            Route::post('exams/{exam}/sources', [AdminLearningExamController::class, 'addSource']);
-            Route::post('exams/{exam}/sources/{item}/verify', [AdminLearningExamController::class, 'verifySource']);
-            Route::post('exams/{exam}/sources/{item}/disable', [AdminLearningExamController::class, 'disableSource']);
-            Route::get('exams/{exam}/sources/{item}/snapshot', [AdminLearningExamController::class, 'snapshot']);
-            Route::post('exams/{exam}/evidence-pack/approve', [AdminLearningExamController::class, 'approvePack']);
-            Route::post('exams/{exam}/generate-course', [AdminLearningExamController::class, 'generateCourse']);
-            Route::post('lms-ai-jobs', [AdminLmsAiController::class, 'store']);
-            Route::get('lms-ai-jobs/{lmsAiJob}', [AdminLmsAiController::class, 'show']);
-            Route::post('lms-ai-jobs/{lmsAiJob}/approve-blueprint', [AdminLmsAiController::class, 'approveBlueprint']);
-            Route::post('lms-ai-jobs/{lmsAiJob}/retry', [AdminLmsAiController::class, 'retry']);
-            Route::post('lms-ai-jobs/{lmsAiJob}/publish', [AdminLmsAiController::class, 'publishDenied']);
-            Route::get('exams/{exam}/questions', [AdminLearningExamController::class, 'questionBank']);
-            Route::post('exams/{exam}/questions', [AdminLearningExamController::class, 'storeQuestion']);
-            Route::post('exams/{exam}/mock-templates', [AdminLearningExamController::class, 'storeMockTemplate']);
+            // Legacy evidence-pack AI flow removed. Use /admin/course-factory.
         });
 
         Route::prefix('referral-program')->name('referral-program.')->group(function () {

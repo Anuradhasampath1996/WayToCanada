@@ -33,6 +33,7 @@ import {
   MessagesSquareIcon,
   RefreshCwIcon,
   ScaleIcon,
+  SparklesIcon,
   UsersIcon,
   WalletMinimalIcon,
   GiftIcon,
@@ -173,6 +174,13 @@ export const navItems: NavGroup[] = [
         icon: FileStackIcon,
         badge: "New",
         match: (p) => p.startsWith("/admindashboard/official-forms-sync"),
+      },
+      {
+        title: "AI Course Factory",
+        href: "/admindashboard/ai-course-factory",
+        icon: SparklesIcon,
+        badge: "New",
+        match: (p) => p.startsWith("/admindashboard/ai-course-factory"),
       },
       {
         title: "LMS Management",

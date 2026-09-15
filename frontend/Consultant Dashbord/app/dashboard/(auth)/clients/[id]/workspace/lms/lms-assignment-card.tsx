@@ -1,7 +1,7 @@
 "use client";
 
 import {
-  BookOpen, GraduationCap, Trash2, Trophy, ClipboardList,
+  BookOpen, GraduationCap, Trash2, Trophy, ClipboardList, Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -44,13 +44,22 @@ function courseThumbnail(assignment: LmsAssignmentItem): string | null {
 
 function categoryGradient(name?: string | null): string {
   if (!name) return "from-slate-600/80 via-slate-500/70 to-slate-700/80";
-  return CATEGORY_GRADIENTS[name.toUpperCase()] ?? "from-primary/80 via-primary/60 to-violet-600/80";
+  return CATEGORY_GRADIENTS[name.toUpperCase()] ?? "from-emerald-700/85 via-teal-700/75 to-slate-800/85";
 }
 
 function statusStyles(status: string): string {
   if (status === "completed") return "bg-emerald-600 text-white";
   if (status === "in_progress") return "bg-blue-600 text-white";
   return "bg-slate-800 text-white";
+}
+
+function money(cents?: number | null, currency?: string | null) {
+  if (cents == null) return null;
+  if (cents === 0) return "Free";
+  return new Intl.NumberFormat("en-CA", {
+    style: "currency",
+    currency: (currency || "CAD").toUpperCase(),
+  }).format(cents / 100);
 }
 
 export function LmsAssignmentGridCard({
@@ -68,14 +77,14 @@ export function LmsAssignmentGridCard({
   const passedCount = attempts.filter((q) => q.passed).length;
 
   return (
-    <article className="group overflow-hidden rounded-xl border bg-card shadow-sm transition-shadow hover:shadow-md">
+    <article className="group overflow-hidden rounded-2xl border border-border/70 bg-card shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:border-emerald-300/50 hover:shadow-md">
       <div className="relative h-36 w-full overflow-hidden bg-muted sm:h-40">
         {thumb ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={thumb}
             alt={title}
-            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
           />
         ) : (
           <div
@@ -88,7 +97,7 @@ export function LmsAssignmentGridCard({
             <span className="text-sm font-bold tracking-wide">{categoryName}</span>
           </div>
         )}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
         <Badge
           className={cn(
             "absolute left-2.5 top-2.5 border-0 text-[10px] font-semibold capitalize shadow",
@@ -126,7 +135,7 @@ export function LmsAssignmentGridCard({
         </div>
 
         {attempts.length > 0 && (
-          <div className="space-y-2 rounded-lg border bg-muted/30 p-2.5">
+          <div className="space-y-2 rounded-xl border bg-muted/30 p-2.5">
             <p className="flex items-center gap-1.5 text-xs font-semibold">
               <Trophy className="h-3.5 w-3.5 text-amber-600" />
               Quiz results
@@ -166,7 +175,7 @@ export function LmsAssignmentGridCard({
           <Button
             size="sm"
             variant="outline"
-            className="h-7 gap-1 text-xs text-red-600 hover:bg-red-50 hover:text-red-700"
+            className="h-7 gap-1 rounded-lg text-xs text-red-600 hover:bg-red-50 hover:text-red-700"
             onClick={() => onUnassign(assignment.id)}
           >
             <Trash2 className="h-3 w-3" />
@@ -184,42 +193,58 @@ export function LmsAvailableCoursePicker({
   onCourseIdChange,
   onAssign,
   assignedCourseIds,
+  assignBusy = false,
 }: {
   courses: {
     id: number;
     title: string;
     thumbnail_url?: string | null;
     description?: string | null;
+    price_cents?: number | null;
+    currency?: string | null;
     category?: { name: string } | null;
   }[];
   courseId: string;
   onCourseIdChange: (id: string) => void;
   onAssign: () => void;
   assignedCourseIds: number[];
+  assignBusy?: boolean;
 }) {
   const available = courses.filter((c) => !assignedCourseIds.includes(c.id));
 
   return (
-    <div className="rounded-xl border bg-card p-4 sm:p-5">
-      <div className="mb-4 flex items-center gap-2">
-        <ClipboardList className="h-4 w-4 text-emerald-600" />
-        <h2 className="text-base font-semibold">Assign a course</h2>
+    <div className="rounded-2xl border border-border/70 bg-card p-4 shadow-sm sm:p-5">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <span className="flex size-8 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-700">
+            <ClipboardList className="h-4 w-4" />
+          </span>
+          <div>
+            <h2 className="text-base font-semibold tracking-tight">Assign a course</h2>
+            <p className="text-xs text-muted-foreground">Choose a published client exam course for this applicant.</p>
+          </div>
+        </div>
       </div>
       {available.length === 0 ? (
-        <p className="text-sm text-muted-foreground">All published courses are already assigned to this client.</p>
+        <p className="rounded-xl border border-dashed bg-muted/20 px-4 py-8 text-center text-sm text-muted-foreground">
+          All published courses are already assigned to this client.
+        </p>
       ) : (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {available.map((c) => {
             const selected = courseId === String(c.id);
             const cat = c.category?.name ?? "Course";
+            const priceLabel = money(c.price_cents, c.currency);
             return (
               <button
                 key={c.id}
                 type="button"
                 onClick={() => onCourseIdChange(String(c.id))}
                 className={cn(
-                  "overflow-hidden rounded-lg border text-left transition-all hover:shadow-sm",
-                  selected ? "border-emerald-500 ring-2 ring-emerald-500/30" : "border-border hover:border-emerald-300",
+                  "overflow-hidden rounded-xl border text-left transition-all hover:shadow-sm",
+                  selected
+                    ? "border-emerald-500 ring-2 ring-emerald-500/25"
+                    : "border-border hover:border-emerald-300",
                 )}
               >
                 <div className="relative h-24 w-full overflow-hidden bg-muted">
@@ -234,6 +259,11 @@ export function LmsAvailableCoursePicker({
                   <Badge className="absolute left-2 top-2 border-0 bg-black/50 text-[9px] text-white backdrop-blur-sm">
                     {cat}
                   </Badge>
+                  {priceLabel ? (
+                    <Badge className="absolute right-2 top-2 border-0 bg-white/90 text-[9px] font-semibold text-slate-800">
+                      {priceLabel}
+                    </Badge>
+                  ) : null}
                 </div>
                 <div className="p-2.5">
                   <p className="line-clamp-2 text-xs font-semibold leading-snug">{c.title}</p>
@@ -247,10 +277,17 @@ export function LmsAvailableCoursePicker({
         <div className="mt-4 flex justify-end">
           <Button
             onClick={onAssign}
-            disabled={!courseId}
-            className="bg-emerald-600 hover:bg-emerald-700"
+            disabled={!courseId || assignBusy}
+            className="rounded-xl bg-emerald-700 hover:bg-emerald-800"
           >
-            Assign selected course
+            {assignBusy ? (
+              <>
+                <Loader2 className="mr-1.5 size-4 animate-spin" />
+                Assigning…
+              </>
+            ) : (
+              "Assign selected course"
+            )}
           </Button>
         </div>
       )}

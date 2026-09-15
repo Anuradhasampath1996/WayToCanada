@@ -104,7 +104,7 @@ Also confirm: agreement between models **without** an official source is **not**
 
 Copy usage/token totals from `academy_ai_usage_records` (no API keys).
 
-**This environment (2026-09-14):** OpenAI key empty → **NOT CONFIGURED**. Do not mark PASS.
+**This environment (2026-09-14 local `127.0.0.1:5432`, not production):** Admin Integrations OpenAI key present. Chat Completions ping **200**. Small live IRB job `academy_ai_generation_jobs.id=1` reached `draft_ready` with `generation_provider=openai` / `research_provider=openai` (8 draft lessons, 1 imported MCQ, 1 likely_duplicate; citations flagged unverified). **Did not** run the checklist 10/10/2 bank. **Do not mark `OPENAI REAL-PROVIDER SMOKE: PASS`.**
 
 ---
 
@@ -220,7 +220,7 @@ APIs: `POST /api/v1/consultant/academy/exams/{template}/attempts`, `GET .../atte
 11. Client LMS purchase (if run) does **not** create Academy entitlement.  
 12. Failed card; refund `charge.refunded` → grant inactive; progress/history rows remain.
 
-**This environment:** Stripe keys missing → **NOT CONFIGURED**. Do not write `STRIPE TEST-MODE E2E: PASS`.
+**This environment:** Stripe gateway row is `mode=test` but **secret and publishable keys empty**. Checkout/webhook E2E **not run**. **NOT CONFIGURED**. Do not write `STRIPE TEST-MODE E2E: PASS`.
 
 ---
 
@@ -244,7 +244,7 @@ Admin Exams → **Client LMS** → create **Canadian Citizenship Test** (`genera
 
 Code path (mocked PHPUnit **PASS**, not a live smoke): `POST /api/v1/admin/learning/exams/{id}/generate-course?product_domain=client_lms` persists `lms_ai_generation_jobs`, pauses for human blueprint approval (`POST /api/v1/admin/learning/lms-ai-jobs/{id}/approve-blueprint`), then `LmsAiDraftImporter` writes draft `db_lms` rows. Do **not** mark `CITIZENSHIP AI SMOKE: PASS` from that PHPUnit class.
 
-**This environment:** no OpenAI key → live citizenship generate **FAIL**. Mocked factory does not change this mark.
+**This environment:** small live citizenship job `lms_ai_generation_jobs.id=1` on local `db_lms` reached `draft_ready` (`openai` research+generation): 1 module, 2 lessons, 2 draft MCQs, course-question pivots, `random_pool` template, `review_status=content_review`, `is_published=false`, Academy course count unchanged. Checklist 10-MCQ bank **not** run. **Do not mark `CITIZENSHIP AI SMOKE: PASS`.**
 
 Suggested SQL (staging, after a run):
 

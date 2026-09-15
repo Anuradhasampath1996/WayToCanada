@@ -762,7 +762,7 @@ class StripePaymentFulfillmentService
         $userId = (int) ($metadata['learner_user_id'] ?? $metadata['user_id'] ?? 0);
         $courseId = (int) ($metadata['course_id'] ?? 0);
         $domain = (string) ($metadata['product_domain'] ?? '');
-        if ($userId < 1 || $courseId < 1 || ! in_array($domain, ['rcic_academy', 'client_lms'], true)) {
+        if ($userId < 1 || $courseId < 1 || ! in_array($domain, ['rcic_academy', 'client_lms', 'consultant_lms'], true)) {
             Log::warning('[Fulfillment] learning_course missing metadata', ['session' => $session->id ?? null]);
 
             return null;
@@ -802,7 +802,7 @@ class StripePaymentFulfillmentService
             );
         }
 
-        if ($domain === 'client_lms') {
+        if (in_array($domain, ['client_lms', 'consultant_lms'], true)) {
             LmsCourseAssignment::query()->updateOrCreate(
                 [
                     'client_user_id' => $userId,
@@ -846,7 +846,7 @@ class StripePaymentFulfillmentService
                 ->update(['is_active' => false]);
         }
 
-        if ($payment->product_domain === 'client_lms') {
+        if ($payment->product_domain === 'client_lms' || $payment->product_domain === 'consultant_lms') {
             LmsCourseAssignment::query()
                 ->where('client_user_id', $payment->learner_user_id)
                 ->where('course_id', $payment->course_id)

@@ -11,6 +11,8 @@ class LmsQuizBankQuestion extends Model
 
     protected $table = 'lms_quiz_bank_questions';
 
+    public $timestamps = false;
+
     protected $fillable = ['quiz_id', 'bank_question_id', 'sort_order'];
 
     public function quiz(): BelongsTo

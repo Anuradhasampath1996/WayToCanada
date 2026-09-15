@@ -49,7 +49,7 @@ class ClientLmsController extends Controller
         if (! $request->user()?->hasRole('client')) {
             abort(404);
         }
-        if (! $course->is_published || $course->access_mode !== 'free') {
+        if (! $course->is_published || ($course->audience ?? 'client') === 'consultant' || $course->access_mode !== 'free') {
             return response()->json(['message' => 'This course cannot be started for free.'], 422);
         }
         $assignment = LmsCourseAssignment::query()->updateOrCreate(
