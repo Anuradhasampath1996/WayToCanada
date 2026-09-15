@@ -150,6 +150,7 @@ class LmsAiGenerationTest extends TestCase
         $this->postJson('/api/v1/admin/learning/exams/'.$exam['id'].'/generate-course')
             ->assertStatus(422)
             ->assertJsonPath('code', 'profile_domain_mismatch');
+        $this->postJson('/api/v1/admin/academy/courses', ['title' => 'Gone'])->assertStatus(410);
         $this->assertSame(0, AcademyAiGenerationJob::query()->where('generation_profile', 'citizenship_exam_prep')->count());
     }
 

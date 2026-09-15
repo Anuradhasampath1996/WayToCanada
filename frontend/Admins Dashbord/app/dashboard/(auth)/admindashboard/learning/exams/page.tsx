@@ -9,7 +9,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 const API = (process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000") + "/api/v1";
@@ -29,7 +28,7 @@ type Exam = {
 type Summary = Record<string, string | number | boolean | null>;
 
 export default function AdminLearningExamsPage() {
-  const [domain, setDomain] = useState("rcic_academy");
+  const [domain] = useState("client_lms");
   const [exams, setExams] = useState<Exam[]>([]);
   const [open, setOpen] = useState<number | null>(null);
   const [detail, setDetail] = useState<{ exam?: Exam; evidence_summary?: Summary } | null>(null);
@@ -39,8 +38,6 @@ export default function AdminLearningExamsPage() {
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [lmsJobId, setLmsJobId] = useState<number | null>(null);
-
-  const isLms = domain === "client_lms";
 
   async function loadList() {
     setError(null);
@@ -57,14 +54,12 @@ export default function AdminLearningExamsPage() {
   useEffect(() => {
     setOpen(null);
     setDetail(null);
-    setName(isLms ? "Canadian Citizenship Test" : "RCIC-IRB Specialization Exam");
+    setName("Canadian Citizenship Test");
     setSourceUrl(
-      isLms
-        ? "https://www.canada.ca/en/immigration-refugees-citizenship/services/canadian-citizenship.html"
-        : "https://college-ic.ca"
+      "https://www.canada.ca/en/immigration-refugees-citizenship/services/canadian-citizenship.html"
     );
     loadList();
-  }, [domain]);
+  }, []);
 
   async function loadExam(id: number) {
     setOpen(id);
@@ -98,7 +93,7 @@ export default function AdminLearningExamsPage() {
         headers: headers(),
         body: JSON.stringify({
           name,
-          generation_profile: isLms ? "citizenship_exam_prep" : "rcic_exam_prep",
+          generation_profile: "citizenship_exam_prep",
         }),
       });
       const json = await res.json();
@@ -133,19 +128,9 @@ export default function AdminLearningExamsPage() {
           Exam Master
         </h1>
         <p className="text-muted-foreground text-sm mt-1">
-          Create an exam, add official sources, then generate a draft course. AI never publishes.{" "}
-          <a className="underline" href="/admindashboard/academy/ai-studio">
-            Guided course builder
-          </a>
+          Create a Client LMS exam, add official sources, then generate a draft course. AI never publishes.
         </p>
       </div>
-
-      <Tabs value={domain} onValueChange={setDomain}>
-        <TabsList>
-          <TabsTrigger value="rcic_academy">RCIC Academy</TabsTrigger>
-          <TabsTrigger value="client_lms">Client LMS</TabsTrigger>
-        </TabsList>
-      </Tabs>
 
       {error ? (
         <Alert variant="destructive">
@@ -162,9 +147,7 @@ export default function AdminLearningExamsPage() {
         <CardHeader>
           <CardTitle className="text-base">Create exam</CardTitle>
           <CardDescription>
-            {isLms
-              ? "Client marketplace exams such as Citizenship. This does not write RCIC Academy courses."
-              : "RCIC Academy exams such as IRB specialization."}
+            Client marketplace exams such as Citizenship.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-wrap items-end gap-3">
@@ -270,39 +253,27 @@ export default function AdminLearningExamsPage() {
                     onClick={() =>
                       post(
                         "/generate-course",
-                        isLms
-                          ? {
-                              title: `${detail?.exam?.name ?? "Citizenship"} draft`,
-                              generate_lessons: true,
-                              generate_independent_mcqs: true,
-                              generate_cases: false,
-                              generate_case_mcqs: false,
-                              independent_count: 10,
-                              case_based_count: 0,
-                              case_count: 0,
-                              module_count: 1,
-                              lesson_count: 2,
-                              mock_question_count: 10,
-                              include_mock: true,
-                            }
-                          : {
-                              title: `${detail?.exam?.name ?? "IRB"} draft`,
-                              generate_lessons: true,
-                              generate_independent_mcqs: true,
-                              generate_cases: true,
-                              generate_case_mcqs: true,
-                              independent_count: 10,
-                              case_based_count: 10,
-                              case_count: 2,
-                              include_mock: true,
-                            },
+                        {
+                          title: `${detail?.exam?.name ?? "Citizenship"} draft`,
+                          generate_lessons: true,
+                          generate_independent_mcqs: true,
+                          generate_cases: false,
+                          generate_case_mcqs: false,
+                          independent_count: 10,
+                          case_based_count: 0,
+                          case_count: 0,
+                          module_count: 1,
+                          lesson_count: 2,
+                          mock_question_count: 10,
+                          include_mock: true,
+                        },
                         "Draft generation started. AI will not publish."
                       )
                     }
                   >
                     Generate draft course
                   </Button>
-                  {isLms && lmsJobId ? (
+                  {lmsJobId ? (
                     <Button
                       variant="outline"
                       disabled={busy}

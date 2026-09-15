@@ -27,15 +27,12 @@ use App\Http\Controllers\Admin\AdminConsultantSubscriptionsController;
 use App\Http\Controllers\Admin\AdminSubscriptionPaymentsController;
 use App\Http\Controllers\Admin\AdminPlatformCompanyController;
 use App\Http\Controllers\Admin\AdminLmsController;
-use App\Http\Controllers\Admin\AdminAcademyController;
-use App\Http\Controllers\Admin\AdminAcademyAiController;
 use App\Http\Controllers\Admin\AdminLearningExamController;
 use App\Http\Controllers\Admin\AdminLmsAiController;
 use App\Http\Controllers\MeController;
 use App\Http\Controllers\LearningCourseCheckoutController;
 use App\Http\Controllers\Webhooks\ManusAcademyWebhookController;
 use App\Http\Controllers\Consultant\ConsultantLmsController;
-use App\Http\Controllers\Consultant\ConsultantAcademyController;
 use App\Http\Controllers\Consultant\ConsultantPaymentAccountController;
 use App\Http\Controllers\Consultant\ConsultantClientPaymentRequestController;
 use App\Http\Controllers\Consultant\ConsultantMeetingAccountController;
@@ -676,38 +673,9 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('consultant/lms/courses', [ConsultantLmsController::class, 'availableCourses'])->name('consultant.lms.courses');
 
-    Route::prefix('consultant/academy')->name('consultant.academy.')->group(function () {
-        Route::get('dashboard', [ConsultantAcademyController::class, 'dashboard']);
-        Route::get('tracks', [ConsultantAcademyController::class, 'tracks']);
-        Route::get('courses', [ConsultantAcademyController::class, 'courses']);
-        Route::get('courses/{course}', [ConsultantAcademyController::class, 'showCourse']);
-        Route::post('courses/{course}/switch-latest', [ConsultantAcademyController::class, 'switchCourseVersion']);
-        Route::post('courses/{course}/lessons/{lesson}/complete', [ConsultantAcademyController::class, 'completeLesson']);
-        Route::get('lessons/{lesson}', [ConsultantAcademyController::class, 'showLesson']);
-        Route::post('practice/sessions', [ConsultantAcademyController::class, 'startPractice']);
-        Route::get('practice/sessions/{practice}', [ConsultantAcademyController::class, 'showPractice']);
-        Route::post('practice/sessions/{practice}/answers', [ConsultantAcademyController::class, 'answerPractice']);
-        Route::get('cases/{case}', [ConsultantAcademyController::class, 'showCase']);
-        Route::get('exams', [ConsultantAcademyController::class, 'exams']);
-        Route::post('exams/{template}/attempts', [ConsultantAcademyController::class, 'startExam']);
-        Route::get('exams/attempts/{attempt}', [ConsultantAcademyController::class, 'showExam']);
-        Route::put('exams/attempts/{attempt}/answers', [ConsultantAcademyController::class, 'saveExamAnswer']);
-        Route::post('exams/attempts/{attempt}/submit', [ConsultantAcademyController::class, 'submitExam']);
-        Route::get('exams/attempts/{attempt}/results', [ConsultantAcademyController::class, 'examResults']);
-        Route::get('analytics', [ConsultantAcademyController::class, 'analytics']);
-        Route::get('bookmarks', [ConsultantAcademyController::class, 'bookmarks']);
-        Route::post('bookmarks', [ConsultantAcademyController::class, 'storeBookmark']);
-        Route::delete('bookmarks/{bookmark}', [ConsultantAcademyController::class, 'destroyBookmark']);
-        Route::get('notes', [ConsultantAcademyController::class, 'notes']);
-        Route::post('notes', [ConsultantAcademyController::class, 'storeNote']);
-        Route::put('notes/{note}', [ConsultantAcademyController::class, 'updateNote']);
-        Route::delete('notes/{note}', [ConsultantAcademyController::class, 'destroyNote']);
-        Route::get('planner', [ConsultantAcademyController::class, 'planner']);
-        Route::put('planner', [ConsultantAcademyController::class, 'savePlanner']);
-        Route::get('sources', [ConsultantAcademyController::class, 'sources']);
-        Route::get('sources/{source}', [ConsultantAcademyController::class, 'showSource']);
-        Route::post('questions/{question}/report', [ConsultantAcademyController::class, 'reportQuestion']);
-    });
+    Route::any('consultant/academy/{path?}', function () {
+        return response()->json(['message' => 'RCIC Academy has been removed from this platform.'], 410);
+    })->where('path', '.*');
 
     // ── RCIC Community (consultant peer forum) ───────────────────────────────
     Route::prefix('consultant/rcic-community')->name('consultant.rcic-community.')->group(function () {
@@ -1069,66 +1037,9 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::delete('homework/{homework}', [AdminLmsController::class, 'homeworkDestroy'])->name('homework.destroy');
         });
 
-        Route::prefix('academy')->name('academy.')->group(function () {
-            Route::get('dashboard', [AdminAcademyController::class, 'dashboard']);
-            Route::get('tracks', [AdminAcademyController::class, 'tracks']);
-            Route::get('topics', [AdminAcademyController::class, 'topics']);
-            Route::post('topics', [AdminAcademyController::class, 'storeTopic']);
-            Route::get('competencies', [AdminAcademyController::class, 'competencies']);
-            Route::post('competencies', [AdminAcademyController::class, 'storeCompetency']);
-            Route::get('sources', [AdminAcademyController::class, 'sources']);
-            Route::post('sources', [AdminAcademyController::class, 'storeSource']);
-            Route::post('sources/{source}/transition', [AdminAcademyController::class, 'transitionSource']);
-            Route::post('sources/{source}/outdated', [AdminAcademyController::class, 'markSourceOutdated']);
-            Route::get('courses', [AdminAcademyController::class, 'courses']);
-            Route::post('courses', [AdminAcademyController::class, 'storeCourse']);
-            Route::get('courses/{course}', [AdminAcademyController::class, 'showCourse']);
-            Route::post('course-versions/{version}/modules', [AdminAcademyController::class, 'storeModule']);
-            Route::post('modules/{module}/lessons', [AdminAcademyController::class, 'storeLesson']);
-            Route::post('lessons/{lesson}/media', [AdminAcademyController::class, 'uploadLessonMedia']);
-            Route::post('courses/{course}/draft', [AdminAcademyController::class, 'newCourseDraft']);
-            Route::post('courses/{course}/versions/{version}/transition', [AdminAcademyController::class, 'transitionCourseVersion']);
-            Route::get('questions', [AdminAcademyController::class, 'questions']);
-            Route::post('questions', [AdminAcademyController::class, 'storeQuestion']);
-            Route::post('questions/{question}/draft', [AdminAcademyController::class, 'newQuestionDraft']);
-            Route::post('questions/{question}/versions/{version}/transition', [AdminAcademyController::class, 'transitionQuestionVersion']);
-            Route::post('source-links', [AdminAcademyController::class, 'linkSource']);
-            Route::get('cases', [AdminAcademyController::class, 'cases']);
-            Route::post('cases', [AdminAcademyController::class, 'storeCase']);
-            Route::post('case-versions/{version}/exhibits', [AdminAcademyController::class, 'storeExhibit']);
-            Route::post('case-versions/{version}/questions', [AdminAcademyController::class, 'attachCaseQuestion']);
-            Route::post('cases/{case}/versions/{version}/transition', [AdminAcademyController::class, 'transitionCaseVersion']);
-            Route::get('exam-templates', [AdminAcademyController::class, 'examTemplates']);
-            Route::post('exam-templates', [AdminAcademyController::class, 'storeExamTemplate']);
-            Route::put('exam-templates/{template}', [AdminAcademyController::class, 'updateExamTemplate']);
-            Route::post('entitlements', [AdminAcademyController::class, 'entitlements']);
-            Route::get('reports', [AdminAcademyController::class, 'reports']);
-            Route::get('outdated', [AdminAcademyController::class, 'outdated']);
-            Route::post('outdated/{flag}/resolve', [AdminAcademyController::class, 'resolveOutdated']);
-            Route::get('analytics', [AdminAcademyController::class, 'analytics']);
-
-            Route::prefix('ai')->middleware('throttle:30,1')->group(function () {
-                Route::get('bootstrap', [AdminAcademyAiController::class, 'bootstrap']);
-                Route::get('settings', [AdminAcademyAiController::class, 'settings']);
-                Route::put('settings', [AdminAcademyAiController::class, 'updateSettings']);
-                Route::get('usage', [AdminAcademyAiController::class, 'usage']);
-                Route::get('jobs', [AdminAcademyAiController::class, 'jobs']);
-                Route::post('jobs', [AdminAcademyAiController::class, 'storeJob']);
-                Route::get('jobs/{job}', [AdminAcademyAiController::class, 'showJob']);
-                Route::post('jobs/{job}/uploads', [AdminAcademyAiController::class, 'uploadSource']);
-                Route::put('jobs/{job}/blueprint', [AdminAcademyAiController::class, 'saveBlueprint']);
-                Route::post('jobs/{job}/approve-blueprint', [AdminAcademyAiController::class, 'approveBlueprint']);
-                Route::post('jobs/{job}/retry', [AdminAcademyAiController::class, 'retry']);
-                Route::post('jobs/{job}/cancel', [AdminAcademyAiController::class, 'cancel']);
-                Route::post('jobs/{job}/publish', [AdminAcademyAiController::class, 'publishDenied']);
-                Route::get('review-queue', [AdminAcademyAiController::class, 'reviewQueue']);
-                Route::post('items/{item}/content-review', [AdminAcademyAiController::class, 'sendToContentReview']);
-                Route::post('items/{item}/reject', [AdminAcademyAiController::class, 'rejectItem']);
-                Route::post('items/{item}/revalidate', [AdminAcademyAiController::class, 'revalidate']);
-                Route::post('items/{item}/regenerate', [AdminAcademyAiController::class, 'regenerateItem']);
-                Route::post('media/{media}/approve', [AdminAcademyAiController::class, 'approveMedia']);
-            });
-        });
+        Route::any('academy/{path?}', function () {
+            return response()->json(['message' => 'RCIC Academy has been removed from this platform.'], 410);
+        })->where('path', '.*');
     });
 });
 

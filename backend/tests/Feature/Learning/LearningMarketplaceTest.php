@@ -514,16 +514,13 @@ class LearningMarketplaceTest extends TestCase
         ]);
     }
 
-    public function test_academy_catalog_is_visible_without_subscription_as_buy_now(): void
+    public function test_academy_catalog_endpoint_is_gone(): void
     {
         $rcic = $this->makeConsultant();
-        $course = $this->publishedAcademyCourse('IRB Catalog Course', ['access_tier' => 'purchase', 'price_cents' => 9900, 'commerce_confirmed' => true]);
         Sanctum::actingAs($rcic);
         $this->getJson('/api/v1/consultant/academy/courses')
-            ->assertOk()
-            ->assertJsonPath('data.0.status_cta', 'buy_now')
-            ->assertJsonPath('data.0.course_id', $course->id);
-        $this->assertNull($this->getJson('/api/v1/consultant/academy/courses')->json('data.0.ratings'));
+            ->assertStatus(410)
+            ->assertJsonPath('message', 'RCIC Academy has been removed from this platform.');
     }
 
     public function test_lms_catalog_excludes_rcic_and_skips_pathway_gate(): void
