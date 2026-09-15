@@ -68,10 +68,10 @@ class AdminLearningExamController extends Controller
             'next_review_at' => $this->evidence->nextReviewAt($profile),
             'verification_interval_days' => config('learning.verification_intervals_days.'.$profile),
         ];
-        $exam = $domain === 'client_lms' ? LmsExam::query()->create($attrs) : AcademyExam::query()->create($attrs);
+        $exam = $this->findOrCreateExam($domain, $attrs, $key);
         $this->evidence->ensurePack($domain, (int) $exam->id);
 
-        return response()->json(['exam' => $exam], 201);
+        return response()->json(['exam' => $exam], $exam->wasRecentlyCreated ? 201 : 200);
     }
 
     public function show(Request $request, int $exam)
@@ -532,5 +532,29 @@ class AdminLearningExamController extends Controller
         $domain = $request->query('product_domain', $request->input('product_domain', 'rcic_academy'));
 
         return $domain === 'client_lms' ? 'client_lms' : 'rcic_academy';
+    }
+
+    /**
+     * @param  array<string, mixed>  $attrs
+     */
+    private function findOrCreateExam(string $domain, array $attrs, string $key): AcademyExam|LmsExam
+    {
+        $class = $domain === 'client_lms' ? LmsExam::class : AcademyExam::class;
+        $existing = $class::query()
+            ->where('key', $key)
+            ->orWhere('name', $attrs['name'])
+            ->first();
+        if ($existing) {
+            return $existing;
+        }
+
+        try {
+            return $class::query()->create($attrs);
+        } catch (\Illuminate\Database\UniqueConstraintViolationException) {
+            return $class::query()
+                ->where('key', $key)
+                ->orWhere('name', $attrs['name'])
+                ->firstOrFail();
+        }
     }
 }

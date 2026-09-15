@@ -35,7 +35,11 @@ async function jsonFetch(url: string, init?: RequestInit) {
   const res = await fetch(url, { headers: headers(), ...init });
   const json = await res.json().catch(() => ({}));
   if (!res.ok) {
-    throw new Error(typeof json.message === "string" ? json.message : `Request failed (${res.status})`);
+    const message =
+      (typeof json.message === "string" && json.message) ||
+      (typeof json.error === "string" && json.error) ||
+      `Request failed (${res.status})`;
+    throw new Error(message === "Server Error" ? "This exam already exists or the request failed. Choose it from the list, or wait and try again." : message);
   }
   return json;
 }
@@ -126,6 +130,11 @@ export function CourseBuilderWizard() {
 
   async function ensureExam() {
     if (examId) return examId;
+    const match = exams.find((exam) => exam.name.trim().toLowerCase() === examName.trim().toLowerCase());
+    if (match) {
+      setExamId(match.id);
+      return match.id;
+    }
     const json = await jsonFetch(`${API}/admin/learning/exams?${q}`, {
       method: "POST",
       body: JSON.stringify({
@@ -135,7 +144,10 @@ export function CourseBuilderWizard() {
     });
     const id = json.exam?.id as number;
     setExamId(id);
-    setExams((current) => [{ id, name: examName, status: "draft" }, ...current]);
+    setExams((current) => {
+      if (current.some((exam) => exam.id === id)) return current;
+      return [{ id, name: examName, status: "draft" }, ...current];
+    });
     return id;
   }
 
