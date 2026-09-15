@@ -264,6 +264,58 @@ class LmsAiGenerationTest extends TestCase
         $this->assertStringNotContainsString('You are an RCIC Academy authoring assistant', $lms);
     }
 
+    public function test_lms_content_job_can_skip_mcqs_then_questions_job_fills_bank(): void
+    {
+        [$admin, $exam] = $this->readyCitizenshipExam(true);
+        Sanctum::actingAs($admin);
+        $res = $this->postJson("/api/v1/admin/learning/exams/{$exam->id}/generate-course?product_domain=client_lms", [
+            'title' => 'Citizenship outline then content',
+            'generate_lessons' => true,
+            'generate_independent_mcqs' => false,
+            'generate_cases' => false,
+            'generate_case_mcqs' => false,
+            'include_mock' => false,
+            'independent_count' => 10,
+            'module_count' => 1,
+            'lesson_count' => 2,
+        ])->assertCreated();
+        $jobId = (int) $res->json('job_id');
+        $this->assertSame('blueprint', $res->json('status'));
+
+        $job = LmsAiGenerationJob::query()->findOrFail($jobId);
+        $this->assertNotEmpty($job->blueprint_json['modules'] ?? []);
+        $this->assertSame(0, LmsExamQuestion::query()->where('exam_id', $exam->id)->count());
+        $this->assertNull($job->course_id);
+
+        $this->postJson("/api/v1/admin/learning/lms-ai-jobs/{$jobId}/approve-blueprint")->assertOk();
+        $job->refresh();
+        $this->assertSame('draft_ready', $job->status);
+        $this->assertNotNull($job->course_id);
+        $this->assertSame(1, LmsCourse::query()->findOrFail($job->course_id)->modules()->count());
+        $this->assertSame(0, LmsExamQuestion::query()->where('exam_id', $exam->id)->count());
+        $this->assertSame(0, LmsExamTemplate::query()->where('generation_job_id', $job->id)->count());
+
+        $mcq = $this->postJson('/api/v1/admin/learning/lms-ai-jobs', [
+            'type' => 'questions',
+            'title' => 'Citizenship practice MCQs',
+            'exam_id' => $exam->id,
+            'course_id' => $job->course_id,
+            'evidence_pack_id' => $job->evidence_pack_id,
+            'generation_profile' => 'citizenship_exam_prep',
+            'generate_lessons' => false,
+            'generate_independent_mcqs' => true,
+            'include_mock' => false,
+            'independent_count' => 10,
+        ])->assertCreated();
+
+        $mcqJob = LmsAiGenerationJob::query()->findOrFail((int) $mcq->json('job.id'));
+        $this->assertSame('questions', $mcqJob->type);
+        $this->assertSame('draft_ready', $mcqJob->status);
+        $this->assertSame(10, LmsExamQuestion::query()->where('exam_id', $exam->id)->count());
+        $this->assertSame(10, LmsCourseQuestion::query()->where('course_id', $job->course_id)->count());
+        $this->assertSame(0, LmsExamTemplate::query()->where('generation_job_id', $mcqJob->id)->count());
+    }
+
     /**
      * @param  array<string, mixed>  $extra
      * @return array{0:User,1:LmsExam,2:LmsAiGenerationJob,3:\Illuminate\Testing\TestResponse}

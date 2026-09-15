@@ -12,6 +12,28 @@ class AdminLmsAiController extends Controller
 {
     public function __construct(private LmsAiJobService $jobs) {}
 
+    public function store(Request $request)
+    {
+        $data = $request->validate([
+            'type' => 'required|in:course,questions',
+            'title' => 'nullable|string',
+            'goal' => 'nullable|string',
+            'exam_id' => 'required|integer',
+            'course_id' => 'nullable|integer',
+            'evidence_pack_id' => 'nullable|integer',
+            'generation_profile' => 'required|string',
+            'content_language' => 'nullable|in:en,fr',
+            'independent_count' => 'nullable|integer|min:0|max:20',
+            'generate_lessons' => 'sometimes|boolean',
+            'generate_independent_mcqs' => 'sometimes|boolean',
+            'include_mock' => 'sometimes|boolean',
+        ]);
+
+        $job = $this->jobs->create($data, $request->user());
+
+        return response()->json(['job' => $job], 201);
+    }
+
     public function show(LmsAiGenerationJob $lmsAiJob)
     {
         $lmsAiJob->load(['steps', 'items.validation', 'snapshots', 'usageRecords']);

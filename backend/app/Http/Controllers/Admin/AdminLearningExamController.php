@@ -387,11 +387,11 @@ class AdminLearningExamController extends Controller
     {
         $domain = $this->domain($request);
         if ($domain === 'client_lms') {
-            $questions = \App\Models\Lms\LmsExamQuestion::query()->where('exam_id', $exam)->latest()->get();
+            $questions = \App\Models\Lms\LmsExamQuestion::query()->with('versions')->where('exam_id', $exam)->latest()->get();
 
             return response()->json(['data' => $questions]);
         }
-        $questions = AcademyQuestion::query()->where('exam_id', $exam)->latest()->get();
+        $questions = AcademyQuestion::query()->with('versions')->where('exam_id', $exam)->latest()->get();
 
         return response()->json(['data' => $questions]);
     }

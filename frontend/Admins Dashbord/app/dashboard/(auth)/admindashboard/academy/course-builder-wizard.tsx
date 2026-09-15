@@ -16,15 +16,16 @@ const API = (process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000") + "/api
 
 const STEPS = [
   { id: 1, title: "Name the course", hint: "Exam + course title" },
-  { id: 2, title: "Research", hint: "Official sources" },
-  { id: 3, title: "Write sections", hint: "Headings and paragraphs" },
-  { id: 4, title: "Practice MCQs", hint: "Questions under each section" },
+  { id: 2, title: "Course structure", hint: "Main topics and subtopics" },
+  { id: 3, title: "Write content", hint: "Fill each section" },
+  { id: 4, title: "Practice MCQs", hint: "Questions from the content" },
   { id: 5, title: "Mock exam", hint: "Add a mock to the course" },
 ] as const;
 
 type Exam = { id: number; name: string; status?: string };
 type Lesson = { id: number; title: string; body_html?: string | null; text_content?: string | null };
 type Module = { id: number; title: string; lessons?: Lesson[] };
+type OutlineModule = { title?: string; objective?: string; lesson_outlines?: Array<{ title?: string; objective?: string }> };
 type Question = { id: number; type?: string; status?: string; versions?: Array<{ question_text?: string }> };
 
 function headers() {
@@ -55,11 +56,11 @@ export function CourseBuilderWizard() {
   const [sourceUrl, setSourceUrl] = useState("https://college-ic.ca");
   const [duration, setDuration] = useState(240);
   const [totalQuestions, setTotalQuestions] = useState(10);
-  const [researchDone, setResearchDone] = useState(false);
-  const [researchNotes, setResearchNotes] = useState<string[]>([]);
+  const [outline, setOutline] = useState<OutlineModule[]>([]);
   const [jobId, setJobId] = useState<number | null>(null);
   const [jobStatus, setJobStatus] = useState<string>("");
   const [courseId, setCourseId] = useState<number | null>(null);
+  const [evidencePackId, setEvidencePackId] = useState<number | null>(null);
   const [modules, setModules] = useState<Module[]>([]);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [mockName, setMockName] = useState("");
@@ -92,10 +93,10 @@ export function CourseBuilderWizard() {
       setTotalQuestions(10);
     }
     setExamId(null);
-    setResearchDone(false);
-    setResearchNotes([]);
+    setOutline([]);
     setJobId(null);
     setCourseId(null);
+    setEvidencePackId(null);
     setModules([]);
     setQuestions([]);
     setMockCreated(null);
@@ -117,47 +118,28 @@ export function CourseBuilderWizard() {
     return id;
   }
 
-  async function startResearch() {
-    setBusy(true);
-    setError(null);
-    const notes: string[] = [];
-    try {
-      const id = await ensureExam();
-      notes.push("Exam saved.");
-      const source = await jsonFetch(`${API}/admin/learning/exams/${id}/sources?${q}`, {
+  async function prepareEvidence(id: number) {
+    const source = await jsonFetch(`${API}/admin/learning/exams/${id}/sources?${q}`, {
+      method: "POST",
+      body: JSON.stringify({
+        source_type: "official_exam_page",
+        url: sourceUrl,
+        title: "Official exam page",
+        verification_status: "verified",
+      }),
+    });
+    const itemId = source.item?.id;
+    if (itemId) {
+      await jsonFetch(`${API}/admin/learning/exams/${id}/sources/${itemId}/verify?${q}`, { method: "POST" });
+      await jsonFetch(`${API}/admin/learning/exams/${id}/official-structure?${q}`, {
         method: "POST",
         body: JSON.stringify({
-          source_type: "official_exam_page",
-          url: sourceUrl,
-          title: "Official exam page",
-          verification_status: "verified",
+          item_id: itemId,
+          exam_format_json: { duration_minutes: duration, total_questions: totalQuestions },
         }),
       });
-      const itemId = source.item?.id;
-      notes.push("Official source added.");
-      if (itemId) {
-        await jsonFetch(`${API}/admin/learning/exams/${id}/sources/${itemId}/verify?${q}`, { method: "POST" });
-        notes.push("Source marked verified.");
-        await jsonFetch(`${API}/admin/learning/exams/${id}/official-structure?${q}`, {
-          method: "POST",
-          body: JSON.stringify({
-            item_id: itemId,
-            exam_format_json: { duration_minutes: duration, total_questions: totalQuestions },
-          }),
-        });
-        notes.push("Exam structure saved from the official source.");
-      }
-      await jsonFetch(`${API}/admin/learning/exams/${id}/evidence-pack/approve?${q}`, { method: "POST" });
-      notes.push("Research pack approved. Next: write the course sections.");
-      setResearchNotes(notes);
-      setResearchDone(true);
-      setStep(3);
-    } catch (e) {
-      setResearchNotes(notes);
-      setError(e instanceof Error ? e.message : "Research failed");
-    } finally {
-      setBusy(false);
     }
+    await jsonFetch(`${API}/admin/learning/exams/${id}/evidence-pack/approve?${q}`, { method: "POST" });
   }
 
   async function loadCourse(id: number) {
@@ -177,7 +159,7 @@ export function CourseBuilderWizard() {
     setQuestions(json.data ?? []);
   }
 
-  async function pollJob(id: number) {
+  async function pollJob(id: number, stopAtBlueprint = false) {
     for (let i = 0; i < 80; i += 1) {
       const json = isLms
         ? await jsonFetch(`${API}/admin/learning/lms-ai-jobs/${id}`)
@@ -185,41 +167,40 @@ export function CourseBuilderWizard() {
       const job = json.job ?? json;
       setJobStatus(job.status ?? "");
       if (job.course_id) setCourseId(job.course_id);
-      if (job.status === "blueprint") {
-        if (isLms) {
-          await jsonFetch(`${API}/admin/learning/lms-ai-jobs/${id}/approve-blueprint`, { method: "POST" });
-        } else {
-          await jsonFetch(`${API}/admin/academy/ai/jobs/${id}/approve-blueprint`, { method: "POST" });
-        }
-        continue;
+      if (job.evidence_pack_id) setEvidencePackId(job.evidence_pack_id);
+      if (job.blueprint_json?.modules) setOutline(job.blueprint_json.modules);
+      if (stopAtBlueprint && job.status === "blueprint") {
+        return job;
       }
       if (["draft_ready", "partially_failed", "failed"].includes(job.status)) {
+        if (job.status === "failed") {
+          throw new Error(job.error || "Generation failed");
+        }
         if (job.course_id) await loadCourse(job.course_id);
-        if (examId) await loadQuestions(examId);
         return job;
       }
       await new Promise((resolve) => setTimeout(resolve, 3000));
     }
-    throw new Error("Generation is still running. Open Jobs later, or wait and refresh this step.");
+    throw new Error("Generation is still running. Wait a moment, then try this step again.");
   }
 
-  async function generateContent() {
-    if (!examId) return;
+  async function buildOutline(id: number) {
     setBusy(true);
     setError(null);
     try {
-      const json = await jsonFetch(`${API}/admin/learning/exams/${examId}/generate-course?${q}`, {
+      await prepareEvidence(id);
+      const json = await jsonFetch(`${API}/admin/learning/exams/${id}/generate-course?${q}`, {
         method: "POST",
         body: JSON.stringify({
           title: courseTitle,
           generate_lessons: true,
-          generate_independent_mcqs: true,
-          generate_cases: !isLms,
-          generate_case_mcqs: !isLms,
+          generate_independent_mcqs: false,
+          generate_cases: false,
+          generate_case_mcqs: false,
           include_mock: false,
           independent_count: totalQuestions,
-          case_based_count: isLms ? 0 : Math.min(10, totalQuestions),
-          case_count: isLms ? 0 : 2,
+          case_based_count: 0,
+          case_count: 0,
           module_count: 3,
           lesson_count: 6,
           mock_question_count: totalQuestions,
@@ -227,10 +208,80 @@ export function CourseBuilderWizard() {
       });
       setJobId(json.job_id);
       setJobStatus(json.status ?? "queued");
-      await pollJob(json.job_id);
-      setStep(4);
+      await pollJob(json.job_id, true);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Generation failed");
+      setError(e instanceof Error ? e.message : "Could not build the course structure");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function writeContent() {
+    if (!jobId) return;
+    setBusy(true);
+    setError(null);
+    try {
+      if (isLms) {
+        await jsonFetch(`${API}/admin/learning/lms-ai-jobs/${jobId}/approve-blueprint`, { method: "POST" });
+      } else {
+        await jsonFetch(`${API}/admin/academy/ai/jobs/${jobId}/approve-blueprint`, { method: "POST" });
+      }
+      await pollJob(jobId);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not write section content");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function generateMcqs() {
+    if (!examId) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const json = isLms
+        ? await jsonFetch(`${API}/admin/learning/lms-ai-jobs`, {
+            method: "POST",
+            body: JSON.stringify({
+              type: "questions",
+              title: `${courseTitle} practice MCQs`,
+              exam_id: examId,
+              course_id: courseId,
+              evidence_pack_id: evidencePackId,
+              generation_profile: "citizenship_exam_prep",
+              generate_lessons: false,
+              generate_independent_mcqs: true,
+              include_mock: false,
+              independent_count: totalQuestions,
+            }),
+          })
+        : await jsonFetch(`${API}/admin/academy/ai/jobs`, {
+            method: "POST",
+            body: JSON.stringify({
+              type: "questions",
+              title: `${courseTitle} practice MCQs`,
+              exam_id: examId,
+              course_id: courseId,
+              evidence_pack_id: evidencePackId,
+              generation_profile: "rcic_exam_prep",
+              urls: [sourceUrl],
+              generate_lessons: false,
+              generate_independent_mcqs: true,
+              generate_cases: false,
+              generate_case_mcqs: false,
+              independent_count: totalQuestions,
+              case_based_count: 0,
+              case_count: 0,
+            }),
+          });
+      const nextJobId = json.job?.id ?? json.job_id;
+      if (nextJobId) {
+        setJobId(nextJobId);
+        await pollJob(nextJobId);
+      }
+      await loadQuestions(examId);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not generate practice MCQs");
     } finally {
       setBusy(false);
     }
@@ -270,7 +321,7 @@ export function CourseBuilderWizard() {
           Build a course
         </h1>
         <p className="text-muted-foreground text-sm mt-1">
-          One path: name the exam course, research it, write sections, add practice questions, then attach a mock exam.
+          One path: name the course, approve the topic outline, write section content, generate practice MCQs, then attach a mock exam.
           Drafts only — AI cannot publish.
         </p>
       </div>
@@ -341,23 +392,37 @@ export function CourseBuilderWizard() {
               <Label>Course name</Label>
               <Input value={courseTitle} onChange={(e) => setCourseTitle(e.target.value)} />
             </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1">
+                <Label>Official source URL</Label>
+                <Input value={sourceUrl} onChange={(e) => setSourceUrl(e.target.value)} />
+              </div>
+              <div className="space-y-1">
+                <Label>Mock duration (minutes)</Label>
+                <Input type="number" min={1} value={duration} onChange={(e) => setDuration(Number(e.target.value))} />
+              </div>
+            </div>
+            <div className="space-y-1">
+              <Label>Practice / mock question count</Label>
+              <Input type="number" min={1} value={totalQuestions} onChange={(e) => setTotalQuestions(Number(e.target.value))} />
+            </div>
             <Button
               className="w-fit"
-              disabled={!courseTitle.trim() || (!examId && !examName.trim())}
+              disabled={busy || !courseTitle.trim() || (!examId && !examName.trim()) || !sourceUrl.trim()}
               onClick={async () => {
                 setBusy(true);
                 setError(null);
                 try {
-                  await ensureExam();
+                  const id = await ensureExam();
                   setStep(2);
+                  await buildOutline(id);
                 } catch (e) {
                   setError(e instanceof Error ? e.message : "Could not save exam");
-                } finally {
                   setBusy(false);
                 }
               }}
             >
-              {busy ? "Saving…" : "Continue to research"}
+              {busy ? "Saving…" : "Continue to course structure"}
               <ChevronRight className="h-4 w-4 ml-1" />
             </Button>
           </CardContent>
@@ -367,38 +432,38 @@ export function CourseBuilderWizard() {
       {step === 2 && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">2. Research this exam</CardTitle>
+            <CardTitle className="text-base">2. Course structure</CardTitle>
             <CardDescription>
-              The studio collects official pages for <strong>{courseTitle}</strong>, then you approve that research before writing lessons.
+              Main topics and subtopics for <strong>{courseTitle}</strong> are split into sections first. Content is not written until you approve this outline.
             </CardDescription>
           </CardHeader>
-          <CardContent className="grid gap-3">
-            <div className="space-y-1">
-              <Label>Official source URL</Label>
-              <Input value={sourceUrl} onChange={(e) => setSourceUrl(e.target.value)} />
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-1">
-                <Label>Mock duration (minutes)</Label>
-                <Input type="number" min={1} value={duration} onChange={(e) => setDuration(Number(e.target.value))} />
+          <CardContent className="space-y-4">
+            {busy && outline.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Building the outline… {jobStatus || "queued"}</p>
+            ) : null}
+            {outline.map((module, index) => (
+              <div key={`${module.title}-${index}`} className="rounded-lg border p-4 space-y-2">
+                <h2 className="text-lg font-semibold">Main topic: {module.title || `Topic ${index + 1}`}</h2>
+                {module.objective ? <p className="text-sm text-muted-foreground">{module.objective}</p> : null}
+                <ol className="list-decimal pl-5 space-y-1 text-sm">
+                  {(module.lesson_outlines ?? []).map((lesson, lessonIndex) => (
+                    <li key={`${lesson.title}-${lessonIndex}`}>
+                      <span className="font-medium">{lesson.title || `Section ${lessonIndex + 1}`}</span>
+                      {lesson.objective ? <span className="text-muted-foreground"> — {lesson.objective}</span> : null}
+                    </li>
+                  ))}
+                </ol>
               </div>
-              <div className="space-y-1">
-                <Label>Practice / mock question count</Label>
-                <Input type="number" min={1} value={totalQuestions} onChange={(e) => setTotalQuestions(Number(e.target.value))} />
-              </div>
-            </div>
-            <Button className="w-fit" disabled={busy || !sourceUrl.trim()} onClick={startResearch}>
-              {busy ? "Researching…" : "Start research"}
-            </Button>
-            {researchNotes.length > 0 ? (
-              <ul className="text-sm space-y-1">
-                {researchNotes.map((note) => (
-                  <li key={note} className="flex gap-2">
-                    <Check className="h-4 w-4 text-emerald-600 mt-0.5" />
-                    {note}
-                  </li>
-                ))}
-              </ul>
+            ))}
+            {outline.length > 0 ? (
+              <Button className="w-fit" disabled={busy} onClick={() => setStep(3)}>
+                Use this structure
+                <ChevronRight className="h-4 w-4 ml-1" />
+              </Button>
+            ) : !busy ? (
+              <Button className="w-fit" disabled={!examId} onClick={() => examId && buildOutline(examId)}>
+                Build outline
+              </Button>
             ) : null}
           </CardContent>
         </Card>
@@ -407,19 +472,17 @@ export function CourseBuilderWizard() {
       {step === 3 && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">3. Write course sections</CardTitle>
+            <CardTitle className="text-base">3. Write content into each section</CardTitle>
             <CardDescription>
-              Lessons are created as sections: heading, subheading, then paragraphs. This stays a draft.
+              The approved outline stays in place. This step writes headings, subheadings, and paragraphs into those sections. Draft only.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {!researchDone ? (
-              <p className="text-sm text-muted-foreground">Finish research first.</p>
-            ) : (
-              <Button disabled={busy} onClick={generateContent}>
-                {busy ? `Writing… ${jobStatus || "queued"}` : "Generate sections"}
+            {modules.length === 0 ? (
+              <Button disabled={busy || !jobId} onClick={writeContent}>
+                {busy ? `Writing… ${jobStatus || "queued"}` : "Write content for these sections"}
               </Button>
-            )}
+            ) : null}
             {modules.map((module) => (
               <div key={module.id} className="rounded-lg border p-4 space-y-3">
                 <h2 className="text-lg font-semibold">{module.title}</h2>
@@ -433,6 +496,12 @@ export function CourseBuilderWizard() {
                 ))}
               </div>
             ))}
+            {modules.length > 0 ? (
+              <Button variant="outline" className="w-fit" onClick={() => setStep(4)}>
+                Continue to practice MCQs
+                <ChevronRight className="h-4 w-4 ml-1" />
+              </Button>
+            ) : null}
           </CardContent>
         </Card>
       )}
@@ -441,13 +510,15 @@ export function CourseBuilderWizard() {
         <Card>
           <CardHeader>
             <CardTitle className="text-base">4. Practice MCQs</CardTitle>
-            <CardDescription>Practice questions for this exam. They stay attached to the course, not published automatically.</CardDescription>
+            <CardDescription>
+              Questions are generated from the written sections. They stay attached to the course as drafts.
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             {questions.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                {busy ? "Questions are still being written." : "No practice questions yet. Generate sections first, or wait for the job to finish."}
-              </p>
+              <Button disabled={busy || !examId || !courseId} onClick={generateMcqs}>
+                {busy ? `Generating MCQs… ${jobStatus || "queued"}` : "Generate practice MCQs"}
+              </Button>
             ) : (
               <ol className="space-y-2 list-decimal pl-5">
                 {questions.map((question) => (
@@ -460,10 +531,12 @@ export function CourseBuilderWizard() {
                 ))}
               </ol>
             )}
-            <Button variant="outline" className="w-fit" onClick={() => setStep(5)}>
-              Continue to mock exam
-              <ChevronRight className="h-4 w-4 ml-1" />
-            </Button>
+            {questions.length > 0 ? (
+              <Button variant="outline" className="w-fit" onClick={() => setStep(5)}>
+                Continue to mock exam
+                <ChevronRight className="h-4 w-4 ml-1" />
+              </Button>
+            ) : null}
           </CardContent>
         </Card>
       )}

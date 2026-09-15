@@ -124,6 +124,13 @@ class AcademyAiDraftImporter
                 'incorrect_explanation' => $o['incorrect_explanation'] ?? null,
             ])->all(),
         ], $actor);
+        $question->update([
+            'exam_id' => $job->exam_id,
+            'generation_job_id' => $job->id,
+            'generation_profile' => $job->generation_profile,
+            'practice_eligible' => true,
+            'mock_eligible' => true,
+        ]);
 
         $version = $question->versions()->first();
         $this->stamp($version, $job, $item->prompt_version);

@@ -42,6 +42,7 @@ class AcademyAiJobService
             'track_id' => $data['track_id'] ?? null,
             'exam_template_id' => $data['exam_template_id'] ?? null,
             'exam_id' => $data['exam_id'] ?? null,
+            'course_id' => $data['course_id'] ?? null,
             'evidence_pack_id' => $data['evidence_pack_id'] ?? null,
             'generation_profile' => $data['generation_profile'] ?? null,
             'title' => $data['title'] ?? 'Academy AI draft',

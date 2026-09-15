@@ -219,21 +219,37 @@ class LmsAiDraftImporter
 
     public function assertNonEmptyImport(LmsAiGenerationJob $job): void
     {
-        $course = $job->course_id ? LmsCourse::query()->with('modules.lessons')->find($job->course_id) : null;
-        if (! $course) {
-            throw new AcademyAiException('LMS importer did not create a course draft.');
-        }
-        $moduleCount = $course->modules->count();
-        $lessonCount = $course->modules->sum(fn (LmsModule $module) => $module->lessons->count());
-        $questionCount = LmsCourseQuestion::query()->where('course_id', $course->id)->count();
-        if ($moduleCount < 1 || $lessonCount < 1 || $questionCount < 1) {
-            throw new AcademyAiException('LMS importer refused an empty course shell. Modules, lessons, and a non-empty question bank are required.');
-        }
         $request = $job->request_json ?? [];
-        if (($request['include_mock'] ?? true) && ! LmsExamTemplate::query()->where('generation_job_id', $job->id)->exists()) {
+        $wantLessons = $job->type === 'course' && ($request['generate_lessons'] ?? true);
+        $wantMcqs = (bool) ($request['generate_independent_mcqs'] ?? true);
+        $wantMock = (bool) ($request['include_mock'] ?? true);
+        $course = $job->course_id ? LmsCourse::query()->with('modules.lessons')->find($job->course_id) : null;
+
+        if ($wantLessons) {
+            if (! $course) {
+                throw new AcademyAiException('LMS importer did not create a course draft.');
+            }
+            $moduleCount = $course->modules->count();
+            $lessonCount = $course->modules->sum(fn (LmsModule $module) => $module->lessons->count());
+            if ($moduleCount < 1 || $lessonCount < 1) {
+                throw new AcademyAiException('LMS importer refused an empty course shell. Modules and lessons are required.');
+            }
+            LmsAiGuard::assertDraftOnly((string) $course->review_status, (bool) $course->is_published);
+        }
+
+        if ($wantMcqs) {
+            $questionCount = LmsExamQuestion::query()->where('generation_job_id', $job->id)->count();
+            if ($questionCount < 1) {
+                throw new AcademyAiException('LMS importer refused an empty question bank.');
+            }
+            if ($course && LmsCourseQuestion::query()->where('course_id', $course->id)->count() < 1) {
+                throw new AcademyAiException('LMS importer refused an empty course question bank.');
+            }
+        }
+
+        if ($wantMock && ! LmsExamTemplate::query()->where('generation_job_id', $job->id)->exists()) {
             throw new AcademyAiException('LMS importer did not create the mock template.');
         }
-        LmsAiGuard::assertDraftOnly((string) $course->review_status, (bool) $course->is_published);
     }
 
     public function publishGenerated(): never

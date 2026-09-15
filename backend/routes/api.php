@@ -754,6 +754,7 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('exams/{exam}/sources/{item}/snapshot', [AdminLearningExamController::class, 'snapshot']);
             Route::post('exams/{exam}/evidence-pack/approve', [AdminLearningExamController::class, 'approvePack']);
             Route::post('exams/{exam}/generate-course', [AdminLearningExamController::class, 'generateCourse']);
+            Route::post('lms-ai-jobs', [AdminLmsAiController::class, 'store']);
             Route::get('lms-ai-jobs/{lmsAiJob}', [AdminLmsAiController::class, 'show']);
             Route::post('lms-ai-jobs/{lmsAiJob}/approve-blueprint', [AdminLmsAiController::class, 'approveBlueprint']);
             Route::post('lms-ai-jobs/{lmsAiJob}/retry', [AdminLmsAiController::class, 'retry']);

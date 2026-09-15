@@ -51,6 +51,7 @@ class LmsAiJobService
             'status' => 'queued',
             'requested_by' => $actor->id,
             'exam_id' => $data['exam_id'] ?? null,
+            'course_id' => $data['course_id'] ?? null,
             'evidence_pack_id' => $data['evidence_pack_id'] ?? null,
             'generation_profile' => $profile,
             'product_domain' => 'client_lms',
