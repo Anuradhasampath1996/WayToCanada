@@ -7,8 +7,12 @@
  *   php backend/scripts/export-lms-course-bundle.php 9
  *   php backend/scripts/export-lms-course-bundle.php --slug=rcic-entry-to-practice-exam
  */
-require __DIR__.'/../vendor/autoload.php';
-$app = require __DIR__.'/../bootstrap/app.php';
+$basePath = is_file('/var/www/vendor/autoload.php')
+    ? '/var/www'
+    : dirname(__DIR__);
+
+require $basePath.'/vendor/autoload.php';
+$app = require $basePath.'/bootstrap/app.php';
 $app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
 
 use App\Models\CourseFactory\CfCaseBank;

@@ -7,8 +7,12 @@
  *   php /var/www/scripts/import-lms-course-bundle.php /var/www/../deploy/course-bundles/rcic-entry-to-practice-exam.json
  *   php backend/scripts/import-lms-course-bundle.php deploy/course-bundles/<slug>.json
  */
-require __DIR__.'/../vendor/autoload.php';
-$app = require __DIR__.'/../bootstrap/app.php';
+$basePath = is_file('/var/www/vendor/autoload.php')
+    ? '/var/www'
+    : dirname(__DIR__);
+
+require $basePath.'/vendor/autoload.php';
+$app = require $basePath.'/bootstrap/app.php';
 $app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
 
 use App\Models\CourseFactory\CfCaseBank;
